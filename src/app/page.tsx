@@ -12,7 +12,10 @@ import {
   Globe,
   Shield,
   BarChart3,
+  Crown,
+  X,
 } from 'lucide-react';
+import { PRICING } from '@/hooks/useEntitlements';
 
 export default function HomePage() {
   return (
@@ -268,135 +271,147 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Simple, transparent pricing</h2>
-            <p className="text-lg text-slate-600">Choose the plan that fits your travel style</p>
+            <p className="text-lg text-slate-600">Start free. Buy a pass for one trip. Or subscribe and never think about it again.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Free Tier */}
-            <div className="card p-8 flex flex-col hover:shadow-lg transition-all duration-300">
-              <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">Free</h3>
-              <p className="text-slate-600 mb-6">Perfect for casual travelers</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 max-w-6xl mx-auto">
+
+            {/* Free */}
+            <div className="card p-7 flex flex-col hover:shadow-lg transition-all duration-300">
+              <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Free</p>
+              <p className="text-slate-500 text-sm leading-snug mb-5">Try triphive. See what the fuss is about.</p>
               <div className="mb-6">
                 <span className="text-4xl font-display font-bold text-slate-900">$0</span>
-                <span className="text-slate-600 ml-2">/ month</span>
+                <span className="text-slate-500 text-sm ml-1">/ month</span>
               </div>
-              <Link
-                href="/auth/signup"
-                className="btn-outline w-full text-center mb-8"
-              >
-                Get Started
+              <Link href="/auth/signup" className="w-full text-center py-3 border border-zinc-200 hover:border-zinc-400 text-zinc-700 font-semibold rounded-full text-sm transition-all mb-7">
+                Get started
               </Link>
               <ul className="space-y-3 flex-1">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">1 trip at a time</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Up to 5 travelers</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Basic AI itinerary</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Activity voting (via guest link)</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Community support</span>
+                {[
+                  '1 active trip',
+                  'Up to 4 travelers',
+                  'Manual itinerary builder',
+                  'Activity voting (view only)',
+                  'Community support',
+                ].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
+                    <CheckCircle className="w-4 h-4 text-zinc-300 flex-shrink-0 mt-0.5" />{f}
+                  </li>
+                ))}
+                <li className="flex items-start gap-2.5 text-sm text-slate-400">
+                  <X className="w-4 h-4 text-zinc-200 flex-shrink-0 mt-0.5" />No AI features
                 </li>
               </ul>
             </div>
 
-            {/* Explorer Tier (Most Popular) */}
-            <div className="card p-8 flex flex-col relative hover:shadow-xl transition-all duration-300 border-2 border-sky-600 md:scale-105">
-              <div className="badge-blue absolute -top-4 left-1/2 -translate-x-1/2">
+            {/* Trip Pass */}
+            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-7 flex flex-col">
+              <p className="text-amber-700 text-xs font-bold uppercase tracking-widest mb-1.5">Trip Pass</p>
+              <p className="text-amber-800 text-sm leading-snug mb-5">One trip, fully unlocked. No subscription needed.</p>
+              <div className="mb-1">
+                <span className="text-4xl font-display font-bold text-slate-900">${PRICING.trip_pass.base}</span>
+                <span className="text-slate-500 text-sm ml-1">/ trip</span>
+              </div>
+              <p className="text-xs text-amber-700 font-medium mb-6">+$4/person beyond 6 · up to 12</p>
+              <Link href="/auth/signup" className="w-full text-center py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
+                Buy a Pass
+              </Link>
+              <ul className="space-y-3 flex-1">
+                {[
+                  'Up to 6 travelers (+ add-ons)',
+                  '30 AI credits for this trip',
+                  'AI itinerary generation',
+                  'Transport confirmation parser',
+                  'Trip Story (shareable)',
+                  'Group chat & expense splitting',
+                  'Packing & prep checklists',
+                  'Email support',
+                ].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-amber-900">
+                    <CheckCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />{f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Explorer — Most Popular */}
+            <div className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-sky-500 to-green-500 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md">
                 Most Popular
               </div>
-              <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">Explorer</h3>
-              <p className="text-slate-600 mb-6">For adventurous groups</p>
-              <div className="mb-6">
-                <span className="text-4xl font-display font-bold text-slate-900">$7.99</span>
-                <span className="text-slate-600 ml-2">/ month</span>
+              <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mb-1.5 mt-2">Explorer</p>
+              <p className="text-sky-100/70 text-sm leading-snug mb-5">Your whole travel year, covered.</p>
+              <div className="mb-1">
+                <span className="text-4xl font-display font-bold text-white">${PRICING.explorer.monthly}</span>
+                <span className="text-sky-300 text-sm ml-1">/ month</span>
               </div>
-              <button className="btn-primary w-full mb-8">
-                Start Free Trial
-              </button>
+              <p className="text-xs text-sky-400 mb-6">Billed monthly · cancel anytime</p>
+              <Link href="/auth/signup" className="w-full text-center py-3 bg-white hover:bg-sky-50 text-sky-900 font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
+                Start free trial
+              </Link>
               <ul className="space-y-3 flex-1">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">5 trips at a time</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Up to 10 travelers</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Advanced AI itinerary</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Expense splitting & group chat</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Photo gallery & shared albums</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Local insider mode</span>
-                </li>
+                {[
+                  'Plan trips all year long',
+                  'Up to 8 travelers per trip',
+                  '100 AI credits / month',
+                  'AI itinerary generation',
+                  'Transport confirmation parser',
+                  'Trip Story for every trip',
+                  'Wishlist & destination discovery',
+                  'Flight price alerts (up to 3)',
+                  'Email support',
+                ].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-sky-100">
+                    <CheckCircle className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />{f}
+                  </li>
+                ))}
               </ul>
             </div>
 
-            {/* Nomad Tier (Best Value) */}
-            <div className="card p-8 flex flex-col hover:shadow-lg transition-all duration-300 relative">
-              <div className="badge-green absolute -top-4 left-1/2 -translate-x-1/2">
-                Best Value
+            {/* Nomad */}
+            <div className="card p-7 flex flex-col relative hover:shadow-lg transition-all duration-300">
+              <div className="absolute top-6 right-6">
+                <Crown className="w-5 h-5 text-amber-400" />
               </div>
-              <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">Nomad</h3>
-              <p className="text-slate-600 mb-6">For serious travelers</p>
-              <div className="mb-6">
-                <span className="text-4xl font-display font-bold text-slate-900">$14.99</span>
-                <span className="text-slate-600 ml-2">/ month</span>
+              <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Nomad</p>
+              <p className="text-slate-500 text-sm leading-snug mb-5">For the organizer everyone counts on.</p>
+              <div className="mb-1">
+                <span className="text-4xl font-display font-bold text-slate-900">${PRICING.nomad.monthly}</span>
+                <span className="text-slate-500 text-sm ml-1">/ month</span>
               </div>
-              <button className="btn-secondary w-full mb-8">
-                Start Free Trial
-              </button>
+              <p className="text-xs text-slate-400 mb-6">Billed monthly · cancel anytime</p>
+              <Link href="/auth/signup" className="w-full text-center py-3 bg-zinc-900 hover:bg-zinc-700 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
+                Start free trial
+              </Link>
               <ul className="space-y-3 flex-1">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Unlimited trips</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Unlimited travelers</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Premium AI (faster)</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Flight price alerts</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Offline maps</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Trip narrative generation</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Travel agent marketplace</span>
-                </li>
+                {[
+                  { text: 'Everything in Explorer', highlight: false },
+                  { text: 'Up to 15 travelers per trip', highlight: false },
+                  { text: '350 AI credits / month', highlight: true },
+                  { text: 'Split-track itineraries', highlight: true },
+                  { text: 'Co-organizer role', highlight: true },
+                  { text: 'Year in Review', highlight: true },
+                  { text: 'Unlimited flight alerts', highlight: false },
+                  { text: 'Early access to new features', highlight: true },
+                  { text: 'Priority support', highlight: false },
+                ].map(f => (
+                  <li key={f.text} className="flex items-start gap-2.5 text-sm">
+                    <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${f.highlight ? 'text-amber-400' : 'text-zinc-300'}`} />
+                    <span className={f.highlight ? 'text-slate-900 font-semibold' : 'text-slate-600'}>{f.text}</span>
+                  </li>
+                ))}
               </ul>
             </div>
+          </div>
+
+          <p className="text-center text-xs text-slate-400 mt-6">
+            Trip Pass add-ons: +$4/person beyond 6 travelers · max 12 per trip · pass valid for trip duration + 30 days
+          </p>
+          <div className="text-center mt-6">
+            <Link href="/pricing" className="text-sm text-sky-700 hover:text-sky-900 font-semibold underline underline-offset-2">
+              See full plan comparison →
+            </Link>
           </div>
         </div>
       </section>

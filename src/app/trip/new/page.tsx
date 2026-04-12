@@ -1379,7 +1379,7 @@ function TripBuilderPage() {
                   {/* Total Budget */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-3">
-                      Total Budget (USD)
+                      Total Group Budget (USD)
                     </label>
                     <div className="flex items-center space-x-2">
                       <DollarSign className="w-5 h-5 text-slate-600" />
@@ -1450,7 +1450,7 @@ function TripBuilderPage() {
 
                   {/* Total */}
                   <div className="p-4 bg-zinc-900 rounded-xl flex items-center justify-between">
-                    <span className="font-semibold text-white">Total Budget</span>
+                    <span className="font-semibold text-white">Total Group Budget</span>
                     <span className="text-xl font-display font-bold text-sky-600">${totalBreakdown.toLocaleString()}</span>
                   </div>
                 </div>

@@ -245,7 +245,7 @@ function ActivityCardDayOf({ activity, status }: { activity: Activity; status: '
             )}
           </div>
           {(activity.costEstimate !== undefined && activity.costEstimate > 0) && (
-            <span className="text-xs font-medium text-slate-500 flex-shrink-0">${activity.costEstimate}</span>
+            <span className="text-xs font-medium text-slate-500 flex-shrink-0">${activity.costEstimate}/person</span>
           )}
         </div>
         {(status === 'now' || status === 'soon') && (

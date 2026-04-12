@@ -806,11 +806,11 @@ export default function ItineraryPage() {
 
             {/* Budget Card */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">Budget</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">Group Budget</p>
               <div className="mb-5 p-3.5 bg-sky-50 rounded-xl border border-sky-100">
                 <p className="text-2xl font-display font-bold text-sky-700">${totalSpent.toLocaleString()}</p>
                 <p className="text-xs text-zinc-500 mt-1">
-                  of ${totalBudget.toLocaleString()} ·{' '}
+                  of ${totalBudget.toLocaleString()} total ·{' '}
                   <span className={remainingBudget >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                     ${Math.abs(remainingBudget).toLocaleString()} {remainingBudget >= 0 ? 'left' : 'over'}
                   </span>

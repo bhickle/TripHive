@@ -139,7 +139,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                 <div className="flex items-center gap-1.5">
                   <DollarSign className="w-4 h-4 text-sky-700" />
                   <span className="text-sm font-semibold text-sky-700">
-                    ${activity.costEstimate}
+                    ${activity.costEstimate} <span className="text-xs font-normal text-slate-400">/ person</span>
                   </span>
                 </div>
               )}
@@ -241,8 +241,8 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                       </p>
                     </div>
                     {alt.costEstimate > 0 && (
-                      <span className="text-xs font-semibold text-sky-700">
-                        ${alt.costEstimate}
+                      <span className="text-xs font-semibold text-sky-700 whitespace-nowrap">
+                        ${alt.costEstimate}<span className="font-normal text-slate-400"> / person</span>
                       </span>
                     )}
                   </div>
