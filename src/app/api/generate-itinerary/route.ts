@@ -146,6 +146,34 @@ RULES:
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
 }
 
+// Recover a valid JSON array from a truncated response by finding the last
+// complete day object (depth-0 closing brace) and closing the array there.
+function recoverTruncatedArray(raw: string): string {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let lastCompleteObjEnd = -1;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{' || ch === '[') depth++;
+    if (ch === '}' || ch === ']') {
+      depth--;
+      // depth === 1 means we just closed a top-level day object inside the array
+      if (depth === 1 && ch === '}') lastCompleteObjEnd = i;
+    }
+  }
+
+  if (lastCompleteObjEnd > 0) {
+    return raw.slice(0, lastCompleteObjEnd + 1) + ']';
+  }
+  return raw;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -176,7 +204,7 @@ export async function POST(request: NextRequest) {
 
     const message = await client.messages.create({
       model: 'claude-opus-4-5',
-      max_tokens: 8192,
+      max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: prompt },
@@ -199,7 +227,7 @@ export async function POST(request: NextRequest) {
       throw new Error('Response did not contain a JSON array');
     }
 
-    let cleaned = rawText.slice(arrayStart, arrayEnd + 1);
+    let cleaned = rawText.slice(arrayStart, arrayEnd === -1 ? rawText.length : arrayEnd + 1);
 
     // Fix common Claude JSON quirks:
     // 1. Smart/curly quotes → straight quotes
@@ -213,16 +241,17 @@ export async function POST(request: NextRequest) {
     let itinerary;
     try {
       itinerary = JSON.parse(cleaned);
-    } catch (parseErr) {
-      const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-      // Log the area around the parse error for debugging
-      const posMatch = errMsg.match(/position (\d+)/);
-      if (posMatch) {
-        const pos = parseInt(posMatch[1]);
-        console.error('[generate-itinerary] Error near position', pos, ':',
-          JSON.stringify(cleaned.slice(Math.max(0, pos - 60), pos + 60)));
+    } catch {
+      // Response was likely truncated — recover by finding the last complete day object
+      console.warn('[generate-itinerary] Initial parse failed, attempting truncation recovery...');
+      const recovered = recoverTruncatedArray(cleaned);
+      try {
+        itinerary = JSON.parse(recovered);
+        console.log('[generate-itinerary] Recovered', itinerary.length, 'days from truncated response');
+      } catch (parseErr) {
+        const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        throw new Error(`JSON parse failed: ${errMsg}`);
       }
-      throw new Error(`JSON parse failed: ${errMsg}`);
     }
 
     if (!Array.isArray(itinerary)) {
