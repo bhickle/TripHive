@@ -175,11 +175,8 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {/* Step 1 */}
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-6">
-                <span className="text-2xl font-display font-bold text-sky-700">1</span>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mx-auto mb-6">
-                <Globe className="w-6 h-6 text-sky-700" />
+              <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
+                <Globe className="w-7 h-7 text-sky-700" />
               </div>
               <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
                 Create Your Trip
@@ -191,11 +188,8 @@ export default function HomePage() {
 
             {/* Step 2 */}
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-6">
-                <span className="text-2xl font-display font-bold text-stone-700">2</span>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-stone-100 flex items-center justify-center mx-auto mb-6">
-                <Zap className="w-6 h-6 text-stone-700" />
+              <div className="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-6">
+                <Zap className="w-7 h-7 text-stone-700" />
               </div>
               <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
                 Get AI Itineraries
@@ -207,11 +201,8 @@ export default function HomePage() {
 
             {/* Step 3 */}
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-6">
-                <span className="text-2xl font-display font-bold text-sky-700">3</span>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mx-auto mb-6">
-                <Star className="w-6 h-6 text-sky-700" />
+              <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
+                <Star className="w-7 h-7 text-sky-700" />
               </div>
               <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
                 Plan & Enjoy
@@ -224,47 +215,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Social Proof Section */}
-      <section className="py-20 sm:py-28 bg-gradient-subtle border-y border-slate-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="section-title mb-4">Trusted by travelers worldwide</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
-            {/* Stat 1 */}
-            <div className="card p-8 text-center hover:shadow-md transition-shadow">
-              <div className="text-4xl sm:text-5xl font-display font-bold text-sky-700 mb-2">
-                50K+
-              </div>
-              <p className="text-slate-600 font-medium">Trips Planned</p>
-              <p className="text-slate-500 text-sm mt-2">and counting every day</p>
-            </div>
-
-            {/* Stat 2 */}
-            <div className="card p-8 text-center hover:shadow-md transition-shadow">
-              <div className="text-4xl sm:text-5xl font-display font-bold text-stone-700 mb-2">
-                200K+
-              </div>
-              <p className="text-slate-600 font-medium">Happy Travelers</p>
-              <p className="text-slate-500 text-sm mt-2">loving group travel</p>
-            </div>
-
-            {/* Stat 3 */}
-            <div className="card p-8 text-center hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-center gap-1 mb-3">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-5 h-5 fill-sky-600 text-sky-600" />
-                ))}
-              </div>
-              <div className="text-3xl sm:text-4xl font-display font-bold text-slate-900 mb-2">
-                4.9
-              </div>
-              <p className="text-slate-600 font-medium">App Rating</p>
-              <p className="text-slate-500 text-sm mt-2">from 8,000+ reviews</p>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Pricing Section */}
       <section className="py-20 sm:py-28 bg-white">
