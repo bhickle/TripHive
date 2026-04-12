@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
@@ -180,7 +180,7 @@ function calcBudgetFromDestination(destination: string, tripLength: number, grou
   };
 }
 
-export default function TripBuilderPage() {
+function TripBuilderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isFirstTrip = searchParams.get('firsttrip') === 'true';
@@ -1646,5 +1646,13 @@ export default function TripBuilderPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function TripBuilderPageWrapper() {
+  return (
+    <Suspense>
+      <TripBuilderPage />
+    </Suspense>
   );
 }
