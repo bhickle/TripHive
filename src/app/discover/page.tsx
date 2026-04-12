@@ -44,12 +44,12 @@ function DestinationCard({
 
   return (
     <div
-      className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col border border-zinc-100"
+      className="group bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col border border-zinc-100"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {/* Image */}
-      <div className="relative h-52 overflow-hidden flex-shrink-0">
+      <div className="relative h-40 sm:h-52 overflow-hidden flex-shrink-0">
         <Image
           src={dest.image}
           alt={dest.name}
@@ -167,7 +167,7 @@ function FeaturedCard({ dest, onWishlist, wishlisted }: {
   wishlisted: boolean;
 }) {
   return (
-    <div className="relative rounded-3xl overflow-hidden h-80 group flex-shrink-0 w-full">
+    <div className="relative rounded-2xl md:rounded-3xl overflow-hidden h-60 md:h-80 group flex-shrink-0 w-full">
       <Image
         src={dest.image}
         alt={dest.name}
@@ -371,7 +371,7 @@ export default function DiscoverPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {trending.map(dest => (
-                  <div key={dest.id} className="relative rounded-2xl overflow-hidden h-44 group cursor-pointer flex-shrink-0">
+                  <div key={dest.id} className="relative rounded-2xl overflow-hidden h-36 md:h-44 group cursor-pointer flex-shrink-0">
                     <Image
                       src={dest.image}
                       alt={dest.name}

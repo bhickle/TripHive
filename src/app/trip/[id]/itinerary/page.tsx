@@ -445,7 +445,7 @@ export default function ItineraryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6">
+    <div className="min-h-screen bg-stone-50 p-3 md:p-6">
       <div className="max-w-6xl mx-auto">
 
         {/* AI Generated Banner */}
@@ -500,10 +500,10 @@ export default function ItineraryPage() {
               })()}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+          <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
             <button
               onClick={() => setShowMapView(!showMapView)}
-              className={`flex items-center gap-2 px-4 py-2 border text-sm font-semibold rounded-full shadow-sm transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
                 showMapView
                   ? 'bg-sky-700 border-sky-700 text-white'
                   : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700'
@@ -514,18 +514,18 @@ export default function ItineraryPage() {
             </button>
             <button
               onClick={() => hasTransportParser ? setShowParseModal(true) : setUpgradePromptKey('feature_locked')}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-sm font-semibold rounded-full shadow-sm transition-all"
+              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
             >
               <Sparkles className="w-4 h-4 text-sky-600" />
-              Add Transport
+              <span className="hidden sm:inline">Add </span>Transport
               {!hasTransportParser && <LockBadge />}
             </button>
             <button
               onClick={() => hasTripStory ? setShowStoryModal(true) : setUpgradePromptKey('feature_locked')}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sky-800 to-green-700 hover:from-sky-900 hover:to-green-800 text-white text-sm font-semibold rounded-full shadow-sm transition-all"
+              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-gradient-to-r from-sky-800 to-green-700 hover:from-sky-900 hover:to-green-800 text-white text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
             >
               <Sparkles className="w-4 h-4" />
-              Trip Story
+              <span className="hidden sm:inline">Trip </span>Story
               {!hasTripStory && <LockBadge className="bg-white/20 text-white border-white/20" />}
             </button>
           </div>
@@ -572,9 +572,9 @@ export default function ItineraryPage() {
         )}
 
         {/* Main Content */}
-        <div className="flex gap-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Timeline */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {timelineItems.length === 0 ? (
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-12 text-center">
                 <div className="w-14 h-14 rounded-full bg-zinc-100 flex items-center justify-center mx-auto mb-4">
@@ -791,7 +791,7 @@ export default function ItineraryPage() {
           </div>
 
           {/* Sidebar */}
-          <aside className="w-72 flex flex-col gap-5">
+          <aside className="w-full lg:w-72 flex flex-col gap-5">
             {/* Weather Card */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">Weather Today</p>

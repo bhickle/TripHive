@@ -230,7 +230,7 @@ export default function DashboardPage() {
           {showNotifications && (
             <div className="fixed inset-0 z-50" onClick={() => setShowNotifications(false)}>
               <div
-                className="absolute top-20 right-8 w-[420px] max-h-[560px] bg-white rounded-2xl shadow-2xl border border-zinc-100 overflow-hidden flex flex-col"
+                className="absolute top-20 right-2 md:right-8 w-[calc(100vw-16px)] md:w-[420px] max-h-[560px] bg-white rounded-2xl shadow-2xl border border-zinc-100 overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Panel Header */}
@@ -307,34 +307,34 @@ export default function DashboardPage() {
           {nextTrip && (
             <div className="mb-12 relative rounded-3xl overflow-hidden shadow-sm group">
               <div
-                className="h-72 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+                className="h-48 md:h-72 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                 style={{ backgroundImage: `url(${heroPhoto})` }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/30 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-8">
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-sky-300 text-xs font-semibold uppercase tracking-widest mb-2">
+              <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8">
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sky-300 text-xs font-semibold uppercase tracking-widest mb-1 md:mb-2">
                       {nextTrip.destination.split(',')[0]?.trim().toUpperCase()}
                     </p>
-                    <h2 className="text-4xl font-display font-bold text-white mb-3">
+                    <h2 className="text-2xl md:text-4xl font-display font-bold text-white mb-1 md:mb-3 truncate">
                       {nextTrip.title}
                     </h2>
-                    <p className="text-white/80 text-sm flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
+                    <p className="text-white/80 text-xs md:text-sm flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
                       {new Date(nextTrip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(nextTrip.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-3">
-                    <div className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full text-zinc-900 text-xs font-semibold flex items-center gap-1.5">
+                  <div className="flex flex-col items-end gap-2 md:gap-3 flex-shrink-0">
+                    <div className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full text-zinc-900 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
                       {calculateDaysUntil(nextTrip.startDate)} days away
                     </div>
                     <Link
                       href={`/trip/${nextTrip.id}/itinerary`}
-                      className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-full transition-all shadow-sm"
+                      className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-xs md:text-sm rounded-full transition-all shadow-sm whitespace-nowrap"
                     >
                       See The Plan
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>
                 </div>
@@ -343,38 +343,38 @@ export default function DashboardPage() {
           )}
 
           {/* Stats Bar - Clean horizontal row */}
-          <div className="grid grid-cols-3 gap-6 mb-12">
+          <div className="grid grid-cols-3 gap-3 md:gap-6 mb-12">
             {/* Trips Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-center mb-3">
-                <TrendingUp className="w-8 h-8 text-sky-700" />
+            <div className="bg-white rounded-2xl border border-zinc-100 p-4 md:p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-center mb-2 md:mb-3">
+                <TrendingUp className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
-              <p className="text-4xl font-display font-bold text-zinc-900">
+              <p className="text-2xl md:text-4xl font-display font-bold text-zinc-900">
                 {totalTrips}
               </p>
-              <p className="text-sm text-zinc-500 mt-1">Adventures Planned</p>
+              <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Adventures Planned</p>
             </div>
 
             {/* Countries Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-center mb-3">
-                <Globe className="w-8 h-8 text-sky-700" />
+            <div className="bg-white rounded-2xl border border-zinc-100 p-4 md:p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-center mb-2 md:mb-3">
+                <Globe className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
-              <p className="text-4xl font-display font-bold text-zinc-900">
+              <p className="text-2xl md:text-4xl font-display font-bold text-zinc-900">
                 {countriesVisited}
               </p>
-              <p className="text-sm text-zinc-500 mt-1">Countries Visited</p>
+              <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Countries Visited</p>
             </div>
 
             {/* Days Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-center mb-3">
-                <Calendar className="w-8 h-8 text-sky-700" />
+            <div className="bg-white rounded-2xl border border-zinc-100 p-4 md:p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-center mb-2 md:mb-3">
+                <Calendar className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
-              <p className="text-4xl font-display font-bold text-zinc-900">
+              <p className="text-2xl md:text-4xl font-display font-bold text-zinc-900">
                 {totalDays}
               </p>
-              <p className="text-sm text-zinc-500 mt-1">Days Out There</p>
+              <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Days Out There</p>
             </div>
           </div>
 
@@ -388,24 +388,24 @@ export default function DashboardPage() {
             <div className="absolute inset-0 opacity-10"
               style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }}
             />
-            <div className="relative px-8 py-6 flex items-center justify-between">
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center flex-shrink-0 group-hover:bg-white/20 transition-colors">
-                  <span className="text-2xl">✦</span>
+            <div className="relative px-4 md:px-8 py-5 md:py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4 md:gap-5">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center flex-shrink-0 group-hover:bg-white/20 transition-colors">
+                  <span className="text-xl md:text-2xl">✦</span>
                 </div>
                 <div>
                   <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">
                     Your {new Date().getFullYear()} Wrapped
                   </p>
-                  <h3 className="text-xl font-display font-bold text-white">
+                  <h3 className="text-lg md:text-xl font-display font-bold text-white">
                     Year in Review
                   </h3>
-                  <p className="text-white/70 text-sm mt-0.5">
+                  <p className="text-white/70 text-xs md:text-sm mt-0.5">
                     {trips.length} trips · {trips.reduce((s, t) => s + Math.ceil((new Date(t.endDate).getTime() - new Date(t.startDate).getTime()) / 86400000), 0)} days · your travel personality revealed
                   </p>
                 </div>
               </div>
-              <button className="flex items-center gap-2 px-5 py-2.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold text-sm rounded-full transition-all border border-white/20 group-hover:border-white/40 flex-shrink-0">
+              <button className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold text-sm rounded-full transition-all border border-white/20 group-hover:border-white/40 flex-shrink-0 self-start sm:self-auto">
                 <Sparkles className="w-4 h-4" />
                 {hasYearInReview ? 'See Your Year' : 'Nomad Only'}
               </button>
