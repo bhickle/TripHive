@@ -1,0 +1,745 @@
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import { Search, MapPin, Star, Clock, Plus, AlertCircle, Check, ExternalLink } from 'lucide-react';
+
+interface DiscoverItem {
+  id: string;
+  name: string;
+  category: 'experiences' | 'dining' | 'events' | 'nature' | 'sights' | 'sports';
+  rating: number;
+  priceRange: string;
+  description: string;
+  duration: string;
+  difficulty: string;
+  location: string;
+  affiliatePartner: 'Viator' | 'Ticketmaster' | 'OpenTable' | 'Recreation.gov' | 'Booking.com';
+  affiliateCommission: number;
+  /** Partner-specific product/listing ID (e.g. Viator productCode, OpenTable rid).
+   *  Populated by the affiliate enrichment script — empty until that runs. */
+  affiliateProductId?: string;
+  /** Pre-built deep link to the exact listing with affiliate tracking baked in.
+   *  When present, getAffiliateUrl() uses this directly instead of building a generic URL. */
+  affiliateDeepUrl?: string;
+  bookable: boolean;
+  imageGradient: string;
+  imageUrl?: string;
+  matchScore: number;
+}
+
+const discoverItems: DiscoverItem[] = [
+  {
+    id: 'exp_1',
+    name: 'Northern Lights Photography Tour',
+    category: 'experiences',
+    rating: 4.8,
+    priceRange: '$95–$150',
+    description: 'Expert-led tour to optimal dark sky viewing locations with professional photography guidance.',
+    duration: '4 hours',
+    difficulty: 'Easy',
+    location: 'Outside Reykjavik',
+    affiliatePartner: 'Viator',
+    affiliateCommission: 8,
+    bookable: true,
+    imageGradient: 'from-purple-400 to-indigo-600',
+    imageUrl: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 98,
+  },
+  {
+    id: 'exp_2',
+    name: 'Golden Circle Day Trip',
+    category: 'experiences',
+    rating: 4.7,
+    priceRange: '$65–$120',
+    description: 'Full-day guided tour covering Þingvellir, Geysir, and Gullfoss with lunch included.',
+    duration: '8 hours',
+    difficulty: 'Moderate',
+    location: 'South Iceland',
+    affiliatePartner: 'Viator',
+    affiliateCommission: 8,
+    bookable: true,
+    imageGradient: 'from-amber-300 to-orange-500',
+    imageUrl: 'https://images.unsplash.com/photo-1476610182048-b716b8518aae?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 95,
+  },
+  {
+    id: 'exp_3',
+    name: 'Whale Watching Expedition',
+    category: 'experiences',
+    rating: 4.6,
+    priceRange: '$85–$110',
+    description: 'Sail from the Old Harbour seeking minke whales, dolphins, and puffins in natural habitat.',
+    duration: '3 hours',
+    difficulty: 'Easy',
+    location: 'Reykjavik Harbor',
+    affiliatePartner: 'Viator',
+    affiliateCommission: 8,
+    bookable: true,
+    imageGradient: 'from-cyan-400 to-blue-600',
+    imageUrl: 'https://images.unsplash.com/photo-1568430462989-44163eb1752f?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 92,
+  },
+  {
+    id: 'exp_4',
+    name: 'Glacier Hiking on Sólheimajökull',
+    category: 'experiences',
+    rating: 4.9,
+    priceRange: '$95–$140',
+    description: 'Guided glacier hike with crampons, ice axes, and safety gear provided. Moderate physical demand.',
+    duration: '3.5 hours',
+    difficulty: 'Challenging',
+    location: 'South Iceland',
+    affiliatePartner: 'Viator',
+    affiliateCommission: 8,
+    bookable: true,
+    imageGradient: 'from-blue-200 to-cyan-500',
+    imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 94,
+  },
+  {
+    id: 'exp_5',
+    name: 'Blue Lagoon Premium Spa',
+    category: 'experiences',
+    rating: 4.5,
+    priceRange: '$80–$150',
+    description: 'Iconic geothermal spa with mineral-rich waters, premium amenities, and one signature drink included.',
+    duration: '3 hours',
+    difficulty: 'Easy',
+    location: 'Grindavík',
+    affiliatePartner: 'Booking.com',
+    affiliateCommission: 5,
+    bookable: true,
+    imageGradient: 'from-teal-300 to-cyan-600',
+    imageUrl: 'https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 88,
+  },
+  {
+    id: 'din_1',
+    name: 'Grillið',
+    category: 'dining',
+    rating: 4.7,
+    priceRange: '$$$ ($80+)',
+    description: 'Upscale Icelandic cuisine with panoramic city views. Specialties: Arctic char, lamb, local seafood.',
+    duration: '2 hours',
+    difficulty: 'Easy',
+    location: 'Hagatorg, Reykjavik',
+    affiliatePartner: 'OpenTable',
+    affiliateCommission: 3,
+    bookable: true,
+    imageGradient: 'from-red-400 to-rose-600',
+    imageUrl: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 86,
+  },
+  {
+    id: 'din_2',
+    name: 'Bæjarins Beztu',
+    category: 'dining',
+    rating: 4.6,
+    priceRange: '$ ($8–$15)',
+    description: 'Legendary Icelandic hot dog stand since 1937. Must-try local experience with fresh toppings.',
+    duration: '30 mins',
+    difficulty: 'Easy',
+    location: 'Old Harbor, Reykjavik',
+    affiliatePartner: 'OpenTable',
+    affiliateCommission: 2,
+    bookable: false,
+    imageGradient: 'from-yellow-400 to-orange-500',
+    imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 90,
+  },
+  {
+    id: 'din_3',
+    name: 'Dill Restaurant',
+    category: 'dining',
+    rating: 4.8,
+    priceRange: '$$$ ($120+)',
+    description: 'Michelin-starred dining featuring modern Icelandic cuisine. Tasting menu available.',
+    duration: '3 hours',
+    difficulty: 'Easy',
+    location: 'City Center, Reykjavik',
+    affiliatePartner: 'OpenTable',
+    affiliateCommission: 4,
+    bookable: true,
+    imageGradient: 'from-slate-400 to-gray-700',
+    imageUrl: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 84,
+  },
+  {
+    id: 'din_4',
+    name: 'Fish Market',
+    category: 'dining',
+    rating: 4.6,
+    priceRange: '$$ ($40–$80)',
+    description: 'Seafood-focused restaurant with fresh catches daily. Multiple sharing boards available.',
+    duration: '1.5 hours',
+    difficulty: 'Easy',
+    location: 'Aðalstræti, Reykjavik',
+    affiliatePartner: 'OpenTable',
+    affiliateCommission: 3,
+    bookable: true,
+    imageGradient: 'from-blue-400 to-indigo-600',
+    imageUrl: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 85,
+  },
+  {
+    id: 'evt_1',
+    name: 'Sigur Rós at Harpa Concert Hall',
+    category: 'events',
+    rating: 4.9,
+    priceRange: '$45–$95',
+    description: 'Live performance by Iceland\'s iconic post-rock band at the stunning Harpa venue.',
+    duration: '2 hours',
+    difficulty: 'Easy',
+    location: 'Harpa, Reykjavik',
+    affiliatePartner: 'Ticketmaster',
+    affiliateCommission: 6,
+    bookable: true,
+    imageGradient: 'from-purple-500 to-pink-500',
+    imageUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 97,
+  },
+  {
+    id: 'nat_1',
+    name: 'Þingvellir National Park',
+    category: 'nature',
+    rating: 4.8,
+    priceRange: 'Free',
+    description: 'UNESCO World Heritage site. Walk between continental tectonic plates with stunning rift valley views.',
+    duration: '2–3 hours',
+    difficulty: 'Easy',
+    location: 'East of Reykjavik',
+    affiliatePartner: 'Recreation.gov',
+    affiliateCommission: 0,
+    bookable: false,
+    imageGradient: 'from-green-400 to-emerald-600',
+    imageUrl: 'https://images.unsplash.com/photo-1499244571948-7ccddb3583f1?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 93,
+  },
+  {
+    id: 'nat_2',
+    name: 'Skógafoss Waterfall Hike',
+    category: 'nature',
+    rating: 4.7,
+    priceRange: 'Free',
+    description: 'Iconic 60-meter waterfall with a 500-step climb rewarding panoramic views and rainbows.',
+    duration: '1.5 hours',
+    difficulty: 'Moderate',
+    location: 'South Coast',
+    affiliatePartner: 'Recreation.gov',
+    affiliateCommission: 0,
+    bookable: false,
+    imageGradient: 'from-blue-300 to-cyan-500',
+    imageUrl: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 91,
+  },
+  {
+    id: 'nat_3',
+    name: 'Landmannalaugar Hot Springs',
+    category: 'nature',
+    rating: 4.6,
+    priceRange: 'Free',
+    description: 'Stunning high-altitude geothermal hot springs surrounded by multicolored rhyolite mountains.',
+    duration: '4–5 hours',
+    difficulty: 'Challenging',
+    location: 'Central Highlands',
+    affiliatePartner: 'Recreation.gov',
+    affiliateCommission: 0,
+    bookable: false,
+    imageGradient: 'from-orange-400 to-red-500',
+    imageUrl: 'https://images.unsplash.com/photo-1530373310011-46c7c9cf5ef3?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 87,
+  },
+  {
+    id: 'sports_1',
+    name: 'Icelandic Horse Riding Tour',
+    category: 'sports',
+    rating: 4.7,
+    priceRange: '$85–$150',
+    description: 'Guided horseback riding on Icelandic horses across natural terrain and lava fields.',
+    duration: '2–3 hours',
+    difficulty: 'Moderate',
+    location: 'South Iceland',
+    affiliatePartner: 'Viator',
+    affiliateCommission: 8,
+    bookable: true,
+    imageGradient: 'from-amber-500 to-orange-600',
+    imageUrl: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=640&h=360&auto=format&fit=crop&q=80',
+    matchScore: 89,
+  },
+];
+
+const smartAlerts = [
+  {
+    id: 'alert_1',
+    icon: 'Zap',
+    title: 'Sigur Rós Concert Alert',
+    message: 'Sigur Rós is performing at Harpa Concert Hall on Sep 17 — during your trip! Tickets from $45.',
+    timestamp: '2 hours ago',
+  },
+  {
+    id: 'alert_2',
+    icon: 'Star',
+    title: 'Northern Lights Forecast',
+    message: 'KP5 aurora activity predicted for Sep 17. Book a photography tour to maximize your chances.',
+    timestamp: '1 hour ago',
+  },
+  {
+    id: 'alert_3',
+    icon: 'AlertCircle',
+    title: 'New Experience on Viator',
+    message: 'Private Golden Circle tour with hidden hot spring — 95% match for your group. Limited availability.',
+    timestamp: '30 mins ago',
+  },
+];
+
+const categoryIcons: Record<DiscoverItem['category'], string> = {
+  experiences: '🎯',
+  dining: '🍽️',
+  events: '🎭',
+  nature: '🏔️',
+  sights: '🏛️',
+  sports: '⛹️',
+};
+
+type FilterCategory = 'all' | DiscoverItem['category'];
+type SortOption = 'match' | 'rating' | 'price';
+
+export default function DiscoverPage({ params }: { params: { id: string } }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<FilterCategory>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('match');
+  const [bookableOnly, setBookableOnly] = useState(false);
+  const [savedItems, setSavedItems] = useState<Set<string>>(new Set());
+  const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [expandedItem, setExpandedItem] = useState<string | null>(null);
+  const [bookedItems, setBookedItems] = useState<Set<string>>(new Set());
+  const [showDayPicker, setShowDayPicker] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  const filteredItems = useMemo(() => {
+    let items = discoverItems;
+
+    if (activeCategory !== 'all') {
+      items = items.filter(item => item.category === activeCategory);
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      items = items.filter(item =>
+        item.name.toLowerCase().includes(query) ||
+        item.description.toLowerCase().includes(query)
+      );
+    }
+
+    if (bookableOnly) {
+      items = items.filter(item => item.bookable);
+    }
+
+    items.sort((a, b) => {
+      if (sortBy === 'match') {
+        return b.matchScore - a.matchScore;
+      } else if (sortBy === 'rating') {
+        return b.rating - a.rating;
+      } else {
+        const priceOrder = { '$': 0, '$$': 1, '$$$': 2 };
+        const getPrice = (range: string) => {
+          if (range.includes('Free')) return -1;
+          return priceOrder[range.charAt(0) as '$' | '$$' | '$$$'] || 999;
+        };
+        return getPrice(a.priceRange) - getPrice(b.priceRange);
+      }
+    });
+
+    return items;
+  }, [activeCategory, searchQuery, sortBy, bookableOnly]);
+
+  const toggleSavedItem = (id: string) => {
+    const newSaved = new Set(savedItems);
+    if (newSaved.has(id)) {
+      newSaved.delete(id);
+    } else {
+      newSaved.add(id);
+    }
+    setSavedItems(newSaved);
+  };
+
+  const categories: Array<{ value: FilterCategory; label: string }> = [
+    { value: 'all', label: 'Made For You' },
+    { value: 'experiences', label: 'Experiences' },
+    { value: 'dining', label: 'Dining' },
+    { value: 'events', label: 'Events' },
+    { value: 'nature', label: 'Nature' },
+    { value: 'sports', label: 'Sports' },
+  ];
+
+  // Affiliate base URLs with triphive tracking codes
+  // In production these would be replaced with signed partner-specific deep links
+  const affiliateBaseUrls: Record<string, string> = {
+    'Viator':         'https://www.viator.com',
+    'Ticketmaster':   'https://www.ticketmaster.com',
+    'OpenTable':      'https://www.opentable.com',
+    'Recreation.gov': 'https://www.recreation.gov',
+    'Booking.com':    'https://www.booking.com',
+  };
+
+  const partnerLogos: Record<string, string> = {
+    'Viator':         '🎯',
+    'Ticketmaster':   '🎟️',
+    'OpenTable':      '🍽️',
+    'Recreation.gov': '🏕️',
+    'Booking.com':    '🏨',
+  };
+
+  /** Build an affiliate URL for the given item.
+   *  Prefers affiliateDeepUrl (exact listing) when available;
+   *  falls back to UTM-tagged homepage until the enrichment script runs. */
+  const getAffiliateUrl = (item: DiscoverItem) => {
+    if (item.affiliateDeepUrl) return item.affiliateDeepUrl;
+    const base = affiliateBaseUrls[item.affiliatePartner] || '#';
+    if (base === '#') return '#';
+    const params = new URLSearchParams({
+      utm_source: 'triphive',
+      utm_medium: 'referral',
+      utm_campaign: 'discover',
+      utm_content: item.id,
+      ref: 'triphive',
+    });
+    return `${base}?${params.toString()}`;
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-50">
+      {/* Static Compact Header */}
+      <div className="sticky top-0 z-20 bg-white border-b border-zinc-100">
+        <div className="px-6 py-4 max-w-7xl mx-auto">
+          {/* Title + meta row */}
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-xl font-bold text-zinc-900">Discover Reykjavik</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">Curated for your group · {filteredItems.length} results</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="px-3 py-2 bg-stone-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+              >
+                <option value="match">Best Match</option>
+                <option value="rating">Highest Rated</option>
+                <option value="price">Price: Low to High</option>
+              </select>
+              <label className="flex items-center gap-2 cursor-pointer text-sm whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={bookableOnly}
+                  onChange={(e) => setBookableOnly(e.target.checked)}
+                  className="w-4 h-4 accent-sky-800"
+                />
+                <span className="text-zinc-600">Bookable</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Search + Category pills */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-shrink-0 w-56">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+              />
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {categories.map((cat) => (
+                <button
+                  key={cat.value}
+                  onClick={() => setActiveCategory(cat.value)}
+                  className={`px-4 py-2 rounded-full font-semibold transition-all whitespace-nowrap text-sm ${
+                    activeCategory === cat.value
+                      ? 'bg-zinc-900 text-white'
+                      : 'bg-stone-50 border border-zinc-200 text-zinc-600 hover:border-sky-400 hover:text-zinc-900'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+              {(searchQuery || activeCategory !== 'all' || bookableOnly) && (
+                <button
+                  onClick={() => { setSearchQuery(''); setActiveCategory('all'); setBookableOnly(false); }}
+                  className="px-3 py-2 text-xs text-sky-700 hover:text-sky-800 font-medium whitespace-nowrap"
+                >
+                  Clear ✕
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Smart Alerts Panel */}
+      {showAlerts && (
+        <div className="bg-white border-b border-zinc-100 px-6 py-4">
+          <div className="max-w-7xl mx-auto">
+            <h3 className="font-semibold text-zinc-900 mb-3">Smart Alerts</h3>
+            <div className="space-y-3">
+              {smartAlerts.map((alert) => (
+                <div key={alert.id} className="flex items-start gap-3 p-4 bg-sky-50 rounded-2xl border border-sky-200">
+                  <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0 text-lg">
+                    {alert.icon === 'Zap' && '⚡'}
+                    {alert.icon === 'Star' && '⭐'}
+                    {alert.icon === 'AlertCircle' && '🔔'}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-zinc-900 text-sm">{alert.title}</p>
+                    <p className="text-sm text-zinc-700 mt-0.5">{alert.message}</p>
+                    <p className="text-xs text-zinc-500 mt-1">{alert.timestamp}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="px-6 py-8">
+        <div className="max-w-7xl mx-auto">
+          {filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-2xl mb-2">🌵</p>
+              <p className="text-zinc-600 font-semibold">Tumbleweeds. Try a different filter.</p>
+            </div>
+          ) : (
+            <>
+              {/* Activity Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                {filteredItems.map((item) => (
+                  <div key={item.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group">
+                    {/* Photo / Gradient header */}
+                    <div className={`relative h-44 overflow-hidden rounded-t-2xl bg-gradient-to-br ${item.imageGradient}`}>
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      )}
+                      {!item.imageUrl && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-6xl">{categoryIcons[item.category]}</span>
+                        </div>
+                      )}
+                      {/* Permanent subtle bottom gradient for text legibility */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                      {/* Category badge */}
+                      <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 bg-black/40 backdrop-blur-sm text-white text-xs font-semibold rounded-full">
+                        <span>{categoryIcons[item.category]}</span>
+                        {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                      </span>
+                      {/* Match score badge */}
+                      {item.matchScore >= 90 && (
+                        <span className="absolute top-3 right-3 inline-flex items-center px-2.5 py-1 bg-green-700/90 backdrop-blur-sm text-white text-xs font-bold rounded-full">
+                          {item.matchScore}% match
+                        </span>
+                      )}
+                      {/* Hover: Add to Itinerary button */}
+                      <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setShowDayPicker(showDayPicker === item.id ? null : item.id)}
+                          className="bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full inline-flex items-center gap-2 transition-all shadow-lg"
+                        >
+                          <Plus className="w-4 h-4" />
+                          We're Doing This
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-5 flex-1 flex flex-col">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-zinc-900 text-lg line-clamp-2">{item.name}</h3>
+                          <div className="flex items-center gap-1 mt-2">
+                            <Star className="w-4 h-4 text-sky-600 fill-current" />
+                            <span className="font-semibold text-zinc-900 text-sm">{item.rating}</span>
+                            <span className="text-zinc-500 text-sm">|</span>
+                            <span className="text-sky-700 font-semibold text-sm">{item.priceRange}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-sm text-zinc-600 mb-4 line-clamp-2 flex-1">{item.description}</p>
+
+                      {/* Details */}
+                      <div className="flex items-center gap-3 text-xs text-zinc-600 mb-4">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          {item.duration}
+                        </span>
+                        <span>•</span>
+                        <span>{item.difficulty}</span>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 mt-auto">
+                        <button
+                          onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)}
+                          className="flex-1 px-3 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg font-medium text-sm transition-colors"
+                        >
+                          Tell Me More
+                        </button>
+                        {item.bookable && (
+                          <a
+                            href={getAffiliateUrl(item)}
+                            target="_blank"
+                            rel="noopener noreferrer sponsored"
+                            className="flex-1 px-3 py-2.5 bg-zinc-900 hover:bg-black text-white rounded-lg font-medium text-sm transition-colors text-center flex items-center justify-center gap-1.5"
+                            title={`Book on ${item.affiliatePartner}`}
+                          >
+                            <span>{partnerLogos[item.affiliatePartner]}</span>
+                            <span>Lock It In</span>
+                            <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => setShowDayPicker(showDayPicker === item.id ? null : item.id)}
+                          className={`px-3 py-2.5 rounded-lg transition-colors ${
+                            addedItems.has(item.id)
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                          }`}
+                          title="Add to itinerary"
+                        >
+                          {addedItems.has(item.id) ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                        </button>
+                      </div>
+
+                      {showDayPicker === item.id && (
+                        <div className="p-3 bg-stone-50 border-t border-zinc-200 mt-3 rounded-lg">
+                          <p className="text-xs font-semibold text-zinc-700 mb-2">Add to which day?</p>
+                          <div className="flex flex-wrap gap-2">
+                            {[1, 2, 3, 4, 5].map((day) => (
+                              <button
+                                key={day}
+                                onClick={() => {
+                                  setAddedItems(prev => { const s = new Set(prev); s.add(item.id); return s; });
+                                  setShowDayPicker(null);
+                                }}
+                                className="px-3 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-sm font-medium transition-colors"
+                              >
+                                Day {day}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expanded Details */}
+                    {expandedItem === item.id && (
+                      <div className="border-t border-zinc-200 p-5 bg-stone-50 space-y-4">
+                        <div>
+                          <h4 className="font-semibold text-zinc-900 mb-2">Full Description</h4>
+                          <p className="text-sm text-zinc-700">{item.description}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-zinc-600 uppercase tracking-wide">Duration</p>
+                            <p className="text-sm font-semibold text-zinc-900">{item.duration}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-zinc-600 uppercase tracking-wide">Difficulty</p>
+                            <p className="text-sm font-semibold text-zinc-900">{item.difficulty}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-zinc-600 uppercase tracking-wide">Location</p>
+                            <p className="text-sm font-semibold text-zinc-900 flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5" />
+                              {item.location}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-zinc-600 uppercase tracking-wide">Price</p>
+                            <p className="text-sm font-semibold text-zinc-900">{item.priceRange}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-white rounded-lg p-3 border border-zinc-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-base">{partnerLogos[item.affiliatePartner]}</span>
+                            <p className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">
+                              {item.affiliatePartner}
+                            </p>
+                            {item.affiliateCommission > 0 && (
+                              <span className="ml-auto text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                {item.affiliateCommission}% supports triphive
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-500">
+                            {item.affiliateCommission > 0
+                              ? `Booking via ${item.affiliatePartner} earns triphive a referral commission at no extra cost to you.`
+                              : `No booking required — free entry or self-directed activity.`}
+                          </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setAddedItems(prev => {
+                                const newSet = new Set(prev);
+                                if (newSet.has(item.id)) newSet.delete(item.id);
+                                else newSet.add(item.id);
+                                return newSet;
+                              });
+                            }}
+                            className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
+                              addedItems.has(item.id)
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                : 'bg-sky-800 hover:bg-sky-900 text-white'
+                            }`}
+                          >
+                            <span>{addedItems.has(item.id) ? "✓ We're Doing This" : "We're Doing This"}</span>
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => toggleSavedItem(item.id)}
+                            className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                              savedItems.has(item.id)
+                                ? 'bg-zinc-200 text-zinc-700 border border-zinc-300 hover:bg-zinc-300'
+                                : 'border border-zinc-300 hover:bg-stone-50 text-zinc-600'
+                            }`}
+                          >
+                            {savedItems.has(item.id) ? '✓ Saved' : 'Maybe Later'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Affiliate disclosure */}
+          <div className="mt-12 pt-6 border-t border-zinc-200">
+            <div className="flex items-start gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+              <span className="text-lg flex-shrink-0">🤝</span>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                <span className="font-semibold text-zinc-600">Affiliate disclosure:</span> Some &ldquo;Lock It In&rdquo; links are affiliate links — when you book through them triphive earns a small referral commission from our partners (Viator, OpenTable, Ticketmaster, Booking.com) at{' '}
+                <span className="font-medium">no extra cost to you</span>. Commissions help keep triphive free. We only surface experiences our algorithm rates highly for your group.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

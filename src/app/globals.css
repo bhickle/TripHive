@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body { @apply antialiased text-zinc-800 bg-stone-50; }
+}
+
+@layer components {
+  /* Buttons — pill-shaped, brand amber */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-full shadow-sm hover:shadow-md transition-all duration-200;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold rounded-full hover:bg-zinc-50 transition-all duration-200 shadow-sm;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 border-2 border-amber-500 text-amber-600 font-semibold rounded-full hover:bg-amber-50 transition-all duration-200;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2 text-zinc-500 font-medium rounded-lg hover:bg-zinc-100 hover:text-zinc-800 transition-all duration-200;
+  }
+  .btn-icon {
+    @apply p-2.5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-all duration-200;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-md transition-all duration-200;
+  }
+  .card-flat {
+    @apply bg-stone-50 rounded-2xl border border-zinc-100;
+  }
+  .card-hover {
+    @apply bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200;
+  }
+
+  /* Inputs */
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200;
+  }
+  .input-sm {
+    @apply w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-planning {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800;
+  }
+  .badge-active {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800;
+  }
+  .badge-completed {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-600;
+  }
+  .badge-blue {
+    @apply badge bg-blue-100 text-blue-700;
+  }
+  .badge-green {
+    @apply badge bg-emerald-100 text-emerald-700;
+  }
+  .badge-amber {
+    @apply badge bg-amber-100 text-amber-700;
+  }
+
+  /* Typography helpers */
+  .label-overline {
+    @apply text-xs font-semibold uppercase tracking-widest text-zinc-400;
+  }
+  .section-title {
+    @apply text-2xl font-display font-bold text-zinc-900;
+  }
+  .page-title {
+    @apply text-4xl font-display font-bold tracking-tight text-zinc-900;
+  }
+
+  /* Glass */
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-lg rounded-2xl border border-white/30 shadow-lg;
+  }
+
+  /* Tag pills for filtering */
+  .filter-pill {
+    @apply px-4 py-2 rounded-full text-sm font-medium border transition-all duration-200 cursor-pointer;
+  }
+  .filter-pill-active {
+    @apply bg-amber-500 border-amber-500 text-white;
+  }
+  .filter-pill-inactive {
+    @apply bg-white border-zinc-200 text-zinc-700 hover:border-amber-400 hover:text-amber-600;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-zinc-200 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-zinc-300; }
+
+/* Legacy gradient classes kept for backward compat */
+.gradient-hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); }
+.gradient-ocean { background: linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%); }
+.gradient-earth { background: linear-gradient(135deg, #065F46 0%, #10B981 100%); }
+.gradient-subtle { background: linear-gradient(180deg, #FAFAF8 0%, #F0FDF4 100%); }
