@@ -33,6 +33,9 @@ import {
   Users,
   DollarSign,
   AlertCircle,
+  Camera,
+  Backpack,
+  Flag,
 } from 'lucide-react';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
@@ -440,8 +443,8 @@ export default function ItineraryPage() {
 
   const trackConfig = {
     shared: { badgeColor: 'bg-sky-500 text-white', label: 'Shared' },
-    track_a: { badgeColor: 'bg-violet-500 text-white', label: 'Track A' },
-    track_b: { badgeColor: 'bg-rose-500 text-white', label: 'Track B' },
+    track_a: { badgeColor: 'bg-violet-500 text-white', label: currentDayData.trackALabel || 'Track A' },
+    track_b: { badgeColor: 'bg-rose-500 text-white', label: currentDayData.trackBLabel || 'Track B' },
   };
 
   return (
@@ -592,21 +595,45 @@ export default function ItineraryPage() {
             ) : (
               <div>
                 {hasSplitTracks && (
-                  <div className="flex gap-4 mb-6 pb-4 border-b border-zinc-100">
-                    {[
-                      { color: 'bg-sky-500', label: 'Shared' },
-                      { color: 'bg-violet-500', label: 'Track A' },
-                      { color: 'bg-rose-500', label: 'Track B' },
-                    ].map(t => (
-                      <div key={t.label} className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${t.color}`} />
-                        <span className="text-xs font-medium text-zinc-500">{t.label}</span>
-                      </div>
-                    ))}
+                  <div className="mb-6 pb-4 border-b border-zinc-100">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Today&apos;s tracks</p>
+                    <div className="flex flex-wrap gap-3">
+                      {[
+                        { color: 'bg-sky-500', label: 'Shared' },
+                        { color: 'bg-violet-500', label: currentDayData.trackALabel || 'Track A' },
+                        { color: 'bg-rose-500', label: currentDayData.trackBLabel || 'Track B' },
+                      ].map(t => (
+                        <div key={t.label} className="flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${t.color}`} />
+                          <span className="text-xs font-semibold text-zinc-600">{t.label}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 <div className="space-y-4">
+                  {/* Meetup time — pinned as the first item in the day */}
+                  {currentDayData.meetupTime && currentDayData.meetupLocation && (
+                    <div className="flex gap-4">
+                      <div className="w-20 flex-shrink-0 text-right pt-3.5">
+                        <p className="text-xs font-semibold text-sky-600">{currentDayData.meetupTime}</p>
+                      </div>
+                      <div className="relative flex flex-col items-center pt-3.5">
+                        <Flag className="w-3 h-3 text-sky-500 flex-shrink-0" />
+                        <div className="w-px flex-1 bg-zinc-100 mt-1.5 min-h-[3rem]" />
+                      </div>
+                      <div className="flex-1 pb-2">
+                        <div className="bg-sky-50 border border-sky-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-sky-500 mb-0.5">Group Meetup</p>
+                            <p className="text-sm font-semibold text-sky-900">{currentDayData.meetupLocation}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {timelineItems.map((item, index) => {
                     const isLast = index === timelineItems.length - 1;
 
@@ -736,6 +763,23 @@ export default function ItineraryPage() {
                               )}
                             </div>
 
+                            {/* Packing tips */}
+                            {activity.packingTips && activity.packingTips.length > 0 && (
+                              <div className="mt-2 mb-2 p-2.5 bg-amber-50 rounded-xl border border-amber-100">
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <Backpack className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                                  <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Bring</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {activity.packingTips.map((tip, i) => (
+                                    <span key={i} className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                                      {tip}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Voting row */}
                             {(() => {
                               const v = votes[activity.id] ?? { up: 0, down: 0, myVote: null };
@@ -781,13 +825,6 @@ export default function ItineraryPage() {
               </div>
             )}
 
-            {currentDayData.meetupTime && currentDayData.meetupLocation && (
-              <div className="mt-8 bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">Group Meetup</p>
-                <p className="text-lg font-display font-bold text-zinc-900">{currentDayData.meetupTime}</p>
-                <p className="text-sm text-zinc-500 mt-0.5">{currentDayData.meetupLocation}</p>
-              </div>
-            )}
           </div>
 
           {/* Sidebar */}
@@ -833,6 +870,29 @@ export default function ItineraryPage() {
                 })}
               </div>
             </div>
+
+            {/* Photo Spots Card */}
+            {currentDayData.photoSpots && currentDayData.photoSpots.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Camera className="w-4 h-4 text-violet-500" />
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Photo Spots</p>
+                </div>
+                <div className="space-y-3">
+                  {currentDayData.photoSpots.map((spot, i) => (
+                    <div key={i} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-violet-900 leading-snug">{spot.name}</p>
+                        <span className="flex-shrink-0 text-[10px] font-semibold text-violet-500 bg-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          {spot.timeOfDay}
+                        </span>
+                      </div>
+                      <p className="text-xs text-violet-700 leading-relaxed">{spot.tip}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </aside>
         </div>
       </div>

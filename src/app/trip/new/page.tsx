@@ -307,16 +307,6 @@ function TripBuilderPage() {
     }));
   };
 
-  const setDifficultyLevel = (priorityId: string, level: string) => {
-    setState((prev) => ({
-      ...prev,
-      difficultyPrefs: {
-        ...prev.difficultyPrefs,
-        [priorityId]: level,
-      },
-    }));
-  };
-
   const handleSurpriseMe = () => {
     const randomIndex = Math.floor(Math.random() * mockDestinations.length);
     const randomDestination = mockDestinations[randomIndex];
@@ -368,6 +358,10 @@ function TripBuilderPage() {
           budgetBreakdown: state.budgetBreakdown,
           ageRanges: state.ageRanges,
           accessibilityNeeds: state.accessibilityNeeds,
+          localMode: state.localMode,
+          curiosityLevel: state.curiosityLevel,
+          modality: state.modality,
+          accommodationType: state.accommodationType,
           bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
           bookedHotel: state.hasPreBookedHotel ? state.bookedHotel : null,
         }),
@@ -774,9 +768,12 @@ function TripBuilderPage() {
                 </h2>
                 <div className="space-y-6">
                   <div className="relative">
-                    <label className="block text-sm font-semibold text-slate-900 mb-3">
-                      Search Destination
-                    </label>
+                    <div className="flex items-baseline justify-between mb-3">
+                      <label className="text-sm font-semibold text-slate-900">
+                        Search Destination
+                      </label>
+                      <span className="text-xs text-slate-400">Any city, country, or region in the world</span>
+                    </div>
                     <div className="relative">
                       <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                       <input
@@ -1184,46 +1181,6 @@ function TripBuilderPage() {
                     })}
                   </div>
                 </div>
-
-                {/* Difficulty Preferences for Selected Priorities */}
-                {state.priorities.length > 0 && (
-                  <div className="mb-8 p-4 bg-sky-50 rounded-lg border border-sky-200">
-                    <label className="block text-sm font-semibold text-slate-900 mb-4">
-                      Activity Difficulty Levels
-                    </label>
-                    <div className="space-y-4">
-                      {state.priorities.map((priorityId) => {
-                        const priority = priorityOptions.find(
-                          (p) => p.id === priorityId
-                        );
-                        return (
-                          <div key={priorityId}>
-                            <p className="text-sm font-medium text-slate-900 mb-2">
-                              {priority?.label}
-                            </p>
-                            <div className="flex gap-2">
-                              {difficultyLevels.map((level) => (
-                                <button
-                                  key={level}
-                                  onClick={() =>
-                                    setDifficultyLevel(priorityId, level)
-                                  }
-                                  className={`px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
-                                    state.difficultyPrefs[priorityId] === level
-                                      ? 'border-sky-700 bg-sky-50 text-sky-800'
-                                      : 'border-slate-200 text-slate-700 hover:border-sky-300'
-                                  }`}
-                                >
-                                  {level}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 {/* Summary */}
                 {state.priorities.length > 0 && (

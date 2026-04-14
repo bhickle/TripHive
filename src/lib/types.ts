@@ -186,6 +186,8 @@ export interface Activity {
   lat?: number;
   lng?: number;
   googleVerified?: boolean;
+  /** What to bring / pack for this activity (AI-generated for excursions/hikes) */
+  packingTips?: string[];
 }
 
 export type TransportType = 'car_rental' | 'bus' | 'train' | 'excursion';
@@ -217,6 +219,14 @@ export interface TransportLeg {
   carClass?: string;
 }
 
+export interface PhotoSpot {
+  name: string;
+  /** Best time of day — e.g. "sunrise", "golden hour", "blue hour", "midday" */
+  timeOfDay: string;
+  /** One-sentence shooting tip */
+  tip: string;
+}
+
 export interface ItineraryDay {
   day: number;
   date: string;
@@ -226,9 +236,15 @@ export interface ItineraryDay {
     track_a: Activity[];
     track_b: Activity[];
   };
+  /** Human-readable label for track A, e.g. "Adventure & Outdoors" */
+  trackALabel?: string;
+  /** Human-readable label for track B, e.g. "Culture & Relaxation" */
+  trackBLabel?: string;
   transportLegs?: TransportLeg[];
   meetupTime?: string;
   meetupLocation?: string;
+  /** AI-curated photo opportunities for the day */
+  photoSpots?: PhotoSpot[];
 }
 
 export interface GroupMember {

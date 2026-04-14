@@ -270,21 +270,22 @@ export default function DiscoverPage() {
 
       <div className="flex-1 overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-br from-sky-900 via-zinc-900 to-green-900 px-6 py-12">
-          <div className="max-w-4xl mx-auto">
-            <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mb-3">Discover</p>
-            <h1 className="text-4xl font-bold text-white mb-2 leading-tight">Where to next?</h1>
-            <p className="text-white/60 mb-8 max-w-md">12 hand-picked destinations with flights, hotels, and experiences — one click away.</p>
-
+        <div className="px-6 pt-8 pb-6 border-b border-zinc-100 bg-white">
+          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <p className="text-xs font-bold uppercase tracking-widest text-sky-600 mb-1">Discover</p>
+              <h1 className="text-2xl font-display font-bold text-zinc-900 leading-tight">Where to next?</h1>
+              <p className="text-sm text-zinc-400 mt-0.5">Hand-picked destinations with flights, hotels &amp; experiences — one click away.</p>
+            </div>
             {/* Search */}
-            <div className="relative max-w-lg">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <div className="relative w-full sm:w-72 lg:w-96 flex-shrink-0">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search destinations or countries…"
-                className="w-full pl-11 pr-4 py-3.5 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder-white/40 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/30"
+                placeholder="Search destinations…"
+                className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-zinc-200 rounded-xl text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-300"
               />
             </div>
           </div>

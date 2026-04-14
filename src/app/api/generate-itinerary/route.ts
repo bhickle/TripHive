@@ -39,13 +39,19 @@ function buildPrompt(params: {
   budgetBreakdown: Record<string, number>;
   ageRanges: string[];
   accessibilityNeeds: string[];
+  localMode?: boolean;
+  curiosityLevel?: number;
+  modality?: string;
+  accommodationType?: string;
   bookedFlight?: BookedFlight | null;
   bookedHotel?: BookedHotel | null;
 }) {
   const {
     destination, startDate, endDate, tripLength,
     groupType, priorities, budget, budgetBreakdown,
-    ageRanges, accessibilityNeeds, bookedFlight, bookedHotel,
+    ageRanges, accessibilityNeeds,
+    localMode, curiosityLevel, modality, accommodationType,
+    bookedFlight, bookedHotel,
   } = params;
 
   const priorityText = priorities.length > 0
@@ -53,6 +59,36 @@ function buildPrompt(params: {
     : 'balanced mix of culture, food, and sightseeing';
 
   const accessibilityText = accessibilityNeeds.filter(n => n !== 'No special needs').join(', ') || 'none';
+
+  // Travel style context
+  const explorerPct = curiosityLevel ?? 50;
+  const travelStyleText = explorerPct >= 70
+    ? 'adventurous explorer — strongly prefers hidden gems, local haunts, and off-the-beaten-path experiences over famous tourist sites'
+    : explorerPct >= 40
+    ? 'balanced traveler — mix of iconic sights and authentic local discoveries'
+    : 'comfort-focused — prefers well-reviewed, accessible, and easy-to-navigate attractions';
+
+  const localModeText = localMode
+    ? '\n- LOCAL INSIDER MODE: Avoid tourist traps entirely. Recommend spots that locals actually use — neighbourhood cafes, markets, parks, and venues that rarely appear in guidebooks.'
+    : '';
+
+  const modalityText = modality && modality !== 'mix'
+    ? `\n- Primary transport: ${modality} — build routes and day plans around this mode`
+    : '';
+
+  const accommodationText = accommodationType
+    ? `\n- Staying in: ${accommodationType} — factor this into meeting points and daily logistics`
+    : '';
+
+  // Sports-specific guidance
+  const sportsText = priorities.includes('sports')
+    ? `\n- SPORTS PRIORITY: Include visits to or near major stadiums, arenas, and sports venues in ${destination}. Check if any league matches, sporting events, or competitions are scheduled during ${startDate}–${endDate} and mention them in descriptions. Include sports bars and fan zones for game-day atmosphere.`
+    : '';
+
+  // Photography-specific guidance
+  const photoText = priorities.includes('photography')
+    ? `\n- PHOTOGRAPHY PRIORITY: Each activity description should note photographic potential. Mention golden hour timing, interesting angles, and any restrictions. Include at least one purely photography-focused location per day.`
+    : '';
 
   // Build pre-booking context text
   let preBookingText = '';
@@ -92,7 +128,8 @@ TRIP DETAILS:
   - Transport: $${budgetBreakdown.transport}
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
-- Accessibility needs: ${accessibilityText}${preBookingText}
+- Accessibility needs: ${accessibilityText}
+- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${preBookingText}
 
 OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects:
 
@@ -101,6 +138,15 @@ OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects:
     "day": 1,
     "date": "${startDate}",
     "theme": "Evocative 3-5 word theme for the day",
+    "photoSpots": [
+      {
+        "name": "Specific viewpoint or location name",
+        "timeOfDay": "golden hour",
+        "tip": "One-sentence tip on what to capture and how"
+      }
+    ],
+    "trackALabel": null,
+    "trackBLabel": null,
     "tracks": {
       "shared": [
         {
@@ -117,7 +163,8 @@ OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects:
           "description": "One sentence description of why this is worth visiting",
           "costEstimate": 25,
           "confidence": 0.9,
-          "verified": true
+          "verified": true,
+          "packingTips": []
         }
       ],
       "track_a": [],
@@ -128,6 +175,14 @@ OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects:
   }
 ]
 
+SPLIT TRACK DECISION — follow this logic exactly:
+- Count the selected priorities: ${priorities.join(', ') || 'none'}
+- SPLIT if: the priorities include at least one high-energy option (adventure, sports, nightlife, nature) AND at least one low-energy option (wellness, culture, history, food, shopping). These represent genuinely different paces that can't be served by a single shared schedule.
+- DO NOT SPLIT if: all priorities are in the same energy band, or the group type is "solo" or "couple".
+- When you DO split: apply splits on middle days only (not Day 1 arrival or last day departure). Mornings should always be shared. Splits happen in the afternoon block. Groups reconvene for the evening meetup.
+- trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels, e.g. "Active & Outdoors" / "Culture & Relaxation" or "Nightlife & Energy" / "Slow & Scenic". These display directly in the UI so make them friendly and specific to this trip.
+- When NOT splitting: set trackALabel and trackBLabel to null and leave track_a and track_b as empty arrays.
+
 RULES:
 1. Use REAL venue names and real addresses for ${destination}
 2. Include 4-6 activities per day, spread naturally across the day (morning, midday, afternoon, evening)
@@ -136,12 +191,15 @@ RULES:
 5. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$
 6. costEstimate is per-person in USD
 7. id format: "act_d{dayNumber}_{index}" (e.g. act_d1_1, act_d1_2)
-8. Use track_a and track_b ONLY if the group priorities suggest genuinely different preferences (e.g. some want adventure, some want relaxation). Most trips should use shared tracks only.
-9. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
-10. Vary the pace — not every day should be packed. Include slower, wandering time.
-11. Budget the activities realistically against the food/experiences budget provided
-12. The first and last days should account for travel/arrival/departure logistics
-13. meetupLocation should be a real landmark or the hotel area
+8. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
+9. Vary the pace — not every day should be packed. Include slower, wandering time.
+10. Budget the activities realistically against the food/experiences budget provided
+11. The first and last days should account for travel/arrival/departure logistics
+12. meetupLocation should be a real landmark or the hotel area
+13. photoSpots: include 1-3 per day — real named viewpoints or spots, specific time of day (sunrise/golden hour/blue hour/midday), and one actionable shooting tip. Every day must have at least one photo spot.
+14. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
+15. Respect the travel style: ${explorerPct >= 70 ? 'prioritise hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
+16. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
 }
@@ -198,6 +256,10 @@ export async function POST(request: NextRequest) {
       budgetBreakdown: body.budgetBreakdown,
       ageRanges: body.ageRanges,
       accessibilityNeeds: body.accessibilityNeeds,
+      localMode: body.localMode,
+      curiosityLevel: body.curiosityLevel,
+      modality: body.modality,
+      accommodationType: body.accommodationType,
       bookedFlight: body.bookedFlight,
       bookedHotel: body.bookedHotel,
     });
