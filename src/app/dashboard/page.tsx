@@ -180,7 +180,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex h-screen bg-stone-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar
         activePage="dashboard"
         user={{
@@ -267,7 +267,7 @@ export default function DashboardPage() {
                     <button
                       key={notif.id}
                       onClick={() => markRead(notif.id)}
-                      className={`w-full text-left px-5 py-4 hover:bg-stone-50 transition-colors ${
+                      className={`w-full text-left px-5 py-4 hover:bg-parchment-dark transition-colors ${
                         !notif.read ? 'bg-sky-50/30' : ''
                       }`}
                     >
@@ -552,12 +552,12 @@ export default function DashboardPage() {
             <h3 className="text-xl font-display font-bold text-zinc-900 mb-2">Get the Crew Together</h3>
             <p className="text-sm text-zinc-500 mb-5">Send this link and they're in. Easy.</p>
             <div className="flex gap-2 mb-4">
-              <input type="text" readOnly value="https://triphive.app/join/trip_1" className="flex-1 px-4 py-2.5 bg-stone-50 border border-zinc-200 rounded-xl text-sm text-zinc-600 focus:outline-none" />
-              <button onClick={() => { navigator.clipboard.writeText('https://triphive.app/join/trip_1'); setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); }} className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-xl text-sm transition-all">
+              <input type="text" readOnly value="https://tripcoord.app/join/trip_1" className="flex-1 px-4 py-2.5 bg-parchment border border-zinc-200 rounded-xl text-sm text-zinc-600 focus:outline-none" />
+              <button onClick={() => { navigator.clipboard.writeText('https://tripcoord.app/join/trip_1'); setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); }} className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-xl text-sm transition-all">
                 {inviteCopied ? 'Copied!' : 'Copy'}
               </button>
             </div>
-            <button onClick={() => setShowInviteModal(false)} className="w-full py-2.5 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-600 hover:bg-stone-50 transition-all">Close</button>
+            <button onClick={() => setShowInviteModal(false)} className="w-full py-2.5 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-600 hover:bg-parchment-dark transition-all">Close</button>
           </div>
         </div>
       )}

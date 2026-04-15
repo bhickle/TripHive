@@ -75,7 +75,7 @@ export default function SettingsPage() {
     { id: 'other',     name: 'Something else?', description: "Don't see what you need? Tell us below.",                          icon: '💡', votes: 0 },
   ];
 
-  const LS_KEY = 'triphive_integration_votes';
+  const LS_KEY = 'tripcoord_integration_votes';
 
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>(
@@ -168,7 +168,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar activePage="settings" user={currentUser} />
 
       <main className="flex-1 overflow-auto">

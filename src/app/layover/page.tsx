@@ -154,7 +154,7 @@ export default function LayoverPlannerPage() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar
         activePage="dashboard"
         user={{

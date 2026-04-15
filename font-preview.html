@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Font Preview — Nourd + Caveat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Nunito:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* Nunito stands in for Nourd — same geometric DNA */
+  :root {
+    --parchment: #f5f1e8;
+    --parchment-dark: #ede8dc;
+    --sidebar-w: 240px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--parchment);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  aside {
+    width: var(--sidebar-w);
+    background: var(--parchment);
+    border-right: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    padding: 32px 0 20px;
+    flex-shrink: 0;
+  }
+  .logo-area { padding: 0 24px 20px; }
+  .logo-area img { width: 100%; height: auto; }
+  .tagline {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    color: #888;
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+  .divider { height: 1px; background: rgba(0,0,0,0.08); margin: 0 24px 20px; }
+  .nav-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #aaa;
+    padding: 0 24px;
+    margin-bottom: 8px;
+  }
+  nav { flex: 1; padding: 0 12px; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    border-left: 2px solid transparent;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+  .nav-item.active {
+    background: rgba(0,0,0,0.05);
+    color: #1a1a1a;
+    border-left-color: #3d8b3d;
+  }
+  .nav-item .icon { font-size: 16px; }
+  .nav-item.active .icon { filter: none; }
+  .user-section {
+    padding: 16px 12px 0;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    margin-top: 12px;
+  }
+  .user-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+  .avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1848A0, #F07020);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 13px; flex-shrink: 0;
+  }
+  .user-name { font-weight: 700; font-size: 13px; color: #1a1a1a; }
+  .user-tier {
+    font-size: 10px; font-weight: 700;
+    background: #e0f0ff; color: #1848A0;
+    padding: 2px 8px; border-radius: 99px; display: inline-block; margin-top: 2px;
+  }
+
+  /* ── MAIN CONTENT ── */
+  main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px 48px;
+    background: var(--parchment);
+  }
+  .page-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #1848A0;
+    margin-bottom: 8px;
+  }
+  .page-title {
+    font-family: 'Caveat', cursive;
+    font-size: 48px;
+    font-weight: 700;
+    color: #1a1a1a;
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+  .page-sub {
+    font-family: 'Nunito', sans-serif;
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 36px;
+  }
+
+  /* Cards row */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 36px; }
+  .card {
+    background: white;
+    border-radius: 18px;
+    padding: 24px;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .card-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #aaa;
+    margin-bottom: 8px;
+  }
+  .card-title {
+    font-family: 'Caveat', cursive;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+  .card-body {
+    font-family: 'Nunito', sans-serif;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.6;
+  }
+  .card-chip {
+    display: inline-block;
+    margin-top: 12px;
+    background: var(--parchment);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 99px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+    padding: 3px 12px;
+  }
+
+  /* Section with Caveat header */
+  .section-head {
+    font-family: 'Caveat', cursive;
+    font-size: 32px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 16px;
+  }
+  .trip-list { display: flex; flex-direction: column; gap: 12px; }
+  .trip-row {
+    background: white;
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .trip-emoji { font-size: 28px; }
+  .trip-name {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: #1a1a1a;
+  }
+  .trip-meta {
+    font-family: 'Nunito', sans-serif;
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+  }
+  .trip-badge {
+    margin-left: auto;
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-radius: 99px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+  }
+
+  /* note at bottom */
+  .note {
+    margin-top: 32px;
+    padding: 16px 20px;
+    background: white;
+    border-radius: 12px;
+    border-left: 3px solid #F07020;
+    font-family: 'Nunito', sans-serif;
+    font-size: 12px;
+    color: #888;
+    line-height: 1.6;
+  }
+  .note strong { color: #F07020; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside>
+  <div class="logo-area">
+    <img src="/tripcoord_logo.png" alt="tripcoord" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'"/>
+    <div style="display:none; font-family:'Nunito',sans-serif; font-weight:800; font-size:22px; color:#1848A0;">tripcoord 🪂</div>
+    <p class="tagline">Pull the ripcord on group trip chaos.</p>
+  </div>
+  <div class="divider"></div>
+  <p class="nav-label">Navigate</p>
+  <nav>
+    <div class="nav-item active"><span class="icon">🧭</span> Home Base</div>
+    <div class="nav-item"><span class="icon">🗺️</span> Adventures</div>
+    <div class="nav-item"><span class="icon">📡</span> On My Radar</div>
+    <div class="nav-item"><span class="icon">🌍</span> Discover</div>
+    <div class="nav-item"><span class="icon">⚙️</span> Settings</div>
+  </nav>
+  <div class="user-section">
+    <div class="user-row">
+      <div class="avatar">B</div>
+      <div>
+        <div class="user-name">Brandon</div>
+        <div class="user-tier">Nomad ✦✦</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main>
+  <div class="page-label">Dashboard</div>
+  <div class="page-title">Hey, Brandon 👋</div>
+  <div class="page-sub">Tuesday, April 14 · 2 trips in progress</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Next Up</div>
+      <div class="card-title">Iceland Adventure</div>
+      <div class="card-body">6 travelers · Sep 15–22</div>
+      <div class="card-chip">✈ 154 days away</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Budget</div>
+      <div class="card-title">$3,200 <span style="font-size:18px;color:#aaa">/ person</span></div>
+      <div class="card-body">$19,200 estimated total for the group</div>
+      <div class="card-chip">💰 On track</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Group Vibe</div>
+      <div class="card-title">Adventure + Food</div>
+      <div class="card-body">Top priorities voted by the crew</div>
+      <div class="card-chip">🗳️ 5 of 6 voted</div>
+    </div>
+  </div>
+
+  <div class="section-head">Your Adventures</div>
+  <div class="trip-list">
+    <div class="trip-row">
+      <div class="trip-emoji">🌋</div>
+      <div>
+        <div class="trip-name">Iceland Adventure</div>
+        <div class="trip-meta">Sep 15–22 · Reykjavik · 6 people</div>
+      </div>
+      <div class="trip-badge">Planning</div>
+    </div>
+    <div class="trip-row">
+      <div class="trip-emoji">🏖️</div>
+      <div>
+        <div class="trip-name">Cancun Crew Trip</div>
+        <div class="trip-meta">Dec 27–Jan 3 · Cancun · 8 people</div>
+      </div>
+      <div class="trip-badge">Upcoming</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Note on Nourd:</strong> Nunito is used above as a stand-in — same geometric rounded letterforms. Nourd is a premium font (not on Google Fonts). If you have the .ttf or .woff2 file, drop it in and we'll swap it in minutes. Caveat is live from Google Fonts and ready to go right now.
+  </div>
+</main>
+
+</body>
+</html>

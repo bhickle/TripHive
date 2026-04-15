@@ -3,8 +3,9 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
-  Globe, Mountain, Waves, Compass, Utensils, Music, ShoppingBag,
+  Mountain, Waves, Compass, Utensils, Music, ShoppingBag,
   ArrowRight, ArrowLeft, Check, Sparkles,
 } from 'lucide-react';
 
@@ -71,7 +72,7 @@ function ProfileStep({
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">Welcome to triphive</h1>
+        <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">Welcome to tripcoord</h1>
         <p className="text-slate-500">Let's set up your profile so your crew knows who's planning.</p>
       </div>
 
@@ -101,7 +102,7 @@ function ProfileStep({
         <label className="block text-sm font-medium text-slate-700 mb-2">Your name</label>
         <input
           type="text"
-          placeholder="How should we call you?"
+          placeholder="First name or nickname"
           value={state.yourName}
           onChange={(e) => onChange({ yourName: e.target.value })}
           className="input-field"
@@ -244,7 +245,7 @@ export default function OnboardingPage() {
 
     // Save profile to localStorage so the rest of the app can use it
     if (typeof window !== 'undefined') {
-      localStorage.setItem('triphive_profile', JSON.stringify({
+      localStorage.setItem('tripcoord_profile', JSON.stringify({
         name: state.yourName,
         avatarEmoji: state.avatarEmoji,
         groupType: state.groupType,
@@ -257,14 +258,11 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-sky-50/30 to-white flex flex-col">
+    <div className="min-h-screen flex flex-col bg-parchment">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-sky-800 to-green-800 flex items-center justify-center">
-            <Globe className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-display font-bold text-slate-900">triphive</span>
+        <Link href="/">
+          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
         </Link>
         <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
           Skip for now →

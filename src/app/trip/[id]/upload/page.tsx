@@ -507,7 +507,7 @@ export default function UploadItineraryPage() {
 
           {/* Cruise Badge */}
           {parsedData.isCruise && (
-            <div className="card p-6 mb-6 border-l-4 border-l-earth-500 bg-stone-50">
+            <div className="card p-6 mb-6 border-l-4 border-l-earth-500 bg-parchment">
               <div className="flex items-start gap-4">
                 <Anchor className="w-6 h-6 text-stone-700 flex-shrink-0 mt-1" />
                 <div>
@@ -517,7 +517,7 @@ export default function UploadItineraryPage() {
                   </p>
                   <button className="inline-flex items-center gap-2 px-4 py-2 bg-green-800 text-white rounded-lg hover:bg-green-800 transition-all text-sm font-semibold">
                     <Zap className="w-4 h-4" />
-                    Enhance with triphive AI
+                    Enhance with tripcoord AI
                   </button>
                 </div>
               </div>
@@ -708,7 +708,7 @@ export default function UploadItineraryPage() {
             Import Your Itinerary
           </h1>
           <p className="text-lg text-slate-600">
-            Already have a trip booked? Upload your confirmation and we'll build your triphive itinerary from it.
+            Already have a trip booked? Upload your confirmation and we'll build your tripcoord itinerary from it.
           </p>
         </div>
 

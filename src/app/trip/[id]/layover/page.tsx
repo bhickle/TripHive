@@ -298,7 +298,7 @@ export default function LayoverPlannerPage() {
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
               activeMode === 'cruise'
                 ? 'bg-green-800 text-white shadow-md'
-                : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-50'
+                : 'bg-white border border-stone-200 text-stone-700 hover:bg-parchment'
             }`}
           >
             <Ship className="w-5 h-5" />
@@ -525,7 +525,7 @@ export default function LayoverPlannerPage() {
             </div>
 
             {/* Shore Time Summary */}
-            <div className="card p-6 border-l-4 border-l-earth-500 bg-stone-50">
+            <div className="card p-6 border-l-4 border-l-earth-500 bg-parchment">
               <div className="flex items-center gap-3 mb-4">
                 <Clock className="w-6 h-6 text-stone-700" />
                 <div>

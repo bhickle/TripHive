@@ -7,6 +7,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        parchment: {
+          DEFAULT: '#f5f1e8',
+          dark: '#ede8dc',
+        },
         ocean: {
           50: '#EFF6FF',
           100: '#DBEAFE',

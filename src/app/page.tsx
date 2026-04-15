@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Sparkles,
   Users,
@@ -23,11 +24,8 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-sky-800 to-green-800 flex items-center justify-center">
-              <Globe className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-display font-bold text-slate-900">triphive</span>
+          <div className="flex items-center">
+            <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
           </div>
           <div className="flex items-center gap-4">
             <Link href="/auth/login" className="btn-ghost">
@@ -77,7 +75,7 @@ export default function HomePage() {
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Everything you need for group travel</h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              From planning to memories, triphive keeps your group aligned and excited
+              From planning to memories, tripcoord keeps your group aligned and excited
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -229,7 +227,7 @@ export default function HomePage() {
             {/* Free */}
             <div className="card p-7 flex flex-col hover:shadow-lg transition-all duration-300">
               <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Free</p>
-              <p className="text-slate-500 text-sm leading-snug mb-5">Try triphive. See what the fuss is about.</p>
+              <p className="text-slate-500 text-sm leading-snug mb-5">Try tripcoord. See what the fuss is about.</p>
               <div className="mb-6">
                 <span className="text-4xl font-display font-bold text-slate-900">$0</span>
                 <span className="text-slate-500 text-sm ml-1">/ month</span>
@@ -373,7 +371,7 @@ export default function HomePage() {
             Ready to plan your next adventure?
           </h2>
           <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-            Join thousands of travelers who are using triphive to make group trips amazing.
+            Join thousands of travelers who are using tripcoord to make group trips amazing.
           </p>
           <Link
             href="/auth/signup"
@@ -427,9 +425,9 @@ export default function HomePage() {
               <div className="w-6 h-6 rounded-lg bg-sky-800 flex items-center justify-center">
                 <Globe className="w-4 h-4 text-white" />
               </div>
-              <span className="text-white font-display font-bold">triphive</span>
+              <span className="text-white font-display font-bold">tripcoord</span>
             </div>
-            <p className="text-sm">© 2026 triphive, Inc. All rights reserved.</p>
+            <p className="text-sm">© 2026 tripcoord, Inc. All rights reserved.</p>
           </div>
         </div>
       </footer>

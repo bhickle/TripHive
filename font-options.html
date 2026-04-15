@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Script Font Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Great+Vibes&family=Pinyon+Script&family=Sacramento&family=Cormorant+Garamond:ital,wght@1,400;1,600;1,700&family=Playfair+Display:ital,wght@1,400;1,700&family=Italianno&display=swap" rel="stylesheet"/>
+<style>
+  :root { --parchment: #f5f1e8; --parchment-dark: #ede8dc; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--parchment);
+    font-family: 'Nunito', sans-serif;
+    padding: 48px;
+    color: #1a1a1a;
+  }
+  h1 {
+    font-family: 'Nunito', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #999;
+    margin-bottom: 32px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  .card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px 24px;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    position: relative;
+  }
+  .card.selected {
+    border-color: #1848A0;
+    box-shadow: 0 0 0 2px #1848A020, 0 4px 16px rgba(0,0,0,0.08);
+  }
+  .font-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #aaa;
+    margin-bottom: 6px;
+  }
+  .font-vibe {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    color: #bbb;
+    margin-bottom: 20px;
+    font-style: italic;
+  }
+
+  /* The big header sample */
+  .sample-title { margin-bottom: 8px; line-height: 1.1; }
+  .sample-sub {
+    font-family: 'Nunito', sans-serif;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .sample-card-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #bbb;
+    margin-bottom: 4px;
+  }
+  .sample-card-title { line-height: 1.2; }
+  .mini-card {
+    background: var(--parchment);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+  }
+
+  /* ── Font 1: Great Vibes ── */
+  .great-vibes .sample-title { font-family: 'Great Vibes', cursive; font-size: 52px; }
+  .great-vibes .sample-card-title { font-family: 'Great Vibes', cursive; font-size: 26px; }
+
+  /* ── Font 2: Pinyon Script ── */
+  .pinyon .sample-title { font-family: 'Pinyon Script', cursive; font-size: 56px; }
+  .pinyon .sample-card-title { font-family: 'Pinyon Script', cursive; font-size: 28px; }
+
+  /* ── Font 3: Sacramento ── */
+  .sacramento .sample-title { font-family: 'Sacramento', cursive; font-size: 54px; }
+  .sacramento .sample-card-title { font-family: 'Sacramento', cursive; font-size: 28px; }
+
+  /* ── Font 4: Cormorant Garamond Italic ── */
+  .cormorant .sample-title { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 700; font-size: 46px; }
+  .cormorant .sample-card-title { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 26px; }
+
+  /* ── Font 5: Playfair Display Italic ── */
+  .playfair .sample-title { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 700; font-size: 44px; }
+  .playfair .sample-card-title { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 700; font-size: 24px; }
+
+  /* ── Font 6: Italianno ── */
+  .italianno .sample-title { font-family: 'Italianno', cursive; font-size: 64px; }
+  .italianno .sample-card-title { font-family: 'Italianno', cursive; font-size: 34px; }
+
+  .tag {
+    display: inline-block;
+    background: #e8f0fb;
+    color: #1848A0;
+    font-family: 'Nunito', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 99px;
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Script font options — shown with Nunito body text on parchment</h1>
+
+<div class="grid">
+
+  <!-- 1: Great Vibes -->
+  <div class="card great-vibes">
+    <div class="font-label">Great Vibes</div>
+    <div class="font-vibe">Flowing calligraphic — formal but still warm</div>
+    <div class="sample-title">Where to next?</div>
+    <div class="sample-sub">Hand-picked destinations — one click away.</div>
+    <div class="mini-card">
+      <div class="sample-card-label">Next Up</div>
+      <div class="sample-card-title">Iceland Adventure</div>
+    </div>
+    <div class="mini-card">
+      <div class="sample-card-label">Section</div>
+      <div class="sample-card-title">Your Adventures</div>
+    </div>
+    <div class="tag">Free · Google Fonts</div>
+  </div>
+
+  <!-- 2: Pinyon Script -->
+  <div class="card pinyon">
+    <div class="font-label">Pinyon Script</div>
+    <div class="font-vibe">Classic penmanship — most formal of the group</div>
+    <div class="sample-title">Where to next?</div>
+    <div class="sample-sub">Hand-picked destinations — one click away.</div>
+    <div class="mini-card">
+      <div class="sample-card-label">Next Up</div>
+      <div class="sample-card-title">Iceland Adventure</div>
+    </div>
+    <div class="mini-card">
+      <div class="sample-card-label">Section</div>
+      <div class="sample-card-title">Your Adventures</div>
+    </div>
+    <div class="tag">Free · Google Fonts</div>
+  </div>
+
+  <!-- 3: Sacramento -->
+  <div class="card sacramento">
+    <div class="font-label">Sacramento</div>
+    <div class="font-vibe">Thin, airy, modern cursive — very chic</div>
+    <div class="sample-title">Where to next?</div>
+    <div class="sample-sub">Hand-picked destinations — one click away.</div>
+    <div class="mini-card">
+      <div class="sample-card-label">Next Up</div>
+      <div class="sample-card-title">Iceland Adventure</div>
+    </div>
+    <div class="mini-card">
+      <div class="sample-card-label">Section</div>
+      <div class="sample-card-title">Your Adventures</div>
+    </div>
+    <div class="tag">Free · Google Fonts</div>
+  </div>
+
+  <!-- 4: Cormorant Garamond Italic -->
+  <div class="card cormorant">
+    <div class="font-label">Cormorant Garamond Italic</div>
+    <div class="font-vibe">High-fashion editorial — not a script but very refined</div>
+    <div class="sample-title">Where to next?</div>
+    <div class="sample-sub">Hand-picked destinations — one click away.</div>
+    <div class="mini-card">
+      <div class="sample-card-label">Next Up</div>
+      <div class="sample-card-title">Iceland Adventure</div>
+    </div>
+    <div class="mini-card">
+      <div class="sample-card-label">Section</div>
+      <div class="sample-card-title">Your Adventures</div>
+    </div>
+    <div class="tag">Free · Google Fonts</div>
+  </div>
+
+  <!-- 5: Playfair Italic -->
+  <div class="card playfair">
+    <div class="font-label">Playfair Display Italic</div>
+    <div class="font-vibe">Luxury editorial — bold, confident, timeless</div>
+    <div class="sample-title">Where to next?</div>
+    <div class="sample-sub">Hand-picked destinations — one click away.</div>
+    <div class="mini-card">
+      <div class="sample-card-label">Next Up</div>
+      <div class="sample-card-title">Iceland Adventure</div>
+    </div>
+    <div class="mini-card">
+      <div class="sample-card-label">Section</div>
+      <div class="sample-card-title">Your Adventures</div>
+    </div>
+    <div class="tag">Free · Google Fonts</div>
+  </div>
+
+  <!-- 6: Italianno -->
+  <div class="card italianno">
+    <div class="font-label">Italianno</div>
+    <div class="font-vibe">Elegant Italian penmanship — romantic and legible</div>
+    <div class="sample-title">Where to next?</div>
+    <div class="sample-sub">Hand-picked destinations — one click away.</div>
+    <div class="mini-card">
+      <div class="sample-card-label">Next Up</div>
+      <div class="sample-card-title">Iceland Adventure</div>
+    </div>
+    <div class="mini-card">
+      <div class="sample-card-label">Section</div>
+      <div class="sample-card-title">Your Adventures</div>
+    </div>
+    <div class="tag">Free · Google Fonts</div>
+  </div>
+
+</div>
+</body>
+</html>

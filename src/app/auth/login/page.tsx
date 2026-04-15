@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, Mail, Lock, Apple } from 'lucide-react';
+import { Mail, Lock, Apple } from 'lucide-react';
 import { useState } from 'react';
 
 export default function LoginPage() {
@@ -23,11 +24,8 @@ export default function LoginPage() {
     <div className="min-h-screen gradient-subtle flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-10">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-sky-800 to-green-800 flex items-center justify-center">
-            <Globe className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-2xl font-display font-bold text-slate-900">triphive</span>
+        <div className="flex items-center justify-center mb-10">
+          <Image src="/tripcoord_logo.png" alt="tripcoord" width={180} height={56} className="h-12 w-auto" priority />
         </div>
 
         {/* Card */}

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 92" fill="none">
+  <!-- Parachute canopy -->
+  <path d="M130 8 C108 8 90 22 88 40 L130 40 L172 40 C170 22 152 8 130 8Z" fill="#E8761A"/>
+  <!-- Parachute lines -->
+  <line x1="100" y1="40" x2="122" y2="58" stroke="#E8761A" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="115" y1="40" x2="124" y2="58" stroke="#E8761A" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="130" y1="40" x2="130" y2="58" stroke="#E8761A" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="145" y1="40" x2="136" y2="58" stroke="#E8761A" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="160" y1="40" x2="138" y2="58" stroke="#E8761A" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Payload circle -->
+  <circle cx="130" cy="62" r="5" fill="#E8761A"/>
+</svg>

@@ -69,7 +69,7 @@ function buildPrompt(params: {
     : 'comfort-focused — prefers well-reviewed, accessible, and easy-to-navigate attractions';
 
   const localModeText = localMode
-    ? '\n- LOCAL INSIDER MODE: Avoid tourist traps entirely. Recommend spots that locals actually use — neighbourhood cafes, markets, parks, and venues that rarely appear in guidebooks.'
+    ? '\n- LOCAL INSIDER MODE: For every day, include the iconic tourist highlight AND a local alternative nearby — a neighborhood cafe instead of the tourist-facing one, a local market instead of the souvenir shop. Both options appear side by side so the group can choose. Never skip the famous landmark entirely — just pair it with a genuine local counterpart.'
     : '';
 
   const modalityText = modality && modality !== 'mix'
@@ -198,7 +198,7 @@ RULES:
 12. meetupLocation should be a real landmark or the hotel area
 13. photoSpots: include 1-3 per day — real named viewpoints or spots, specific time of day (sunrise/golden hour/blue hour/midday), and one actionable shooting tip. Every day must have at least one photo spot.
 14. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
-15. Respect the travel style: ${explorerPct >= 70 ? 'prioritise hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
+15. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
 16. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;

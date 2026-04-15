@@ -48,13 +48,13 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   };
 
   const handleInvite = () => {
-    navigator.clipboard.writeText(`https://triphive.app/join/${params.id}`);
+    navigator.clipboard.writeText(`https://tripcoord.app/join/${params.id}`);
     setInviteCopied(true);
     setTimeout(() => setInviteCopied(false), 2000);
   };
 
   return (
-    <div className="flex h-screen bg-stone-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar
         activeTrip={{
           id: trip.id,
@@ -76,7 +76,7 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
           showBackButton={true}
         />
 
-        <main className="flex-1 overflow-auto bg-stone-50">
+        <main className="flex-1 overflow-auto bg-parchment">
           {children}
         </main>
       </div>

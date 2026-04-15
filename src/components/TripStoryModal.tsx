@@ -166,7 +166,7 @@ function CoverSlide({ trip }: { trip: Trip }) {
         <div className="w-7 h-7 bg-sky-800 rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-xs">t</span>
         </div>
-        <span className="text-white font-bold text-base tracking-tight opacity-90">triphive</span>
+        <span className="text-white font-bold text-base tracking-tight opacity-90">tripcoord</span>
       </div>
       <div className="absolute bottom-0 left-0 right-0 p-8 pb-12">
         <p className="text-sky-300 text-xs font-semibold uppercase tracking-widest mb-2">{country}</p>
@@ -220,7 +220,7 @@ function NumbersSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string }) {
             <div className="w-5 h-5 bg-sky-800 rounded flex items-center justify-center">
               <span className="text-white font-bold text-[9px]">t</span>
             </div>
-            <span className="text-white text-xs font-bold">triphive</span>
+            <span className="text-white text-xs font-bold">tripcoord</span>
           </div>
         </div>
       </div>
@@ -260,7 +260,7 @@ function DayHighlightsSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string })
             <div className="w-5 h-5 bg-sky-800 rounded flex items-center justify-center">
               <span className="text-white font-bold text-[9px]">t</span>
             </div>
-            <span className="text-white text-xs font-bold">triphive</span>
+            <span className="text-white text-xs font-bold">tripcoord</span>
           </div>
         </div>
       </div>
@@ -290,7 +290,7 @@ function CrewSlide({ bgPhoto }: { bgPhoto?: string }) {
             <div className="w-5 h-5 bg-sky-800 rounded flex items-center justify-center">
               <span className="text-white font-bold text-[9px]">t</span>
             </div>
-            <span className="text-white text-xs font-bold">triphive</span>
+            <span className="text-white text-xs font-bold">tripcoord</span>
           </div>
         </div>
       </div>
@@ -333,7 +333,7 @@ function BudgetSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string }) {
             <div className="w-5 h-5 bg-sky-800 rounded flex items-center justify-center">
               <span className="text-white font-bold text-[9px]">t</span>
             </div>
-            <span className="text-white text-xs font-bold">triphive</span>
+            <span className="text-white text-xs font-bold">tripcoord</span>
           </div>
         </div>
       </div>
@@ -497,7 +497,7 @@ function PhotosSlide({ photos, reactions, onOpen }: PhotoGridProps) {
         <div className="w-5 h-5 bg-sky-800 rounded flex items-center justify-center">
           <span className="text-white font-bold text-[9px]">t</span>
         </div>
-        <span className="text-white text-xs font-bold">triphive</span>
+        <span className="text-white text-xs font-bold">tripcoord</span>
       </div>
       <div className="absolute inset-0 flex flex-col gap-1 pt-20 pb-10 px-1">
         {photos[0] && (
@@ -554,14 +554,14 @@ function ShareSlide({ trip, onDownload }: { trip: Trip; onDownload: () => void }
             Save this card
           </button>
           <button
-            onClick={() => navigator.clipboard.writeText(`https://triphive.app/story/${trip.id}`)}
+            onClick={() => navigator.clipboard.writeText(`https://tripcoord.app/story/${trip.id}`)}
             className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all"
           >
             <Share2 className="w-4 h-4" />
             Copy share link
           </button>
         </div>
-        <p className="text-white/30 text-xs mt-8 font-medium">triphive.app</p>
+        <p className="text-white/30 text-xs mt-8 font-medium">tripcoord.app</p>
       </div>
     </div>
   );
@@ -585,7 +585,7 @@ function YearlyCoverSlide({ year }: { year: number }) {
         </div>
         <p className="text-sky-300 text-xs font-semibold uppercase tracking-widest mb-3">Your year in travel</p>
         <h2 className="text-white text-7xl font-black leading-none mb-4">{year}</h2>
-        <p className="text-zinc-400 text-base">Wrapped by triphive</p>
+        <p className="text-zinc-400 text-base">Wrapped by tripcoord</p>
       </div>
     </div>
   );
@@ -693,7 +693,7 @@ function YearlyPhotosSlide({ reactions, onOpen }: { reactions: Record<string, Re
         <div className="w-5 h-5 bg-sky-800 rounded flex items-center justify-center">
           <span className="text-white font-bold text-[9px]">t</span>
         </div>
-        <span className="text-white text-xs font-bold">triphive</span>
+        <span className="text-white text-xs font-bold">tripcoord</span>
       </div>
       <div className="absolute inset-0 flex flex-col gap-1 pt-20 pb-10 px-1">
         <div className="flex gap-1 flex-none" style={{ height: '30%' }}>
@@ -761,12 +761,12 @@ function YearlyShareSlide({ year, onDownload, reactions, onOpen }: { year: numbe
             <Download className="w-4 h-4" />
             Save your wrap
           </button>
-          <button onClick={() => navigator.clipboard.writeText(`https://triphive.app/year/${year}`)} className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all">
+          <button onClick={() => navigator.clipboard.writeText(`https://tripcoord.app/year/${year}`)} className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all">
             <Share2 className="w-4 h-4" />
             Share your {year}
           </button>
         </div>
-        <p className="text-white/25 text-xs mt-5 font-medium">triphive.app</p>
+        <p className="text-white/25 text-xs mt-5 font-medium">tripcoord.app</p>
       </div>
     </div>
   );

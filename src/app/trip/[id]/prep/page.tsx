@@ -592,7 +592,7 @@ export default function PrepPage() {
   // ─── Page shell ───────────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen bg-stone-50 p-6">
+    <main className="min-h-screen bg-parchment p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <p className="text-xs uppercase tracking-widest text-zinc-400 mb-3">Pre-Trip</p>

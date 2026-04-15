@@ -135,7 +135,7 @@ export default function PricingPage() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-800 to-green-800 flex items-center justify-center">
               <Globe className="w-4 h-4 text-white" />
             </div>
-            <span className="text-lg font-bold text-zinc-900 tracking-tight">triphive</span>
+            <span className="text-lg font-bold text-zinc-900 tracking-tight">tripcoord</span>
           </div>
           <Link href="/auth/signup" className="px-4 py-2 bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold rounded-full transition-all">
             Get started free
@@ -179,7 +179,7 @@ export default function PricingPage() {
           <div className="bg-white border border-zinc-200 rounded-3xl p-7 flex flex-col">
             <div className="mb-5">
               <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Free</p>
-              <p className="text-zinc-500 text-sm leading-snug">Try triphive. See what the fuss is about.</p>
+              <p className="text-zinc-500 text-sm leading-snug">Try tripcoord. See what the fuss is about.</p>
             </div>
             <div className="mb-6">
               <span className="text-4xl font-bold text-zinc-900">$0</span>
@@ -448,14 +448,14 @@ export default function PricingPage() {
             <div className="w-6 h-6 rounded bg-sky-800 flex items-center justify-center">
               <Globe className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-zinc-400 text-sm font-semibold">triphive</span>
+            <span className="text-zinc-400 text-sm font-semibold">tripcoord</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-zinc-600">
             <Link href="#" className="hover:text-zinc-400 transition-colors">Privacy</Link>
             <Link href="#" className="hover:text-zinc-400 transition-colors">Terms</Link>
             <Link href="#" className="hover:text-zinc-400 transition-colors">Contact</Link>
           </div>
-          <p className="text-zinc-600 text-xs">© 2026 triphive. All rights reserved.</p>
+          <p className="text-zinc-600 text-xs">© 2026 tripcoord. All rights reserved.</p>
         </div>
       </footer>
     </div>

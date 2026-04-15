@@ -145,13 +145,13 @@ export default function MemoriesPage() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value="https://triphive.app/album/trip_1/iceland-2026"
+                  value="https://tripcoord.app/album/trip_1/iceland-2026"
                   readOnly
                   className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm text-slate-900"
                 />
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText('https://triphive.app/album/trip_1/iceland-2026');
+                    navigator.clipboard.writeText('https://tripcoord.app/album/trip_1/iceland-2026');
                     setLinkCopied(true);
                     setTimeout(() => setLinkCopied(false), 2000);
                   }}

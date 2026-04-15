@@ -15,10 +15,10 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'triphive — AI Travel Planning',
+  title: 'tripcoord — AI Travel Planning',
   description: 'Plan trips your whole group will love. AI-powered itineraries, group planning, and expense tracking all in one place.',
   openGraph: {
-    title: 'triphive — AI Travel Planning',
+    title: 'tripcoord — AI Travel Planning',
     description: 'Plan trips your whole group will love. AI-powered itineraries, group planning, and expense tracking all in one place.',
     type: 'website',
   },

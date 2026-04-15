@@ -265,33 +265,34 @@ export default function DiscoverPage() {
   const trending = discoverDestinations.filter(d => d.trending);
 
   return (
-    <div className="flex h-screen bg-stone-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar activePage="discover" user={currentUser} />
 
       <div className="flex-1 overflow-y-auto">
-        {/* Header */}
-        <div className="px-6 pt-8 pb-6 border-b border-zinc-100 bg-white">
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex-1">
-              <p className="text-xs font-bold uppercase tracking-widest text-sky-600 mb-1">Discover</p>
-              <h1 className="text-2xl font-display font-bold text-zinc-900 leading-tight">Where to next?</h1>
-              <p className="text-sm text-zinc-400 mt-0.5">Hand-picked destinations with flights, hotels &amp; experiences — one click away.</p>
-            </div>
-            {/* Search */}
-            <div className="relative w-full sm:w-72 lg:w-96 flex-shrink-0">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search destinations…"
-                className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-zinc-200 rounded-xl text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-300"
-              />
+        <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+          {/* Page Header */}
+          <div className="mb-8">
+            <p className="text-xs font-semibold uppercase tracking-widest text-sky-700 mb-3">Discover</p>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <h1 className="text-4xl font-display font-bold text-zinc-900">Where to next?</h1>
+                <p className="text-sm text-zinc-400 mt-1">Hand-picked destinations with flights, hotels &amp; experiences — one click away.</p>
+              </div>
+              <div className="relative w-full sm:w-72 flex-shrink-0">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search destinations…"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-300 shadow-sm"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="max-w-6xl mx-auto px-6 py-8 space-y-12">
+          <div className="space-y-12">
 
           {/* Filters */}
           <div className="space-y-3">
@@ -346,7 +347,7 @@ export default function DiscoverPage() {
                     <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
                     Editor&apos;s Picks
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-0.5">Our favourites right now</p>
+                  <p className="text-sm text-zinc-400 mt-0.5">Our favorites right now</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -448,8 +449,9 @@ export default function DiscoverPage() {
 
           {/* Partner disclosure */}
           <p className="text-center text-xs text-zinc-300 pb-4">
-            Some links on this page are affiliate links. triphive may earn a commission when you book — at no extra cost to you.
+            Some links on this page are affiliate links. tripcoord may earn a commission when you book — at no extra cost to you.
           </p>
+          </div>
         </div>
       </div>
 

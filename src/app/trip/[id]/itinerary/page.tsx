@@ -448,7 +448,7 @@ export default function ItineraryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 p-3 md:p-6">
+    <div className="min-h-screen bg-parchment p-3 md:p-6">
       <div className="max-w-6xl mx-auto">
 
         {/* AI Generated Banner */}
@@ -841,35 +841,6 @@ export default function ItineraryPage() {
               </div>
             </div>
 
-            {/* Budget Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">Group Budget</p>
-              <div className="mb-5 p-3.5 bg-sky-50 rounded-xl border border-sky-100">
-                <p className="text-2xl font-display font-bold text-sky-700">${totalSpent.toLocaleString()}</p>
-                <p className="text-xs text-zinc-500 mt-1">
-                  of ${totalBudget.toLocaleString()} total ·{' '}
-                  <span className={remainingBudget >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                    ${Math.abs(remainingBudget).toLocaleString()} {remainingBudget >= 0 ? 'left' : 'over'}
-                  </span>
-                </p>
-              </div>
-              <div className="space-y-3">
-                {budgetCategories.map(cat => {
-                  const pct = Math.min((cat.spent / cat.budget) * 100, 100);
-                  return (
-                    <div key={cat.label}>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-xs font-medium text-zinc-600">{cat.label}</span>
-                        <span className="text-xs text-zinc-400">${cat.spent}/${cat.budget}</span>
-                      </div>
-                      <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${cat.color}`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
 
             {/* Photo Spots Card */}
             {currentDayData.photoSpots && currentDayData.photoSpots.length > 0 && (

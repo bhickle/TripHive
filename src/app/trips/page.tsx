@@ -48,7 +48,7 @@ export default function TripsPage() {
     new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="flex h-screen bg-stone-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar activePage="trips" user={currentUser} />
 
       <main className="flex-1 overflow-auto p-8">

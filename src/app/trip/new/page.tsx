@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
@@ -48,14 +49,15 @@ interface BookedHotel {
 
 interface TripWizardState {
   groupType: string;
+  groupSize: number;
   destination: string;
   startDate: string;
   endDate: string;
   tripLength: number;
   flexibleDates: boolean;
   priorities: string[];
-  modality: string;
-  accommodationType: string;
+  modality: string[];
+  accommodationType: string[];
   curiosityLevel: number;
   localMode: boolean;
   budget: number;
@@ -166,16 +168,16 @@ function getDestinationCosts(destination: string): DestinationCosts {
   return DESTINATION_COSTS.default;
 }
 
-function calcBudgetFromDestination(destination: string, tripLength: number, groupSize: number = 2): {
+function calcBudgetFromDestination(destination: string, tripLength: number): {
   flights: number; hotel: number; food: number; experiences: number; transport: number;
 } {
   const costs = getDestinationCosts(destination);
   const nights = tripLength - 1;
   return {
-    flights: Math.round(costs.flightsPerPerson * groupSize / 50) * 50,
+    flights: Math.round(costs.flightsPerPerson / 50) * 50,
     hotel: Math.round(costs.hotelPerNight * nights / 50) * 50,
-    food: Math.round(costs.foodPerDay * tripLength * groupSize / 50) * 50,
-    experiences: Math.round(costs.experiencesPerDay * tripLength * groupSize / 50) * 50,
+    food: Math.round(costs.foodPerDay * tripLength / 50) * 50,
+    experiences: Math.round(costs.experiencesPerDay * tripLength / 50) * 50,
     transport: Math.round(costs.transportPerDay * tripLength / 10) * 10,
   };
 }
@@ -192,23 +194,24 @@ function TripBuilderPage() {
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [state, setState] = useState<TripWizardState>({
     groupType: '',
+    groupSize: 2,
     destination: '',
     startDate: '',
     endDate: '',
     tripLength: 7,
     flexibleDates: false,
     priorities: [],
-    modality: '',
-    accommodationType: 'hotel',
+    modality: [],
+    accommodationType: ['hotel'],
     curiosityLevel: 50,
     localMode: false,
     budget: 5000,
     budgetBreakdown: {
-      flights: 1500,
-      hotel: 1500,
-      food: 700,
-      experiences: 800,
-      transport: 500,
+      flights: 800,
+      hotel: 900,
+      food: 600,
+      experiences: 500,
+      transport: 200,
     },
     ageRanges: [],
     accessibilityNeeds: [],
@@ -227,7 +230,7 @@ function TripBuilderPage() {
   useEffect(() => {
     if (!isFirstTrip) return;
     try {
-      const raw = localStorage.getItem('triphive_profile');
+      const raw = localStorage.getItem('tripcoord_profile');
       if (!raw) return;
       const profile = JSON.parse(raw);
       if (profile.name) setWelcomeName(profile.name);
@@ -261,7 +264,7 @@ function TripBuilderPage() {
     if (state.destination && state.destination !== prevDestRef.current && state.destination.length > 3) {
       prevDestRef.current = state.destination;
       const breakdown = calcBudgetFromDestination(state.destination, state.tripLength);
-      const total = Object.values(breakdown).reduce((s, v) => s + v, 0);
+      const total = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0);
       setState(prev => ({ ...prev, budgetBreakdown: breakdown, budget: total }));
       setBudgetInput(total.toString());
       setBudgetAutoFilled(true);
@@ -299,11 +302,34 @@ function TripBuilderPage() {
   };
 
   const toggleAccessibilityNeed = (need: string) => {
+    setState((prev) => {
+      if (need === 'No special needs') {
+        // Clicking "No special needs" clears all other selections
+        return { ...prev, accessibilityNeeds: [] };
+      }
+      // Selecting any real need removes implicit "no needs" state
+      const next = prev.accessibilityNeeds.includes(need)
+        ? prev.accessibilityNeeds.filter((a) => a !== need)
+        : [...prev.accessibilityNeeds.filter((a) => a !== 'No special needs'), need];
+      return { ...prev, accessibilityNeeds: next };
+    });
+  };
+
+  const toggleModality = (id: string) => {
     setState((prev) => ({
       ...prev,
-      accessibilityNeeds: prev.accessibilityNeeds.includes(need)
-        ? prev.accessibilityNeeds.filter((a) => a !== need)
-        : [...prev.accessibilityNeeds, need],
+      modality: prev.modality.includes(id)
+        ? prev.modality.filter((m) => m !== id)
+        : [...prev.modality, id],
+    }));
+  };
+
+  const toggleAccommodationType = (id: string) => {
+    setState((prev) => ({
+      ...prev,
+      accommodationType: prev.accommodationType.includes(id)
+        ? prev.accommodationType.filter((a) => a !== id)
+        : [...prev.accommodationType, id],
     }));
   };
 
@@ -360,8 +386,8 @@ function TripBuilderPage() {
           accessibilityNeeds: state.accessibilityNeeds,
           localMode: state.localMode,
           curiosityLevel: state.curiosityLevel,
-          modality: state.modality,
-          accommodationType: state.accommodationType,
+          modality: state.modality.join(', '),
+          accommodationType: state.accommodationType.join(', '),
           bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
           bookedHotel: state.hasPreBookedHotel ? state.bookedHotel : null,
         }),
@@ -523,24 +549,22 @@ function TripBuilderPage() {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
         style={{ backgroundImage: `url(${getLoadingPhoto()})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
+        {/* Warm parchment overlay */}
+        <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(245,241,232,0.82)' }} />
 
         <div className="relative z-10 flex flex-col items-center text-center px-8 max-w-lg">
-          {/* Animated hexagon logo */}
-          <div className="mb-8 relative">
-            <div className="w-20 h-20 bg-sky-800 rounded-2xl flex items-center justify-center shadow-2xl animate-pulse">
-              <span className="text-white font-display font-bold text-3xl">t</span>
-            </div>
+          {/* Logo */}
+          <div className="mb-8">
+            <Image src="/tripcoord_logo.png" alt="tripcoord" width={180} height={64} className="h-14 w-auto animate-pulse" priority />
           </div>
 
-          <p className="text-xs font-semibold uppercase tracking-widest text-sky-600 mb-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-orange-600 mb-3">
             AI Itinerary Generator
           </p>
-          <h2 className="text-4xl font-display font-bold text-white mb-3 leading-tight">
+          <h2 className="text-4xl font-display font-bold text-zinc-900 mb-3 leading-tight">
             {state.destination || 'Your Trip'}
           </h2>
-          <p className="text-white/60 text-sm mb-10">
+          <p className="text-zinc-500 text-sm mb-10">
             {state.startDate && state.endDate
               ? `${new Date(state.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(state.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
               : `${state.tripLength} days`}
@@ -548,23 +572,23 @@ function TripBuilderPage() {
 
           {/* Status message */}
           <div className="mb-8 h-6">
-            <p className="text-white/80 text-sm font-medium transition-all duration-500">
+            <p className="text-zinc-600 text-sm font-medium transition-all duration-500">
               {generationStatus}
             </p>
           </div>
 
           {/* Animated progress bar */}
-          <div className="w-64 h-1 bg-white/20 rounded-full overflow-hidden">
-            <div className="h-full bg-sky-800 rounded-full animate-[loading_3s_ease-in-out_infinite]"
+          <div className="w-64 h-1.5 bg-zinc-900/10 rounded-full overflow-hidden">
+            <div className="h-full bg-orange-500 rounded-full"
               style={{ width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
           </div>
 
           {generationError && (
-            <div className="mt-8 px-5 py-3 bg-rose-500/20 border border-rose-400/30 rounded-xl">
-              <p className="text-rose-300 text-sm font-medium">{generationError}</p>
+            <div className="mt-8 px-5 py-3 bg-rose-50 border border-rose-200 rounded-xl">
+              <p className="text-rose-700 text-sm font-medium">{generationError}</p>
               <button
                 onClick={() => setIsGenerating(false)}
-                className="mt-2 text-xs text-white/60 hover:text-white underline"
+                className="mt-2 text-xs text-rose-500 hover:text-rose-700 underline"
               >
                 Go back and try again
               </button>
@@ -576,7 +600,7 @@ function TripBuilderPage() {
   }
 
   return (
-    <div className="flex h-screen bg-stone-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar
         activePage="trips"
         user={{
@@ -757,6 +781,27 @@ function TripBuilderPage() {
                     );
                   })}
                 </div>
+
+                {/* Group Size */}
+                <div className="mt-6 flex items-center gap-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex-1">
+                    <label className="block text-sm font-semibold text-slate-900 mb-0.5">How many people total?</label>
+                    <p className="text-xs text-slate-400">Used to estimate per-person costs</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setState(prev => ({ ...prev, groupSize: Math.max(1, prev.groupSize - 1) }))}
+                      className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                    >−</button>
+                    <span className="w-8 text-center text-lg font-bold text-slate-900">{state.groupSize}</span>
+                    <button
+                      type="button"
+                      onClick={() => setState(prev => ({ ...prev, groupSize: Math.min(20, prev.groupSize + 1) }))}
+                      className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                    >+</button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -842,6 +887,30 @@ function TripBuilderPage() {
                   When are you going? 📅
                 </h2>
                 <div className="space-y-6">
+                  {/* Trip Length — quick-select first */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      Trip Length
+                    </label>
+                    <p className="text-xs text-slate-400 mb-3">Quick-pick or set exact dates below — selecting dates auto-calculates length</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[3, 5, 7, 10, 14].map((days) => (
+                        <button
+                          key={days}
+                          onClick={() => handleTripLengthClick(days)}
+                          className={`p-3 rounded-lg border-2 font-semibold transition-all ${
+                            state.tripLength === days
+                              ? 'border-green-700 bg-green-50 text-green-800'
+                              : 'border-slate-200 text-slate-700 hover:border-sky-300'
+                          }`}
+                        >
+                          {days}d
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Dates */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-slate-900 mb-3">
@@ -868,27 +937,6 @@ function TripBuilderPage() {
                         }
                         className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
                       />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-4">
-                      Trip Length (Days)
-                    </label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[3, 5, 7, 10, 14].map((days) => (
-                        <button
-                          key={days}
-                          onClick={() => handleTripLengthClick(days)}
-                          className={`p-3 rounded-lg border-2 font-semibold transition-all ${
-                            state.tripLength === days
-                              ? 'border-green-700 bg-green-50 text-green-800'
-                              : 'border-slate-200 text-slate-700 hover:border-sky-300'
-                          }`}
-                        >
-                          {days}d
-                        </button>
-                      ))}
                     </div>
                   </div>
 
@@ -1122,55 +1170,67 @@ function TripBuilderPage() {
 
                 {/* Accessibility Needs */}
                 <div className="mb-8">
-                  <label className="block text-sm font-semibold text-slate-900 mb-4">
+                  <label className="block text-sm font-semibold text-slate-900 mb-1">
                     Accessibility Needs
                   </label>
+                  <p className="text-xs text-slate-400 mb-4">Select any that apply — defaults to no special needs</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {accessibilityOptions.map((need) => (
-                      <label
-                        key={need}
-                        className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={state.accessibilityNeeds.includes(need)}
-                          onChange={() => toggleAccessibilityNeed(need)}
-                          className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
-                        />
-                        <span className="text-sm font-medium text-slate-900">
-                          {need}
-                        </span>
-                      </label>
-                    ))}
+                    {accessibilityOptions.map((need) => {
+                      const noNeeds = need === 'No special needs';
+                      // "No special needs" shows checked when nothing else is selected
+                      const isChecked = noNeeds
+                        ? state.accessibilityNeeds.length === 0
+                        : state.accessibilityNeeds.includes(need);
+                      return (
+                        <label
+                          key={need}
+                          className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleAccessibilityNeed(need)}
+                            className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
+                          />
+                          <span className="text-sm font-medium text-slate-900">{need}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
 
                 {/* Travel Priorities */}
                 <div className="mb-8">
-                  <label className="block text-sm font-semibold text-slate-900 mb-4">
-                    Travel Priorities
-                  </label>
+                  <div className="flex items-baseline justify-between mb-4">
+                    <label className="text-sm font-semibold text-slate-900">
+                      Travel Priorities
+                    </label>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      state.priorities.length >= 4
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {state.priorities.length}/4 selected
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {priorityOptions.map((priority) => {
-                      const isSelected = state.priorities.includes(
-                        priority.id
-                      );
+                      const isSelected = state.priorities.includes(priority.id);
+                      const isDisabled = !isSelected && state.priorities.length >= 4;
                       return (
                         <button
                           key={priority.id}
-                          onClick={() => togglePriority(priority.id)}
+                          onClick={() => !isDisabled && togglePriority(priority.id)}
                           className={`p-4 rounded-lg border-2 transition-all text-center ${
                             isSelected
                               ? 'border-green-700 bg-green-50'
+                              : isDisabled
+                              ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
                               : 'border-slate-200 hover:border-sky-300'
                           }`}
                         >
-                          <span className="text-3xl mb-2 block">
-                            {priority.icon}
-                          </span>
-                          <p className="font-semibold text-slate-900 text-sm">
-                            {priority.label}
-                          </p>
+                          <span className="text-3xl mb-2 block">{priority.icon}</span>
+                          <p className="font-semibold text-slate-900 text-sm">{priority.label}</p>
                           {isSelected && (
                             <div className="mt-2">
                               <div className="w-4 h-4 bg-green-800 rounded-full mx-auto" />
@@ -1207,101 +1267,70 @@ function TripBuilderPage() {
                 </h2>
 
                 <div className="space-y-8">
-                  {/* Modality */}
+                  {/* Local Transportation */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-4">
-                      Primary Transportation
+                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      Local Transportation
                     </label>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <p className="text-xs text-slate-400 mb-4">Select all that apply — how will you get around once you're there?</p>
+                    <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
                       {[
-                        { id: 'plane', label: 'Plane', icon: '✈️' },
-                        { id: 'train', label: 'Train', icon: '🚂' },
-                        { id: 'car', label: 'Car', icon: '🚗' },
-                        { id: 'boat', label: 'Boat', icon: '⛴️' },
-                        { id: 'mix', label: 'Mix', icon: '🌍' },
-                      ].map((mode) => (
-                        <button
-                          key={mode.id}
-                          onClick={() =>
-                            setState((prev) => ({
-                              ...prev,
-                              modality: mode.id,
-                            }))
-                          }
-                          className={`p-4 rounded-lg border-2 transition-all text-center ${
-                            state.modality === mode.id
-                              ? 'border-sky-700 bg-sky-50'
-                              : 'border-slate-200 hover:border-sky-300'
-                          }`}
-                        >
-                          <span className="text-3xl block mb-2">
-                            {mode.icon}
-                          </span>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {mode.label}
-                          </p>
-                        </button>
-                      ))}
+                        { id: 'train', label: 'Train / Metro', icon: '🚂' },
+                        { id: 'car', label: 'Car / Rental', icon: '🚗' },
+                        { id: 'uber', label: 'Rideshare', icon: '📱' },
+                        { id: 'excursion', label: 'Excursion Bus', icon: '🚌' },
+                      ].map((mode) => {
+                        const isSelected = state.modality.includes(mode.id);
+                        return (
+                          <button
+                            key={mode.id}
+                            onClick={() => toggleModality(mode.id)}
+                            className={`p-4 rounded-lg border-2 transition-all text-center ${
+                              isSelected
+                                ? 'border-sky-700 bg-sky-50'
+                                : 'border-slate-200 hover:border-sky-300'
+                            }`}
+                          >
+                            <span className="text-3xl block mb-2">{mode.icon}</span>
+                            <p className="text-sm font-semibold text-slate-900">{mode.label}</p>
+                            {isSelected && <div className="mt-1 w-3 h-3 bg-sky-700 rounded-full mx-auto" />}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Accommodation Type */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-4">
+                    <label className="block text-sm font-semibold text-slate-900 mb-1">
                       Accommodation Type
                     </label>
+                    <p className="text-xs text-slate-400 mb-4">Select all that apply</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {[
-                        { id: 'hotel', label: 'Hotel' },
-                        { id: 'airbnb', label: 'Airbnb' },
-                        { id: 'hostel', label: 'Hostel' },
-                        { id: 'resort', label: 'Resort' },
-                      ].map((type) => (
-                        <button
-                          key={type.id}
-                          onClick={() =>
-                            setState((prev) => ({
-                              ...prev,
-                              accommodationType: type.id,
-                            }))
-                          }
-                          className={`p-4 rounded-lg border-2 transition-all font-medium ${
-                            state.accommodationType === type.id
-                              ? 'border-sky-700 bg-sky-50 text-sky-800'
-                              : 'border-slate-200 hover:border-sky-300 text-slate-900'
-                          }`}
-                        >
-                          {type.label}
-                        </button>
-                      ))}
+                        { id: 'hotel', label: 'Hotel', icon: '🏨' },
+                        { id: 'airbnb', label: 'Airbnb / Rental', icon: '🏠' },
+                        { id: 'hostel', label: 'Hostel', icon: '🛏️' },
+                        { id: 'resort', label: 'Resort', icon: '🌴' },
+                      ].map((type) => {
+                        const isSelected = state.accommodationType.includes(type.id);
+                        return (
+                          <button
+                            key={type.id}
+                            onClick={() => toggleAccommodationType(type.id)}
+                            className={`p-4 rounded-lg border-2 transition-all text-center ${
+                              isSelected
+                                ? 'border-sky-700 bg-sky-50 text-sky-800'
+                                : 'border-slate-200 hover:border-sky-300 text-slate-900'
+                            }`}
+                          >
+                            <span className="text-2xl block mb-1">{type.icon}</span>
+                            <p className="text-sm font-semibold">{type.label}</p>
+                            {isSelected && <div className="mt-1 w-3 h-3 bg-sky-700 rounded-full mx-auto" />}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </div>
-
-                  {/* Curiosity Level Slider */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-4">
-                      Travel Style: Comfort ↔ Explorer
-                    </label>
-                    <div className="flex items-center space-x-4">
-                      <span className="text-sm text-slate-600">Comfort</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={state.curiosityLevel}
-                        onChange={(e) =>
-                          setState((prev) => ({
-                            ...prev,
-                            curiosityLevel: parseInt(e.target.value),
-                          }))
-                        }
-                        className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-ocean-600"
-                      />
-                      <span className="text-sm text-slate-600">Explorer</span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-2">
-                      Current: {state.curiosityLevel}% explorer
-                    </p>
                   </div>
 
                   {/* Local Mode Toggle */}
@@ -1333,11 +1362,52 @@ function TripBuilderPage() {
                 </h2>
 
                 <div className="space-y-8">
-                  {/* Total Budget */}
+                  {/* Travel Comfort Slider */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-3">
-                      Total Group Budget (USD)
+                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      Travel Style
                     </label>
+                    <p className="text-xs text-slate-400 mb-4">How do you prefer to travel — budget-smart or comfort-first?</p>
+                    <div className="flex items-center gap-4">
+                      <div className="text-center flex-shrink-0">
+                        <span className="text-xl block mb-1">🛏️</span>
+                        <span className="text-xs text-slate-500 font-medium">Backpacker</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={state.curiosityLevel}
+                        onChange={(e) =>
+                          setState((prev) => ({
+                            ...prev,
+                            curiosityLevel: parseInt(e.target.value),
+                          }))
+                        }
+                        className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-700"
+                      />
+                      <div className="text-center flex-shrink-0">
+                        <span className="text-xl block mb-1">✨</span>
+                        <span className="text-xs text-slate-500 font-medium">Luxury</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2 text-center">
+                      {state.curiosityLevel < 30
+                        ? 'Budget-conscious — hostels, street food, local transit'
+                        : state.curiosityLevel < 60
+                        ? 'Mid-range — comfortable hotels, mix of dining'
+                        : state.curiosityLevel < 85
+                        ? 'Comfort-first — nice hotels, quality restaurants'
+                        : 'Luxury — premium hotels, fine dining, private transfers'}
+                    </p>
+                  </div>
+
+                  {/* Per-Person Budget */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      Per-Person Budget (USD)
+                    </label>
+                    <p className="text-xs text-slate-400 mb-3">Your budget for one person — excluding flights if already booked</p>
                     <div className="flex items-center space-x-2">
                       <DollarSign className="w-5 h-5 text-slate-600" />
                       <input
@@ -1366,15 +1436,15 @@ function TripBuilderPage() {
                   {/* Budget Breakdown — number inputs */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-4">
-                      Budget Breakdown
+                      Budget Breakdown <span className="text-slate-400 font-normal text-xs">(per person)</span>
                     </label>
                     <div className="space-y-3">
                       {[
-                        { key: 'flights' as const, label: 'Flights', icon: '✈️', hint: state.hasPreBookedFlight ? 'Already booked' : 'Round-trip per group' },
-                        { key: 'hotel' as const, label: 'Hotel', icon: '🏨', hint: state.hasPreBookedHotel ? 'Already booked' : `${state.tripLength - 1} nights` },
-                        { key: 'food' as const, label: 'Food', icon: '🍽️', hint: 'Meals & drinks' },
+                        { key: 'flights' as const, label: 'Flights', icon: '✈️', hint: state.hasPreBookedFlight ? 'Already booked' : 'Round-trip per person' },
+                        { key: 'hotel' as const, label: 'Hotel / Stay', icon: '🏨', hint: state.hasPreBookedHotel ? 'Already booked' : `${state.tripLength - 1} nights, your share` },
+                        { key: 'food' as const, label: 'Food & Drinks', icon: '🍽️', hint: 'Meals, coffee, snacks' },
                         { key: 'experiences' as const, label: 'Experiences', icon: '🎯', hint: 'Tours, tickets, activities' },
-                        { key: 'transport' as const, label: 'Transport', icon: '🚌', hint: 'Local transit & taxis' },
+                        { key: 'transport' as const, label: 'Local Transport', icon: '🚌', hint: 'Transit, rideshare, taxis' },
                       ].map(({ key, label, icon, hint }) => {
                         const isPreBooked = (key === 'flights' && state.hasPreBookedFlight) || (key === 'hotel' && state.hasPreBookedHotel);
                         return (
@@ -1405,10 +1475,16 @@ function TripBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Total */}
-                  <div className="p-4 bg-zinc-900 rounded-xl flex items-center justify-between">
-                    <span className="font-semibold text-white">Total Group Budget</span>
-                    <span className="text-xl font-display font-bold text-sky-600">${totalBreakdown.toLocaleString()}</span>
+                  {/* Totals */}
+                  <div className="rounded-xl overflow-hidden border border-zinc-800">
+                    <div className="p-4 bg-zinc-900 flex items-center justify-between">
+                      <span className="font-semibold text-white">Per-Person Total</span>
+                      <span className="text-xl font-display font-bold text-sky-400">${totalBreakdown.toLocaleString()}</span>
+                    </div>
+                    <div className="p-3 bg-zinc-800/60 flex items-center justify-between">
+                      <span className="text-sm text-zinc-400">Estimated for {state.groupSize} {state.groupSize === 1 ? 'person' : 'people'}</span>
+                      <span className="text-sm font-semibold text-zinc-300">${(totalBreakdown * state.groupSize).toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1440,7 +1516,7 @@ function TripBuilderPage() {
                         {state.destination || 'Not selected'}
                       </p>
                     </div>
-                    <div className="p-4 bg-stone-50 rounded-lg border border-stone-200">
+                    <div className="p-4 bg-parchment rounded-lg border border-stone-200">
                       <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
                         Trip Length
                       </p>
@@ -1448,20 +1524,20 @@ function TripBuilderPage() {
                         {state.tripLength} days
                       </p>
                     </div>
-                    <div className="p-4 bg-stone-50 rounded-lg border border-stone-200">
+                    <div className="p-4 bg-parchment rounded-lg border border-stone-200">
                       <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
-                        Budget
+                        Budget (per person)
                       </p>
                       <p className="text-lg font-semibold text-slate-900">
-                        ${state.budget.toLocaleString()}
+                        ${state.budget.toLocaleString()} <span className="text-sm text-slate-500">× {state.groupSize} = ${(state.budget * state.groupSize).toLocaleString()}</span>
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
                       <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide mb-2">
-                        Travel Style
+                        Local Transport
                       </p>
                       <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.modality}
+                        {state.modality.length > 0 ? state.modality.join(', ') : 'Not set'}
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
@@ -1469,7 +1545,7 @@ function TripBuilderPage() {
                         Accommodation
                       </p>
                       <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.accommodationType}
+                        {state.accommodationType.length > 0 ? state.accommodationType.join(', ') : 'Not set'}
                       </p>
                     </div>
                   </div>

@@ -555,7 +555,7 @@ export default function WishlistPage() {
   if (!hasWishlist) {
     const prompt = getUpgradePrompt('feature_locked');
     return (
-      <div className="flex h-screen bg-stone-50">
+      <div className="flex h-screen bg-parchment">
         <Sidebar activePage="wishlist" user={currentUser} />
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-sm w-full text-center">
@@ -598,7 +598,7 @@ export default function WishlistPage() {
   }
 
   return (
-    <div className="flex h-screen bg-stone-50">
+    <div className="flex h-screen bg-parchment">
       <Sidebar activePage="wishlist" user={currentUser} />
 
       {showModal && (
@@ -614,7 +614,7 @@ export default function WishlistPage() {
           <div className="mb-8">
             <p className="text-xs font-semibold uppercase tracking-widest text-sky-700 mb-3">Your Collection</p>
             <div className="flex items-center justify-between">
-              <h1 className="text-4xl font-display font-bold text-zinc-900">Dream Destinations</h1>
+              <h1 className="text-4xl font-display font-bold text-zinc-900">On My Radar</h1>
               <div className="bg-sky-800 text-white font-semibold px-4 py-2 rounded-full text-sm">
                 {savedIds.size} saved
               </div>

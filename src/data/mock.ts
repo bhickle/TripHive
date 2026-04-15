@@ -72,7 +72,7 @@ const transportDay4: TransportLeg[] = [
 
 export const currentUser = {
   id: 'user_1',
-  email: 'brandon@triphive.app',
+  email: 'brandon@tripcoord.app',
   name: 'Brandon',
   avatarUrl: undefined,
   travelPersona: {
@@ -589,8 +589,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: true,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/kyoa/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Kyoto&aid=triphive',
-      experiences: 'https://www.getyourguide.com/kyoto-l96/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Kyoto&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/kyoto-l96/?partner_id=tripcoord',
     },
   },
   {
@@ -609,8 +609,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: false,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/lisb/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Lisbon&aid=triphive',
-      experiences: 'https://www.getyourguide.com/lisbon-l42/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Lisbon&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/lisbon-l42/?partner_id=tripcoord',
     },
   },
   {
@@ -629,8 +629,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: true,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/zqn/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Queenstown&aid=triphive',
-      experiences: 'https://www.getyourguide.com/queenstown-l1023/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Queenstown&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/queenstown-l1023/?partner_id=tripcoord',
     },
   },
   {
@@ -649,8 +649,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: false,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/rak/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Marrakech&aid=triphive',
-      experiences: 'https://www.getyourguide.com/marrakesh-l208/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Marrakech&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/marrakesh-l208/?partner_id=tripcoord',
     },
   },
   {
@@ -669,8 +669,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: true,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/punta-arenas/?adultsv2=1',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Patagonia&aid=triphive',
-      experiences: 'https://www.getyourguide.com/patagonia-l2621/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Patagonia&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/patagonia-l2621/?partner_id=tripcoord',
     },
   },
   {
@@ -689,8 +689,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: false,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/dps/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Bali&aid=triphive',
-      experiences: 'https://www.getyourguide.com/bali-l347/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Bali&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/bali-l347/?partner_id=tripcoord',
     },
   },
   {
@@ -709,8 +709,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: false,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/jtr/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Santorini&aid=triphive',
-      experiences: 'https://www.getyourguide.com/santorini-l2697/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Santorini&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/santorini-l2697/?partner_id=tripcoord',
     },
   },
   {
@@ -729,8 +729,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: true,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/oax/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Oaxaca&aid=triphive',
-      experiences: 'https://www.getyourguide.com/oaxaca-l3800/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Oaxaca&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/oaxaca-l3800/?partner_id=tripcoord',
     },
   },
   {
@@ -749,8 +749,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: false,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/zrha/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Swiss+Alps&aid=triphive',
-      experiences: 'https://www.getyourguide.com/swiss-alps-l2682/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Swiss+Alps&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/swiss-alps-l2682/?partner_id=tripcoord',
     },
   },
   {
@@ -769,8 +769,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: true,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/cpt/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Cape+Town&aid=triphive',
-      experiences: 'https://www.getyourguide.com/cape-town-l153/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Cape+Town&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/cape-town-l153/?partner_id=tripcoord',
     },
   },
   {
@@ -789,8 +789,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: false,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/nap/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Amalfi+Coast&aid=triphive',
-      experiences: 'https://www.getyourguide.com/amalfi-coast-l2526/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Amalfi+Coast&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/amalfi-coast-l2526/?partner_id=tripcoord',
     },
   },
   {
@@ -809,8 +809,8 @@ export const discoverDestinations: DiscoverDestination[] = [
     editorPick: false,
     affiliateLinks: {
       flights: 'https://www.skyscanner.net/flights/nyca/cnx/?adultsv2=1&cabinclass=economy',
-      hotels: 'https://www.booking.com/searchresults.html?ss=Chiang+Mai&aid=triphive',
-      experiences: 'https://www.getyourguide.com/chiang-mai-l973/?partner_id=triphive',
+      hotels: 'https://www.booking.com/searchresults.html?ss=Chiang+Mai&aid=tripcoord',
+      experiences: 'https://www.getyourguide.com/chiang-mai-l973/?partner_id=tripcoord',
     },
   },
 ];

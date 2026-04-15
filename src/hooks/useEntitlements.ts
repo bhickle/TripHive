@@ -1,5 +1,5 @@
 /**
- * useEntitlements — central feature-gating hook for triphive
+ * useEntitlements — central feature-gating hook for tripcoord
  *
  * Reads the current user's subscription tier (and any trip passes) and exposes
  * helper functions the UI can use to check what a user can do, how many AI
@@ -36,8 +36,8 @@ export const PRICING = {
     aiCreditsPerMonth: 100,
   },
   nomad: {
-    monthly: 12.99,
-    annual: 124.99,         // ~$10.42/mo, 20% off
+    monthly: 14.99,
+    annual: 143.99,         // ~$12/mo, 20% off
     aiCreditsPerMonth: 350,
   },
 } as const;
@@ -94,7 +94,7 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
   feature_locked: {
     reason: 'feature_locked',
     headline: 'This feature is on paid plans',
-    body: 'Upgrade to unlock the full triphive experience.',
+    body: 'Upgrade to unlock the full tripcoord experience.',
     ctaLabel: 'See plans',
   },
 };

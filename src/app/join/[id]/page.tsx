@@ -53,7 +53,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 py-4 px-6">
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-2xl font-display font-bold text-sky-900">triphive</h1>
+          <h1 className="text-2xl font-display font-bold text-sky-900">tripcoord</h1>
         </div>
       </header>
 
@@ -332,11 +332,11 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   </li>
                 </ul>
                 <button
-                  onClick={() => alert('Opening triphive App Store page...')}
+                  onClick={() => alert('Opening tripcoord App Store page...')}
                   className="w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
-                  Download the triphive App
+                  Download the tripcoord App
                 </button>
               </div>
 
@@ -368,7 +368,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       <footer className="bg-white border-t border-slate-200 py-6 px-4">
         <div className="max-w-2xl mx-auto text-center">
           <p className="text-sm text-slate-600 mb-2">
-            Powered by <span className="font-semibold text-slate-900">triphive</span>
+            Powered by <span className="font-semibold text-slate-900">tripcoord</span>
           </p>
           <Link
             href="/auth/signup"

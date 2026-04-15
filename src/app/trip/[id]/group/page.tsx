@@ -42,7 +42,7 @@ type ScannedReceipt = {
   category?: string;
 };
 
-const CHAT_STORAGE_KEY = 'triphive_chat_trip_1';
+const CHAT_STORAGE_KEY = 'tripcoord_chat_trip_1';
 
 export default function GroupPage() {
   const { canAddTraveler, getUpgradePrompt } = useEntitlements();
@@ -309,7 +309,7 @@ export default function GroupPage() {
   const closedVotes = groupVotes.filter(v => v.status === 'closed');
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6">
+    <div className="min-h-screen bg-parchment p-6">
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-zinc-900 mb-2">
           Iceland Adventure
@@ -330,7 +330,7 @@ export default function GroupPage() {
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 font-medium'
             }`}
           >
-            {tab === 'overview' ? 'The Crew' : tab === 'expenses' ? 'Who Owes Who' : tab === 'chat' ? 'Sup' : 'Yay/Nay'}
+            {tab === 'overview' ? 'The Crew' : tab === 'expenses' ? 'Who Owes Who' : tab === 'chat' ? 'Chat 💬' : 'Yay/Nay 🗳️'}
           </button>
         ))}
       </div>
@@ -471,14 +471,24 @@ export default function GroupPage() {
               </div>
             </div>
 
-            {/* Add Expense Button */}
-            <button
-              onClick={() => setShowAddExpenseModal(true)}
-              className="w-full bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-3 rounded-full inline-flex items-center justify-center gap-2 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Split Something
-            </button>
+            {/* Add Expense / Receipt buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowAddExpenseModal(true)}
+                className="flex-1 bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-3 rounded-full inline-flex items-center justify-center gap-2 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Split Something
+              </button>
+              <button
+                onClick={() => document.getElementById('receipt-file-input')?.click()}
+                className="flex items-center gap-2 px-5 py-3 rounded-full border-2 border-sky-800 text-sky-800 hover:bg-sky-50 font-semibold text-sm transition-colors"
+                title="Scan a receipt"
+              >
+                <Receipt className="w-4 h-4" />
+                Scan Receipt
+              </button>
+            </div>
 
             {/* Expense List */}
             <div>
@@ -526,50 +536,33 @@ export default function GroupPage() {
               </div>
             </div>
 
-            <div className="mb-6 p-6 bg-white border border-slate-200 rounded-lg">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <Receipt className="w-5 h-5" />
-                Receipt Upload
-              </h3>
+            {/* Hidden file input for receipt scanning */}
+            <input
+              ref={fileInputRef}
+              id="receipt-file-input"
+              type="file"
+              accept="image/*,.pdf"
+              onChange={handleReceiptFileSelect}
+              className="hidden"
+            />
 
-              <div
-                onDrop={handleReceiptDrop}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-all"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={handleReceiptFileSelect}
-                  className="hidden"
-                />
-                <div className="flex justify-center mb-3">
-                  {uploadedReceipt ? (
-                    <div className="w-12 h-12 bg-sky-100 rounded-lg flex items-center justify-center">
-                      <FileText className="w-6 h-6 text-sky-700" />
-                    </div>
-                  ) : (
-                    <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <Upload className="w-6 h-6 text-slate-600" />
-                    </div>
-                  )}
+            {uploadedReceipt && (
+              <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl flex items-center gap-3">
+                <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5 text-sky-700" />
                 </div>
-                {uploadedReceipt ? (
-                  <div>
-                    <p className="font-medium text-slate-900">{uploadedReceipt.name}</p>
-                    <p className="text-sm text-slate-600 mt-1">Click to change or drag a new file</p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="font-medium text-slate-900">Drag and drop your receipt</p>
-                    <p className="text-sm text-slate-600 mt-1">or click to browse (JPG, PNG, PDF)</p>
-                  </div>
-                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-zinc-900 truncate">{uploadedReceipt.name}</p>
+                  <p className="text-xs text-zinc-500">Ready to scan</p>
+                </div>
+                <button
+                  onClick={() => setUploadedReceipt(null)}
+                  className="text-zinc-400 hover:text-zinc-600 text-sm px-2"
+                >✕</button>
               </div>
+            )}
 
-              {uploadedReceipt && !scannedData && (
+            {uploadedReceipt && !scannedData && (
                 <button
                   onClick={handleScanReceipt}
                   disabled={isScanning}
@@ -630,7 +623,6 @@ export default function GroupPage() {
                   </button>
                 </div>
               )}
-            </div>
 
             {showAddExpenseModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddExpenseModal(false)}>
@@ -865,9 +857,9 @@ export default function GroupPage() {
                         <p className="font-bold text-sky-700">${t.amount.toFixed(2)}</p>
                         <button
                           onClick={() => { setSettledUp(true); setTimeout(() => setSettledUp(false), 2500); }}
-                          className="px-3 py-1.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-full transition-colors"
+                          className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-full transition-colors"
                         >
-                          Settle
+                          Mark Paid
                         </button>
                       </div>
                     </div>
@@ -881,7 +873,7 @@ export default function GroupPage() {
 
               {settledUp && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-sm font-medium text-emerald-700 mb-3">
-                  ✓ Marked as settled — remind them to actually pay you 😄
+                  ✓ Marked as paid — follow up with them to confirm! 💸
                 </div>
               )}
             </div>
@@ -969,9 +961,19 @@ export default function GroupPage() {
                             );
                           })}
                         </div>
-                        <span className="inline-block text-xs font-semibold px-3 py-1 rounded-full mt-4 bg-zinc-100 text-zinc-600">
-                          Decided ✓
-                        </span>
+                        <div className="flex items-center gap-3 mt-4 flex-wrap">
+                          <span className="inline-block text-xs font-semibold px-3 py-1 rounded-full bg-zinc-100 text-zinc-600">
+                            Decided ✓
+                          </span>
+                          {(() => {
+                            const winner = vote.options.find(o => o.votes === Math.max(...vote.options.map(x => x.votes)));
+                            return winner ? (
+                              <button className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors">
+                                <span>+</span> Add &quot;{winner.label}&quot; to itinerary
+                              </button>
+                            ) : null;
+                          })()}
+                        </div>
                       </div>
                     );
                   })}
@@ -1064,7 +1066,7 @@ export default function GroupPage() {
 
         {activeTab === 'chat' && (
           <div className="flex flex-col h-screen max-h-[600px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-6 bg-stone-50">
+            <div className="flex-1 overflow-y-auto p-6 bg-parchment">
               {chatMessages.map((message) => (
                 <div key={message.id} className={`mb-5 flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-xs ${message.isOwn ? 'order-2' : 'order-1'}`}>
@@ -1157,12 +1159,12 @@ export default function GroupPage() {
             </div>
 
             {/* Preview */}
-            <div className="mb-4 p-3 bg-stone-50 rounded-lg border border-zinc-200">
+            <div className="mb-4 p-3 bg-parchment rounded-lg border border-zinc-200">
               <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1">Preview</p>
               <p className="text-sm text-zinc-700">
                 {inviteMethod === 'email'
-                  ? "Hey! You're invited to join our Iceland Adventure trip on triphive. Click the link to join the group and start planning together!"
-                  : "You're invited to Iceland Adventure on triphive! Join here: triphive.app/join/trip_1"}
+                  ? "Hey! You're invited to join our Iceland Adventure trip on tripcoord. Click the link to join the group and start planning together!"
+                  : "You're invited to Iceland Adventure on tripcoord! Join here: tripcoord.app/join/trip_1"}
               </p>
             </div>
 

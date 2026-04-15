@@ -373,7 +373,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     { value: 'sports', label: 'Sports' },
   ];
 
-  // Affiliate base URLs with triphive tracking codes
+  // Affiliate base URLs with tripcoord tracking codes
   // In production these would be replaced with signed partner-specific deep links
   const affiliateBaseUrls: Record<string, string> = {
     'Viator':         'https://www.viator.com',
@@ -399,17 +399,17 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     const base = affiliateBaseUrls[item.affiliatePartner] || '#';
     if (base === '#') return '#';
     const params = new URLSearchParams({
-      utm_source: 'triphive',
+      utm_source: 'tripcoord',
       utm_medium: 'referral',
       utm_campaign: 'discover',
       utm_content: item.id,
-      ref: 'triphive',
+      ref: 'tripcoord',
     });
     return `${base}?${params.toString()}`;
   };
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-parchment">
       {/* Static Compact Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-zinc-100">
         <div className="px-6 py-4 max-w-7xl mx-auto">
@@ -423,7 +423,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="px-3 py-2 bg-stone-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+                className="px-3 py-2 bg-parchment border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
               >
                 <option value="match">Best Match</option>
                 <option value="rating">Highest Rated</option>
@@ -461,7 +461,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                   className={`px-4 py-2 rounded-full font-semibold transition-all whitespace-nowrap text-sm ${
                     activeCategory === cat.value
                       ? 'bg-zinc-900 text-white'
-                      : 'bg-stone-50 border border-zinc-200 text-zinc-600 hover:border-sky-400 hover:text-zinc-900'
+                      : 'bg-parchment border border-zinc-200 text-zinc-600 hover:border-sky-400 hover:text-zinc-900'
                   }`}
                 >
                   {cat.label}
@@ -621,7 +621,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                       </div>
 
                       {showDayPicker === item.id && (
-                        <div className="p-3 bg-stone-50 border-t border-zinc-200 mt-3 rounded-lg">
+                        <div className="p-3 bg-parchment border-t border-zinc-200 mt-3 rounded-lg">
                           <p className="text-xs font-semibold text-zinc-700 mb-2">Add to which day?</p>
                           <div className="flex flex-wrap gap-2">
                             {[1, 2, 3, 4, 5].map((day) => (
@@ -643,7 +643,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
 
                     {/* Expanded Details */}
                     {expandedItem === item.id && (
-                      <div className="border-t border-zinc-200 p-5 bg-stone-50 space-y-4">
+                      <div className="border-t border-zinc-200 p-5 bg-parchment space-y-4">
                         <div>
                           <h4 className="font-semibold text-zinc-900 mb-2">Full Description</h4>
                           <p className="text-sm text-zinc-700">{item.description}</p>
@@ -679,13 +679,13 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                             </p>
                             {item.affiliateCommission > 0 && (
                               <span className="ml-auto text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                {item.affiliateCommission}% supports triphive
+                                {item.affiliateCommission}% supports tripcoord
                               </span>
                             )}
                           </div>
                           <p className="text-xs text-zinc-500">
                             {item.affiliateCommission > 0
-                              ? `Booking via ${item.affiliatePartner} earns triphive a referral commission at no extra cost to you.`
+                              ? `Booking via ${item.affiliatePartner} earns tripcoord a referral commission at no extra cost to you.`
                               : `No booking required — free entry or self-directed activity.`}
                           </p>
                         </div>
@@ -714,7 +714,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                             className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
                               savedItems.has(item.id)
                                 ? 'bg-zinc-200 text-zinc-700 border border-zinc-300 hover:bg-zinc-300'
-                                : 'border border-zinc-300 hover:bg-stone-50 text-zinc-600'
+                                : 'border border-zinc-300 hover:bg-parchment text-zinc-600'
                             }`}
                           >
                             {savedItems.has(item.id) ? '✓ Saved' : 'Maybe Later'}
@@ -733,8 +733,8 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
             <div className="flex items-start gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
               <span className="text-lg flex-shrink-0">🤝</span>
               <p className="text-xs text-zinc-500 leading-relaxed">
-                <span className="font-semibold text-zinc-600">Affiliate disclosure:</span> Some &ldquo;Lock It In&rdquo; links are affiliate links — when you book through them triphive earns a small referral commission from our partners (Viator, OpenTable, Ticketmaster, Booking.com) at{' '}
-                <span className="font-medium">no extra cost to you</span>. Commissions help keep triphive free. We only surface experiences our algorithm rates highly for your group.
+                <span className="font-semibold text-zinc-600">Affiliate disclosure:</span> Some &ldquo;Lock It In&rdquo; links are affiliate links — when you book through them tripcoord earns a small referral commission from our partners (Viator, OpenTable, Ticketmaster, Booking.com) at{' '}
+                <span className="font-medium">no extra cost to you</span>. Commissions help keep tripcoord free. We only surface experiences our algorithm rates highly for your group.
               </p>
             </div>
           </div>
