@@ -30,7 +30,7 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="card p-8 sm:p-10">
-          <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">
+          <h1 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">
             Welcome back
           </h1>
           <p className="text-slate-600 mb-8">Sign in to your account to continue planning</p>

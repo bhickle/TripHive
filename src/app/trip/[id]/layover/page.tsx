@@ -271,7 +271,7 @@ export default function LayoverPlannerPage() {
           <div className="flex items-center gap-3 mb-2">
             <Plane className="w-8 h-8 text-sky-700" />
             <Ship className="w-8 h-8 text-stone-700" />
-            <h1 className="text-4xl font-display font-bold text-slate-900">
+            <h1 className="text-4xl font-script italic font-semibold text-slate-900">
               Layover & Port Stop Planner
             </h1>
           </div>
@@ -311,7 +311,7 @@ export default function LayoverPlannerPage() {
           <div className="space-y-6">
             {/* Input Card */}
             <div className="card p-6">
-              <h2 className="text-xl font-display font-bold text-slate-900 mb-6">
+              <h2 className="font-script italic text-xl font-semibold text-slate-900 mb-6">
                 Layover Details
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -383,7 +383,7 @@ export default function LayoverPlannerPage() {
               {flightRecommendations.map((rec, idx) => (
                 <div key={idx} className="card p-6 border-l-4 border-l-ocean-500">
                   <div className="mb-4">
-                    <h3 className="text-xl font-display font-bold text-slate-900">
+                    <h3 className="font-script italic text-xl font-semibold text-slate-900">
                       {rec.title}
                     </h3>
                     <p className="text-slate-600 text-sm">{rec.subtitle}</p>
@@ -427,7 +427,7 @@ export default function LayoverPlannerPage() {
 
             {/* Available Activities */}
             <div className="card p-6">
-              <h3 className="text-xl font-display font-bold text-slate-900 mb-6">
+              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-6">
                 Top Attractions Near {flightLayover.airportCode}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -468,7 +468,7 @@ export default function LayoverPlannerPage() {
           <div className="space-y-6">
             {/* Input Card */}
             <div className="card p-6">
-              <h2 className="text-xl font-display font-bold text-slate-900 mb-6">
+              <h2 className="font-script italic text-xl font-semibold text-slate-900 mb-6">
                 Port Stop Details
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -530,7 +530,7 @@ export default function LayoverPlannerPage() {
                 <Clock className="w-6 h-6 text-stone-700" />
                 <div>
                   <p className="text-sm text-slate-600">Available Shore Time</p>
-                  <p className="text-3xl font-display font-bold text-stone-900">
+                  <p className="text-3xl font-script italic font-semibold text-stone-900">
                     {actualShoreTime} hours
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
@@ -549,7 +549,7 @@ export default function LayoverPlannerPage() {
                     <MapPin className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-display font-bold text-slate-900">
+                    <h3 className="font-script italic text-xl font-semibold text-slate-900">
                       Within Walking Distance
                     </h3>
                     <p className="text-sm text-slate-600">15-min walk from port</p>
@@ -583,7 +583,7 @@ export default function LayoverPlannerPage() {
                     <TrendingUp className="w-5 h-5 text-yellow-600" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-display font-bold text-slate-900">
+                    <h3 className="font-script italic text-xl font-semibold text-slate-900">
                       Quick Taxi Rides
                     </h3>
                     <p className="text-sm text-slate-600">15-30 min by taxi/shuttle</p>
@@ -622,7 +622,7 @@ export default function LayoverPlannerPage() {
                     <Ship className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-display font-bold text-slate-900">
+                    <h3 className="font-script italic text-xl font-semibold text-slate-900">
                       Full Day Excursions
                     </h3>
                     <p className="text-sm text-slate-600">Guided tours & full experiences</p>

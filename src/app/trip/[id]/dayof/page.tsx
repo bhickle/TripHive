@@ -319,12 +319,12 @@ export default function DayOfPage() {
           </Link>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-slate-500 font-medium">Day 2 &mdash; {currentTrip.destination}</p>
-            <p className="font-display font-bold text-slate-900 truncate">
+            <p className="font-script italic font-semibold text-slate-900 truncate">
               {currentDay.theme || 'Golden Circle & Waterfalls'}
             </p>
           </div>
           <div className="text-right flex-shrink-0">
-            <p className="text-lg font-display font-bold text-slate-900">{formattedTime}</p>
+            <p className="text-lg font-script italic font-semibold text-slate-900">{formattedTime}</p>
             <p className="text-xs text-slate-500">{doneCount}/{totalActivities} done</p>
           </div>
         </div>
@@ -339,7 +339,7 @@ export default function DayOfPage() {
               <div>
                 <p className="text-xs text-sky-200 font-medium">{currentTrip.destination}</p>
                 <div className="flex items-end gap-2 mt-1">
-                  <span className="text-3xl font-display font-bold">8&deg;</span>
+                  <span className="text-3xl font-script italic font-semibold">8&deg;</span>
                   <span className="text-sky-200 text-xs mb-1">Partly cloudy</span>
                 </div>
               </div>
@@ -361,7 +361,7 @@ export default function DayOfPage() {
             </div>
           </div>
 
-          <div className="col-span-2 bg-white rounded-xl border border-slate-200 p-3">
+          <div className="col-span-2 bg-white rounded-2xl border border-zinc-100 shadow-sm p-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Crew</p>
             <div className="space-y-1.5">
               {groupMembers.slice(0, 4).map((m) => (
@@ -402,7 +402,7 @@ export default function DayOfPage() {
                     `Meet ${formatTime(nowItem.data.meetTime ?? nowItem.data.departureTime)}`}
                 </span>
               </div>
-              <h2 className="text-xl font-display font-bold mb-1">
+              <h2 className="font-script italic text-xl font-semibold mb-1">
                 {nowItem.kind === 'activity' ? nowItem.data.title : nowItem.data.meetingPoint}
               </h2>
               <p className="text-sky-100 text-sm">
@@ -447,7 +447,7 @@ export default function DayOfPage() {
         </div>
 
         {/* End of day */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           <button onClick={() => setShowEndOfDay(!showEndOfDay)}
             className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
             <span className="font-semibold text-slate-900">End of Day Summary</span>
@@ -458,17 +458,17 @@ export default function DayOfPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 text-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
-                  <p className="text-2xl font-display font-bold text-emerald-700">{doneCount}/{totalActivities}</p>
+                  <p className="text-2xl font-script italic font-semibold text-emerald-700">{doneCount}/{totalActivities}</p>
                   <p className="text-xs text-emerald-700 font-medium">Done</p>
                 </div>
                 <div className="bg-sky-50 rounded-xl p-3 border border-sky-100 text-center">
                   <DollarSign className="w-5 h-5 text-sky-600 mx-auto mb-1" />
-                  <p className="text-2xl font-display font-bold text-sky-700">$127</p>
+                  <p className="text-2xl font-script italic font-semibold text-sky-700">$127</p>
                   <p className="text-xs text-sky-700 font-medium">Spent</p>
                 </div>
                 <div className="bg-violet-50 rounded-xl p-3 border border-violet-100 text-center">
                   <Camera className="w-5 h-5 text-violet-600 mx-auto mb-1" />
-                  <p className="text-2xl font-display font-bold text-violet-700">8</p>
+                  <p className="text-2xl font-script italic font-semibold text-violet-700">8</p>
                   <p className="text-xs text-violet-700 font-medium">Photos</p>
                 </div>
               </div>
@@ -483,17 +483,17 @@ export default function DayOfPage() {
         {/* Quick links */}
         <div className="grid grid-cols-3 gap-2 pb-4">
           <Link href={`/trip/${tripId}/itinerary`}
-            className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-xl border border-slate-200 hover:border-sky-200 hover:bg-sky-50 transition-all">
+            className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-2xl border border-zinc-100 hover:border-sky-300 hover:shadow-sm hover:bg-sky-50 transition-all duration-300">
             <CalendarDays className="w-5 h-5 text-slate-600" />
             <span className="text-xs font-medium text-slate-700">Itinerary</span>
           </Link>
           <Link href={`/trip/${tripId}/group`}
-            className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-xl border border-slate-200 hover:border-sky-200 hover:bg-sky-50 transition-all">
+            className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-2xl border border-zinc-100 hover:border-sky-300 hover:shadow-sm hover:bg-sky-50 transition-all duration-300">
             <MessageSquare className="w-5 h-5 text-slate-600" />
             <span className="text-xs font-medium text-slate-700">Group</span>
           </Link>
           <Link href={`/trip/${tripId}/discover`}
-            className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-xl border border-slate-200 hover:border-sky-200 hover:bg-sky-50 transition-all">
+            className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-2xl border border-zinc-100 hover:border-sky-300 hover:shadow-sm hover:bg-sky-50 transition-all duration-300">
             <Zap className="w-5 h-5 text-slate-600" />
             <span className="text-xs font-medium text-slate-700">Discover</span>
           </Link>

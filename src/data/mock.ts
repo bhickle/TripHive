@@ -509,11 +509,11 @@ export const packingItems: PackingItem[] = [
 ];
 
 export const wishlistItems: WishlistItem[] = [
-  { id: 'wish_1', destination: 'Kyoto', country: 'Japan', coverImage: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800', bestSeason: 'Spring (Mar–May)', estimatedCost: 3800, tags: ['Culture', 'Food', 'Temples'] },
-  { id: 'wish_2', destination: 'Patagonia', country: 'Argentina', coverImage: 'https://images.unsplash.com/photo-1531761535209-180857e963b9?w=800', bestSeason: 'Nov–Mar', estimatedCost: 4500, tags: ['Adventure', 'Nature', 'Hiking'] },
-  { id: 'wish_3', destination: 'Marrakech', country: 'Morocco', coverImage: 'https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=800', bestSeason: 'Mar–May', estimatedCost: 2200, tags: ['Culture', 'Food', 'Markets'] },
+  { id: 'wish_1', destination: 'Kyoto', country: 'Japan', coverImage: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800', bestSeason: 'Spring (Mar–May)', estimatedCost: 3800, tags: ['Culture', 'Food', 'History'] },
+  { id: 'wish_2', destination: 'Patagonia', country: 'Argentina', coverImage: 'https://images.unsplash.com/photo-1531761535209-180857e963b9?w=800', bestSeason: 'Nov–Mar', estimatedCost: 4500, tags: ['Adventure', 'Nature', 'Sports'] },
+  { id: 'wish_3', destination: 'Marrakech', country: 'Morocco', coverImage: 'https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=800', bestSeason: 'Mar–May', estimatedCost: 2200, tags: ['Culture', 'Food', 'Shopping'] },
   { id: 'wish_4', destination: 'Queenstown', country: 'New Zealand', coverImage: 'https://images.unsplash.com/photo-1589871973318-9ca1258faa5d?w=800', bestSeason: 'Dec–Feb', estimatedCost: 5100, tags: ['Adventure', 'Nature', 'Photography'] },
-  { id: 'wish_5', destination: 'Santorini', country: 'Greece', coverImage: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=800', bestSeason: 'Jun–Sep', estimatedCost: 3200, tags: ['Romance', 'Food', 'Photography'] },
+  { id: 'wish_5', destination: 'Santorini', country: 'Greece', coverImage: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=800', bestSeason: 'Jun–Sep', estimatedCost: 3200, tags: ['Wellness', 'Food', 'Photography'] },
   { id: 'wish_6', destination: 'Bali', country: 'Indonesia', coverImage: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800', bestSeason: 'Apr–Oct', estimatedCost: 2800, tags: ['Wellness', 'Culture', 'Nature'] },
 ];
 
@@ -549,7 +549,7 @@ export const suggestedDestinations = [
 
 // ─── Discover destinations ────────────────────────────────────────────────────
 
-export type VibeTag = 'Adventure' | 'Culture' | 'Food' | 'Beach' | 'Wellness' | 'Romance' | 'City Break' | 'Nature';
+export type VibeTag = 'Adventure' | 'Culture' | 'Food' | 'Photography' | 'Nature' | 'Wellness' | 'Nightlife' | 'Sports' | 'History' | 'Shopping';
 
 export interface DiscoverDestination {
   id: string;
@@ -581,7 +581,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800',
     tagline: 'Ancient temples, neon nights, and the best ramen of your life.',
     description: 'Wander bamboo groves in the morning, browse Nishiki Market at noon, and watch lanterns float on the Kamo River at dusk.',
-    vibes: ['Culture', 'Food', 'City Break'],
+    vibes: ['Culture', 'Food', 'History'],
     avgCost: 2800,
     bestMonths: 'Mar–May, Oct–Nov',
     flightHours: 14,
@@ -601,7 +601,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800',
     tagline: 'Tilework, trams, and the world\'s best pastel de nata.',
     description: 'Ride the historic Tram 28 through impossibly steep streets, eat your weight in pastéis, and end every evening with a glass of ginjinha.',
-    vibes: ['Culture', 'Food', 'City Break'],
+    vibes: ['Culture', 'Food', 'Nightlife'],
     avgCost: 1900,
     bestMonths: 'Mar–Jun, Sep–Oct',
     flightHours: 7,
@@ -621,7 +621,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1589871973318-9ca1258faa5d?w=800',
     tagline: 'Bungee jump at dawn. Pinot Noir at sunset.',
     description: 'The adventure capital of the world delivers impossibly blue lakes and peaks straight out of Middle-earth — plus a surprisingly killer food scene.',
-    vibes: ['Adventure', 'Nature'],
+    vibes: ['Adventure', 'Nature', 'Sports'],
     avgCost: 3800,
     bestMonths: 'Dec–Feb',
     flightHours: 18,
@@ -641,7 +641,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=800',
     tagline: 'A labyrinth of spice, color, and sensory overload.',
     description: 'Get lost in the medina, haggle for lanterns in the souks, and fall asleep to the call to prayer from a rooftop riad.',
-    vibes: ['Culture', 'Food'],
+    vibes: ['Culture', 'Food', 'Shopping'],
     avgCost: 1600,
     bestMonths: 'Mar–May, Oct–Nov',
     flightHours: 8,
@@ -661,7 +661,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1531761535209-180857e963b9?w=800',
     tagline: 'The end of the world, in the best possible way.',
     description: 'Trek the W Circuit past the iconic horns of Torres del Paine, camp beside glaciers, and drink Malbec in towns that feel like the edge of the earth.',
-    vibes: ['Adventure', 'Nature'],
+    vibes: ['Adventure', 'Nature', 'Photography'],
     avgCost: 3200,
     bestMonths: 'Nov–Mar',
     flightHours: 11,
@@ -681,7 +681,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800',
     tagline: 'Terraced rice fields, surf breaks, and ceremony at every corner.',
     description: 'Meditate at sunrise in Ubud, catch a dawn barrel at Uluwatu, and join a temple ceremony in full ceremonial dress — all in the same day.',
-    vibes: ['Wellness', 'Culture', 'Beach'],
+    vibes: ['Wellness', 'Culture', 'Nature'],
     avgCost: 1800,
     bestMonths: 'Apr–Oct',
     flightHours: 20,
@@ -701,7 +701,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=800',
     tagline: 'Where every sunset looks like a screensaver.',
     description: 'Sip Assyrtiko on a clifftop in Oia, take a boat to the volcanic hot springs, and eat grilled octopus watching the caldera turn pink.',
-    vibes: ['Romance', 'Beach', 'Food'],
+    vibes: ['Wellness', 'Photography', 'Food'],
     avgCost: 3600,
     bestMonths: 'Jun–Sep',
     flightHours: 10,
@@ -721,7 +721,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1578632292335-df3abbb0d586?w=800',
     tagline: 'The food capital of Mexico. Full stop.',
     description: 'Drink mezcal at a rooftop bar, take a mole-making class with a local abuela, and browse the Saturday market in Tlacolula for handwoven textiles.',
-    vibes: ['Food', 'Culture'],
+    vibes: ['Food', 'Culture', 'Shopping'],
     avgCost: 1400,
     bestMonths: 'Oct–Apr',
     flightHours: 6,
@@ -741,7 +741,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800',
     tagline: 'Ski in the morning. Fondue by the fire at night.',
     description: 'Take the cogwheel train to Jungfraujoch, hike the Haute Route in summer, and stay in a mountain hut where the stars are impossibly bright.',
-    vibes: ['Adventure', 'Nature', 'Romance'],
+    vibes: ['Adventure', 'Nature', 'Sports'],
     avgCost: 4200,
     bestMonths: 'Dec–Mar, Jun–Sep',
     flightHours: 8,
@@ -781,7 +781,7 @@ export const discoverDestinations: DiscoverDestination[] = [
     image: 'https://images.unsplash.com/photo-1534113414509-0eec2bfb493f?w=800',
     tagline: 'Cliffs, limoncello, and absurdly blue water.',
     description: 'Rent a scooter along the SS163, swim in hidden grottos accessible only by boat, and eat too much pasta in a terrace restaurant above the sea.',
-    vibes: ['Romance', 'Beach', 'Food'],
+    vibes: ['Food', 'Nature', 'Photography'],
     avgCost: 3100,
     bestMonths: 'May–Jun, Sep',
     flightHours: 9,

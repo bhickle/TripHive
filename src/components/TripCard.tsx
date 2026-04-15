@@ -42,9 +42,9 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick }) => {
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-        {/* Status badge */}
+        {/* Status badge — Cormorant italic */}
         <div className="absolute top-3 left-3">
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm ${status.className}`}>
+          <span className={`inline-flex items-center px-3 py-1 rounded-full font-script italic text-sm backdrop-blur-sm ${status.className}`}>
             {status.label}
           </span>
         </div>
@@ -56,15 +56,15 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick }) => {
           </span>
         </div>
 
-        {/* Destination name overlaid */}
+        {/* Destination name overlaid — Cormorant italic */}
         <div className="absolute bottom-0 left-0 right-0 p-4">
-          <p className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-0.5">{trip.destination}</p>
+          <p className="font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">{trip.destination}</p>
         </div>
       </div>
 
       {/* Content */}
       <div className="p-4">
-        <h3 className="font-display font-bold text-zinc-900 text-base leading-snug mb-3 group-hover:text-sky-700 transition-colors">
+        <h3 className="font-script italic text-lg text-zinc-900 leading-snug mb-3 group-hover:text-sky-700 transition-colors">
           {trip.title}
         </h3>
 
@@ -81,7 +81,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick }) => {
           </div>
 
           <div className="flex flex-col items-end">
-            <span className="text-lg font-display font-bold text-zinc-900">${trip.budgetTotal.toLocaleString()}</span>
+            <span className="font-script italic text-xl text-zinc-900">${trip.budgetTotal.toLocaleString()}</span>
             <span className="text-xs text-zinc-400">total budget</span>
           </div>
         </div>

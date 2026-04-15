@@ -14,18 +14,6 @@ import { useEntitlements } from '@/hooks/useEntitlements';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ALL_VIBES: VibeTag[] = ['Adventure', 'Beach', 'City Break', 'Culture', 'Food', 'Nature', 'Romance', 'Wellness'];
-
-const VIBE_EMOJI: Record<VibeTag, string> = {
-  Adventure: '🧗',
-  Beach: '🏖️',
-  'City Break': '🏙️',
-  Culture: '🏛️',
-  Food: '🍜',
-  Nature: '🌿',
-  Romance: '🌅',
-  Wellness: '🧘',
-};
 
 const CONTINENTS = ['All', 'Africa', 'Asia', 'Europe', 'North America', 'Oceania', 'South America'];
 
@@ -44,7 +32,7 @@ function DestinationCard({
 
   return (
     <div
-      className="group bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col border border-zinc-100"
+      className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col border border-zinc-100"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -86,8 +74,7 @@ function DestinationCard({
 
         {/* Destination name on image */}
         <div className="absolute bottom-3 left-3">
-          <p className="text-white font-bold text-lg leading-tight drop-shadow-md">{dest.name}</p>
-          <p className="text-white/80 text-xs drop-shadow-md">{dest.country}</p>
+          <p className="font-script italic text-xl text-white leading-tight drop-shadow-md">{dest.name}, {dest.country}</p>
         </div>
       </div>
 
@@ -99,7 +86,7 @@ function DestinationCard({
         <div className="flex flex-wrap gap-1.5 mb-4">
           {dest.vibes.map(v => (
             <span key={v} className="text-[11px] font-semibold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">
-              {VIBE_EMOJI[v]} {v}
+              {v}
             </span>
           ))}
         </div>
@@ -167,7 +154,7 @@ function FeaturedCard({ dest, onWishlist, wishlisted }: {
   wishlisted: boolean;
 }) {
   return (
-    <div className="relative rounded-2xl md:rounded-3xl overflow-hidden h-60 md:h-80 group flex-shrink-0 w-full">
+    <div className="relative rounded-2xl overflow-hidden h-60 md:h-80 group flex-shrink-0 w-full">
       <Image
         src={dest.image}
         alt={dest.name}
@@ -194,7 +181,7 @@ function FeaturedCard({ dest, onWishlist, wishlisted }: {
       {/* Bottom content */}
       <div className="absolute bottom-0 left-0 right-0 p-6">
         <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">{dest.country}</p>
-        <h3 className="text-white font-bold text-2xl mb-2">{dest.name}</h3>
+        <h3 className="font-script italic text-3xl font-semibold text-white mb-2">{dest.name}</h3>
         <p className="text-white/70 text-sm leading-snug mb-4 max-w-sm">{dest.description}</p>
         <div className="flex items-center gap-3">
           <a
@@ -236,9 +223,7 @@ export default function DiscoverPage() {
   const [showWishlistToast, setShowWishlistToast] = useState(false);
 
   const toggleVibe = (v: VibeTag) => {
-    setActiveVibes(prev =>
-      prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
-    );
+    setActiveVibes(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
   };
 
   const handleWishlist = (id: string) => {
@@ -276,7 +261,7 @@ export default function DiscoverPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-sky-700 mb-3">Discover</p>
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
-                <h1 className="text-4xl font-display font-bold text-zinc-900">Where to next?</h1>
+                <h1 className="text-4xl font-script italic font-semibold text-zinc-900">Where to next?</h1>
                 <p className="text-sm text-zinc-400 mt-1">Hand-picked destinations with flights, hotels &amp; experiences — one click away.</p>
               </div>
               <div className="relative w-full sm:w-72 flex-shrink-0">
@@ -299,17 +284,17 @@ export default function DiscoverPage() {
             {/* Vibe pills */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mr-1">Vibe</span>
-              {ALL_VIBES.map(v => (
+              {(['Adventure', 'Culture', 'Food', 'Photography', 'Nature', 'Wellness', 'Nightlife', 'Sports', 'History', 'Shopping'] as VibeTag[]).map(v => (
                 <button
                   key={v}
                   onClick={() => toggleVibe(v)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     activeVibes.includes(v)
                       ? 'bg-sky-900 text-white shadow-sm'
                       : 'bg-white text-zinc-500 hover:text-zinc-800 border border-zinc-200 hover:border-zinc-300'
                   }`}
                 >
-                  {VIBE_EMOJI[v]} {v}
+                  {v}
                 </button>
               ))}
               {activeVibes.length > 0 && (
@@ -319,7 +304,7 @@ export default function DiscoverPage() {
               )}
             </div>
 
-            {/* Continent pills */}
+            {/* Region pills */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mr-1">Region</span>
               {CONTINENTS.map(c => (
@@ -343,10 +328,7 @@ export default function DiscoverPage() {
             <section>
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
-                    <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-                    Editor&apos;s Picks
-                  </h2>
+                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Editor&apos;s Picks</h2>
                   <p className="text-sm text-zinc-400 mt-0.5">Our favorites right now</p>
                 </div>
               </div>
@@ -366,10 +348,9 @@ export default function DiscoverPage() {
           {/* Trending — only shown when no active filter */}
           {activeVibes.length === 0 && activeContinent === 'All' && !query && (
             <section>
-              <div className="flex items-center gap-2 mb-5">
-                <Flame className="w-5 h-5 text-orange-500" />
-                <h2 className="text-xl font-bold text-zinc-900">Trending Now</h2>
-                <span className="text-xs text-zinc-400 ml-1">— most searched this month</span>
+              <div className="flex items-center gap-3 mb-5">
+                <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Trending Now</h2>
+                <span className="text-xs text-zinc-400">— most searched this month</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {trending.map(dest => (
@@ -383,20 +364,14 @@ export default function DiscoverPage() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                     <div className="absolute bottom-3 left-3">
-                      <p className="text-white font-bold text-base leading-tight">{dest.name}</p>
-                      <p className="text-white/70 text-xs">{dest.country}</p>
+                      <p className="font-script italic text-lg text-white leading-tight drop-shadow-sm">{dest.name}, {dest.country}</p>
                     </div>
-                    <div className="absolute top-3 right-3">
-                      <a
-                        href={dest.affiliateLinks.flights}
-                        target="_blank"
-                        rel="noopener noreferrer sponsored"
-                        className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/40 transition-all"
-                        title="Search flights"
-                      >
-                        <Plane className="w-3.5 h-3.5 text-white" />
-                      </a>
-                    </div>
+                    <button
+                      onClick={() => handleWishlist(dest.id)}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition-all"
+                    >
+                      <Heart className={`w-4 h-4 transition-colors ${wishlistedIds.has(dest.id) ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -407,8 +382,7 @@ export default function DiscoverPage() {
           <section>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
-                  <Globe2 className="w-5 h-5 text-zinc-400" />
+                <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
                   {activeVibes.length > 0 || activeContinent !== 'All' || query
                     ? `${filtered.length} destination${filtered.length !== 1 ? 's' : ''} found`
                     : 'All Destinations'}

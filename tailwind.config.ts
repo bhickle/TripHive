@@ -57,8 +57,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'Nunito', 'system-ui', 'sans-serif'],
+        display: ['var(--font-sans)', 'Nunito', 'system-ui', 'sans-serif'],
+        script: ['var(--font-script)', 'Cormorant Garamond', 'Georgia', 'serif'],
       },
     },
   },

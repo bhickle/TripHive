@@ -42,7 +42,7 @@ export default function MemoriesPage() {
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-ocean-50 to-earth-50">
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl font-display font-bold text-slate-900 mb-2">Memories</h1>
+          <h1 className="text-4xl font-script italic font-semibold text-slate-900 mb-2">Memories</h1>
           <p className="text-slate-600">Your Iceland adventure through photos</p>
         </div>
 
@@ -85,7 +85,7 @@ export default function MemoriesPage() {
         </div>
 
         {shareMode && (
-          <div className="bg-white rounded-lg shadow-md border border-slate-200 p-6 mb-8">
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-900">Share Album</h3>
               <button onClick={() => setShareMode(false)}>
@@ -168,7 +168,7 @@ export default function MemoriesPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-md border border-slate-200 p-8 mb-8">
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 mb-8">
           <h3 className="text-xl font-display font-bold text-slate-900 mb-6">Trip Recap</h3>
 
           <div className="prose prose-sm max-w-none text-slate-700 mb-6 leading-relaxed">
@@ -192,7 +192,7 @@ export default function MemoriesPage() {
           </button>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md border border-slate-200 p-6 mb-8">
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <Filter className="w-5 h-5" />
@@ -260,7 +260,7 @@ export default function MemoriesPage() {
         {photosByDay.map(dayGroup => (
           <div key={dayGroup.day} className="mb-12">
             <div className="mb-6">
-              <h2 className="text-2xl font-display font-bold text-slate-900">
+              <h2 className="text-2xl font-script italic font-semibold text-slate-900">
                 Day {dayGroup.day} — {dayGroup.theme}
               </h2>
               <p className="text-slate-600 text-sm">

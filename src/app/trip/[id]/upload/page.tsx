@@ -271,7 +271,7 @@ export default function UploadItineraryPage() {
             <div className="mb-8">
               <Loader className="w-12 h-12 text-sky-700 mx-auto animate-spin" />
             </div>
-            <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+            <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
               Parsing Your Itinerary
             </h2>
             <div className="space-y-4">
@@ -309,7 +309,7 @@ export default function UploadItineraryPage() {
         <div className="min-h-screen bg-gradient-subtle p-6 md:p-8 flex items-center justify-center">
           <div className="max-w-lg w-full card p-8 text-center">
             <Loader className="w-12 h-12 text-sky-700 mx-auto animate-spin mb-6" />
-            <h2 className="text-2xl font-display font-bold text-slate-900 mb-2">Building Your Trip</h2>
+            <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-2">Building Your Trip</h2>
             <p className="text-slate-600">Creating your personalized {parsedData.destination} itinerary...</p>
           </div>
         </div>
@@ -322,7 +322,7 @@ export default function UploadItineraryPage() {
           {/* Header with trip info from parsed data */}
           <div className="mb-8">
             <p className="text-sm text-sky-700 font-medium mb-2">Enhancing your uploaded itinerary</p>
-            <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">
+            <h1 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">
               Personalize Your Trip
             </h1>
             <div className="flex items-center gap-4 text-sm text-slate-600">
@@ -346,7 +346,7 @@ export default function UploadItineraryPage() {
             {/* Step 1: Who's traveling? */}
             {prefStep === 1 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">Who's traveling?</h2>
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">Who's traveling?</h2>
                 <div className="grid grid-cols-2 gap-4">
                   {groupTypeOptions.map(option => (
                     <button
@@ -368,7 +368,7 @@ export default function UploadItineraryPage() {
             {/* Step 2: What matters most? */}
             {prefStep === 2 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">What matters most?</h2>
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">What matters most?</h2>
 
                 {/* Age Ranges */}
                 <div className="mb-8">
@@ -430,7 +430,7 @@ export default function UploadItineraryPage() {
             {/* Step 3: Budget */}
             {prefStep === 3 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">Set Your Budget</h2>
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">Set Your Budget</h2>
                 <p className="text-slate-600 mb-6">How much are you planning to spend on this trip (excluding what's already booked)?</p>
 
                 <div className="mb-6">
@@ -497,7 +497,7 @@ export default function UploadItineraryPage() {
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-display font-bold text-slate-900 mb-2">
+            <h1 className="text-4xl font-script italic font-semibold text-slate-900 mb-2">
               Review & Confirm
             </h1>
             <p className="text-slate-600 text-lg">
@@ -704,7 +704,7 @@ export default function UploadItineraryPage() {
               <Upload className="w-8 h-8 text-sky-700" />
             </div>
           </div>
-          <h1 className="text-4xl font-display font-bold text-slate-900 mb-3">
+          <h1 className="text-4xl font-script italic font-semibold text-slate-900 mb-3">
             Import Your Itinerary
           </h1>
           <p className="text-lg text-slate-600">

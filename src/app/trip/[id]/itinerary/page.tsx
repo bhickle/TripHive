@@ -488,7 +488,7 @@ export default function ItineraryPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
               {trip.destination}
             </p>
-            <h1 className="text-2xl font-display font-bold text-zinc-900 mb-2">
+            <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
               {new Date(currentDayData.date).toLocaleDateString('en-US', {
                 weekday: 'long', month: 'long', day: 'numeric',
               })}
@@ -689,9 +689,9 @@ export default function ItineraryPage() {
 
                         {/* Activity Card */}
                         <div className="flex-1 pb-2">
-                          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 hover:shadow-md transition-all">
+                          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                             <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-display font-bold text-zinc-900 text-base leading-snug flex-1 pr-2">
+                              <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1 pr-2">
                                 {activity.name || activity.title}
                               </h3>
                               <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0 ${config.badgeColor}`}>
@@ -835,7 +835,7 @@ export default function ItineraryPage() {
               <div className="flex items-center justify-between">
                 <div className="text-sky-700">{weather.icon}</div>
                 <div className="text-right">
-                  <p className="text-3xl font-display font-bold text-zinc-900">{weather.temp}°C</p>
+                  <p className="text-3xl font-script italic font-semibold text-zinc-900">{weather.temp}°C</p>
                   <p className="text-xs text-zinc-500 mt-1">{weather.condition}</p>
                 </div>
               </div>
@@ -875,7 +875,7 @@ export default function ItineraryPage() {
             {/* Modal Header */}
             <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-display font-bold text-zinc-900">Add Activity</h2>
+                <h2 className="font-script italic text-lg font-semibold text-zinc-900">Add Activity</h2>
                 <p className="text-xs text-zinc-400 mt-0.5">Search for a place or enter manually</p>
               </div>
               <button onClick={handleCloseModal} className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors">

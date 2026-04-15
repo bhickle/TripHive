@@ -175,14 +175,14 @@ export default function SettingsPage() {
         <div className="max-w-6xl mx-auto px-6 py-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-display font-bold text-slate-900">Settings</h1>
+            <h1 className="text-4xl font-script italic font-semibold text-slate-900">Settings</h1>
             <p className="text-slate-600 mt-2">Manage your profile and preferences</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Settings Navigation */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2">
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 space-y-2">
                 <SectionButton section="profile" label="Profile" icon={User} />
                 <SectionButton section="persona" label="Travel Persona" icon={SettingsIcon} />
                 <SectionButton section="subscription" label="Subscription" icon={CreditCard} />
@@ -197,8 +197,8 @@ export default function SettingsPage() {
             <div className="lg:col-span-3">
               {/* PROFILE SECTION */}
               {activeSection === 'profile' && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6">Your Profile</h2>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Your Profile</h2>
 
                   {editingProfile ? (
                     <div className="space-y-6">
@@ -293,8 +293,8 @@ export default function SettingsPage() {
 
               {/* TRAVEL PERSONA SECTION */}
               {activeSection === 'persona' && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6">Travel Persona</h2>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Travel Persona</h2>
 
                   {editingPersona ? (
                     <div className="space-y-6">
@@ -422,8 +422,8 @@ export default function SettingsPage() {
 
               {/* SUBSCRIPTION SECTION */}
               {activeSection === 'subscription' && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6">Subscription</h2>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Subscription</h2>
 
                   <div className="bg-gradient-earth rounded-lg p-6 text-white mb-6">
                     <div className="flex justify-between items-start mb-6">
@@ -475,8 +475,8 @@ export default function SettingsPage() {
 
               {/* NOTIFICATIONS SECTION */}
               {activeSection === 'notifications' && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6">Notification Preferences</h2>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Notification Preferences</h2>
 
                   <div className="space-y-4">
                     {[
@@ -516,8 +516,8 @@ export default function SettingsPage() {
 
               {/* CONNECTED APPS SECTION */}
               {activeSection === 'apps' && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-1">Integrations</h2>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-1">Integrations</h2>
                   <p className="text-sm text-slate-500 mb-6">
                     We're building integrations next — vote for what you want most and we'll prioritise accordingly.
                   </p>
@@ -621,8 +621,8 @@ export default function SettingsPage() {
 
               {/* PRIVACY & DATA SECTION */}
               {activeSection === 'privacy' && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6">Privacy & Data</h2>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Privacy & Data</h2>
 
                   <div className="space-y-4">
                     <div className="p-4 border border-slate-200 rounded-lg hover:border-sky-400 transition-all">
@@ -668,8 +668,8 @@ export default function SettingsPage() {
 
               {/* DOWNLOADED TRIPS SECTION */}
               {activeSection === 'downloads' && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6">Downloaded Trips</h2>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Downloaded Trips</h2>
 
                   <div className="space-y-4">
                     <div className="p-4 border border-slate-200 rounded-lg flex items-center justify-between">

@@ -56,7 +56,7 @@ export default function TripsPage() {
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">Your Collection</p>
           <div className="flex items-center justify-between">
-            <h1 className="text-4xl font-display font-bold tracking-tight text-zinc-900">My Trips</h1>
+            <h1 className="text-4xl font-script italic font-semibold tracking-tight text-zinc-900">My Trips</h1>
             <Link
               href="/trip/new"
               className="bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full inline-flex items-center gap-2 transition-colors"
@@ -128,7 +128,7 @@ export default function TripsPage() {
         {filteredTrips.length === 0 && (
           <div className="text-center py-20">
             <MapPin className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
-            <h3 className="text-2xl font-display font-bold text-zinc-900 mb-2">No trips here yet</h3>
+            <h3 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">No trips here yet</h3>
             <p className="text-zinc-600 mb-6">
               {searchQuery ? "Try a different search term." : "Start planning your next adventure!"}
             </p>
@@ -147,7 +147,7 @@ export default function TripsPage() {
           <div className="space-y-12">
             {activeTrips.length > 0 && (
               <section>
-                <h2 className="text-lg font-display font-bold text-zinc-900 mb-6 flex items-center gap-3">
+                <h2 className="font-script italic text-xl font-semibold text-zinc-900 mb-6 flex items-center gap-3">
                   <span className="w-2 h-2 bg-emerald-500 rounded-full" />
                   Active Now
                 </h2>
@@ -161,7 +161,7 @@ export default function TripsPage() {
 
             {planningTrips.length > 0 && (
               <section>
-                <h2 className="text-lg font-display font-bold text-zinc-900 mb-6 flex items-center gap-3">
+                <h2 className="font-script italic text-xl font-semibold text-zinc-900 mb-6 flex items-center gap-3">
                   <span className="w-2 h-2 bg-sky-800 rounded-full" />
                   Planning
                 </h2>
@@ -175,7 +175,7 @@ export default function TripsPage() {
 
             {completedTrips.length > 0 && (
               <section>
-                <h2 className="text-lg font-display font-bold text-zinc-900 mb-6 flex items-center gap-3">
+                <h2 className="font-script italic text-xl font-semibold text-zinc-900 mb-6 flex items-center gap-3">
                   <span className="w-2 h-2 bg-zinc-400 rounded-full" />
                   Completed
                 </h2>
@@ -206,7 +206,7 @@ export default function TripsPage() {
                 <Link
                   key={trip.id}
                   href={`/trip/${trip.id}/itinerary`}
-                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-md transition-all p-5 flex items-center gap-6"
+                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 flex items-center gap-6"
                 >
                   {/* Thumbnail */}
                   <div

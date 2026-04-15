@@ -53,7 +53,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 py-4 px-6">
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-2xl font-display font-bold text-sky-900">tripcoord</h1>
+          <h1 className="text-2xl font-script italic font-semibold text-sky-900">tripcoord</h1>
         </div>
       </header>
 
@@ -77,7 +77,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               <div className="p-8">
                 {/* Trip Details */}
                 <div className="mb-8">
-                  <h2 className="text-3xl font-display font-bold text-slate-900 mb-2">{trip.destination}</h2>
+                  <h2 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">{trip.destination}</h2>
                   <p className="text-slate-600">{trip.title}</p>
 
                   {/* Meta Info */}
@@ -144,7 +144,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
           {/* STEP 2: PREFERENCES */}
           {step === 'preferences' && (
             <div className="bg-white rounded-xl shadow-md p-8">
-              <h3 className="text-2xl font-display font-bold text-slate-900 mb-6">Tell us about your travel style</h3>
+              <h3 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">Tell us about your travel style</h3>
 
               {/* Travel Priorities */}
               <div className="mb-8">
@@ -233,7 +233,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4">
                   <Heart className="w-8 h-8 text-stone-700" />
                 </div>
-                <h3 className="text-2xl font-display font-bold text-slate-900">You're in!</h3>
+                <h3 className="text-2xl font-script italic font-semibold text-slate-900">You're in!</h3>
                 <p className="text-slate-600 mt-2">Your preferences have been submitted to {trip.destination}.</p>
               </div>
 

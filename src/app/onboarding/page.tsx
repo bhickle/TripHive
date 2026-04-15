@@ -72,7 +72,7 @@ function ProfileStep({
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">Welcome to tripcoord</h1>
+        <h1 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">Welcome to tripcoord</h1>
         <p className="text-slate-500">Let's set up your profile so your crew knows who's planning.</p>
       </div>
 
@@ -139,7 +139,7 @@ function StyleStep({
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">Your travel style</h1>
+        <h1 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">Your travel style</h1>
         <p className="text-slate-500">We'll use this to personalise every trip recommendation.</p>
       </div>
 

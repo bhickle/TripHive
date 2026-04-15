@@ -20,7 +20,7 @@ import { PRICING } from '@/hooks/useEntitlements';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-parchment">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
@@ -47,7 +47,7 @@ export default function HomePage() {
           <div className="inline-block mb-6 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
             <p className="text-sm font-semibold">Welcome to the future of group travel</p>
           </div>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-bold leading-tight mb-6">
+          <h1 className="font-script italic text-5xl sm:text-6xl lg:text-7xl font-semibold leading-tight mb-6">
             Plan trips your whole group will love
           </h1>
           <p className="text-xl sm:text-2xl text-blue-50 mb-10 max-w-3xl mx-auto leading-relaxed">
@@ -84,7 +84,7 @@ export default function HomePage() {
               <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mb-6">
                 <Sparkles className="w-6 h-6 text-sky-700" />
               </div>
-              <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
+              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 AI Itinerary Engine
               </h3>
               <p className="text-slate-600 mb-6 leading-relaxed">
@@ -111,7 +111,7 @@ export default function HomePage() {
               <div className="w-12 h-12 rounded-lg bg-stone-100 flex items-center justify-center mb-6">
                 <Users className="w-6 h-6 text-stone-700" />
               </div>
-              <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
+              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 Group Planning Tools
               </h3>
               <p className="text-slate-600 mb-6 leading-relaxed">
@@ -138,7 +138,7 @@ export default function HomePage() {
               <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mb-6">
                 <MapPin className="w-6 h-6 text-sky-700" />
               </div>
-              <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
+              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 Full Trip Lifecycle
               </h3>
               <p className="text-slate-600 mb-6 leading-relaxed">
@@ -176,7 +176,7 @@ export default function HomePage() {
               <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
                 <Globe className="w-7 h-7 text-sky-700" />
               </div>
-              <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
+              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 Create Your Trip
               </h3>
               <p className="text-slate-600">
@@ -189,7 +189,7 @@ export default function HomePage() {
               <div className="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-6">
                 <Zap className="w-7 h-7 text-stone-700" />
               </div>
-              <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
+              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 Get AI Itineraries
               </h3>
               <p className="text-slate-600">
@@ -202,7 +202,7 @@ export default function HomePage() {
               <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
                 <Star className="w-7 h-7 text-sky-700" />
               </div>
-              <h3 className="text-xl font-display font-bold text-slate-900 mb-3">
+              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 Plan & Enjoy
               </h3>
               <p className="text-slate-600">
@@ -229,7 +229,7 @@ export default function HomePage() {
               <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Free</p>
               <p className="text-slate-500 text-sm leading-snug mb-5">Try tripcoord. See what the fuss is about.</p>
               <div className="mb-6">
-                <span className="text-4xl font-display font-bold text-slate-900">$0</span>
+                <span className="text-4xl font-script italic font-semibold text-slate-900">$0</span>
                 <span className="text-slate-500 text-sm ml-1">/ month</span>
               </div>
               <Link href="/auth/signup" className="w-full text-center py-3 border border-zinc-200 hover:border-zinc-400 text-zinc-700 font-semibold rounded-full text-sm transition-all mb-7">
@@ -258,7 +258,7 @@ export default function HomePage() {
               <p className="text-amber-700 text-xs font-bold uppercase tracking-widest mb-1.5">Trip Pass</p>
               <p className="text-amber-800 text-sm leading-snug mb-5">One trip, fully unlocked. No subscription needed.</p>
               <div className="mb-1">
-                <span className="text-4xl font-display font-bold text-slate-900">${PRICING.trip_pass.base}</span>
+                <span className="text-4xl font-script italic font-semibold text-slate-900">${PRICING.trip_pass.base}</span>
                 <span className="text-slate-500 text-sm ml-1">/ trip</span>
               </div>
               <p className="text-xs text-amber-700 font-medium mb-6">+$4/person beyond 6 · up to 12</p>
@@ -291,7 +291,7 @@ export default function HomePage() {
               <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mb-1.5 mt-2">Explorer</p>
               <p className="text-sky-100/70 text-sm leading-snug mb-5">Your whole travel year, covered.</p>
               <div className="mb-1">
-                <span className="text-4xl font-display font-bold text-white">${PRICING.explorer.monthly}</span>
+                <span className="text-4xl font-script italic font-semibold text-white">${PRICING.explorer.monthly}</span>
                 <span className="text-sky-300 text-sm ml-1">/ month</span>
               </div>
               <p className="text-xs text-sky-400 mb-6">Billed monthly · cancel anytime</p>
@@ -325,7 +325,7 @@ export default function HomePage() {
               <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Nomad</p>
               <p className="text-slate-500 text-sm leading-snug mb-5">For the organizer everyone counts on.</p>
               <div className="mb-1">
-                <span className="text-4xl font-display font-bold text-slate-900">${PRICING.nomad.monthly}</span>
+                <span className="text-4xl font-script italic font-semibold text-slate-900">${PRICING.nomad.monthly}</span>
                 <span className="text-slate-500 text-sm ml-1">/ month</span>
               </div>
               <p className="text-xs text-slate-400 mb-6">Billed monthly · cancel anytime</p>
@@ -367,7 +367,7 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-20 sm:py-28 bg-gradient-to-r from-sky-800 to-green-800 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-5xl font-display font-bold mb-6">
+          <h2 className="text-4xl sm:text-5xl font-script italic font-semibold mb-6">
             Ready to plan your next adventure?
           </h2>
           <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
@@ -388,7 +388,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
             <div>
-              <h4 className="text-white font-display font-bold mb-4">Product</h4>
+              <h4 className="font-script italic text-white font-semibold mb-4">Product</h4>
               <ul className="space-y-2">
                 <li><a href="#" className="hover:text-white transition">Features</a></li>
                 <li><a href="#" className="hover:text-white transition">Pricing</a></li>
@@ -396,7 +396,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-display font-bold mb-4">Company</h4>
+              <h4 className="font-script italic text-white font-semibold mb-4">Company</h4>
               <ul className="space-y-2">
                 <li><a href="#" className="hover:text-white transition">About</a></li>
                 <li><a href="#" className="hover:text-white transition">Blog</a></li>
@@ -404,7 +404,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-display font-bold mb-4">Legal</h4>
+              <h4 className="font-script italic text-white font-semibold mb-4">Legal</h4>
               <ul className="space-y-2">
                 <li><a href="#" className="hover:text-white transition">Privacy</a></li>
                 <li><a href="#" className="hover:text-white transition">Terms</a></li>
@@ -412,7 +412,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-display font-bold mb-4">Connect</h4>
+              <h4 className="font-script italic text-white font-semibold mb-4">Connect</h4>
               <ul className="space-y-2">
                 <li><a href="#" className="hover:text-white transition">Twitter</a></li>
                 <li><a href="#" className="hover:text-white transition">Instagram</a></li>

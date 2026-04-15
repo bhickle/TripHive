@@ -198,7 +198,7 @@ export default function DashboardPage() {
               {dateString}
             </p>
             <div className="flex items-center justify-between">
-              <h1 className="text-5xl font-display font-bold tracking-tight text-zinc-900">
+              <h1 className="text-5xl font-script italic font-semibold text-zinc-900">
                 Hey, {currentUser.name} 👋
               </h1>
               <div className="flex items-center gap-3">
@@ -236,7 +236,7 @@ export default function DashboardPage() {
                 {/* Panel Header */}
                 <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-display font-bold text-zinc-900">Notifications</h3>
+                    <h3 className="font-script italic text-lg font-semibold text-zinc-900">Notifications</h3>
                     {unreadCount > 0 && (
                       <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">
                         {unreadCount} new
@@ -317,7 +317,7 @@ export default function DashboardPage() {
                     <p className="text-sky-300 text-xs font-semibold uppercase tracking-widest mb-1 md:mb-2">
                       {nextTrip.destination.split(',')[0]?.trim().toUpperCase()}
                     </p>
-                    <h2 className="text-2xl md:text-4xl font-display font-bold text-white mb-1 md:mb-3 truncate">
+                    <h2 className="text-2xl md:text-4xl font-script italic font-semibold text-white mb-1 md:mb-3 truncate">
                       {nextTrip.title}
                     </h2>
                     <p className="text-white/80 text-xs md:text-sm flex items-center gap-2">
@@ -345,33 +345,33 @@ export default function DashboardPage() {
           {/* Stats Bar - Clean horizontal row */}
           <div className="grid grid-cols-3 gap-3 md:gap-6 mb-12">
             {/* Trips Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 p-4 md:p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <div className="flex justify-center mb-2 md:mb-3">
                 <TrendingUp className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
-              <p className="text-2xl md:text-4xl font-display font-bold text-zinc-900">
+              <p className="text-2xl md:text-4xl font-script italic font-semibold text-zinc-900">
                 {totalTrips}
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Adventures Planned</p>
             </div>
 
             {/* Countries Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 p-4 md:p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <div className="flex justify-center mb-2 md:mb-3">
                 <Globe className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
-              <p className="text-2xl md:text-4xl font-display font-bold text-zinc-900">
+              <p className="text-2xl md:text-4xl font-script italic font-semibold text-zinc-900">
                 {countriesVisited}
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Countries Visited</p>
             </div>
 
             {/* Days Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 p-4 md:p-6 flex-1 text-center shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <div className="flex justify-center mb-2 md:mb-3">
                 <Calendar className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
-              <p className="text-2xl md:text-4xl font-display font-bold text-zinc-900">
+              <p className="text-2xl md:text-4xl font-script italic font-semibold text-zinc-900">
                 {totalDays}
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Days Out There</p>
@@ -397,7 +397,7 @@ export default function DashboardPage() {
                   <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">
                     Your {new Date().getFullYear()} Wrapped
                   </p>
-                  <h3 className="text-lg md:text-xl font-display font-bold text-white">
+                  <h3 className="font-script italic text-lg md:text-2xl font-semibold text-white">
                     Year in Review
                   </h3>
                   <p className="text-white/70 text-xs md:text-sm mt-0.5">
@@ -424,7 +424,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
                   What's Happening
                 </p>
-                <h2 className="text-2xl font-display font-bold text-zinc-900">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
                   In Progress
                 </h2>
               </div>
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-zinc-100 p-12 text-center shadow-sm">
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-12 text-center">
                 <p className="text-3xl mb-3">🌍</p>
                 <p className="text-zinc-600 mb-1 font-semibold">Tumbleweeds...</p>
                 <p className="text-zinc-400 text-sm mb-5">No trips in progress. That needs to change.</p>
@@ -482,7 +482,7 @@ export default function DashboardPage() {
           <section className="mb-12">
             <div className="flex items-center gap-2 mb-6">
               <Sparkles className="w-5 h-5 text-sky-700" />
-              <h2 className="text-2xl font-display font-bold text-zinc-900">
+              <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
                 Where To Next?
               </h2>
             </div>
@@ -491,7 +491,7 @@ export default function DashboardPage() {
               {suggestedDestinations.map((destination, idx) => (
                 <div
                   key={idx}
-                  className="bg-white rounded-2xl border border-zinc-100 overflow-hidden hover:shadow-md transition-all duration-300 shadow-sm"
+                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
                 >
                   {/* Image */}
                   <div
@@ -509,7 +509,7 @@ export default function DashboardPage() {
 
                   {/* Content */}
                   <div className="p-5">
-                    <h3 className="font-display font-bold text-lg text-zinc-900">
+                    <h3 className="font-script italic font-semibold text-lg text-zinc-900">
                       {destination.name}
                     </h3>
                     <p className="text-sm text-zinc-600 mt-1">
@@ -527,7 +527,7 @@ export default function DashboardPage() {
           {/* Past Trips Section */}
           {completedTrips.length > 0 && (
             <section>
-              <h2 className="text-2xl font-display font-bold text-zinc-400 mb-6 opacity-75">
+              <h2 className="text-2xl font-script italic font-semibold text-zinc-400 mb-6 opacity-75">
                 The Archives
               </h2>
 
@@ -549,7 +549,7 @@ export default function DashboardPage() {
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-display font-bold text-zinc-900 mb-2">Get the Crew Together</h3>
+            <h3 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">Get the Crew Together</h3>
             <p className="text-sm text-zinc-500 mb-5">Send this link and they're in. Easy.</p>
             <div className="flex gap-2 mb-4">
               <input type="text" readOnly value="https://tripcoord.app/join/trip_1" className="flex-1 px-4 py-2.5 bg-parchment border border-zinc-200 rounded-xl text-sm text-zinc-600 focus:outline-none" />

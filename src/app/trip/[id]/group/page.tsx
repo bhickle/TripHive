@@ -311,7 +311,7 @@ export default function GroupPage() {
   return (
     <div className="min-h-screen bg-parchment p-6">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-zinc-900 mb-2">
+        <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">
           Iceland Adventure
         </h1>
         <p className="text-lg text-zinc-600">
@@ -319,7 +319,7 @@ export default function GroupPage() {
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-zinc-100 p-1 flex gap-1 mb-8 inline-flex">
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 flex gap-1 mb-8 inline-flex">
         {['overview', 'expenses', 'chat', 'votes'].map((tab) => (
           <button
             key={tab}
@@ -341,7 +341,7 @@ export default function GroupPage() {
             {/* Members Grid */}
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-zinc-900">Who's In</h2>
+                <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Who's In</h2>
                 <button
                   onClick={() => {
                     if (canAddTraveler(groupMembers.length)) {
@@ -374,7 +374,7 @@ export default function GroupPage() {
                   const uploadedAvatar = memberAvatars[member.id];
                   const avatarSrc = uploadedAvatar || member.avatarUrl;
                   return (
-                    <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col items-center text-center">
+                    <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                       <div className="relative mb-4 group/avatar">
                         <Avatar src={avatarSrc} name={member.name} size="lg" />
                         <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
@@ -415,7 +415,7 @@ export default function GroupPage() {
 
             {/* Budget Summary */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8">
-              <h2 className="text-2xl font-bold text-zinc-900 mb-6">Where the Money's Going</h2>
+              <h2 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Where the Money's Going</h2>
               <div className="grid grid-cols-3 gap-6">
                 <div>
                   <p className="text-sm text-zinc-600 mb-2">Total Spent</p>
@@ -440,15 +440,15 @@ export default function GroupPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                 <p className="text-zinc-600 text-sm mb-1">Messages Sent</p>
-                <p className="text-2xl font-bold text-zinc-900">{chatMessages.length}</p>
+                <p className="font-script italic text-2xl font-semibold text-zinc-900">{chatMessages.length}</p>
               </div>
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                 <p className="text-zinc-600 text-sm mb-1">Expenses</p>
-                <p className="text-2xl font-bold text-zinc-900">{expenses.length + localExpenses.length}</p>
+                <p className="font-script italic text-2xl font-semibold text-zinc-900">{expenses.length + localExpenses.length}</p>
               </div>
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                 <p className="text-zinc-600 text-sm mb-1">Votes</p>
-                <p className="text-2xl font-bold text-zinc-900">{groupVotes.length}</p>
+                <p className="font-script italic text-2xl font-semibold text-zinc-900">{groupVotes.length}</p>
               </div>
             </div>
 
@@ -492,7 +492,7 @@ export default function GroupPage() {
 
             {/* Expense List */}
             <div>
-              <h3 className="text-2xl font-bold text-zinc-900 mb-4">The Tab</h3>
+              <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-4">The Tab</h3>
               <div className="space-y-3">
                 {expenses.map((expense) => {
                   const paidByMember = groupMembers.find(m => m.name === expense.paidBy);
@@ -627,7 +627,7 @@ export default function GroupPage() {
             {showAddExpenseModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddExpenseModal(false)}>
                 <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-                  <h3 className="text-2xl font-bold text-zinc-900 mb-6">Split Something</h3>
+                  <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Split Something</h3>
 
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                     {/* Description */}
@@ -892,7 +892,7 @@ export default function GroupPage() {
 
             {openVotes.length > 0 && (
               <div>
-                <h3 className="text-2xl font-bold text-zinc-900 mb-4">Still Deciding</h3>
+                <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-4">Still Deciding</h3>
                 <div className="space-y-4">
                   {openVotes.map((vote) => {
                     const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
@@ -932,7 +932,7 @@ export default function GroupPage() {
 
             {closedVotes.length > 0 && (
               <div>
-                <h3 className="text-2xl font-bold text-zinc-900 mb-4">The Verdict</h3>
+                <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-4">The Verdict</h3>
                 <div className="space-y-4">
                   {closedVotes.map((vote) => {
                     const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
@@ -984,7 +984,7 @@ export default function GroupPage() {
             {showVoteModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowVoteModal(false)}>
                 <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-                  <h3 className="text-2xl font-bold text-zinc-900 mb-6">Put It to a Vote</h3>
+                  <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Put It to a Vote</h3>
 
                   {/* Question */}
                   <div className="mb-4">
@@ -1122,7 +1122,7 @@ export default function GroupPage() {
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-2xl font-bold text-zinc-900 mb-6">Invite to Trip</h3>
+            <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Invite to Trip</h3>
 
             {/* Method Toggle */}
             <div className="flex gap-2 mb-4">

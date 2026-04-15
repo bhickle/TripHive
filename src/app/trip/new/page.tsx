@@ -561,7 +561,7 @@ function TripBuilderPage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-orange-600 mb-3">
             AI Itinerary Generator
           </p>
-          <h2 className="text-4xl font-display font-bold text-zinc-900 mb-3 leading-tight">
+          <h2 className="text-4xl font-script italic font-semibold text-zinc-900 mb-3 leading-tight">
             {state.destination || 'Your Trip'}
           </h2>
           <p className="text-zinc-500 text-sm mb-10">
@@ -635,7 +635,7 @@ function TripBuilderPage() {
               </div>
             )}
 
-            <h1 className="text-3xl font-display font-bold text-slate-900">
+            <h1 className="text-3xl font-script italic font-semibold text-slate-900">
               {isFirstTrip ? 'Where are you headed?' : 'Let\'s Build Your Trip'}
             </h1>
             <p className="text-slate-600 mt-2">
@@ -716,7 +716,7 @@ function TripBuilderPage() {
             {/* Step 1: Who's Traveling? */}
             {currentStep === 1 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
                   Who's coming? 👋
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -808,7 +808,7 @@ function TripBuilderPage() {
             {/* Step 2: Where to? */}
             {currentStep === 2 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
                   Where to? 🌍
                 </h2>
                 <div className="space-y-6">
@@ -883,7 +883,7 @@ function TripBuilderPage() {
             {/* Step 3: When? */}
             {currentStep === 3 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
                   When are you going? 📅
                 </h2>
                 <div className="space-y-6">
@@ -963,7 +963,7 @@ function TripBuilderPage() {
             {/* Step 4: Pre-Booked Hotels & Flights */}
             {currentStep === 4 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-2">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-2">
                   Got a head start? ✈️
                 </h2>
                 <p className="text-slate-500 mb-6 text-sm">
@@ -1136,7 +1136,7 @@ function TripBuilderPage() {
             {/* Step 5: What Matters Most? */}
             {currentStep === 5 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
                   What's your vibe? ✨
                 </h2>
                 <p className="text-slate-600 mb-6">
@@ -1262,7 +1262,7 @@ function TripBuilderPage() {
             {/* Step 6: How Do You Travel? */}
             {currentStep === 6 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
                   How do you roll? 🎒
                 </h2>
 
@@ -1357,7 +1357,7 @@ function TripBuilderPage() {
             {/* Step 7: Budget */}
             {currentStep === 7 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
                   What's the budget? 💰
                 </h2>
 
@@ -1479,7 +1479,7 @@ function TripBuilderPage() {
                   <div className="rounded-xl overflow-hidden border border-zinc-800">
                     <div className="p-4 bg-zinc-900 flex items-center justify-between">
                       <span className="font-semibold text-white">Per-Person Total</span>
-                      <span className="text-xl font-display font-bold text-sky-400">${totalBreakdown.toLocaleString()}</span>
+                      <span className="font-script italic text-xl font-semibold text-sky-400">${totalBreakdown.toLocaleString()}</span>
                     </div>
                     <div className="p-3 bg-zinc-800/60 flex items-center justify-between">
                       <span className="text-sm text-zinc-400">Estimated for {state.groupSize} {state.groupSize === 1 ? 'person' : 'people'}</span>
@@ -1493,7 +1493,7 @@ function TripBuilderPage() {
             {/* Step 8: Review & Generate */}
             {currentStep === 8 && (
               <div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
                   Good to go? 🚀
                 </h2>
 

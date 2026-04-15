@@ -155,7 +155,7 @@ export function MapView({ activities, transportLegs = [], destination }: MapView
   const hasTransport = transportPins.length > 0;
 
   return (
-    <div className="rounded-2xl border border-zinc-200 overflow-hidden bg-white shadow-sm">
+    <div className="rounded-2xl border border-zinc-200 overflow-hidden shadow-sm bg-white shadow-sm">
       {/* Map area */}
       <div className="relative w-full" style={{ height: '420px' }}>
 

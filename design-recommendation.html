@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>tripcoord — Design Recommendation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Nunito:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --parchment: #f5f1e8;
+      --parchment-dark: #ede8dc;
+      --charcoal: #1c1917;
+      --charcoal-mid: #2c2928;
+      --charcoal-soft: #3d3a38;
+      --white: #ffffff;
+      --ink: #1c1917;
+      --ink-muted: #78716c;
+      --border-light: rgba(255,255,255,0.08);
+      --border-card: rgba(28,25,23,0.09);
+      --green: #16a34a;
+      --green-light: #dcfce7;
+      --orange: #ea580c;
+      --orange-light: #fff7ed;
+      --blue: #2563eb;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: #111;
+      min-height: 100vh;
+    }
+
+    /* ─── TOP BANNER ─── */
+    .banner {
+      background: var(--charcoal);
+      color: var(--parchment);
+      font-family: 'Nunito', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-align: center;
+      padding: 10px 16px;
+    }
+    .banner em {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 14px;
+      color: #f5c56a;
+    }
+
+    /* ─── OUTER WRAPPER ─── */
+    .app {
+      display: flex;
+      height: calc(100vh - 38px);
+      overflow: hidden;
+      background: var(--parchment);
+    }
+
+    /* ────────────────────────────────────
+       SIDEBAR  (dark charcoal)
+    ──────────────────────────────────── */
+    .sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--charcoal);
+      display: flex;
+      flex-direction: column;
+      padding: 28px 16px 20px;
+    }
+
+    .logo-area { margin-bottom: 6px; padding: 0 8px; }
+    .logo-text {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -.5px;
+      line-height: 1;
+    }
+    .logo-text .trip { color: #f5821f; }
+    .logo-text .coord { color: #3b82f6; }
+    .tagline {
+      font-size: 10.5px;
+      color: rgba(245,241,232,.45);
+      font-weight: 500;
+      margin-top: 5px;
+      line-height: 1.4;
+      padding: 0 1px;
+    }
+
+    .sidebar-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 18px 8px;
+    }
+
+    .nav-section {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(245,241,232,.35);
+      letter-spacing: .04em;
+      padding: 0 10px;
+      margin-bottom: 6px;
+      margin-top: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: rgba(245,241,232,.55);
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      margin-bottom: 2px;
+      transition: all .15s;
+    }
+    .nav-item.active {
+      background: rgba(245,241,232,.09);
+      color: var(--parchment);
+      border-left-color: #16a34a;
+    }
+    .nav-item:not(.active):hover {
+      background: rgba(245,241,232,.05);
+      color: rgba(245,241,232,.8);
+    }
+    .nav-item .icon { font-size: 15px; width: 18px; text-align: center; }
+    .nav-item .badge {
+      margin-left: auto;
+      background: #16a34a;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 1px 6px;
+    }
+
+    .sidebar-spacer { flex: 1; }
+
+    .sidebar-footer {
+      border-top: 1px solid rgba(255,255,255,.07);
+      padding-top: 16px;
+    }
+    .user-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f5821f, #2563eb);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .user-name { font-size: 13px; font-weight: 700; color: var(--parchment); }
+    .user-tier {
+      font-size: 10px;
+      background: rgba(22,163,74,.2);
+      color: #4ade80;
+      border-radius: 999px;
+      padding: 1px 7px;
+      font-weight: 600;
+      display: inline-block;
+      margin-top: 2px;
+    }
+
+    /* ────────────────────────────────────
+       MAIN CONTENT  (parchment bg)
+    ──────────────────────────────────── */
+    .main {
+      flex: 1;
+      background: var(--parchment);
+      overflow-y: auto;
+      padding: 40px 48px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 44px;
+    }
+
+    /* ─── SECTION HEADERS (BIG Cormorant) ─── */
+    .section { display: flex; flex-direction: column; gap: 20px; }
+
+    .page-header { display: flex; flex-direction: column; gap: 2px; }
+    .page-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--orange);
+    }
+    .page-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 44px;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.05;
+      letter-spacing: -.5px;
+    }
+    .page-sub {
+      font-size: 14px;
+      color: var(--ink-muted);
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    .section-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -.3px;
+      line-height: 1.15;
+      border-bottom: 1px solid var(--border-card);
+      padding-bottom: 12px;
+    }
+
+    /* ─── STAT CARDS (white) ─── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .stat-card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 20px 22px;
+      box-shadow: 0 1px 3px rgba(28,25,23,.07), 0 4px 12px rgba(28,25,23,.04);
+    }
+    .stat-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 38px;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1;
+    }
+    .stat-value.green { color: var(--green); }
+    .stat-delta {
+      font-size: 11px;
+      color: var(--green);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    /* ─── TRIP CARDS (white) ─── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .trip-card {
+      background: var(--white);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(28,25,23,.07), 0 4px 16px rgba(28,25,23,.05);
+    }
+    .card-img {
+      height: 140px;
+      display: flex;
+      align-items: flex-end;
+      padding: 14px 16px;
+    }
+    .card-img.portugal { background: linear-gradient(160deg, #fed7aa 0%, #ea580c 100%); }
+    .card-img.japan    { background: linear-gradient(160deg, #fce7f3 0%, #db2777 100%); }
+    .card-img.morocco  { background: linear-gradient(160deg, #bfdbfe 0%, #2563eb 100%); }
+    .card-dest {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 24px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 6px rgba(0,0,0,.25);
+    }
+    .card-body { padding: 16px 18px; }
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .chip {
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 3px 10px;
+      background: var(--parchment);
+      color: var(--ink-muted);
+    }
+    .chip.green { background: var(--green-light); color: #166534; }
+    .chip.blue  { background: #dbeafe; color: #1d4ed8; }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink-muted);
+      margin-bottom: 5px;
+    }
+    .progress-bar { height: 4px; border-radius: 999px; background: var(--parchment); }
+    .progress-fill { height: 100%; border-radius: 999px; background: var(--green); }
+
+    /* ─── TRIP BUILDER STEP (white) ─── */
+    .wizard-card {
+      background: var(--white);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(28,25,23,.07), 0 4px 16px rgba(28,25,23,.05);
+    }
+    .wizard-header {
+      background: var(--parchment-dark);
+      padding: 20px 28px 18px;
+      border-bottom: 1px solid rgba(28,25,23,.07);
+    }
+    .wizard-step-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 4px;
+    }
+    .wizard-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .wizard-body { padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; }
+    .field-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-bottom: 8px;
+    }
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .toggle-chip {
+      border: 1.5px solid var(--border-card);
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-muted);
+      cursor: pointer;
+      background: var(--parchment);
+    }
+    .toggle-chip.sel {
+      border-color: var(--green);
+      background: var(--green-light);
+      color: #166534;
+    }
+    .wizard-footer {
+      border-top: 1px solid rgba(28,25,23,.07);
+      padding: 16px 28px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .btn { font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; padding: 9px 22px; border-radius: 10px; border: none; cursor: pointer; }
+    .btn-ghost { background: var(--parchment); color: var(--ink-muted); }
+    .btn-primary { background: var(--charcoal); color: var(--parchment); }
+
+    /* ─── DISCOVER CARDS (white) ─── */
+    .discover-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .discover-card {
+      background: var(--white);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(28,25,23,.07), 0 4px 16px rgba(28,25,23,.05);
+    }
+    .discover-img {
+      height: 120px;
+      display: flex;
+      align-items: flex-end;
+      padding: 12px 16px;
+    }
+    .discover-img.tokyo  { background: linear-gradient(155deg, #c7d2fe, #4f46e5); }
+    .discover-img.bali   { background: linear-gradient(155deg, #a7f3d0, #059669); }
+    .discover-img.paris  { background: linear-gradient(155deg, #fef9c3, #ca8a04); }
+    .discover-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 24px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 6px rgba(0,0,0,.3);
+    }
+    .discover-body { padding: 12px 16px; }
+    .discover-tag {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--ink-muted);
+      background: var(--parchment);
+      border-radius: 999px;
+      padding: 2px 9px;
+      display: inline-block;
+      margin-right: 4px;
+      margin-bottom: 4px;
+    }
+    .discover-price { font-size: 13px; font-weight: 800; color: var(--ink); margin-top: 4px; }
+    .discover-price span { font-size: 11px; font-weight: 500; color: var(--ink-muted); }
+
+    /* ─── COMPARISON NOTE ─── */
+    .compare-banner {
+      background: var(--charcoal);
+      border-radius: 16px;
+      padding: 24px 28px;
+      display: flex;
+      gap: 28px;
+    }
+    .compare-side { flex: 1; }
+    .compare-heading {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .compare-heading.good { color: #4ade80; }
+    .compare-heading.bad  { color: #f87171; }
+    .compare-item {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: rgba(245,241,232,.65);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+      line-height: 1.5;
+    }
+    .compare-item .dot { flex-shrink: 0; margin-top: 3px; }
+    .compare-divider { width: 1px; background: rgba(255,255,255,.1); }
+
+    .footer-note {
+      text-align: center;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 13px;
+      color: var(--ink-muted);
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="banner">
+    Design recommendation — <em>Dark sidebar · Parchment background · White cards · Cormorant on titles</em>
+  </div>
+
+  <div class="app">
+
+    <!-- DARK SIDEBAR -->
+    <aside class="sidebar">
+      <div class="logo-area">
+        <div class="logo-text"><span class="trip">trip</span><span class="coord">coord</span></div>
+        <div class="tagline">Pull the ripcord on group trip chaos.</div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <nav>
+        <div class="nav-section">Navigate</div>
+        <div class="nav-item"><span class="icon">🏠</span> Home Base</div>
+        <div class="nav-item active"><span class="icon">✈️</span> Adventures <span class="badge">3</span></div>
+        <div class="nav-item"><span class="icon">🔭</span> On My Radar</div>
+        <div class="nav-item"><span class="icon">🌍</span> Discover</div>
+
+        <div class="sidebar-divider"></div>
+        <div class="nav-section">Account</div>
+        <div class="nav-item"><span class="icon">⚙️</span> Settings</div>
+        <div class="nav-item"><span class="icon">↪️</span> Sign Out</div>
+      </nav>
+
+      <div class="sidebar-spacer"></div>
+
+      <div class="sidebar-footer">
+        <div class="user-row">
+          <div class="avatar">BH</div>
+          <div>
+            <div class="user-name">Brandon</div>
+            <div class="user-tier">Free</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- PARCHMENT MAIN -->
+    <main class="main">
+
+      <!-- PAGE HEADER (Cormorant on big title) -->
+      <div class="section">
+        <div class="page-header">
+          <div class="page-eyebrow">Tuesday, April 14</div>
+          <div class="page-title">Hey, Brandon 👋</div>
+          <div class="page-sub">Here's where everything stands for your trips.</div>
+        </div>
+
+        <!-- STAT CARDS (white, with shadows to lift off parchment) -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">Active Trips</div>
+            <div class="stat-value">3</div>
+            <div class="stat-delta">▲ 1 this month</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Trip Members</div>
+            <div class="stat-value">14</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Budget Saved</div>
+            <div class="stat-value green">$840</div>
+            <div class="stat-delta">across 3 trips</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Decisions Made</div>
+            <div class="stat-value">27</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRIPS SECTION -->
+      <div class="section">
+        <div class="section-title">Upcoming Adventures</div>
+        <div class="cards-grid">
+          <div class="trip-card">
+            <div class="card-img portugal"><div class="card-dest">Lisbon, Portugal</div></div>
+            <div class="card-body">
+              <div class="card-meta"><span class="chip green">Planning</span><span class="chip">June 2025</span><span class="chip">4 people</span></div>
+              <div class="progress-label"><span>Budget</span><span>68%</span></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:68%"></div></div>
+            </div>
+          </div>
+          <div class="trip-card">
+            <div class="card-img japan"><div class="card-dest">Kyoto, Japan</div></div>
+            <div class="card-body">
+              <div class="card-meta"><span class="chip blue">Voting</span><span class="chip">Oct 2025</span><span class="chip">6 people</span></div>
+              <div class="progress-label"><span>Budget</span><span>32%</span></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:32%"></div></div>
+            </div>
+          </div>
+          <div class="trip-card">
+            <div class="card-img morocco"><div class="card-dest">Marrakech</div></div>
+            <div class="card-body">
+              <div class="card-meta"><span class="chip">Dream</span><span class="chip">TBD</span><span class="chip">8 people</span></div>
+              <div class="progress-label"><span>Budget</span><span>12%</span></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:12%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRIP WIZARD STEP -->
+      <div class="section">
+        <div class="section-title">Plan a New Trip</div>
+        <div class="wizard-card">
+          <div class="wizard-header">
+            <div class="wizard-step-eyebrow">Step 6 of 8 — Getting around</div>
+            <div class="wizard-title">Local Transportation &amp; Accommodation</div>
+          </div>
+          <div class="wizard-body">
+            <div>
+              <div class="field-label">How are you getting around?</div>
+              <div class="toggle-grid">
+                <div class="toggle-chip sel">🚆 Train</div>
+                <div class="toggle-chip">🚌 Bus</div>
+                <div class="toggle-chip sel">🛵 Scooter</div>
+                <div class="toggle-chip">🚗 Car Rental</div>
+              </div>
+            </div>
+            <div>
+              <div class="field-label">Where are you staying?</div>
+              <div class="toggle-grid">
+                <div class="toggle-chip sel">🏨 Hotel</div>
+                <div class="toggle-chip">🏡 Airbnb</div>
+                <div class="toggle-chip">⛺ Hostel</div>
+                <div class="toggle-chip">🛖 Resort</div>
+              </div>
+            </div>
+          </div>
+          <div class="wizard-footer">
+            <button class="btn btn-ghost">← Back</button>
+            <button class="btn btn-primary">Continue →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DISCOVER -->
+      <div class="section">
+        <div class="section-title">Discover New Places</div>
+        <div class="discover-grid">
+          <div class="discover-card">
+            <div class="discover-img tokyo"><div class="discover-name">Tokyo</div></div>
+            <div class="discover-body">
+              <div><span class="discover-tag">Culture</span><span class="discover-tag">Food</span><span class="discover-tag">Nightlife</span></div>
+              <div class="discover-price">~$2,400 <span>/ person · 7 days</span></div>
+            </div>
+          </div>
+          <div class="discover-card">
+            <div class="discover-img bali"><div class="discover-name">Bali</div></div>
+            <div class="discover-body">
+              <div><span class="discover-tag">Beach</span><span class="discover-tag">Wellness</span></div>
+              <div class="discover-price">~$1,100 <span>/ person · 7 days</span></div>
+            </div>
+          </div>
+          <div class="discover-card">
+            <div class="discover-img paris"><div class="discover-name">Paris</div></div>
+            <div class="discover-body">
+              <div><span class="discover-tag">Romance</span><span class="discover-tag">Art</span><span class="discover-tag">Luxury</span></div>
+              <div class="discover-price">~$3,200 <span>/ person · 7 days</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WHY THIS WORKS -->
+      <div class="compare-banner">
+        <div class="compare-side">
+          <div class="compare-heading good">✓ This direction works because…</div>
+          <div class="compare-item"><span class="dot">→</span><span>Dark sidebar anchors the layout and makes the content area feel warm and inviting</span></div>
+          <div class="compare-item"><span class="dot">→</span><span>Parchment background gives the "journal" warmth — clinical white doesn't</span></div>
+          <div class="compare-item"><span class="dot">→</span><span>White cards with shadows lift naturally off the parchment — strong contrast</span></div>
+          <div class="compare-item"><span class="dot">→</span><span>Cormorant on the big h1/h2 titles makes a real editorial statement — not hidden in tiny labels</span></div>
+          <div class="compare-item"><span class="dot">→</span><span>Stat values in Cormorant (the big numbers) look elegant and magazine-like</span></div>
+        </div>
+        <div class="compare-divider"></div>
+        <div class="compare-side">
+          <div class="compare-heading bad">✗ The current version struggles because…</div>
+          <div class="compare-item"><span class="dot">→</span><span>White bg + parchment cards = very low contrast, cards don't pop off the background</span></div>
+          <div class="compare-item"><span class="dot">→</span><span>Parchment sidebar feels disconnected and "unanchored"</span></div>
+          <div class="compare-item"><span class="dot">→</span><span>Cormorant is wasted as a tiny 12px overline label — nobody notices it</span></div>
+          <div class="compare-item"><span class="dot">→</span><span>Everything has the same visual weight — no clear hierarchy between bg, cards, and content</span></div>
+        </div>
+      </div>
+
+      <div class="footer-note">Mockup only — no changes made to the app yet.</div>
+
+    </main>
+  </div>
+
+</body>
+</html>

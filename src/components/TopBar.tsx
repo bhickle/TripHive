@@ -44,10 +44,10 @@ export const TopBar: React.FC<TopBarProps> = ({
             </Link>
           )}
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-display font-bold text-zinc-900 truncate leading-tight">{tripTitle}</h1>
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500 mt-0.5">
+            <h1 className="font-script italic text-lg font-semibold text-zinc-900 truncate leading-tight">{tripTitle}</h1>
+            <div className="flex items-center gap-1.5 mt-0.5 text-zinc-500">
               <MapPin className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{destination}</span>
+              <span className="font-script italic text-sm truncate">{destination}</span>
             </div>
           </div>
         </div>

@@ -174,7 +174,7 @@ export default function LayoverPlannerPage() {
           </Link>
 
           <div className="mb-8">
-            <h1 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
+            <h1 className="text-3xl font-script italic font-semibold text-slate-900 flex items-center gap-3">
               <Plane className="w-8 h-8 text-sky-700" />
               Layover Planner
             </h1>
@@ -242,7 +242,7 @@ export default function LayoverPlannerPage() {
           {/* Preferences Panel */}
           {showPreferences && (
             <div className="card p-6 mb-8">
-              <h2 className="text-xl font-display font-bold text-slate-900 mb-2">
+              <h2 className="font-script italic text-xl font-semibold text-slate-900 mb-2">
                 Customize Your Layover at {pendingCode}
               </h2>
               <p className="text-sm text-slate-600 mb-6">
@@ -380,7 +380,7 @@ export default function LayoverPlannerPage() {
               <div className="mb-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-xl font-display font-bold text-slate-900">
+                    <h2 className="font-script italic text-xl font-semibold text-slate-900">
                       {result.airport.name}
                     </h2>
                     <p className="text-sm text-slate-600 mt-1">

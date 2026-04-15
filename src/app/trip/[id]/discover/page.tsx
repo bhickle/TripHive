@@ -416,7 +416,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           {/* Title + meta row */}
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="text-xl font-bold text-zinc-900">Discover Reykjavik</h2>
+              <h2 className="font-script italic text-xl font-semibold text-zinc-900">Discover Reykjavik</h2>
               <p className="text-xs text-zinc-400 mt-0.5">Curated for your group · {filteredItems.length} results</p>
             </div>
             <div className="flex items-center gap-3">
@@ -518,7 +518,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
               {/* Activity Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 {filteredItems.map((item) => (
-                  <div key={item.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group">
+                  <div key={item.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col group">
                     {/* Photo / Gradient header */}
                     <div className={`relative h-44 overflow-hidden rounded-t-2xl bg-gradient-to-br ${item.imageGradient}`}>
                       {item.imageUrl && (
@@ -563,7 +563,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                     <div className="p-5 flex-1 flex flex-col">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex-1">
-                          <h3 className="font-bold text-zinc-900 text-lg line-clamp-2">{item.name}</h3>
+                          <h3 className="font-script italic font-semibold text-zinc-900 text-lg line-clamp-2">{item.name}</h3>
                           <div className="flex items-center gap-1 mt-2">
                             <Star className="w-4 h-4 text-sky-600 fill-current" />
                             <span className="font-semibold text-zinc-900 text-sm">{item.rating}</span>

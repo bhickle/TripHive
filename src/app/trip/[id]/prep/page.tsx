@@ -604,7 +604,7 @@ export default function PrepPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="mb-8 bg-white rounded-2xl border border-zinc-100 p-1 inline-flex gap-1 flex-wrap">
+        <div className="mb-8 bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 inline-flex gap-1 flex-wrap">
           {[
             { id: 'documents', label: 'Important Stuff', icon: FileText },
             { id: 'logistics', label: 'Admin', icon: Briefcase },

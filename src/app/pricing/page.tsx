@@ -122,7 +122,7 @@ export default function PricingPage() {
   const nomadBilled = billing === 'annual' ? `$${PRICING.nomad.annual}/year` : null;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-parchment">
 
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-lg border-b border-zinc-100">
@@ -146,7 +146,7 @@ export default function PricingPage() {
       {/* Hero */}
       <section className="pt-20 pb-10 px-4 text-center">
         <p className="text-sky-700 text-xs font-bold uppercase tracking-widest mb-4">Pricing</p>
-        <h1 className="text-5xl sm:text-6xl font-bold text-zinc-900 mb-5 leading-tight tracking-tight">
+        <h1 className="font-script italic text-5xl sm:text-6xl font-semibold text-zinc-900 mb-5 leading-tight tracking-tight">
           Pay for what you need.<br />Not a dollar more.
         </h1>
         <p className="text-lg text-zinc-500 max-w-xl mx-auto mb-10">
@@ -182,7 +182,7 @@ export default function PricingPage() {
               <p className="text-zinc-500 text-sm leading-snug">Try tripcoord. See what the fuss is about.</p>
             </div>
             <div className="mb-6">
-              <span className="text-4xl font-bold text-zinc-900">$0</span>
+              <span className="font-script italic text-4xl font-semibold text-zinc-900">$0</span>
               <span className="text-zinc-400 text-sm ml-1">/ month</span>
             </div>
             <Link href="/auth/signup" className="w-full text-center py-3 border border-zinc-200 hover:border-zinc-400 text-zinc-700 font-semibold rounded-full text-sm transition-all mb-7">
@@ -216,7 +216,7 @@ export default function PricingPage() {
               <p className="text-amber-800 text-sm leading-snug">One trip, fully unlocked. No subscription needed.</p>
             </div>
             <div className="mb-1">
-              <span className="text-4xl font-bold text-zinc-900">${PRICING.trip_pass.base}</span>
+              <span className="font-script italic text-4xl font-semibold text-zinc-900">${PRICING.trip_pass.base}</span>
               <span className="text-zinc-500 text-sm ml-1">/ trip</span>
             </div>
             <p className="text-xs text-amber-700 font-medium mb-6">+$4/person beyond 6 · up to 12</p>
@@ -253,7 +253,7 @@ export default function PricingPage() {
               <p className="text-sky-100/70 text-sm leading-snug">Your whole travel year, covered.</p>
             </div>
             <div className="mb-1">
-              <span className="text-4xl font-bold text-white">${explorerPrice}</span>
+              <span className="font-script italic text-4xl font-semibold text-white">${explorerPrice}</span>
               <span className="text-sky-300 text-sm ml-1">/ month</span>
             </div>
             {explorerBilled
@@ -296,7 +296,7 @@ export default function PricingPage() {
               <p className="text-zinc-500 text-sm leading-snug">For the organizer everyone counts on.</p>
             </div>
             <div className="mb-1">
-              <span className="text-4xl font-bold text-zinc-900">${nomadPrice}</span>
+              <span className="font-script italic text-4xl font-semibold text-zinc-900">${nomadPrice}</span>
               <span className="text-zinc-400 text-sm ml-1">/ month</span>
             </div>
             {nomadBilled
@@ -340,7 +340,7 @@ export default function PricingPage() {
             <Zap className="w-4 h-4 text-sky-600" />
             <span className="text-sm font-semibold text-zinc-700">How AI credits work</span>
           </div>
-          <h2 className="text-3xl font-bold text-zinc-900 mb-4">Smart AI. Not a blank cheque.</h2>
+          <h2 className="font-script italic text-3xl font-semibold text-zinc-900 mb-4">Smart AI. Not a blank cheque.</h2>
           <p className="text-zinc-500 mb-10 leading-relaxed">
             AI credits let us keep the lights on without charging per-call. Most users never get close to the limit.
             Think of it as a fair-use guardrail, not a wall.
@@ -365,7 +365,7 @@ export default function PricingPage() {
 
       {/* Comparison table */}
       <section className="max-w-5xl mx-auto px-4 py-20">
-        <h2 className="text-3xl font-bold text-zinc-900 text-center mb-12">Compare plans</h2>
+        <h2 className="font-script italic text-3xl font-semibold text-zinc-900 text-center mb-12">Compare plans</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -418,7 +418,7 @@ export default function PricingPage() {
 
       {/* FAQ */}
       <section className="max-w-2xl mx-auto px-4 py-20">
-        <h2 className="text-3xl font-bold text-zinc-900 text-center mb-10">Questions</h2>
+        <h2 className="font-script italic text-3xl font-semibold text-zinc-900 text-center mb-10">Questions</h2>
         <div className="space-y-3">
           {faqs.map(faq => <FaqItem key={faq.q} q={faq.q} a={faq.a} />)}
         </div>
@@ -426,7 +426,7 @@ export default function PricingPage() {
 
       {/* CTA footer */}
       <section className="bg-gradient-to-br from-sky-900 via-zinc-900 to-green-900 py-20 px-4 text-center">
-        <h2 className="text-4xl font-bold text-white mb-4">Ready to actually enjoy planning?</h2>
+        <h2 className="font-script italic text-4xl font-semibold text-white mb-4">Ready to actually enjoy planning?</h2>
         <p className="text-sky-200 mb-10 max-w-lg mx-auto">
           Start free. Upgrade when you need it. No pressure, no tricks.
         </p>
