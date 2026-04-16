@@ -36,6 +36,9 @@ import {
   Camera,
   Backpack,
   Flag,
+  Pencil,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
@@ -221,7 +224,11 @@ function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: num
 export default function ItineraryPage() {
   const [selectedDay, setSelectedDay] = useState(1);
   const [activityAdded, setActivityAdded] = useState(false);
+  const [activityDeleted, setActivityDeleted] = useState(false);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [suggestingActivityId, setSuggestingActivityId] = useState<string | null>(null);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [showParseModal, setShowParseModal] = useState(false);
   const [showMapView, setShowMapView] = useState(false);
@@ -273,6 +280,15 @@ export default function ItineraryPage() {
   const [aiMeta, setAiMeta] = useState<{
     destination?: string; startDate?: string; endDate?: string;
     budget?: number; budgetBreakdown?: Record<string, number>;
+    bookedHotels?: Array<{ name: string; address?: string; checkIn?: string; checkOut?: string }>;
+    hotelSuggestions?: Array<{
+      name: string; address?: string; neighborhood?: string;
+      pricePerNight?: number; priceLevel?: number;
+      whyRecommended?: string; bookingUrl?: string;
+    }>;
+    practicalNotes?: {
+      currency?: string; tipping?: string; customs?: string; entryRequirements?: string;
+    };
   } | null>(null);
   const [showAiBanner, setShowAiBanner] = useState(false);
 
@@ -364,15 +380,152 @@ export default function ItineraryPage() {
 
   const handleCloseModal = () => {
     setShowAddActivityModal(false);
+    setEditingActivity(null);
     resetModal();
   };
 
+  // ─── Persist updated days to state + localStorage ────────────────────────────
+  const persistDays = useCallback((updated: typeof itineraryDays) => {
+    setAiDays(updated);
+    try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
+  }, []);
+
+  // ─── Save activity (add new or update existing) ──────────────────────────────
   const handleSubmit = () => {
+    const timeSlot = newActivityStartTime && newActivityEndTime
+      ? `${newActivityStartTime}–${newActivityEndTime}`
+      : newActivityStartTime
+      ? `${newActivityStartTime}–${newActivityStartTime}`
+      : '12:00–13:00';
+
+    const savedActivity: Activity = {
+      id: editingActivity?.id ?? `act_d${selectedDay}_${Date.now()}`,
+      dayNumber: selectedDay,
+      timeSlot,
+      name: newActivityName,
+      title: newActivityName,
+      address: newActivityAddress || undefined,
+      website: newActivityWebsite || undefined,
+      isRestaurant: newActivityIsRestaurant,
+      track: newActivityTrack,
+      priceLevel: selectedPlace?.priceLevel ?? (newActivityIsRestaurant ? 2 : 1),
+      description: '',
+      costEstimate: 0,
+      confidence: 1,
+      verified: !!selectedPlace,
+      packingTips: [],
+      rating: selectedPlace?.rating,
+      reviewCount: selectedPlace?.reviewCount,
+      googleVerified: !!selectedPlace,
+    };
+
+    const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+      if (day.day !== selectedDay) return day;
+      if (editingActivity) {
+        // Replace the existing activity in whichever track it lives in
+        return {
+          ...day,
+          tracks: {
+            shared: day.tracks.shared.map((a: Activity) => a.id === editingActivity.id ? savedActivity : a),
+            track_a: day.tracks.track_a.map((a: Activity) => a.id === editingActivity.id ? savedActivity : a),
+            track_b: day.tracks.track_b.map((a: Activity) => a.id === editingActivity.id ? savedActivity : a),
+          },
+        };
+      }
+      // Add as a new activity
+      return {
+        ...day,
+        tracks: {
+          ...day.tracks,
+          [newActivityTrack]: [...(day.tracks[newActivityTrack as keyof typeof day.tracks] as Activity[] ?? []), savedActivity],
+        },
+      };
+    });
+
+    persistDays(updatedDays as typeof itineraryDays);
     setShowAddActivityModal(false);
+    setEditingActivity(null);
     setActivityAdded(true);
     setTimeout(() => setActivityAdded(false), 2500);
     resetModal();
   };
+
+  // ─── Open modal pre-filled for editing ───────────────────────────────────────
+  const handleEditActivity = useCallback((activity: Activity) => {
+    setEditingActivity(activity);
+    setNewActivityName(activity.name || activity.title || '');
+    setNewActivityAddress(activity.address || '');
+    setNewActivityWebsite(activity.website || '');
+    const [start, end] = (activity.timeSlot ?? '').split(/–|—/);
+    setNewActivityStartTime(start?.trim() ?? '');
+    setNewActivityEndTime(end?.trim() ?? '');
+    setNewActivityTrack((activity.track as 'shared' | 'track_a' | 'track_b') ?? 'shared');
+    setNewActivityIsRestaurant(activity.isRestaurant ?? false);
+    setShowAddActivityModal(true);
+  }, []);
+
+  // ─── Delete activity ──────────────────────────────────────────────────────────
+  const handleDeleteActivity = useCallback((activityId: string) => {
+    const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+      if (day.day !== selectedDay) return day;
+      return {
+        ...day,
+        tracks: {
+          shared: day.tracks.shared.filter((a: Activity) => a.id !== activityId),
+          track_a: day.tracks.track_a.filter((a: Activity) => a.id !== activityId),
+          track_b: day.tracks.track_b.filter((a: Activity) => a.id !== activityId),
+        },
+      };
+    });
+    persistDays(updatedDays as typeof itineraryDays);
+    setActivityDeleted(true);
+    setTimeout(() => setActivityDeleted(false), 2500);
+  }, [activeDays, selectedDay, persistDays]);
+
+  // ─── AI: suggest a replacement activity ──────────────────────────────────────
+  const handleSuggestAnother = useCallback(async (activity: Activity) => {
+    setSuggestingActivityId(activity.id);
+    setSuggestError(null);
+    try {
+      const res = await fetch('/api/suggest-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: trip.destination,
+          dayNumber: selectedDay,
+          date: currentDayData.date,
+          mealType: (activity as Activity & { mealType?: string }).mealType ?? null,
+          isRestaurant: activity.isRestaurant ?? false,
+          existingActivityName: activity.name || activity.title,
+          timeSlot: activity.timeSlot,
+          track: activity.track,
+          budget: aiMeta?.budget,
+          budgetBreakdown: aiMeta?.budgetBreakdown,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.activity) throw new Error(data.message || 'No suggestion returned');
+
+      const replacement: Activity = { ...data.activity, id: activity.id, track: activity.track };
+      const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+        if (day.day !== selectedDay) return day;
+        return {
+          ...day,
+          tracks: {
+            shared: day.tracks.shared.map((a: Activity) => a.id === activity.id ? replacement : a),
+            track_a: day.tracks.track_a.map((a: Activity) => a.id === activity.id ? replacement : a),
+            track_b: day.tracks.track_b.map((a: Activity) => a.id === activity.id ? replacement : a),
+          },
+        };
+      });
+      persistDays(updatedDays as typeof itineraryDays);
+    } catch (err) {
+      setSuggestError(err instanceof Error ? err.message : 'Could not get suggestion');
+      setTimeout(() => setSuggestError(null), 3000);
+    } finally {
+      setSuggestingActivityId(null);
+    }
+  }, [activeDays, selectedDay, currentDayData, trip, aiMeta, persistDays]);
 
   // Use AI-generated days if available, otherwise fall back to mock data
   const activeDays = aiDays ?? itineraryDays;
@@ -474,11 +627,23 @@ export default function ItineraryPage() {
           </div>
         )}
 
-        {/* Activity Added Toast */}
+        {/* Toasts */}
         {activityAdded && (
           <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <span className="text-sm font-semibold">Activity added to itinerary</span>
+            <span className="text-sm font-semibold">{editingActivity ? 'Activity updated' : 'Activity added to itinerary'}</span>
+          </div>
+        )}
+        {activityDeleted && (
+          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+            <Trash2 className="w-5 h-5 text-rose-400" />
+            <span className="text-sm font-semibold">Activity removed</span>
+          </div>
+        )}
+        {suggestError && (
+          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+            <AlertCircle className="w-5 h-5 text-rose-300" />
+            <span className="text-sm font-semibold">{suggestError}</span>
           </div>
         )}
 
@@ -681,14 +846,32 @@ export default function ItineraryPage() {
 
                         {/* Activity Card */}
                         <div className="flex-1 pb-2">
-                          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                            <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1 pr-2">
+                          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card">
+                            <div className="flex items-start justify-between mb-2 gap-2">
+                              <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1">
                                 {activity.name || activity.title}
                               </h3>
-                              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0 ${config.badgeColor}`}>
-                                {config.label}
-                              </span>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* Edit button */}
+                                <button
+                                  onClick={() => handleEditActivity(activity)}
+                                  title="Edit activity"
+                                  className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                {/* Delete button */}
+                                <button
+                                  onClick={() => handleDeleteActivity(activity.id)}
+                                  title="Remove activity"
+                                  className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${config.badgeColor}`}>
+                                  {config.label}
+                                </span>
+                              </div>
                             </div>
 
                             {/* Rating + Price */}
@@ -772,11 +955,12 @@ export default function ItineraryPage() {
                               </div>
                             )}
 
-                            {/* Voting row */}
+                            {/* Voting row + Suggest another */}
                             {(() => {
                               const v = votes[activity.id] ?? { up: 0, down: 0, myVote: null };
+                              const isSuggesting = suggestingActivityId === activity.id;
                               return (
-                                <div className="flex items-center gap-2 pt-2 border-t border-zinc-50">
+                                <div className="flex items-center gap-2 pt-2 border-t border-zinc-50 flex-wrap">
                                   <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-300 mr-1">Yay/Nay</span>
                                   <button
                                     onClick={() => handleVote(activity.id, 'up')}
@@ -805,6 +989,19 @@ export default function ItineraryPage() {
                                       {v.myVote === 'up' ? "You're in ✓" : 'Not feeling it'}
                                     </span>
                                   )}
+                                  {/* Suggest another — pushes to the right */}
+                                  <button
+                                    onClick={() => handleSuggestAnother(activity)}
+                                    disabled={isSuggesting}
+                                    title="Ask AI for a different suggestion"
+                                    className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all bg-zinc-50 text-zinc-400 hover:bg-violet-50 hover:text-violet-600 border border-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {isSuggesting
+                                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                                      : <RefreshCw className="w-3 h-3" />
+                                    }
+                                    <span>{isSuggesting ? 'Finding…' : 'Suggest another'}</span>
+                                  </button>
                                 </div>
                               );
                             })()}
@@ -856,6 +1053,74 @@ export default function ItineraryPage() {
                 </div>
               </div>
             )}
+
+            {/* Where to Stay Card — pre-booked hotels */}
+            {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-base">🏨</span>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
+                </div>
+                <div className="space-y-3">
+                  {aiMeta.bookedHotels.map((h, i) => (
+                    <div key={i} className="p-3 bg-sky-50 rounded-xl border border-sky-100">
+                      <p className="text-sm font-semibold text-sky-900 leading-snug">{h.name}</p>
+                      {h.address && (
+                        <p className="text-xs text-sky-600 mt-0.5 leading-relaxed">{h.address}</p>
+                      )}
+                      {(h.checkIn || h.checkOut) && (
+                        <p className="text-[11px] text-zinc-400 mt-1.5">
+                          {h.checkIn && new Date(h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {h.checkIn && h.checkOut && ' → '}
+                          {h.checkOut && new Date(h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Where to Stay Card — AI hotel suggestions (only when no hotel pre-booked) */}
+            {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) && aiMeta?.hotelSuggestions && aiMeta.hotelSuggestions.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🏨</span>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-4">AI picks that fit your budget</p>
+                <div className="space-y-3">
+                  {aiMeta.hotelSuggestions.map((h, i) => (
+                    <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
+                        {h.pricePerNight && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            ${h.pricePerNight}/night
+                          </span>
+                        )}
+                      </div>
+                      {h.neighborhood && (
+                        <p className="text-[11px] text-amber-600 mb-1">{h.neighborhood}</p>
+                      )}
+                      {h.whyRecommended && (
+                        <p className="text-xs text-amber-700 leading-relaxed mb-2">{h.whyRecommended}</p>
+                      )}
+                      {h.bookingUrl && (
+                        <a
+                          href={h.bookingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors"
+                        >
+                          Book on Booking.com →
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </aside>
         </div>
       </div>
@@ -867,8 +1132,12 @@ export default function ItineraryPage() {
             {/* Modal Header */}
             <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex items-center justify-between">
               <div>
-                <h2 className="font-script italic text-lg font-semibold text-zinc-900">Add Activity</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Search for a place or enter manually</p>
+                <h2 className="font-script italic text-lg font-semibold text-zinc-900">
+                  {editingActivity ? 'Edit Activity' : 'Add Activity'}
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {editingActivity ? 'Update the details for this activity' : 'Search for a place or enter manually'}
+                </p>
               </div>
               <button onClick={handleCloseModal} className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors">
                 <X className="w-4 h-4 text-zinc-500" />
@@ -1069,8 +1338,8 @@ export default function ItineraryPage() {
                 disabled={!newActivityName}
                 className="flex-1 bg-sky-800 hover:bg-sky-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-full inline-flex items-center justify-center gap-2 transition-all"
               >
-                <Plus className="w-4 h-4" />
-                Add to Itinerary
+                {editingActivity ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {editingActivity ? 'Save Changes' : 'Add to Itinerary'}
               </button>
             </div>
           </div>

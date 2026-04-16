@@ -44,15 +44,24 @@ function buildPrompt(params: {
   modality?: string;
   accommodationType?: string;
   bookedFlight?: BookedFlight | null;
-  bookedHotel?: BookedHotel | null;
+  bookedHotel?: BookedHotel | null;    // legacy single-hotel (kept for backward compat)
+  bookedHotels?: BookedHotel[];        // preferred: array of hotels for multi-hotel trips
 }) {
   const {
     destination, startDate, endDate, tripLength,
     groupType, priorities, budget, budgetBreakdown,
     ageRanges, accessibilityNeeds,
     localMode, curiosityLevel, modality, accommodationType,
-    bookedFlight, bookedHotel,
+    bookedFlight,
   } = params;
+
+  // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
+  const bookedHotels: BookedHotel[] = params.bookedHotels?.length
+    ? params.bookedHotels
+    : params.bookedHotel
+    ? [params.bookedHotel]
+    : [];
+  const hasPreBookedHotel = bookedHotels.length > 0;
 
   const priorityText = priorities.length > 0
     ? priorities.join(', ')
@@ -85,9 +94,9 @@ function buildPrompt(params: {
     ? `\n- SPORTS PRIORITY: Include visits to or near major stadiums, arenas, and sports venues in ${destination}. Check if any league matches, sporting events, or competitions are scheduled during ${startDate}–${endDate} and mention them in descriptions. Include sports bars and fan zones for game-day atmosphere.`
     : '';
 
-  // Photography-specific guidance
+  // Photography guidance — iconic spots always included; extra depth when photography is a priority
   const photoText = priorities.includes('photography')
-    ? `\n- PHOTOGRAPHY PRIORITY: Each activity description should note photographic potential. Mention golden hour timing, interesting angles, and any restrictions. Include at least one purely photography-focused location per day.`
+    ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour timing, interesting angles, and any access restrictions. Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, murals, reflections, etc. Include at least one spot that most tourists miss.`
     : '';
 
   // Build pre-booking context text
@@ -106,13 +115,68 @@ function buildPrompt(params: {
   → Flights are already paid; exclude flight cost from budget recommendations.`;
   }
 
-  if (bookedHotel) {
-    preBookingText += `\nPRE-BOOKED HOTEL:
-  - Name: ${bookedHotel.name || 'pre-booked hotel'}${bookedHotel.address ? `, ${bookedHotel.address}` : ''}
-  - Check-in: ${bookedHotel.checkIn || startDate}, Check-out: ${bookedHotel.checkOut || endDate}
-  → Use this as the home base. Day 1 meetup location and daily routes should reference this hotel.
+  if (hasPreBookedHotel) {
+    if (bookedHotels.length === 1) {
+      // Single hotel — same home-base rules as before
+      const h = bookedHotels[0];
+      preBookingText += `\nPRE-BOOKED HOTEL (home base for all planning):
+  - Name: ${h.name || 'pre-booked hotel'}${h.address ? `, ${h.address}` : ''}
+  - Check-in: ${h.checkIn || startDate}, Check-out: ${h.checkOut || endDate}
+  → This is the group's home base. Apply the following rules throughout every day:
+    - Breakfast each day should be at or within easy reach of this hotel (walkable or a short rideshare)
+    - Day 1: first activity after check-in should be close to the hotel neighborhood so the group can drop bags and orient themselves
+    - Each day should end with the group able to return to the hotel — include a transportToNext leg on the final activity of the day pointing back toward the hotel if it is not already nearby
+    - Last day: plan activities that naturally work toward the hotel for checkout, then onward to the airport/station if a return flight is booked
+    - meetupLocation each day should reference the hotel lobby or the nearest landmark to it
   → Hotel cost is already paid; exclude hotel from budget recommendations.`;
+    } else {
+      // Multi-hotel trip — assign the correct hotel per night based on check-in/out dates
+      preBookingText += `\nPRE-BOOKED HOTELS — this is a multi-hotel trip. Use the correct hotel as the home base for each night it covers:\n`;
+      bookedHotels.forEach((h, idx) => {
+        preBookingText += `  Hotel ${idx + 1}: "${h.name || `Hotel ${idx + 1}`}"${h.address ? `, ${h.address}` : ''}`;
+        if (h.checkIn || h.checkOut) {
+          preBookingText += ` | Check-in: ${h.checkIn || '?'} → Check-out: ${h.checkOut || '?'}`;
+        }
+        preBookingText += '\n';
+      });
+      preBookingText += `  → For each day, look at the date and use whichever hotel's check-in/check-out window covers that night as the home base.
+  → Home-base rules (apply per hotel for the nights it covers):
+    - Breakfast should be near that night's hotel
+    - Day activities should cluster around areas accessible from that hotel
+    - Each day should end with the group able to return to the night's hotel
+    - On transition days (checking out of one hotel and into another): plan a late-morning checkout, then route activities toward the new hotel's neighborhood; include a luggage-storage or direct transfer note
+    - meetupLocation each day should reference the active hotel lobby or nearest landmark
+  → All hotel costs are already paid; exclude hotel from budget recommendations.`;
+    }
   }
+
+  // Hotel recommendation context (only when no hotel is pre-booked)
+  const needsHotelSuggestions = !hasPreBookedHotel;
+  const hotelBudgetPerNight = Math.round((budgetBreakdown.hotel ?? 0) / tripLength);
+  const hotelPriceTier = hotelBudgetPerNight < 80
+    ? 'budget — hostels, guesthouses, or economy hotels ($)'
+    : hotelBudgetPerNight < 180
+    ? 'mid-range — comfortable 3-4 star hotels ($$)'
+    : hotelBudgetPerNight < 350
+    ? 'upscale — boutique or 4-star hotels ($$$)'
+    : 'luxury — 5-star or premium boutique hotels ($$$$)';
+
+  // Per-day budget constraints
+  const dailyFoodBudget = Math.round((budgetBreakdown.food ?? 0) / tripLength);
+  const dailyExperiencesBudget = Math.round((budgetBreakdown.experiences ?? 0) / tripLength);
+
+  // Meal price level based on travel style
+  const mealPriceLevels = explorerPct < 40
+    ? { breakfast: 1, lunch: 1, dinner: 2 }
+    : explorerPct < 70
+    ? { breakfast: 1, lunch: 2, dinner: 2 }
+    : { breakfast: 2, lunch: 2, dinner: 3 };
+
+  // Accessibility walking rule
+  const hasLimitedMobility = accessibilityNeeds.includes('Wheelchair accessible') || accessibilityNeeds.includes('Limited mobility');
+  const walkingRuleText = hasLimitedMobility
+    ? `MOBILITY NEEDS ACTIVE: Walking segments must be under 0.25 miles each, and total walking across the entire day must not exceed 1 mile. Use rideshare or taxi for any activity pair more than 0.25 miles apart. Choose tightly clustered activities and plan transport between every location. Do not rely on "short walks" — be explicit with mode of transport for every segment.`
+    : `Walking distances: keep individual segments to approximately 0.75 miles or less, and total walking across the day to no more than 5 miles. Use transit or rideshare for longer gaps between activities.`;
 
   return `Generate a ${tripLength}-day travel itinerary for the following trip:
 
@@ -121,20 +185,47 @@ TRIP DETAILS:
 - Dates: ${startDate} to ${endDate} (${tripLength} days)
 - Group type: ${groupType || 'friends'}
 - Budget: $${budget.toLocaleString()} total
-  - Flights: $${budgetBreakdown.flights}
-  - Hotel: $${budgetBreakdown.hotel}
-  - Food: $${budgetBreakdown.food}
-  - Experiences: $${budgetBreakdown.experiences}
-  - Transport: $${budgetBreakdown.transport}
+  - Flights: $${budgetBreakdown.flights ?? 0}
+  - Hotel: $${budgetBreakdown.hotel ?? 0}
+  - Food: $${budgetBreakdown.food ?? 0} ($${dailyFoodBudget}/day)
+  - Experiences: $${budgetBreakdown.experiences ?? 0} ($${dailyExperiencesBudget}/day)
+  - Transport: $${budgetBreakdown.transport ?? 0}
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
 - Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${preBookingText}
 
-OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects:
+OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects.
+
+IMPORTANT: The FIRST day object (day 1) must include these additional top-level fields before "day":
+  "title" — a concise, evocative 3-6 word trip name incorporating the destination and top priority (e.g. "Venice Food & History Adventure", "Bangkok Nights & Street Food", "Kyoto Temples & Quiet Gardens"). This will display as the trip name throughout the app.
+  "practicalNotes" — a one-time block of essential destination knowledge (only on day 1, omit from all other days):${needsHotelSuggestions ? `
+  "hotelSuggestions" — since no hotel has been pre-booked, include an array of exactly 3 recommended hotels matching the ${hotelPriceTier} tier (only on day 1, omit from all other days):
+    [
+      {
+        "name": "Hotel name",
+        "neighborhood": "Area/district name",
+        "address": "Full address",
+        "pricePerNight": 150,
+        "priceLevel": 2,
+        "whyRecommended": "One sentence on why this hotel is a great choice — location, reputation, amenities, or acclaim",
+        "bookingUrl": "https://www.booking.com/searchresults.html?ss=HOTEL+NAME+CITY&checkin=${startDate}&checkout=${endDate}"
+      }
+    ]
+    Choose hotels that are: (1) real and accurately named, (2) well-located for the day's activities — ideally central or near transport hubs, (3) highly regarded for their category. Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value. The bookingUrl should be a Booking.com search URL pre-filled with the hotel name and destination city and the trip dates.` : ''}
+    {
+      "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
+      "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
+      "customs": "2-3 key cultural customs, dress codes (e.g. covering shoulders at religious sites), or etiquette points travelers should know",
+      "entryRequirements": "Visa requirements for US/EU/UK passport holders, and any biometric/registration requirements. For Schengen Area destinations: note the EU Entry/Exit System (EES) — first-time visitors must register fingerprints and a facial photo at the border; allow extra time at entry points.",
+      "safetyTips": "Top 2-3 practical safety or health tips specific to this destination (e.g. tap water safety, common scams, areas to avoid at night)",
+      "usefulPhrases": ["Local phrase = English meaning", "Local phrase = English meaning", "Local phrase = English meaning"]
+    }
 
 [
   {
+    "title": "Evocative trip name here (day 1 only)",
+    "practicalNotes": { ... (day 1 only) },
     "day": 1,
     "date": "${startDate}",
     "theme": "Evocative 3-5 word theme for the day",
@@ -152,19 +243,50 @@ OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects:
         {
           "id": "act_d1_1",
           "dayNumber": 1,
-          "timeSlot": "09:00–11:30",
+          "timeSlot": "07:30–09:00",
           "name": "Venue Name",
           "title": "Venue Name",
           "address": "Full street address, City, Country",
           "website": "https://venue-website.com",
-          "isRestaurant": false,
+          "isRestaurant": true,
+          "mealType": "breakfast",
           "track": "shared",
-          "priceLevel": 1,
+          "priceLevel": ${mealPriceLevels.breakfast},
+          "description": "Why this restaurant is recommended — cite the source of its reputation (e.g. 'A local institution since 1962, beloved by Venetians for its hand-rolled pastries' or 'Named best breakfast spot by local food critics, packed with residents every morning')",
+          "costEstimate": 12,
+          "confidence": 0.9,
+          "verified": true,
+          "packingTips": [],
+          "transportToNext": {
+            "mode": "walk",
+            "durationMins": 8,
+            "distanceMiles": 0.3,
+            "notes": "Brief direction or landmark-based note, e.g. 'Walk north along the canal to the bridge'"
+          }
+        },
+        {
+          "id": "act_d1_2",
+          "dayNumber": 1,
+          "timeSlot": "09:00–11:30",
+          "name": "Activity Venue Name",
+          "title": "Activity Venue Name",
+          "address": "Full street address, City, Country",
+          "website": "https://venue-website.com",
+          "isRestaurant": false,
+          "mealType": null,
+          "track": "shared",
+          "priceLevel": 2,
           "description": "One sentence description of why this is worth visiting",
           "costEstimate": 25,
           "confidence": 0.9,
           "verified": true,
-          "packingTips": []
+          "packingTips": [],
+          "transportToNext": {
+            "mode": "walk",
+            "durationMins": 12,
+            "distanceMiles": 0.5,
+            "notes": "Head south towards the main square"
+          }
         }
       ],
       "track_a": [],
@@ -183,23 +305,45 @@ SPLIT TRACK DECISION — follow this logic exactly:
 - trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels, e.g. "Active & Outdoors" / "Culture & Relaxation" or "Nightlife & Energy" / "Slow & Scenic". These display directly in the UI so make them friendly and specific to this trip.
 - When NOT splitting: set trackALabel and trackBLabel to null and leave track_a and track_b as empty arrays.
 
+MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
+1. Breakfast (isRestaurant: true, mealType: "breakfast"): timeSlot 07:30–09:00, priceLevel ${mealPriceLevels.breakfast}
+   → Place near the hotel/accommodation or the first morning activity
+2. Lunch (isRestaurant: true, mealType: "lunch"): timeSlot 12:30–14:00, priceLevel ${mealPriceLevels.lunch}
+   → Place geographically near the midday activities — minimize detour from the day's flow
+3. Dinner (isRestaurant: true, mealType: "dinner"): timeSlot 19:00–21:00, priceLevel ${mealPriceLevels.dinner}
+   → Place near the evening meetup location
+For EACH restaurant: recommend a real, named establishment. In the description, state WHY it is recommended — cite its reputation (local institution, award recognition, neighborhood favorite, featured in local food press, etc.). Do not fabricate Google star ratings; instead describe the source of the restaurant's acclaim. Choose spots that are close to surrounding activities to keep transit minimal.
+
+TRANSPORT BETWEEN ACTIVITIES:
+Every activity must include a "transportToNext" field:
+- mode: walk | rideshare | taxi | metro | bus | ferry | water-taxi | tuk-tuk | cable-car | tram
+- durationMins: estimated travel time in minutes
+- distanceMiles: distance in miles (use 0 for rideshare/taxi where exact distance varies by route)
+- notes: brief landmark-based direction or useful transit tip (can be null if self-evident)
+Set transportToNext to null on the last activity of each day (no onward journey needed).
+${walkingRuleText}
+
+DAILY BUDGET ENFORCEMENT:
+- Food budget: $${dailyFoodBudget} per person per day — the sum of costEstimate for all 3 restaurant activities must not exceed this amount
+- Experiences budget: $${dailyExperiencesBudget} per person per day — the sum of costEstimate for all non-restaurant activities must not exceed this amount
+- If free activities (museums with free entry, walking tours, parks) are available, use them to stay within budget while still filling the day
+
 RULES:
 1. Use REAL venue names and real addresses for ${destination}
-2. Include 4-6 activities per day, spread naturally across the day (morning, midday, afternoon, evening)
-3. Include at least 1 restaurant/cafe per day (isRestaurant: true)
-4. timeSlot format must be "HH:MM–HH:MM" using an en-dash (–)
-5. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$
-6. costEstimate is per-person in USD
-7. id format: "act_d{dayNumber}_{index}" (e.g. act_d1_1, act_d1_2)
-8. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
-9. Vary the pace — not every day should be packed. Include slower, wandering time.
-10. Budget the activities realistically against the food/experiences budget provided
-11. The first and last days should account for travel/arrival/departure logistics
-12. meetupLocation should be a real landmark or the hotel area
-13. photoSpots: include 1-3 per day — real named viewpoints or spots, specific time of day (sunrise/golden hour/blue hour/midday), and one actionable shooting tip. Every day must have at least one photo spot.
-14. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
-15. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
-16. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
+2. Include 4-6 activities per day total (including the 3 required meals), spread naturally across the day
+3. timeSlot format must be "HH:MM–HH:MM" using an en-dash (–)
+4. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$
+5. costEstimate is per-person in USD
+6. id format: "act_d{dayNumber}_{index}" (e.g. act_d1_1, act_d1_2)
+7. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
+8. Vary the pace — not every day should be packed. Include slower, wandering time.
+9. The first and last days should account for travel/arrival/departure logistics
+10. meetupLocation should be a real landmark or the hotel area
+11. photoSpots: REQUIRED on every itinerary, every day — include 1-3 per day regardless of whether photography is a selected priority. Always include the destination's iconic must-photograph landmarks (e.g. Trevi Fountain in Rome, Eiffel Tower in Paris, Hagia Sophia in Istanbul) as the primary spot on the relevant day. These are the shots every visitor wants and they must not be omitted. Pair each with a specific time of day (sunrise/golden hour/blue hour/midday) and one actionable shooting tip (best angle, where to stand, what to frame). Additional spots can be local or lesser-known but the famous landmark always anchors the list.
+12. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
+13. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
+14. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
+15. "title" and "practicalNotes" fields appear ONLY on day 1. All other day objects must not include these fields.
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
 }
@@ -261,7 +405,8 @@ export async function POST(request: NextRequest) {
       modality: body.modality,
       accommodationType: body.accommodationType,
       bookedFlight: body.bookedFlight,
-      bookedHotel: body.bookedHotel,
+      bookedHotel: body.bookedHotel,   // legacy — still accepted
+      bookedHotels: body.bookedHotels, // preferred array
     });
 
     const message = await client.messages.create({
@@ -320,7 +465,30 @@ export async function POST(request: NextRequest) {
       throw new Error('Response was not a JSON array');
     }
 
-    return NextResponse.json({ itinerary, model: 'claude-opus-4-5' });
+    // Extract trip-level metadata from day 1 (generated once, not repeated per day)
+    // These fields are included on day 1 by the prompt and stripped here for clean storage.
+    const title = (itinerary[0]?.title as string | undefined) || undefined;
+    const practicalNotes = itinerary[0]?.practicalNotes || undefined;
+    const hotelSuggestions = itinerary[0]?.hotelSuggestions || undefined;
+
+    // Remove meta fields from day objects — they live in the trip meta, not per-day data
+    if (itinerary[0]) {
+      delete (itinerary[0] as Record<string, unknown>).title;
+      delete (itinerary[0] as Record<string, unknown>).practicalNotes;
+      delete (itinerary[0] as Record<string, unknown>).hotelSuggestions;
+    }
+
+    // TODO (Booking.com affiliate): Once registered at partners.booking.com, append
+    // &aid=YOUR_AFFILIATE_ID to each hotelSuggestion.bookingUrl here before returning.
+    // The URLs are already structured as Booking.com search links — just add the aid param.
+
+    // TODO (Google Maps API): Once GOOGLE_MAPS_KEY is available, add a post-processing
+    // step here to verify venue addresses, fetch live ratings, and enrich each activity
+    // with real-time Google Places data (rating, hours, photo). This will replace the
+    // "verified: true" placeholder values that Claude generates itself.
+    // Example: await enrichWithGooglePlaces(itinerary, process.env.GOOGLE_MAPS_KEY);
+
+    return NextResponse.json({ itinerary, title, practicalNotes, hotelSuggestions, model: 'claude-opus-4-5' });
 
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

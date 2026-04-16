@@ -27,6 +27,8 @@ import {
   Dice6,
   Search,
   Shuffle,
+  X,
+  Plus,
 } from 'lucide-react';
 
 interface BookedFlight {
@@ -72,7 +74,7 @@ interface TripWizardState {
   accessibilityNeeds: string[];
   difficultyPrefs: Record<string, string>;
   bookedFlight: BookedFlight | null;
-  bookedHotel: BookedHotel | null;
+  bookedHotels: BookedHotel[];
   hasPreBookedFlight: boolean;
   hasPreBookedHotel: boolean;
 }
@@ -246,7 +248,7 @@ function TripBuilderPage() {
     accessibilityNeeds: [],
     difficultyPrefs: {},
     bookedFlight: null,
-    bookedHotel: null,
+    bookedHotels: [],
     hasPreBookedFlight: false,
     hasPreBookedHotel: false,
   });
@@ -418,7 +420,7 @@ function TripBuilderPage() {
           modality: state.modality.join(', '),
           accommodationType: state.accommodationType.join(', '),
           bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
-          bookedHotel: state.hasPreBookedHotel ? state.bookedHotel : null,
+          bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
         }),
       });
 
@@ -445,6 +447,12 @@ function TripBuilderPage() {
         groupType: state.groupType,
         budget: state.budget,
         budgetBreakdown: state.budgetBreakdown,
+        // Pre-booked hotels (for "Where to Stay" card on itinerary page)
+        bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+        // AI-generated trip title, practical notes, and hotel suggestions (when no hotel pre-booked)
+        title: data.title || null,
+        practicalNotes: data.practicalNotes || null,
+        hotelSuggestions: data.hotelSuggestions || null,
       }));
 
       setGenerationStatus('Your itinerary is ready ✦');
@@ -903,6 +911,7 @@ function TripBuilderPage() {
                     )}
                   </div>
 
+                  {/* Surprise Me — hidden for now, revisit in a future phase
                   <div>
                     <button
                       onClick={handleSurpriseMe}
@@ -912,6 +921,7 @@ function TripBuilderPage() {
                       <span>Surprise Me</span>
                     </button>
                   </div>
+                  */}
                 </div>
               </div>
             )}
@@ -1181,7 +1191,9 @@ function TripBuilderPage() {
                         onClick={() => setState(prev => ({
                           ...prev,
                           hasPreBookedHotel: !prev.hasPreBookedHotel,
-                          bookedHotel: !prev.hasPreBookedHotel ? { name: '', address: '', checkIn: '', checkOut: '' } : null,
+                          bookedHotels: !prev.hasPreBookedHotel
+                            ? [{ name: '', address: '', checkIn: '', checkOut: '' }]
+                            : [],
                         }))}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                           state.hasPreBookedHotel ? 'bg-sky-800' : 'bg-slate-200'
@@ -1194,34 +1206,108 @@ function TripBuilderPage() {
                     </label>
                   </div>
 
-                  {state.hasPreBookedHotel && state.bookedHotel && (
-                    <div className="p-5 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Hotel Name</label>
-                        <input type="text" placeholder="e.g. Marriott Downtown Reykjavik" value={state.bookedHotel.name}
-                          onChange={e => setState(prev => ({ ...prev, bookedHotel: { ...prev.bookedHotel!, name: e.target.value } }))}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Address (optional)</label>
-                        <input type="text" placeholder="e.g. 44 Suðurgata, 101 Reykjavik" value={state.bookedHotel.address}
-                          onChange={e => setState(prev => ({ ...prev, bookedHotel: { ...prev.bookedHotel!, address: e.target.value } }))}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Check-in Date</label>
-                          <input type="date" value={state.bookedHotel.checkIn}
-                            onChange={e => setState(prev => ({ ...prev, bookedHotel: { ...prev.bookedHotel!, checkIn: e.target.value } }))}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                  {state.hasPreBookedHotel && (
+                    <div className="space-y-4">
+                      {state.bookedHotels.map((hotel, idx) => (
+                        <div key={idx} className="p-5 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
+                          {/* Hotel header with index + remove button */}
+                          {state.bookedHotels.length > 1 && (
+                            <div className="flex items-center justify-between -mb-1">
+                              <span className="text-xs font-semibold text-sky-700 uppercase tracking-wide">
+                                Hotel {idx + 1}
+                              </span>
+                              <button
+                                onClick={() => setState(prev => ({
+                                  ...prev,
+                                  bookedHotels: prev.bookedHotels.filter((_, i) => i !== idx),
+                                }))}
+                                className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700 transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Hotel Name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Marriott Downtown Reykjavik"
+                              value={hotel.name}
+                              onChange={e => setState(prev => ({
+                                ...prev,
+                                bookedHotels: prev.bookedHotels.map((h, i) =>
+                                  i === idx ? { ...h, name: e.target.value } : h
+                                ),
+                              }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Address (optional)</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 44 Suðurgata, 101 Reykjavik"
+                              value={hotel.address}
+                              onChange={e => setState(prev => ({
+                                ...prev,
+                                bookedHotels: prev.bookedHotels.map((h, i) =>
+                                  i === idx ? { ...h, address: e.target.value } : h
+                                ),
+                              }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Check-in Date</label>
+                              <input
+                                type="date"
+                                value={hotel.checkIn}
+                                onChange={e => setState(prev => ({
+                                  ...prev,
+                                  bookedHotels: prev.bookedHotels.map((h, i) =>
+                                    i === idx ? { ...h, checkIn: e.target.value } : h
+                                  ),
+                                }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Check-out Date</label>
+                              <input
+                                type="date"
+                                value={hotel.checkOut}
+                                onChange={e => setState(prev => ({
+                                  ...prev,
+                                  bookedHotels: prev.bookedHotels.map((h, i) =>
+                                    i === idx ? { ...h, checkOut: e.target.value } : h
+                                  ),
+                                }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Check-out Date</label>
-                          <input type="date" value={state.bookedHotel.checkOut}
-                            onChange={e => setState(prev => ({ ...prev, bookedHotel: { ...prev.bookedHotel!, checkOut: e.target.value } }))}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
-                        </div>
-                      </div>
+                      ))}
+
+                      {/* Add another hotel */}
+                      <button
+                        onClick={() => setState(prev => ({
+                          ...prev,
+                          bookedHotels: [...prev.bookedHotels, { name: '', address: '', checkIn: '', checkOut: '' }],
+                        }))}
+                        className="flex items-center gap-2 text-sm text-sky-700 hover:text-sky-900 font-medium transition-colors py-1"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add another hotel
+                      </button>
+
+                      {state.bookedHotels.length > 1 && (
+                        <p className="text-xs text-slate-500 italic">
+                          Your itinerary will use the correct hotel as home base for each night based on check-in/out dates.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

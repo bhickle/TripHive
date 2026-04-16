@@ -188,6 +188,15 @@ export interface Activity {
   googleVerified?: boolean;
   /** What to bring / pack for this activity (AI-generated for excursions/hikes) */
   packingTips?: string[];
+  /** For restaurant activities: which meal slot this fills */
+  mealType?: 'breakfast' | 'lunch' | 'dinner' | null;
+  /** Transport to the next activity (AI-generated) */
+  transportToNext?: {
+    mode: string;
+    durationMins: number;
+    distanceMiles: number;
+    notes?: string | null;
+  } | null;
 }
 
 export type TransportType = 'car_rental' | 'bus' | 'train' | 'excursion';
