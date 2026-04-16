@@ -56,9 +56,27 @@ export default function GroupPage() {
   const [uploadedReceipt, setUploadedReceipt] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<ScannedReceipt | null>(null);
+  // Emoji reactions: keyed by messageId → emoji → count
+  const [reactions, setReactions] = useState<Record<string, Record<string, number>>>({});
+  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
+  const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '🎉', '✈️'];
+
+  const toggleReaction = (messageId: string, emoji: string) => {
+    setReactions(prev => {
+      const msgReactions = prev[messageId] || {};
+      const current = msgReactions[emoji] || 0;
+      return {
+        ...prev,
+        [messageId]: { ...msgReactions, [emoji]: current > 0 ? current - 1 : current + 1 },
+      };
+    });
+    setShowReactionPicker(null);
+  };
+
   const [memberInvited, setMemberInvited] = useState(false);
   const [voteCreated, setVoteCreated] = useState(false);
   const [settledUp, setSettledUp] = useState(false);
+  const [paidTransactions, setPaidTransactions] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Member profile photo uploads (keyed by member id → data URL)
@@ -855,12 +873,22 @@ export default function GroupPage() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <p className="font-bold text-sky-700">${t.amount.toFixed(2)}</p>
-                        <button
-                          onClick={() => { setSettledUp(true); setTimeout(() => setSettledUp(false), 2500); }}
-                          className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-full transition-colors"
-                        >
-                          Mark Paid
-                        </button>
+                        {paidTransactions.has(idx) ? (
+                          <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200">
+                            ✓ Paid
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setPaidTransactions(prev => new Set(Array.from(prev).concat(idx)));
+                              setSettledUp(true);
+                              setTimeout(() => setSettledUp(false), 2500);
+                            }}
+                            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-full transition-colors"
+                          >
+                            Mark Paid
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1066,26 +1094,73 @@ export default function GroupPage() {
 
         {activeTab === 'chat' && (
           <div className="flex flex-col h-screen max-h-[600px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-6 bg-parchment">
-              {chatMessages.map((message) => (
-                <div key={message.id} className={`mb-5 flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs ${message.isOwn ? 'order-2' : 'order-1'}`}>
-                    {!message.isOwn && (
-                      <p className="text-sm font-semibold text-zinc-600 mb-1">{message.senderName}</p>
-                    )}
-                    <div className={`px-4 py-2.5 rounded-2xl ${
-                      message.isOwn
-                        ? 'bg-sky-800 text-white rounded-tr-sm'
-                        : 'bg-zinc-100 text-zinc-900 rounded-tl-sm'
-                    }`}>
-                      <p className="text-sm">{message.content}</p>
+            <div className="flex-1 overflow-y-auto p-6 bg-parchment" onClick={() => setShowReactionPicker(null)}>
+              {chatMessages.map((message) => {
+                const msgReactions = reactions[message.id] || {};
+                const activeReactions = Object.entries(msgReactions).filter(([, count]) => count > 0);
+                return (
+                  <div key={message.id} className={`mb-5 flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-xs ${message.isOwn ? 'order-2' : 'order-1'} relative group/msg`}>
+                      {!message.isOwn && (
+                        <p className="text-sm font-semibold text-zinc-600 mb-1">{message.senderName}</p>
+                      )}
+                      <div className={`px-4 py-2.5 rounded-2xl ${
+                        message.isOwn
+                          ? 'bg-sky-800 text-white rounded-tr-sm'
+                          : 'bg-zinc-100 text-zinc-900 rounded-tl-sm'
+                      }`}>
+                        <p className="text-sm">{message.content}</p>
+                      </div>
+
+                      {/* Reaction trigger */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowReactionPicker(prev => prev === message.id ? null : message.id); }}
+                        className={`absolute -bottom-1 ${message.isOwn ? 'left-0' : 'right-0'} opacity-0 group-hover/msg:opacity-100 transition-opacity w-6 h-6 bg-white border border-zinc-200 rounded-full text-xs flex items-center justify-center shadow-sm hover:bg-zinc-50`}
+                      >
+                        +
+                      </button>
+
+                      {/* Emoji picker */}
+                      {showReactionPicker === message.id && (
+                        <div
+                          className={`absolute bottom-6 ${message.isOwn ? 'right-0' : 'left-0'} bg-white border border-zinc-200 rounded-2xl shadow-lg px-2 py-1.5 flex gap-1 z-10`}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {QUICK_EMOJIS.map(emoji => (
+                            <button
+                              key={emoji}
+                              onClick={() => toggleReaction(message.id, emoji)}
+                              className="text-base hover:scale-125 transition-transform w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Active reactions */}
+                      {activeReactions.length > 0 && (
+                        <div className={`flex gap-1 mt-1 flex-wrap ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
+                          {activeReactions.map(([emoji, count]) => (
+                            <button
+                              key={emoji}
+                              onClick={() => toggleReaction(message.id, emoji)}
+                              className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white border border-zinc-200 rounded-full text-xs hover:bg-zinc-50 shadow-sm"
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-zinc-600 font-medium">{count}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className={`text-xs mt-1 ${message.isOwn ? 'text-right' : 'text-left'} text-zinc-500`}>
+                        {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
-                    <p className={`text-xs mt-1 ${message.isOwn ? 'text-right' : 'text-left'} text-zinc-500`}>
-                      {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
 

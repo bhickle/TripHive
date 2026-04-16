@@ -505,6 +505,13 @@ export default function ItineraryPage() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
             <button
+              onClick={() => setShowAddActivityModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-sky-800 hover:bg-sky-900 text-white text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Add Activity
+            </button>
+            <button
               onClick={() => setShowMapView(!showMapView)}
               className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
                 showMapView
@@ -522,14 +529,6 @@ export default function ItineraryPage() {
               <Sparkles className="w-4 h-4 text-sky-600" />
               <span className="hidden sm:inline">Add </span>Transport
               {!hasTransportParser && <LockBadge />}
-            </button>
-            <button
-              onClick={() => hasTripStory ? setShowStoryModal(true) : setUpgradePromptKey('feature_locked')}
-              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-gradient-to-r from-sky-800 to-green-700 hover:from-sky-900 hover:to-green-800 text-white text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span className="hidden sm:inline">Trip </span>Story
-              {!hasTripStory && <LockBadge className="bg-white/20 text-white border-white/20" />}
             </button>
           </div>
         </div>
@@ -553,13 +552,6 @@ export default function ItineraryPage() {
                 </button>
               );
             })}
-            <button
-              onClick={() => setShowAddActivityModal(true)}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white transition-all flex-shrink-0 shadow-sm"
-              title="Add Activity"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
           </div>
         </div>
 

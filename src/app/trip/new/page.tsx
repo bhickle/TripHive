@@ -182,6 +182,35 @@ function calcBudgetFromDestination(destination: string, tripLength: number): {
   };
 }
 
+// Style multiplier: 0 = backpacker (0.45×), 50 = mid-range (1.0×), 100 = luxury (2.4×)
+const STYLE_BREAKPOINTS: [number, number][] = [[0, 0.45], [25, 0.70], [50, 1.00], [75, 1.55], [100, 2.40]];
+function getStyleMultiplier(level: number): number {
+  for (let i = STYLE_BREAKPOINTS.length - 1; i >= 0; i--) {
+    if (level >= STYLE_BREAKPOINTS[i][0]) {
+      if (i === STYLE_BREAKPOINTS.length - 1) return STYLE_BREAKPOINTS[i][1];
+      const [lo, loM] = STYLE_BREAKPOINTS[i];
+      const [hi, hiM] = STYLE_BREAKPOINTS[i + 1];
+      return loM + ((level - lo) / (hi - lo)) * (hiM - loM);
+    }
+  }
+  return 1.0;
+}
+
+function calcBudgetFromStyle(destination: string, tripLength: number, curiosityLevel: number): {
+  flights: number; hotel: number; food: number; experiences: number; transport: number;
+} {
+  const costs = getDestinationCosts(destination);
+  const nights = tripLength - 1;
+  const m = getStyleMultiplier(curiosityLevel);
+  return {
+    flights: Math.round(costs.flightsPerPerson * m / 50) * 50,
+    hotel: Math.round(costs.hotelPerNight * nights * m / 50) * 50,
+    food: Math.round(costs.foodPerDay * tripLength * m / 25) * 25,
+    experiences: Math.round(costs.experiencesPerDay * tripLength * m / 25) * 25,
+    transport: Math.round(costs.transportPerDay * tripLength * m / 10) * 10,
+  };
+}
+
 function TripBuilderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -752,10 +781,17 @@ function TripBuilderPage() {
                       <button
                         key={option.id}
                         onClick={() =>
-                          setState((prev) => ({
-                            ...prev,
-                            groupType: option.id,
-                          }))
+                          setState((prev) => {
+                            const minSize =
+                              option.id === 'friends' || option.id === 'family'
+                                ? Math.max(3, prev.groupSize)
+                                : option.id === 'couple'
+                                ? Math.max(2, prev.groupSize)
+                                : option.id === 'solo'
+                                ? 1
+                                : prev.groupSize;
+                            return { ...prev, groupType: option.id, groupSize: minSize };
+                          })
                         }
                         className={`p-6 rounded-lg border-2 transition-all duration-200 text-center ${
                           isSelected
@@ -910,52 +946,117 @@ function TripBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Dates */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-3">
-                        Start Date
-                      </label>
-                      <input
-                        type="date"
-                        value={state.startDate}
-                        onChange={(e) =>
-                          handleDateChange('startDate', e.target.value)
-                        }
-                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-3">
-                        End Date
-                      </label>
-                      <input
-                        type="date"
-                        value={state.endDate}
-                        onChange={(e) =>
-                          handleDateChange('endDate', e.target.value)
-                        }
-                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
-                      />
-                    </div>
-                  </div>
-
+                  {/* Flexible dates toggle */}
                   <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                     <input
                       type="checkbox"
+                      id="flexibleDates"
                       checked={state.flexibleDates}
                       onChange={(e) =>
                         setState((prev) => ({
                           ...prev,
                           flexibleDates: e.target.checked,
+                          startDate: '',
+                          endDate: '',
                         }))
                       }
                       className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                     />
-                    <label className="text-sm font-medium text-slate-900">
+                    <label htmlFor="flexibleDates" className="text-sm font-medium text-slate-900 cursor-pointer">
                       I have flexible dates
                     </label>
                   </div>
+
+                  {/* Exact date pickers (non-flexible) */}
+                  {!state.flexibleDates && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-3">
+                          Start Date
+                        </label>
+                        <input
+                          type="date"
+                          value={state.startDate}
+                          onChange={(e) =>
+                            handleDateChange('startDate', e.target.value)
+                          }
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-3">
+                          End Date
+                        </label>
+                        <input
+                          type="date"
+                          value={state.endDate}
+                          onChange={(e) =>
+                            handleDateChange('endDate', e.target.value)
+                          }
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Month range selector (flexible) */}
+                  {state.flexibleDates && (
+                    <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-4">
+                      <p className="text-xs text-sky-800 font-semibold uppercase tracking-wide">Which months work for you?</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-900 mb-2">Earliest month</label>
+                          <select
+                            value={state.startDate ? state.startDate.slice(0, 7) : ''}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setState(prev => ({ ...prev, startDate: `${e.target.value}-01` }));
+                              }
+                            }}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 bg-white"
+                          >
+                            <option value="">Select month…</option>
+                            {Array.from({ length: 18 }, (_, i) => {
+                              const d = new Date();
+                              d.setDate(1);
+                              d.setMonth(d.getMonth() + i);
+                              const val = d.toISOString().slice(0, 7);
+                              const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                              return <option key={val} value={val}>{label}</option>;
+                            })}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-900 mb-2">Latest month</label>
+                          <select
+                            value={state.endDate ? state.endDate.slice(0, 7) : ''}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                // Set to last day of that month
+                                const [y, m] = e.target.value.split('-').map(Number);
+                                const lastDay = new Date(y, m, 0).getDate();
+                                setState(prev => ({ ...prev, endDate: `${e.target.value}-${String(lastDay).padStart(2, '0')}` }));
+                              }
+                            }}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 bg-white"
+                          >
+                            <option value="">Select month…</option>
+                            {Array.from({ length: 18 }, (_, i) => {
+                              const d = new Date();
+                              d.setDate(1);
+                              d.setMonth(d.getMonth() + i);
+                              const val = d.toISOString().slice(0, 7);
+                              const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                              return <option key={val} value={val}>{label}</option>;
+                            })}
+                          </select>
+                        </div>
+                      </div>
+                      <p className="text-xs text-sky-700">
+                        💡 AI will suggest the best travel windows in this range based on weather, crowds, and pricing.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1378,12 +1479,17 @@ function TripBuilderPage() {
                         min="0"
                         max="100"
                         value={state.curiosityLevel}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const level = parseInt(e.target.value);
+                          const breakdown = calcBudgetFromStyle(state.destination, state.tripLength, level);
+                          const total = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0);
                           setState((prev) => ({
                             ...prev,
-                            curiosityLevel: parseInt(e.target.value),
-                          }))
-                        }
+                            curiosityLevel: level,
+                            budgetBreakdown: breakdown,
+                            budget: total,
+                          }));
+                        }}
                         className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-700"
                       />
                       <div className="text-center flex-shrink-0">
@@ -1654,27 +1760,43 @@ function TripBuilderPage() {
           </div>
 
           {/* Navigation Buttons */}
-          <div className="flex items-center justify-between">
-            <button
-              onClick={handleBack}
-              disabled={currentStep === 1}
-              className="flex items-center space-x-2 px-6 py-3 text-sky-700 hover:text-sky-800 disabled:text-slate-400 disabled:cursor-not-allowed font-medium transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              <span>Back</span>
-            </button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center justify-between w-full">
+              <button
+                onClick={handleBack}
+                disabled={currentStep === 1}
+                className="flex items-center space-x-2 px-6 py-3 text-sky-700 hover:text-sky-800 disabled:text-slate-400 disabled:cursor-not-allowed font-medium transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <span>Back</span>
+              </button>
 
-            <div className="flex gap-3">
-              {currentStep < 8 && (
-                <button
-                  onClick={handleNext}
-                  className="flex items-center space-x-2 btn btn-primary"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              )}
+              <div className="flex gap-3">
+                {currentStep < 8 && (
+                  <button
+                    onClick={handleNext}
+                    disabled={
+                      (currentStep === 2 && !state.destination.trim()) ||
+                      (currentStep === 5 && (state.priorities.length === 0 || state.ageRanges.length === 0)) ||
+                      (currentStep === 6 && state.modality.length === 0)
+                    }
+                    className="flex items-center space-x-2 btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             </div>
+            {currentStep === 5 && state.priorities.length === 0 && (
+              <p className="text-xs text-zinc-400">Select at least one travel priority to continue</p>
+            )}
+            {currentStep === 5 && state.priorities.length > 0 && state.ageRanges.length === 0 && (
+              <p className="text-xs text-zinc-400">Select at least one age range to continue</p>
+            )}
+            {currentStep === 6 && state.modality.length === 0 && (
+              <p className="text-xs text-zinc-400">Select at least one local transportation option to continue</p>
+            )}
           </div>
         </div>
       </main>

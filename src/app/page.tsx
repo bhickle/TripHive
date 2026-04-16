@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useCallback } from 'react';
 import {
   Sparkles,
   Users,
@@ -19,13 +20,19 @@ import {
 import { PRICING } from '@/hooks/useEntitlements';
 
 export default function HomePage() {
+  const scrollTo = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
   return (
     <div className="min-h-screen bg-parchment">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center">
-            <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
+            <Link href="/">
+              <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/auth/login" className="btn-ghost">
@@ -61,7 +68,10 @@ export default function HomePage() {
               Get Started Free
               <ArrowRight className="ml-2 w-5 h-5" />
             </Link>
-            <button className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-display font-bold rounded-xl hover:bg-white/10 transition-all duration-200 text-lg">
+            <button
+              onClick={() => scrollTo('how-it-works')}
+              className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-display font-bold rounded-xl hover:bg-white/10 transition-all duration-200 text-lg"
+            >
               See How It Works
             </button>
           </div>
@@ -70,7 +80,7 @@ export default function HomePage() {
       </section>
 
       {/* Feature Cards Section */}
-      <section className="py-20 sm:py-28 bg-gradient-subtle">
+      <section id="features" className="py-20 sm:py-28 bg-gradient-subtle">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Everything you need for group travel</h2>
@@ -92,15 +102,15 @@ export default function HomePage() {
               </p>
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-700">Smart activity recommendations</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-700">Multiple tracks for different interests</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-stone-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-700">Real-time price & availability updates</span>
                 </li>
               </ul>
@@ -108,8 +118,8 @@ export default function HomePage() {
 
             {/* Group Planning */}
             <div className="card p-8 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 rounded-lg bg-stone-100 flex items-center justify-center mb-6">
-                <Users className="w-6 h-6 text-stone-700" />
+              <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mb-6">
+                <Users className="w-6 h-6 text-sky-700" />
               </div>
               <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 Group Planning Tools
@@ -119,15 +129,15 @@ export default function HomePage() {
               </p>
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-700">Activity voting system</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-700">Expense splitting & settlements</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-700">Group chat & collaboration</span>
                 </li>
               </ul>
@@ -164,7 +174,7 @@ export default function HomePage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 sm:py-28 bg-white">
+      <section id="how-it-works" className="py-20 sm:py-28 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">How it works</h2>
@@ -186,8 +196,8 @@ export default function HomePage() {
 
             {/* Step 2 */}
             <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-6">
-                <Zap className="w-7 h-7 text-stone-700" />
+              <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
+                <Zap className="w-7 h-7 text-sky-700" />
               </div>
               <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
                 Get AI Itineraries
@@ -215,7 +225,7 @@ export default function HomePage() {
 
 
       {/* Pricing Section */}
-      <section className="py-20 sm:py-28 bg-white">
+      <section id="pricing" className="py-20 sm:py-28 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Simple, transparent pricing</h2>
@@ -390,9 +400,9 @@ export default function HomePage() {
             <div>
               <h4 className="font-script italic text-white font-semibold mb-4">Product</h4>
               <ul className="space-y-2">
-                <li><a href="#" className="hover:text-white transition">Features</a></li>
-                <li><a href="#" className="hover:text-white transition">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition">How It Works</a></li>
+                <li><button onClick={() => scrollTo('features')} className="hover:text-white transition text-left">Features</button></li>
+                <li><Link href="/pricing" className="hover:text-white transition">Pricing</Link></li>
+                <li><button onClick={() => scrollTo('how-it-works')} className="hover:text-white transition text-left">How It Works</button></li>
               </ul>
             </div>
             <div>
@@ -414,19 +424,19 @@ export default function HomePage() {
             <div>
               <h4 className="font-script italic text-white font-semibold mb-4">Connect</h4>
               <ul className="space-y-2">
-                <li><a href="#" className="hover:text-white transition">Twitter</a></li>
+                <li><a href="#" className="hover:text-white transition">Twitter / X</a></li>
                 <li><a href="#" className="hover:text-white transition">Instagram</a></li>
-                <li><a href="#" className="hover:text-white transition">Email</a></li>
+                <li><a href="#" className="hover:text-white transition">TikTok</a></li>
+                <li><a href="#" className="hover:text-white transition">Facebook</a></li>
+                <li><a href="#" className="hover:text-white transition">LinkedIn</a></li>
+                <li><a href="mailto:hello@tripcoord.com" className="hover:text-white transition">Email</a></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-slate-800 pt-8 flex flex-col sm:flex-row items-center justify-between">
-            <div className="flex items-center gap-2 mb-4 sm:mb-0">
-              <div className="w-6 h-6 rounded-lg bg-sky-800 flex items-center justify-center">
-                <Globe className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-white font-display font-bold">tripcoord</span>
-            </div>
+            <Link href="/" className="mb-4 sm:mb-0 hover:opacity-80 transition">
+              <Image src="/tripcoord_logo.png" alt="tripcoord" width={120} height={38} className="h-7 w-auto brightness-0 invert opacity-60" />
+            </Link>
             <p className="text-sm">© 2026 tripcoord, Inc. All rights reserved.</p>
           </div>
         </div>

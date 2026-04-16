@@ -225,7 +225,7 @@ export default function PrepPage() {
   };
 
   const renderPackingTab = () => {
-    const categories = ['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Gear'];
+    const categories = ['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'];
     const totalCustomPacked = customPackItems.filter(i => i.packed).length;
     const totalPacked = packedItems.size + totalCustomPacked;
     const totalItems = packingItems.length + customPackItems.length || 1;
@@ -303,7 +303,7 @@ export default function PrepPage() {
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
           <div className="flex gap-2">
             <select value={newPackCategory} onChange={(e) => setNewPackCategory(e.target.value)} className="px-4 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
-              {['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Gear'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              {['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
             <input type="text" placeholder="Add packing item..." value={newPackItem} onChange={(e) => setNewPackItem(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && newPackItem.trim()) { setCustomPackItems(prev => [...prev, { id: `custom_pack_${Date.now()}`, name: newPackItem.trim(), category: newPackCategory, packed: false }]); setNewPackItem(''); } }}
@@ -596,7 +596,7 @@ export default function PrepPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <p className="text-xs uppercase tracking-widest text-zinc-400 mb-3">Pre-Trip</p>
-          <h1 className="text-4xl font-bold text-zinc-900 mb-2">Prep Hub</h1>
+          <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">Don't Forget</h1>
           <p className="text-zinc-600 mb-6">Everything ready before takeoff</p>
           <div className="w-full bg-zinc-200 rounded-full h-2.5 overflow-hidden">
             <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${overallProgress}%` }} />

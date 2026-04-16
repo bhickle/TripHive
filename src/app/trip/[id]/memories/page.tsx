@@ -39,10 +39,10 @@ export default function MemoriesPage() {
   const uniqueUploaders = Array.from(new Set(tripPhotos.map(p => p.uploadedBy)));
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-ocean-50 to-earth-50">
+    <main className="min-h-screen bg-parchment">
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl font-script italic font-semibold text-slate-900 mb-2">Memories</h1>
+          <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">The Pics</h1>
           <p className="text-slate-600">Your Iceland adventure through photos</p>
         </div>
 

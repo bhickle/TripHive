@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
@@ -131,12 +132,7 @@ export default function PricingPage() {
             <ArrowLeft className="w-4 h-4" />
             Back
           </Link>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-800 to-green-800 flex items-center justify-center">
-              <Globe className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-zinc-900 tracking-tight">tripcoord</span>
-          </div>
+          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" />
           <Link href="/auth/signup" className="px-4 py-2 bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold rounded-full transition-all">
             Get started free
           </Link>
@@ -173,9 +169,15 @@ export default function PricingPage() {
 
       {/* Pricing Cards */}
       <section className="max-w-7xl mx-auto px-4 pb-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 max-w-6xl mx-auto">
+        {billing === 'annual' && (
+          <p className="text-center text-xs text-zinc-400 mb-4">
+            Annual billing is available for Explorer and Nomad subscriptions only.
+          </p>
+        )}
+        <div className={`grid gap-5 max-w-6xl mx-auto ${billing === 'annual' ? 'grid-cols-1 sm:grid-cols-2 max-w-2xl' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'}`}>
 
           {/* Free */}
+          {billing === 'monthly' && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-7 flex flex-col">
             <div className="mb-5">
               <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Free</p>
@@ -208,8 +210,10 @@ export default function PricingPage() {
               </li>
             </ul>
           </div>
+          )}
 
           {/* Trip Pass */}
+          {billing === 'monthly' && (
           <div className="bg-amber-50 border border-amber-200 rounded-3xl p-7 flex flex-col">
             <div className="mb-5">
               <p className="text-amber-700 text-xs font-bold uppercase tracking-widest mb-1.5">Trip Pass</p>
@@ -242,6 +246,7 @@ export default function PricingPage() {
               ))}
             </ul>
           </div>
+          )}
 
           {/* Explorer — Most Popular */}
           <div className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20">
@@ -340,7 +345,7 @@ export default function PricingPage() {
             <Zap className="w-4 h-4 text-sky-600" />
             <span className="text-sm font-semibold text-zinc-700">How AI credits work</span>
           </div>
-          <h2 className="font-script italic text-3xl font-semibold text-zinc-900 mb-4">Smart AI. Not a blank cheque.</h2>
+          <h2 className="font-script italic text-3xl font-semibold text-zinc-900 mb-4">Smart AI. Not a blank check.</h2>
           <p className="text-zinc-500 mb-10 leading-relaxed">
             AI credits let us keep the lights on without charging per-call. Most users never get close to the limit.
             Think of it as a fair-use guardrail, not a wall.
@@ -444,12 +449,7 @@ export default function PricingPage() {
       {/* Footer */}
       <footer className="bg-zinc-950 py-8 px-4">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-sky-800 flex items-center justify-center">
-              <Globe className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="text-zinc-400 text-sm font-semibold">tripcoord</span>
-          </div>
+          <Image src="/tripcoord_logo.png" alt="tripcoord" width={120} height={38} className="h-7 w-auto brightness-0 invert opacity-60" />
           <div className="flex items-center gap-6 text-xs text-zinc-600">
             <Link href="#" className="hover:text-zinc-400 transition-colors">Privacy</Link>
             <Link href="#" className="hover:text-zinc-400 transition-colors">Terms</Link>

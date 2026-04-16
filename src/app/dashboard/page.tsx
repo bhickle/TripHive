@@ -9,7 +9,7 @@ import { UploadItineraryModal } from '@/components/UploadItineraryModal';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { currentUser, trips, suggestedDestinations } from '@/data/mock';
+import { currentUser, trips, wishlistItems } from '@/data/mock';
 import {
   PlusCircle,
   TrendingUp,
@@ -378,79 +378,40 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Year in Review Banner */}
-          <div
-            className="mb-12 relative overflow-hidden rounded-2xl cursor-pointer group shadow-sm"
-            onClick={() => hasYearInReview ? setShowYearlyReview(true) : setShowYearInReviewUpgrade(true)}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-sky-900 via-sky-800 to-green-800" />
-            {/* Subtle texture overlay */}
-            <div className="absolute inset-0 opacity-10"
-              style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }}
-            />
-            <div className="relative px-4 md:px-8 py-5 md:py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4 md:gap-5">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center flex-shrink-0 group-hover:bg-white/20 transition-colors">
-                  <span className="text-xl md:text-2xl">✦</span>
-                </div>
-                <div>
-                  <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">
-                    Your {new Date().getFullYear()} Wrapped
-                  </p>
-                  <h3 className="font-script italic text-lg md:text-2xl font-semibold text-white">
-                    Year in Review
-                  </h3>
-                  <p className="text-white/70 text-xs md:text-sm mt-0.5">
-                    {trips.length} trips · {trips.reduce((s, t) => s + Math.ceil((new Date(t.endDate).getTime() - new Date(t.startDate).getTime()) / 86400000), 0)} days · your travel personality revealed
-                  </p>
-                </div>
-              </div>
-              <button className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold text-sm rounded-full transition-all border border-white/20 group-hover:border-white/40 flex-shrink-0 self-start sm:self-auto">
-                <Sparkles className="w-4 h-4" />
-                {hasYearInReview ? 'See Your Year' : 'Nomad Only'}
-              </button>
-              {!hasYearInReview && (
-                <div className="absolute top-3 right-3 flex items-center gap-1 bg-amber-400/90 text-amber-900 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">
-                  <span>🔒</span> Nomad
-                </div>
-              )}
-            </div>
+          {/* CTA Buttons */}
+          <div className="flex items-center gap-3 mb-8 flex-wrap">
+            <Link
+              href="/trip/new"
+              className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Let's Go →
+            </Link>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-sky-300 hover:text-sky-800 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
+            >
+              <Upload className="w-4 h-4" />
+              Already Planned?
+            </button>
+            <Link
+              href="/layover"
+              className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
+            >
+              <Plane className="w-4 h-4" />
+              Layover Planner
+            </Link>
           </div>
 
           {/* Active Trips Section */}
           <section className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
-                  What's Happening
-                </p>
-                <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
-                  In Progress
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/trip/new"
-                  className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Let's Go →
-                </Link>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-sky-300 hover:text-sky-800 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
-                >
-                  <Upload className="w-4 h-4" />
-                  Already Planned?
-                </button>
-                <Link
-                  href="/layover"
-                  className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
-                >
-                  <Plane className="w-4 h-4" />
-                  Layover Planner
-                </Link>
-              </div>
+            <div className="mb-6">
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
+                What's Happening
+              </p>
+              <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
+                In Progress
+              </h2>
             </div>
 
             {activeSoon.length > 0 ? (
@@ -478,46 +439,100 @@ export default function DashboardPage() {
             )}
           </section>
 
-          {/* Suggested Destinations Section */}
+          {/* Year in Review Banner — December only */}
+          {new Date().getMonth() === 11 && (
+            <div
+              className="mb-12 relative overflow-hidden rounded-2xl cursor-pointer group shadow-sm"
+              onClick={() => hasYearInReview ? setShowYearlyReview(true) : setShowYearInReviewUpgrade(true)}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-900 via-sky-800 to-green-800" />
+              <div className="absolute inset-0 opacity-10"
+                style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }}
+              />
+              <div className="relative px-4 md:px-8 py-5 md:py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4 md:gap-5">
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center flex-shrink-0 group-hover:bg-white/20 transition-colors">
+                    <span className="text-xl md:text-2xl">✦</span>
+                  </div>
+                  <div>
+                    <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">
+                      Your {new Date().getFullYear()} Wrapped
+                    </p>
+                    <h3 className="font-script italic text-lg md:text-2xl font-semibold text-white">
+                      Year in Review
+                    </h3>
+                    <p className="text-white/70 text-xs md:text-sm mt-0.5">
+                      {trips.length} trips · {trips.reduce((s, t) => s + Math.ceil((new Date(t.endDate).getTime() - new Date(t.startDate).getTime()) / 86400000), 0)} days · your travel personality revealed
+                    </p>
+                  </div>
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold text-sm rounded-full transition-all border border-white/20 group-hover:border-white/40 flex-shrink-0 self-start sm:self-auto">
+                  <Sparkles className="w-4 h-4" />
+                  {hasYearInReview ? 'See Your Year' : 'Nomad Only'}
+                </button>
+                {!hasYearInReview && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-amber-400/90 text-amber-900 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">
+                    <span>🔒</span> Nomad
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Where to Next — from On My Radar */}
           <section className="mb-12">
-            <div className="flex items-center gap-2 mb-6">
-              <Sparkles className="w-5 h-5 text-sky-700" />
-              <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
-                Where To Next?
-              </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-sky-700" />
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
+                  Where To Next?
+                </h2>
+              </div>
+              <Link href="/wishlist" className="text-sm text-sky-700 hover:text-sky-900 font-semibold transition-colors">
+                View all On My Radar →
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {suggestedDestinations.map((destination, idx) => (
+              {wishlistItems.slice(0, 3).map((item) => (
                 <div
-                  key={idx}
-                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                  key={item.id}
+                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group"
                 >
                   {/* Image */}
                   <div
-                    className="h-56 bg-cover bg-center relative"
-                    style={{ backgroundImage: `url(${destination.image})` }}
+                    className="h-48 bg-cover bg-center relative"
+                    style={{ backgroundImage: `url(${item.coverImage})` }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/50 to-transparent" />
-                    <div className="absolute top-3 right-3 bg-sky-800 text-white px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span className="text-sm font-semibold">
-                        {destination.matchScore}%
-                      </span>
-                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/60 via-zinc-900/10 to-transparent" />
+                    <p className="absolute bottom-0 left-0 right-0 p-4 font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">
+                      {item.destination}, {item.country}
+                    </p>
                   </div>
 
                   {/* Content */}
                   <div className="p-5">
-                    <h3 className="font-script italic font-semibold text-lg text-zinc-900">
-                      {destination.name}
-                    </h3>
-                    <p className="text-sm text-zinc-600 mt-1">
-                      {destination.country}
-                    </p>
-                    <p className="text-sm text-zinc-700 font-medium mt-3">
-                      {destination.tagline}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                      {item.tags.slice(0, 3).map(tag => (
+                        <span key={tag} className="text-xs font-medium text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full">{tag}</span>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-zinc-400 mb-4">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" /> {item.bestSeason}
+                      </span>
+                      <span className="font-script italic text-base text-zinc-900 font-semibold">
+                        ~${item.estimatedCost.toLocaleString()}
+                        <span className="text-xs text-zinc-400 font-normal ml-1">est.</span>
+                      </span>
+                    </div>
+                    <Link
+                      href={`/trip/new?destination=${encodeURIComponent(`${item.destination}, ${item.country}`)}`}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-all"
+                    >
+                      <Plane className="w-3.5 h-3.5" />
+                      Plan This Trip
+                    </Link>
                   </div>
                 </div>
               ))}
