@@ -384,6 +384,15 @@ export default function ItineraryPage() {
     resetModal();
   };
 
+  // ─── Derived state — declared early so callbacks below can reference them ────
+  const activeDays = aiDays ?? itineraryDays;
+  const trip = aiMeta
+    ? { ...trips[0], destination: aiMeta.destination || trips[0].destination,
+        budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown']) ?? trips[0].budgetBreakdown,
+        budgetTotal: aiMeta.budget ?? trips[0].budgetTotal }
+    : (trips.find(t => t.id === 'trip_1') || trips[0]);
+  const currentDayData = activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0];
+
   // ─── Persist updated days to state + localStorage ────────────────────────────
   const persistDays = useCallback((updated: typeof itineraryDays) => {
     setAiDays(updated);
@@ -527,14 +536,7 @@ export default function ItineraryPage() {
     }
   }, [activeDays, selectedDay, currentDayData, trip, aiMeta, persistDays]);
 
-  // Use AI-generated days if available, otherwise fall back to mock data
-  const activeDays = aiDays ?? itineraryDays;
-  const trip = aiMeta
-    ? { ...trips[0], destination: aiMeta.destination || trips[0].destination,
-        budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown']) ?? trips[0].budgetBreakdown,
-        budgetTotal: aiMeta.budget ?? trips[0].budgetTotal }
-    : (trips.find(t => t.id === 'trip_1') || trips[0]);
-  const currentDayData = activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0];
+  // activeDays / trip / currentDayData declared earlier (above persistDays) so callbacks can use them
 
   const weatherData: Record<number, { icon: React.ReactNode; temp: number; condition: string }> = {
     1: { icon: <Cloud className="w-8 h-8" />, temp: 12, condition: 'Partly Cloudy' },
