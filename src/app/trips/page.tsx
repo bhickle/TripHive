@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Sidebar } from '@/components/Sidebar';
 import { TripCard } from '@/components/TripCard';
@@ -23,8 +23,20 @@ export default function TripsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [userTrips, setUserTrips] = useState<any[]>([]);
 
-  const filteredTrips = trips.filter((trip) => {
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('tripcoord_user_trips');
+      if (stored) setUserTrips(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Merge user-uploaded trips (shown first) with mock trips
+  const allTrips = [...userTrips, ...trips];
+
+  const filteredTrips = allTrips.filter((trip) => {
     const matchesStatus = statusFilter === 'all' || trip.status === statusFilter;
     const matchesSearch =
       searchQuery === '' ||
@@ -38,10 +50,10 @@ export default function TripsPage() {
   const completedTrips = filteredTrips.filter((t) => t.status === 'completed');
 
   const statusCounts = {
-    all: trips.length,
-    planning: trips.filter((t) => t.status === 'planning').length,
-    active: trips.filter((t) => t.status === 'active').length,
-    completed: trips.filter((t) => t.status === 'completed').length,
+    all: allTrips.length,
+    planning: allTrips.filter((t) => t.status === 'planning').length,
+    active: allTrips.filter((t) => t.status === 'active').length,
+    completed: allTrips.filter((t) => t.status === 'completed').length,
   };
 
   const formatDate = (dateStr: string) =>
@@ -51,7 +63,8 @@ export default function TripsPage() {
     <div className="flex h-screen bg-parchment">
       <Sidebar activePage="trips" user={currentUser} />
 
-      <main className="flex-1 overflow-auto p-8">
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">Your Collection</p>
@@ -250,6 +263,7 @@ export default function TripsPage() {
             })}
           </div>
         )}
+        </div>
       </main>
     </div>
   );

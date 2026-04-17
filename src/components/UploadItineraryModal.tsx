@@ -12,6 +12,38 @@ import {
 type Step = 'upload' | 'trip-choice' | 'processing' | 'done' | 'error';
 type TripChoice = 'new' | 'existing';
 
+// Destination → Unsplash cover image lookup
+const COVER_IMAGES: Record<string, string> = {
+  caribbean:  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
+  miami:      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800',
+  cruise:     'https://images.unsplash.com/photo-1548574505-5e239809ee19?w=800',
+  bahamas:    'https://images.unsplash.com/photo-1548574505-5e239809ee19?w=800',
+  turks:      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
+  bimini:     'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
+  mexico:     'https://images.unsplash.com/photo-1518638150340-f706e86654de?w=800',
+  cancun:     'https://images.unsplash.com/photo-1518638150340-f706e86654de?w=800',
+  hawaii:     'https://images.unsplash.com/photo-1542259009477-d625272157b7?w=800',
+  paris:      'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800',
+  tokyo:      'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800',
+  bali:       'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800',
+  iceland:    'https://images.unsplash.com/photo-1504829857797-ddff29c27927?w=800',
+  italy:      'https://images.unsplash.com/photo-1555992336-03a23c7b20ee?w=800',
+  spain:      'https://images.unsplash.com/photo-1543783207-ec64e4d95325?w=800',
+  greece:     'https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800',
+  thailand:   'https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800',
+  portugal:   'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800',
+  morocco:    'https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=800',
+  default:    'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800',
+};
+
+function getCoverImageForDestination(destination: string): string {
+  const lower = destination.toLowerCase();
+  for (const [key, url] of Object.entries(COVER_IMAGES)) {
+    if (key !== 'default' && lower.includes(key)) return url;
+  }
+  return COVER_IMAGES.default;
+}
+
 interface ParsedMeta {
   destination?: string;
   startDate?: string;
@@ -153,6 +185,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
         localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaForStorage));
 
         // Save to Supabase so the trip appears in the dashboard and has a real ID
+        let finalTripId = `upload_${Date.now()}`;
         try {
           const saveRes = await fetch('/api/trips/save', {
             method: 'POST',
@@ -176,11 +209,35 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
           });
           if (saveRes.ok) {
             const { tripId } = await saveRes.json();
+            finalTripId = tripId;
             setSavedTripId(tripId);
             localStorage.setItem('currentTripId', tripId);
           }
         } catch {
           // Silently fall back to localStorage-only if Supabase save fails
+        }
+
+        // Register in the user trips dashboard registry so the dashboard shows a tile
+        try {
+          const coverImage = getCoverImageForDestination(destination);
+          const existingUserTrips = JSON.parse(localStorage.getItem('tripcoord_user_trips') || '[]');
+          existingUserTrips.push({
+            id: finalTripId,
+            title: destination,
+            destination,
+            startDate: meta.startDate || '',
+            endDate: meta.endDate || '',
+            status: 'planning',
+            coverImage,
+            memberCount: 1,
+            guestCount: 0,
+            budgetTotal: 5000,
+            budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
+            createdAt: new Date().toISOString(),
+          });
+          localStorage.setItem('tripcoord_user_trips', JSON.stringify(existingUserTrips));
+        } catch {
+          // Non-fatal — dashboard just won't show the tile
         }
       } else {
         const trip = trips.find(t => t.id === selectedTripId);

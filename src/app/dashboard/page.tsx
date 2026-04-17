@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Sidebar } from '@/components/Sidebar';
 import { TripCard } from '@/components/TripCard';
@@ -61,6 +61,15 @@ const mockNotifications: Notification[] = [
 
 export default function DashboardPage() {
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [userTrips, setUserTrips] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('tripcoord_user_trips');
+      if (stored) setUserTrips(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState(mockNotifications);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -120,13 +129,19 @@ export default function DashboardPage() {
     ],
   };
 
-  const activeSoon = trips.filter(
+  const mockActiveSoon = trips.filter(
     (t) => t.status === 'planning' || t.status === 'active'
   );
+  // Merge user-uploaded trips (from localStorage) with mock trips — user trips first
+  const activeSoon = [
+    ...userTrips.filter((t) => t.status === 'planning' || t.status === 'active'),
+    ...mockActiveSoon,
+  ];
   const completedTrips = trips.filter((t) => t.status === 'completed');
 
-  const totalTrips = trips.length;
-  const countriesVisited = new Set(trips.map((t) => t.destination.split(',')[1]?.trim() || '')).size;
+  const allTrips = [...userTrips, ...trips];
+  const totalTrips = allTrips.length;
+  const countriesVisited = new Set(allTrips.map((t) => t.destination.split(',')[1]?.trim() || '')).size;
   const totalDays = trips.reduce((sum, trip) => {
     const start = new Date(trip.startDate);
     const end = new Date(trip.endDate);
