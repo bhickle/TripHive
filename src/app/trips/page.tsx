@@ -209,6 +209,9 @@ export default function TripsPage() {
               const startDate = new Date(trip.startDate);
               const endDate = new Date(trip.endDate);
               const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+              const status = (trip.status as string) in { planning: 1, active: 1, completed: 1 }
+                ? (trip.status as 'planning' | 'active' | 'completed')
+                : 'planning';
               const statusColors = {
                 planning: 'bg-sky-100 text-sky-900',
                 active: 'bg-emerald-100 text-emerald-800',
@@ -231,8 +234,8 @@ export default function TripsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="font-semibold text-zinc-900 truncate">{trip.title}</h3>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColors[trip.status]} capitalize`}>
-                        {trip.status}
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]} capitalize`}>
+                        {status}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-zinc-600">
