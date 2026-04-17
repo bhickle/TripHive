@@ -35,8 +35,10 @@ export default function TripsPage() {
     } catch { /* ignore */ }
   }, []);
 
-  // Merge user-uploaded trips (shown first) with mock trips
-  const allTrips = [...userTrips, ...trips];
+  // Demo account sees mock data; real users see only their own trips
+  const allTrips = currentUser.isDemo
+    ? [...userTrips, ...trips]
+    : userTrips;
 
   const filteredTrips = allTrips.filter((trip) => {
     const matchesStatus = statusFilter === 'all' || trip.status === statusFilter;

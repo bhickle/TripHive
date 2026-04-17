@@ -131,20 +131,23 @@ export default function DashboardPage() {
     ],
   };
 
-  const mockActiveSoon = trips.filter(
+  // Demo account sees mock data; real users see only their own trips
+  const baseTripData = currentUser.isDemo ? trips : [];
+
+  const mockActiveSoon = baseTripData.filter(
     (t) => t.status === 'planning' || t.status === 'active'
   );
-  // Merge user-uploaded trips (from localStorage) with mock trips — user trips first
+  // Merge user-uploaded trips (from localStorage) with base trips — user trips first
   const activeSoon = [
     ...userTrips.filter((t) => t.status === 'planning' || t.status === 'active'),
     ...mockActiveSoon,
   ];
-  const completedTrips = trips.filter((t) => t.status === 'completed');
+  const completedTrips = baseTripData.filter((t) => t.status === 'completed');
 
-  const allTrips = [...userTrips, ...trips];
+  const allTrips = [...userTrips, ...baseTripData];
   const totalTrips = allTrips.length;
   const countriesVisited = new Set(allTrips.map((t) => t.destination.split(',')[1]?.trim() || '')).size;
-  const totalDays = trips.reduce((sum, trip) => {
+  const totalDays = allTrips.reduce((sum, trip) => {
     const start = new Date(trip.startDate);
     const end = new Date(trip.endDate);
     return sum + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
@@ -159,7 +162,7 @@ export default function DashboardPage() {
 
   // Find next upcoming trip (soonest future start date)
   const now = new Date();
-  const upcomingTrips = trips
+  const upcomingTrips = allTrips
     .filter(t => new Date(t.startDate) > now && (t.status === 'planning' || t.status === 'active'))
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
   const nextTrip = upcomingTrips[0] || activeSoon[0];
