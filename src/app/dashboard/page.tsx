@@ -66,12 +66,43 @@ export default function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
 
+  // For real (non-demo) logged-in users, load trips from Supabase.
+  // Fall back to localStorage for demo / unauthenticated visitors.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('tripcoord_user_trips');
-      if (stored) setUserTrips(JSON.parse(stored));
-    } catch { /* ignore */ }
-  }, []);
+    if (currentUser.isLoading) return;
+
+    if (!currentUser.isDemo && currentUser.id) {
+      // Authenticated real user — fetch from Supabase
+      fetch('/api/trips')
+        .then(r => r.ok ? r.json() : { trips: [] })
+        .then(({ trips }) => {
+          if (Array.isArray(trips) && trips.length > 0) {
+            // Normalize Supabase column names to the shape the rest of the dashboard expects
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const normalized = trips.map((t: any) => ({
+              id: t.id,
+              title: t.title,
+              destination: t.destination,
+              startDate: t.start_date,
+              endDate: t.end_date,
+              tripLength: t.trip_length,
+              status: t.status ?? 'planning',
+              groupType: t.group_type,
+              groupSize: t.group_size,
+              coverImage: t.cover_image ?? null,
+            }));
+            setUserTrips(normalized);
+          }
+        })
+        .catch(() => { /* silently fall back to empty list */ });
+    } else {
+      // Demo or unauthenticated — fall back to localStorage
+      try {
+        const stored = localStorage.getItem('tripcoord_user_trips');
+        if (stored) setUserTrips(JSON.parse(stored));
+      } catch { /* ignore */ }
+    }
+  }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   // Load notifications only for demo account; real users start with an empty inbox

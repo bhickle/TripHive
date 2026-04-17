@@ -90,14 +90,13 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
     load();
   }, [mockTrip, params.id]);
 
-  // Build the trip object: prefer AI meta for destination/title when no mock trip matches
+  // Build the trip object: prefer real data, fall back gracefully without leaking mock content
   const trip = mockTrip ?? (() => {
-    const base = trips[0];
-    const destination = aiMeta?.destination || base.destination;
+    const base = trips[0]; // shape reference only — destination + title are always overridden
+    const destination = aiMeta?.destination ?? '';
     const city = destination.split(',')[0].trim();
-    // Use the AI-generated title if available, otherwise derive from destination
-    const title = aiMeta?.title || `${city} Adventure`;
-    return { ...base, destination, title };
+    const title = aiMeta?.title ?? (city ? `${city} Adventure` : 'Your Trip');
+    return { ...base, id: params.id, destination, title };
   })();
 
   const pathSegments = pathname.split('/');

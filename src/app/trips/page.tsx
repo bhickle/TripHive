@@ -29,11 +29,35 @@ export default function TripsPage() {
   const [userTrips, setUserTrips] = useState<any[]>([]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('tripcoord_user_trips');
-      if (stored) setUserTrips(JSON.parse(stored));
-    } catch { /* ignore */ }
-  }, []);
+    if (currentUser.isLoading) return;
+    if (!currentUser.isDemo && currentUser.id) {
+      fetch('/api/trips')
+        .then(r => r.ok ? r.json() : { trips: [] })
+        .then(({ trips: supaTrips }) => {
+          if (Array.isArray(supaTrips)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setUserTrips(supaTrips.map((t: any) => ({
+              id: t.id,
+              title: t.title,
+              destination: t.destination,
+              startDate: t.start_date,
+              endDate: t.end_date,
+              tripLength: t.trip_length,
+              status: t.status ?? 'planning',
+              groupType: t.group_type,
+              groupSize: t.group_size,
+              coverImage: t.cover_image ?? null,
+            })));
+          }
+        })
+        .catch(() => {});
+    } else {
+      try {
+        const stored = localStorage.getItem('tripcoord_user_trips');
+        if (stored) setUserTrips(JSON.parse(stored));
+      } catch { /* ignore */ }
+    }
+  }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
 
   // Demo account sees mock data; real users see only their own trips
   const allTrips = currentUser.isDemo
