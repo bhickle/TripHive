@@ -573,6 +573,15 @@ function TripBuilderPage() {
     setState((prev) => {
       const newState = { ...prev, [type]: value };
 
+      // When start date is set and end date is empty, auto-fill end date from trip length
+      if (type === 'startDate' && value && !prev.endDate && prev.tripLength > 0) {
+        const startDate = new Date(value);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + prev.tripLength - 1);
+        newState.endDate = endDate.toISOString().split('T')[0];
+      }
+
+      // When both dates are set, recalculate trip length
       if (
         newState.startDate &&
         newState.endDate &&
@@ -916,31 +925,47 @@ function TripBuilderPage() {
                       />
                     </div>
 
-                    {/* Suggestions Dropdown */}
-                    {showDestinationSuggestions && state.destination && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
-                        {mockDestinations.map((dest, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              setState((prev) => ({
-                                ...prev,
-                                destination: dest.name,
-                              }));
-                              setShowDestinationSuggestions(false);
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-slate-900">
-                                {dest.name}
-                              </span>
-                              <span className="text-xs font-semibold text-sky-700 bg-sky-100 px-2 py-1 rounded">
-                                {dest.match}% match
-                              </span>
-                            </div>
-                          </button>
-                        ))}
+                    {/* Suggestions Dropdown — fuzzy-matched from known destinations */}
+                    {showDestinationSuggestions && state.destination.trim().length > 1 && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
+                        {(() => {
+                          const q = state.destination.toLowerCase();
+                          const matched = Object.entries(DESTINATION_COSTS)
+                            .filter(([key]) => key !== 'default')
+                            .filter(([key, costs]) => key.includes(q) || costs.label.toLowerCase().includes(q))
+                            .map(([, costs]) => costs.label)
+                            .slice(0, 6);
+                          return (
+                            <>
+                              {matched.map((label) => (
+                                <button
+                                  key={label}
+                                  onClick={() => {
+                                    setState((prev) => ({ ...prev, destination: label }));
+                                    setShowDestinationSuggestions(false);
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-center gap-3"
+                                >
+                                  <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                  <span className="font-medium text-slate-900">{label}</span>
+                                </button>
+                              ))}
+                              {/* Always show "use exactly what was typed" as a fallback */}
+                              {!matched.some(l => l.toLowerCase() === state.destination.toLowerCase()) && (
+                                <button
+                                  onClick={() => {
+                                    setState((prev) => ({ ...prev, destination: state.destination.trim() }));
+                                    setShowDestinationSuggestions(false);
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-sky-50 transition-colors flex items-center gap-3"
+                                >
+                                  <Search className="w-4 h-4 text-sky-600 flex-shrink-0" />
+                                  <span className="text-sky-700 font-medium">Use &quot;{state.destination.trim()}&quot;</span>
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

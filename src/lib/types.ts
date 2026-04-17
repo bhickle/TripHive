@@ -56,9 +56,9 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   free: {
     activeTrips: 1,
     travelersPerTrip: 4,
-    aiCreditsPerMonth: 0,
+    aiCreditsPerMonth: 10,
     flightAlerts: 0,
-    canUseAI: false,
+    canUseAI: true,
     canUseTripStory: false,
     canUseYearInReview: false,
     canUseSplitTracks: false,

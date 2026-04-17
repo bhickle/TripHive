@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -237,28 +238,45 @@ export default function OnboardingPage() {
     return false;
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
+    const profileData = {
+      name: state.yourName,
+      avatarEmoji: state.avatarEmoji,
+      groupType: state.groupType,
+      vibes: state.vibes,
+    };
     if (typeof window !== 'undefined') {
-      localStorage.setItem('tripcoord_profile', JSON.stringify({
-        name: state.yourName,
-        avatarEmoji: state.avatarEmoji,
-        groupType: state.groupType,
-        vibes: state.vibes,
-      }));
+      localStorage.setItem('tripcoord_profile', JSON.stringify(profileData));
+    }
+    // Also persist name to Supabase profile so greeting uses real name
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      );
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('profiles')
+          .update({ name: state.yourName })
+          .eq('id', user.id);
+      }
+    } catch {
+      // Supabase save failed — localStorage fallback already set, continue
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 0) {
       setStep(1);
       return;
     }
-    saveProfile();
+    await saveProfile();
     router.push('/trip/new?firsttrip=true');
   };
 
-  const handleGoToDashboard = () => {
-    saveProfile();
+  const handleGoToDashboard = async () => {
+    await saveProfile();
     router.push('/dashboard');
   };
 
@@ -304,7 +322,7 @@ export default function OnboardingPage() {
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-display font-semibold text-base shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
                   >
                     <Sparkles className="w-4 h-4" />
-                    Plan My First Trip
+                    Create Your First Trip
                   </button>
                   <button
                     type="button"
@@ -312,7 +330,7 @@ export default function OnboardingPage() {
                     disabled={!canAdvance()}
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
                   >
-                    Go to Dashboard →
+                    Confirm and go to Home Base →
                   </button>
                 </div>
               ) : (

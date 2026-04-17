@@ -63,15 +63,15 @@ export interface UpgradePrompt {
 const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'>> = {
   no_ai: {
     reason: 'no_ai',
-    headline: 'AI planning is a paid feature',
-    body: 'Grab a Trip Pass for this trip, or subscribe to Explorer for your whole travel year.',
+    headline: 'Want more AI itineraries?',
+    body: 'Every plan includes one free AI build. Upgrade to Explorer for unlimited builds all year, or grab a Trip Pass for this trip.',
     ctaLabel: 'See plans',
   },
   ai_credits_empty: {
     reason: 'ai_credits_empty',
-    headline: "You've used your AI credits this month",
-    body: "Your credits refresh on your next billing date. Upgrade to Nomad for 3.5× more headroom.",
-    ctaLabel: 'Upgrade to Nomad',
+    headline: "You've used your free AI build",
+    body: "Upgrade to Explorer for 10 AI itinerary builds per month, or Nomad for 35. Your first build is always free.",
+    ctaLabel: 'See plans',
   },
   ai_credits_low: {
     reason: 'ai_credits_low',

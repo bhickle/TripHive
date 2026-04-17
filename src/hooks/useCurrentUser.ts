@@ -36,7 +36,7 @@ export function useCurrentUser() {
   return {
     id: user.id,
     email: user.email ?? '',
-    name: profile?.name ?? user.email?.split('@')[0] ?? 'Traveler',
+    name: profile?.name ?? (user.user_metadata as Record<string, string> | undefined)?.full_name ?? user.email?.split('@')[0] ?? 'Traveler',
     avatarUrl: profile?.avatar_url ?? undefined,
     subscriptionTier: tier,
     aiCredits: {

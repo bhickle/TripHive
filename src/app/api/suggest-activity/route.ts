@@ -64,7 +64,7 @@ Return ONLY a JSON object (no markdown, no explanation):
   "name": "Venue or activity name",
   "title": "Venue or activity name",
   "address": "Full street address, ${destination}",
-  "website": "https://venue-website.com or null",
+  "website": null,
   "isRestaurant": ${isRestaurant ?? false},
   "mealType": ${mealType ? `"${mealType}"` : 'null'},
   "track": "${track ?? 'shared'}",
@@ -72,9 +72,11 @@ Return ONLY a JSON object (no markdown, no explanation):
   "description": "One sentence on why this is recommended — cite its reputation or acclaim",
   "costEstimate": 25,
   "confidence": 0.85,
-  "verified": true,
+  "verified": false,
   "packingTips": []
-}`;
+}
+
+IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — hallucinated links cause errors for users.`;
 
     const message = await client.messages.create({
       model: 'claude-opus-4-5',

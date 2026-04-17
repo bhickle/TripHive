@@ -686,8 +686,8 @@ export default function ItineraryPage() {
     <div className="min-h-screen bg-parchment p-3 md:p-6">
       <div className="max-w-6xl mx-auto">
 
-        {/* AI Generated Banner */}
-        {showAiBanner && aiMeta && (
+        {/* AI Generated Banner — demo only (not shown for real uploaded/generated trips) */}
+        {showAiBanner && !aiMeta && (
           <div className="mb-6 flex items-center justify-between px-5 py-3.5 bg-sky-50 border border-sky-200 rounded-2xl">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-sky-800 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -695,17 +695,9 @@ export default function ItineraryPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-sky-900">Built by AI, made for your crew ✦</p>
-                <p className="text-xs text-sky-800">
-                  {aiMeta.destination} · {activeDays.length} days · Personalized just for you
-                </p>
+                <p className="text-xs text-sky-800">Demo itinerary · Iceland · Personalized just for you</p>
               </div>
             </div>
-            <button
-              onClick={clearAiItinerary}
-              className="text-xs text-sky-700 hover:text-sky-900 font-medium underline"
-            >
-              Reset to demo
-            </button>
           </div>
         )}
 
