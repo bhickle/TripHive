@@ -50,21 +50,50 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { days } = await request.json();
-    if (!Array.isArray(days)) {
-      return NextResponse.json({ error: 'days must be an array' }, { status: 400 });
+    const body = await request.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { days, metaPatch } = body as { days?: any[]; metaPatch?: Record<string, any> };
+
+    if (!Array.isArray(days) && !metaPatch) {
+      return NextResponse.json({ error: 'days (array) or metaPatch (object) required' }, { status: 400 });
     }
 
     const supabase = createAdminClient();
 
-    const { error } = await supabase
-      .from('itineraries')
-      .update({ days, updated_at: new Date().toISOString() })
-      .eq('trip_id', params.id);
+    // ── Update itinerary days ──────────────────────────────────────────────────
+    if (Array.isArray(days)) {
+      const { error } = await supabase
+        .from('itineraries')
+        .update({ days, updated_at: new Date().toISOString() })
+        .eq('trip_id', params.id);
 
-    if (error) {
-      console.error('Itinerary update error:', JSON.stringify(error));
-      return NextResponse.json({ error: 'Failed to update itinerary' }, { status: 500 });
+      if (error) {
+        console.error('Itinerary days update error:', JSON.stringify(error));
+        return NextResponse.json({ error: 'Failed to update itinerary' }, { status: 500 });
+      }
+    }
+
+    // ── Merge-patch itinerary meta (e.g. add isCruise/cruiseLine after upload) ─
+    if (metaPatch) {
+      // Fetch existing meta first so we can merge
+      const { data: existing } = await supabase
+        .from('itineraries')
+        .select('meta')
+        .eq('trip_id', params.id)
+        .single();
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mergedMeta = { ...((existing?.meta as Record<string, any>) ?? {}), ...metaPatch };
+
+      const { error } = await supabase
+        .from('itineraries')
+        .update({ meta: mergedMeta, updated_at: new Date().toISOString() })
+        .eq('trip_id', params.id);
+
+      if (error) {
+        console.error('Itinerary meta update error:', JSON.stringify(error));
+        return NextResponse.json({ error: 'Failed to update itinerary meta' }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ ok: true });

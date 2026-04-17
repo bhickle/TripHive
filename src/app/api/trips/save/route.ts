@@ -26,6 +26,10 @@ export async function POST(request: NextRequest) {
         bookedHotels: unknown[];
         bookedFlight: unknown | null;
         preferences: Record<string, unknown>;
+        practicalNotes?: unknown;
+        hotelSuggestions?: unknown;
+        isCruise?: boolean;
+        cruiseLine?: string;
       };
       itinerary: unknown[];
     };
@@ -94,6 +98,10 @@ export async function POST(request: NextRequest) {
         bookedFlight: tripMeta.bookedFlight,
         groupType: tripMeta.groupType,
         groupSize: tripMeta.groupSize,
+        practicalNotes: tripMeta.practicalNotes ?? null,
+        hotelSuggestions: tripMeta.hotelSuggestions ?? null,
+        isCruise: tripMeta.isCruise ?? false,
+        cruiseLine: tripMeta.cruiseLine ?? '',
       },
       source: 'ai',
     };

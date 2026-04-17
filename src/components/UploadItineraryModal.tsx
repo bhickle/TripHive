@@ -219,28 +219,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
           // Silently fall back to localStorage-only if Supabase save fails
         }
 
-        // Register in the user trips dashboard registry so the dashboard shows a tile
-        try {
-          const coverImage = getCoverImageForDestination(destination);
-          const existingUserTrips = JSON.parse(localStorage.getItem('tripcoord_user_trips') || '[]');
-          existingUserTrips.push({
-            id: finalTripId,
-            title: destination,
-            destination,
-            startDate: meta.startDate || '',
-            endDate: meta.endDate || '',
-            status: 'planning',
-            coverImage,
-            memberCount: 1,
-            guestCount: 0,
-            budgetTotal: 5000,
-            budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
-            createdAt: new Date().toISOString(),
-          });
-          localStorage.setItem('tripcoord_user_trips', JSON.stringify(existingUserTrips));
-        } catch {
-          // Non-fatal — dashboard just won't show the tile
-        }
+        // Dashboard reads from Supabase now — no need to write to tripcoord_user_trips localStorage
       } else {
         const trip = trips.find(t => t.id === selectedTripId);
         localStorage.setItem('generatedTripMeta', JSON.stringify({
@@ -279,11 +258,21 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   };
 
   const updateMetaWithCruise = (isACruise: boolean, line: string) => {
+    // Update localStorage
     try {
       const existing = JSON.parse(localStorage.getItem('generatedTripMeta') || '{}');
       const updated = { ...existing, isCruise: isACruise, cruiseLine: line };
       localStorage.setItem('generatedTripMeta', JSON.stringify(updated));
     } catch { /* non-fatal */ }
+
+    // Persist to Supabase if we have a real UUID trip ID
+    if (savedTripId && /^[0-9a-f-]{36}$/i.test(savedTripId)) {
+      fetch(`/api/trips/${savedTripId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metaPatch: { isCruise: isACruise, cruiseLine: line } }),
+      }).catch(() => { /* non-fatal */ });
+    }
   };
 
   const handleNavigate = () => {

@@ -59,15 +59,27 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const VOTES_STORAGE_KEY = `tripcoord_votes_${params.id}`;
   const [votes, setVotes] = useState<Vote[]>(isMockTrip ? (groupVotes as Vote[]) : []);
 
-  // Read trip name from localStorage for invite messages on real trips
-  const tripName = (() => {
-    if (isMockTrip) return 'Iceland Adventure';
-    try {
-      const stored = localStorage.getItem('generatedTripMeta');
-      if (stored) return JSON.parse(stored).destination || 'our trip';
-    } catch { /* ignore */ }
-    return 'our trip';
-  })();
+  // Trip name for invite messages — fetched from Supabase for real trips
+  const [tripName, setTripName] = useState<string>(isMockTrip ? 'Iceland Adventure' : 'our trip');
+  useEffect(() => {
+    if (isMockTrip) return;
+    const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
+    if (looksLikeUuid) {
+      fetch(`/api/trips/${params.id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.trip?.title) setTripName(data.trip.title); })
+        .catch(() => {});
+    } else {
+      // localStorage fallback only for the current trip
+      try {
+        const storedId = localStorage.getItem('currentTripId');
+        if (storedId === params.id || params.id.startsWith('upload_')) {
+          const stored = localStorage.getItem('generatedTripMeta');
+          if (stored) setTripName(JSON.parse(stored).destination || 'our trip');
+        }
+      } catch { /* ignore */ }
+    }
+  }, [isMockTrip, params.id]);
 
   const { canAddTraveler, getUpgradePrompt } = useEntitlements();
   const [showTravelerUpgrade, setShowTravelerUpgrade] = useState(false);

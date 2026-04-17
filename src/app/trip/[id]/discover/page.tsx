@@ -354,11 +354,14 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         } catch { /* ignore */ }
       }
 
-      // Fallback 2: generatedTripMeta
+      // Fallback 2: generatedTripMeta — only if it belongs to this trip
       if (!destination) {
         try {
-          const stored = localStorage.getItem('generatedTripMeta');
-          if (stored) destination = JSON.parse(stored).destination || '';
+          const storedId = localStorage.getItem('currentTripId');
+          if (storedId === params.id || params.id.startsWith('upload_')) {
+            const stored = localStorage.getItem('generatedTripMeta');
+            if (stored) destination = JSON.parse(stored).destination || '';
+          }
         } catch { /* ignore */ }
       }
 

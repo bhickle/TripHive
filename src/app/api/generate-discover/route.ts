@@ -25,46 +25,66 @@ Return ONLY a valid JSON array (no markdown, no explanation) with exactly 10 ite
 {
   "id": "gen_1",
   "name": "Real place or activity name",
-  "category": one of: "experiences" | "dining" | "nature" | "sights" | "sports" | "events",
-  "rating": number between 4.2 and 4.9,
-  "priceRange": one of: "Free" | "$25–$50" | "$50–$100" | "$80–$150" | "$100–$200" | "$$" | "$$$",
+  "category": "experiences",
+  "rating": 4.7,
+  "priceRange": "$50-$100",
   "description": "2-sentence description with specific local details",
-  "duration": "X hours" or "X–Y hours" or "Half day" or "Full day",
-  "difficulty": "Easy" | "Moderate" | "Challenging",
+  "duration": "2-3 hours",
+  "difficulty": "Easy",
   "location": "Specific neighborhood, beach, or area name",
-  "affiliatePartner": one of: "Viator" | "Ticketmaster" | "OpenTable" | "Recreation.gov" | "Booking.com",
+  "affiliatePartner": "Viator",
   "affiliateCommission": 8,
-  "bookable": true or false,
-  "imageGradient": a Tailwind CSS gradient string like "from-sky-400 to-blue-600" that suits the vibe,
-  "matchScore": number between 82 and 99
+  "bookable": true,
+  "imageGradient": "from-sky-400 to-blue-600",
+  "matchScore": 95
 }
 
 Rules:
+- category must be exactly one of: "experiences", "dining", "nature", "sights", "sports", "events"
+- rating: number between 4.2 and 4.9
+- priceRange: one of: "Free", "$25-$50", "$50-$100", "$80-$150", "$100-$200", "$$", "$$$"
+- difficulty: one of: "Easy", "Moderate", "Challenging"
+- affiliatePartner: dining entries get "OpenTable", free nature activities get "Recreation.gov", experiences get "Viator"
+- imageGradient: Tailwind gradient matching the vibe (ocean=cyan/blue, jungle=green, desert=amber/orange, nightlife=purple/indigo)
+- matchScore: number between 82 and 99, descending order (best match first)
 - Mix categories: at least 4 experiences, 2 dining, 2 nature or sights, 1 sports or events
 - Use real, named places that actually exist at ${destination}
-- Dining entries get affiliatePartner "OpenTable", free nature activities get "Recreation.gov", experiences get "Viator"
-- imageGradient should match the vibe (ocean = cyan/blue, jungle = green, desert = amber/orange, nightlife = purple/indigo, etc.)
-- matchScore descending order (best match first)
 - Return ONLY the JSON array, nothing else`;
 
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'user', content: prompt },
+        { role: 'assistant', content: '[' },
+      ],
     });
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    const raw = '[' + text;
 
-    // Parse — strip any accidental markdown fences
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const items = JSON.parse(cleaned);
+    // Strip markdown fences, fix smart quotes and trailing commas
+    const cleaned = raw
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/,(\s*[}\]])/g, '$1')
+      .trim();
 
+    // Find the outermost JSON array
+    const arrStart = cleaned.indexOf('[');
+    const arrEnd = cleaned.lastIndexOf(']');
+    if (arrStart === -1 || arrEnd === -1) throw new Error('No JSON array in response');
+
+    const items = JSON.parse(cleaned.slice(arrStart, arrEnd + 1));
     if (!Array.isArray(items)) throw new Error('Expected array');
 
     return NextResponse.json({ items });
   } catch (err) {
-    console.error('generate-discover error:', err);
-    return NextResponse.json({ error: 'Failed to generate recommendations' }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[generate-discover] error:', message);
+    return NextResponse.json({ error: 'Failed to generate recommendations', detail: message }, { status: 500 });
   }
 }
