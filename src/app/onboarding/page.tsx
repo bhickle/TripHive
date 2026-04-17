@@ -237,13 +237,7 @@ export default function OnboardingPage() {
     return false;
   };
 
-  const handleNext = () => {
-    if (step === 0) {
-      setStep(1);
-      return;
-    }
-
-    // Save profile to localStorage so the rest of the app can use it
+  const saveProfile = () => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('tripcoord_profile', JSON.stringify({
         name: state.yourName,
@@ -252,9 +246,20 @@ export default function OnboardingPage() {
         vibes: state.vibes,
       }));
     }
+  };
 
-    // Hand off to trip creation wizard
+  const handleNext = () => {
+    if (step === 0) {
+      setStep(1);
+      return;
+    }
+    saveProfile();
     router.push('/trip/new?firsttrip=true');
+  };
+
+  const handleGoToDashboard = () => {
+    saveProfile();
+    router.push('/dashboard');
   };
 
   return (
@@ -290,24 +295,37 @@ export default function OnboardingPage() {
                   Back
                 </button>
               )}
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={!canAdvance()}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-display font-semibold text-base shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
-              >
-                {step === 1 ? (
-                  <>
+              {step === 1 ? (
+                <div className="flex-1 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    disabled={!canAdvance()}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-display font-semibold text-base shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+                  >
                     <Sparkles className="w-4 h-4" />
                     Plan My First Trip
-                  </>
-                ) : (
-                  <>
-                    My Travel Style
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGoToDashboard}
+                    disabled={!canAdvance()}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+                  >
+                    Go to Dashboard →
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!canAdvance()}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-display font-semibold text-base shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+                >
+                  My Travel Style
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
 

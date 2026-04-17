@@ -45,6 +45,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
   const [errorMsg, setErrorMsg] = useState('');
   const [showPasteArea, setShowPasteArea] = useState(false);
+  const [savedTripId, setSavedTripId] = useState<string | null>(null);
 
   // ── File reading ──────────────────────────────────────────────────────────
 
@@ -138,19 +139,53 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
       const meta: ParsedMeta = data.meta || {};
       setParsedMeta(meta);
 
+      const destination = meta.destination || 'Uploaded Trip';
+
       if (tripChoice === 'new') {
-        localStorage.setItem('generatedTripMeta', JSON.stringify({
-          destination: meta.destination || 'Uploaded Trip',
+        const tripMetaForStorage = {
+          destination,
           startDate: meta.startDate || '',
           endDate: meta.endDate || '',
           budget: 5000,
           budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
           fromUpload: true,
-        }));
+        };
+        localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaForStorage));
+
+        // Save to Supabase so the trip appears in the dashboard and has a real ID
+        try {
+          const saveRes = await fetch('/api/trips/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tripMeta: {
+                destination,
+                title: destination,
+                startDate: meta.startDate || '',
+                endDate: meta.endDate || '',
+                groupType: 'friends',
+                groupSize: 1,
+                budget: 5000,
+                budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
+                bookedHotels: [],
+                bookedFlight: null,
+                preferences: { fromUpload: true },
+              },
+              itinerary: data.itinerary,
+            }),
+          });
+          if (saveRes.ok) {
+            const { tripId } = await saveRes.json();
+            setSavedTripId(tripId);
+            localStorage.setItem('currentTripId', tripId);
+          }
+        } catch {
+          // Silently fall back to localStorage-only if Supabase save fails
+        }
       } else {
         const trip = trips.find(t => t.id === selectedTripId);
         localStorage.setItem('generatedTripMeta', JSON.stringify({
-          destination: trip?.destination || meta.destination || 'Your Trip',
+          destination: trip?.destination || destination,
           startDate: trip?.startDate || meta.startDate || '',
           endDate: trip?.endDate || meta.endDate || '',
           budget: trip?.budgetTotal || 5000,
@@ -168,7 +203,8 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   };
 
   const handleNavigate = () => {
-    const tripId = tripChoice === 'existing' ? selectedTripId : 'trip_1';
+    // Use the real Supabase UUID if we saved it; fall back to existing trip ID or localStorage path
+    const tripId = savedTripId ?? (tripChoice === 'existing' ? selectedTripId : 'trip_1');
     router.push(`/trip/${tripId}/itinerary`);
     onClose();
   };

@@ -360,6 +360,7 @@ export default function ItineraryPage() {
   const [newActivityTrack, setNewActivityTrack] = useState<'shared' | 'track_a' | 'track_b'>('shared');
   const [newActivityIsRestaurant, setNewActivityIsRestaurant] = useState(false);
   const [newActivityIsPrivate, setNewActivityIsPrivate] = useState(false);
+  const [newActivityDay, setNewActivityDay] = useState(1);
 
   // Place enrichment state
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
@@ -408,6 +409,7 @@ export default function ItineraryPage() {
     setNewActivityTrack('shared');
     setNewActivityIsRestaurant(false);
     setNewActivityIsPrivate(false);
+    setNewActivityDay(selectedDay);
     setSelectedPlace(null);
     clearSearch();
     setShowSuggestions(false);
@@ -452,9 +454,11 @@ export default function ItineraryPage() {
       ? `${newActivityStartTime}–${newActivityStartTime}`
       : '12:00–13:00';
 
+    const targetDay = editingActivity ? newActivityDay : selectedDay;
+
     const savedActivity: Activity = {
-      id: editingActivity?.id ?? `act_d${selectedDay}_${Date.now()}`,
-      dayNumber: selectedDay,
+      id: editingActivity?.id ?? `act_d${targetDay}_${Date.now()}`,
+      dayNumber: targetDay,
       timeSlot,
       name: newActivityName,
       title: newActivityName,
@@ -474,10 +478,11 @@ export default function ItineraryPage() {
       googleVerified: !!selectedPlace,
     };
 
+    const isMoving = editingActivity && editingActivity.dayNumber !== targetDay;
+
     const updatedDays = (activeDays as typeof itineraryDays).map(day => {
-      if (day.day !== selectedDay) return day;
-      if (editingActivity) {
-        // Replace the existing activity in whichever track it lives in
+      if (editingActivity && !isMoving && day.day === targetDay) {
+        // Same-day edit: replace in place
         return {
           ...day,
           tracks: {
@@ -487,14 +492,28 @@ export default function ItineraryPage() {
           },
         };
       }
-      // Add as a new activity
-      return {
-        ...day,
-        tracks: {
-          ...day.tracks,
-          [newActivityTrack]: [...(day.tracks[newActivityTrack as keyof typeof day.tracks] as Activity[] ?? []), savedActivity],
-        },
-      };
+      if (isMoving && day.day === editingActivity!.dayNumber) {
+        // Remove from old day
+        return {
+          ...day,
+          tracks: {
+            shared: day.tracks.shared.filter((a: Activity) => a.id !== editingActivity!.id),
+            track_a: day.tracks.track_a.filter((a: Activity) => a.id !== editingActivity!.id),
+            track_b: day.tracks.track_b.filter((a: Activity) => a.id !== editingActivity!.id),
+          },
+        };
+      }
+      if (day.day === targetDay && (isMoving || !editingActivity)) {
+        // Add to target day (new activity or moved activity)
+        return {
+          ...day,
+          tracks: {
+            ...day.tracks,
+            [newActivityTrack]: [...(day.tracks[newActivityTrack as keyof typeof day.tracks] as Activity[] ?? []), savedActivity],
+          },
+        };
+      }
+      return day;
     });
 
     persistDays(updatedDays as typeof itineraryDays);
@@ -517,8 +536,9 @@ export default function ItineraryPage() {
     setNewActivityTrack((activity.track as 'shared' | 'track_a' | 'track_b') ?? 'shared');
     setNewActivityIsRestaurant(activity.isRestaurant ?? false);
     setNewActivityIsPrivate(activity.isPrivate ?? false);
+    setNewActivityDay(activity.dayNumber ?? selectedDay);
     setShowAddActivityModal(true);
-  }, []);
+  }, [selectedDay]);
 
   // ─── Delete activity ──────────────────────────────────────────────────────────
   const handleDeleteActivity = useCallback((activityId: string) => {
@@ -1381,6 +1401,31 @@ export default function ItineraryPage() {
                     placeholder="https://..."
                     className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
                   />
+                </div>
+              )}
+
+              {/* Day selector — only shown when editing an existing activity */}
+              {editingActivity && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
+                    Day
+                  </label>
+                  <select
+                    value={newActivityDay}
+                    onChange={e => setNewActivityDay(Number(e.target.value))}
+                    className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent bg-white"
+                  >
+                    {(activeDays as { day: number; date: string }[]).map(d => (
+                      <option key={d.day} value={d.day}>
+                        Day {d.day}{d.date ? ` — ${d.date}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {newActivityDay !== editingActivity.dayNumber && (
+                    <p className="mt-1.5 text-xs text-sky-600 font-medium">
+                      Activity will be moved from Day {editingActivity.dayNumber} → Day {newActivityDay}
+                    </p>
+                  )}
                 </div>
               )}
 
