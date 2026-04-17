@@ -44,7 +44,17 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   const router = useRouter();
 
   const mockTrip = trips.find(t => t.id === params.id);
-  const [aiMeta, setAiMeta] = useState<AiTripMeta | null>(null);
+
+  // Seed aiMeta from localStorage immediately so the header never flashes the Iceland mock title
+  const [aiMeta, setAiMeta] = useState<AiTripMeta | null>(() => {
+    if (mockTrip) return null; // mock trip handles its own data
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = localStorage.getItem('generatedTripMeta');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+
   const [inviteCopied, setInviteCopied] = useState(false);
 
   // Load trip meta: try Supabase first (for UUID trip IDs), then localStorage

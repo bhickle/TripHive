@@ -6,10 +6,17 @@ import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
   Filter, Users, Calendar
 } from 'lucide-react';
-import { tripPhotos, itineraryDays, groupMembers, trips } from '@/data/mock';
+import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, trips } from '@/data/mock';
+
+const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 import { Avatar } from '@/components/Avatar';
 
-export default function MemoriesPage() {
+export default function MemoriesPage({ params }: { params: { id: string } }) {
+  const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+  const tripPhotos = isMockTrip ? mockTripPhotos : [];
+  const itineraryDays = isMockTrip ? mockItineraryDays : [];
+  const groupMembers = isMockTrip ? mockGroupMembers : [];
+
   const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
   const [filterDay, setFilterDay] = useState<number | null>(null);
   const [filterPerson, setFilterPerson] = useState<string | null>(null);

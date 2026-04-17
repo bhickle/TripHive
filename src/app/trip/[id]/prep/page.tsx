@@ -2,7 +2,21 @@
 
 import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw } from 'lucide-react';
-import { prepTasks, packingItems, trips } from '@/data/mock';
+import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips } from '@/data/mock';
+
+const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+
+// Generic prep tasks for real/uploaded trips — no destination-specific references
+const genericPrepTasks = [
+  { id: 'prep_1', category: 'document', title: 'Check passport validity (6+ months required for most destinations)', completed: false },
+  { id: 'prep_2', category: 'document', title: 'Confirm visa requirements for your destination', completed: false },
+  { id: 'prep_3', category: 'document', title: 'Purchase travel insurance', completed: false, urgent: true },
+  { id: 'prep_4', category: 'document', title: 'Save copies of passport & bookings to phone/cloud', completed: false },
+  { id: 'prep_5', category: 'logistics', title: 'Notify your bank of travel dates', completed: false },
+  { id: 'prep_6', category: 'logistics', title: 'Check roaming / arrange a local SIM', completed: false },
+  { id: 'prep_7', category: 'logistics', title: 'Confirm accommodation check-in details', completed: false },
+  { id: 'prep_8', category: 'logistics', title: 'Download offline maps for your destination', completed: false },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +47,11 @@ interface PhrasebookData {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function PrepPage() {
+export default function PrepPage({ params }: { params: { id: string } }) {
+  const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+  const prepTasks = isMockTrip ? mockPrepTasks : genericPrepTasks;
+  const packingItems = isMockTrip ? mockPackingItems : [];
+
   const [activeTab, setActiveTab] = useState<'documents' | 'packing' | 'logistics' | 'phrases'>('documents');
   const [completedTasks, setCompletedTasks] = useState(new Set(prepTasks.filter(t => t.completed).map((t: PrepTask) => t.id)));
   const [packedItems, setPackedItems] = useState(new Set(packingItems.filter(p => p.packed).map((p: PackingItem) => p.id)));

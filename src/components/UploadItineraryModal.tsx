@@ -203,8 +203,10 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   };
 
   const handleNavigate = () => {
-    // Use the real Supabase UUID if we saved it; fall back to existing trip ID or localStorage path
-    const tripId = savedTripId ?? (tripChoice === 'existing' ? selectedTripId : 'trip_1');
+    // Use the real Supabase UUID if we saved it; fall back to existing trip ID.
+    // NEVER fall back to 'trip_1' — that loads the Iceland mock trip.
+    // 'upload_<ts>' is not a mock ID, so the layout reads destination from localStorage instead.
+    const tripId = savedTripId ?? (tripChoice === 'existing' ? selectedTripId : `upload_${Date.now()}`);
     router.push(`/trip/${tripId}/itinerary`);
     onClose();
   };

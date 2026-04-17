@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, MapPin, Star, Clock, Plus, AlertCircle, Check, ExternalLink } from 'lucide-react';
 
 interface DiscoverItem {
@@ -304,6 +304,9 @@ const categoryIcons: Record<DiscoverItem['category'], string> = {
 type FilterCategory = 'all' | DiscoverItem['category'];
 type SortOption = 'match' | 'rating' | 'price';
 
+// Mock trip IDs — these use the hardcoded Iceland discoverItems
+const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+
 export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<FilterCategory>('all');
@@ -317,8 +320,66 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [showDayPicker, setShowDayPicker] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
+  // For non-mock trips: fetch AI-generated destination recommendations
+  const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+  const [aiItems, setAiItems] = useState<DiscoverItem[] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiDestination, setAiDestination] = useState<string>('');
+
+  useEffect(() => {
+    if (isMockTrip) return;
+
+    // Read destination from localStorage (set by upload or new-trip flow)
+    const readDestination = async () => {
+      let destination = '';
+
+      // Try Supabase first for UUID trip IDs
+      const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
+      if (looksLikeUuid) {
+        try {
+          const res = await fetch(`/api/trips/${params.id}`);
+          if (res.ok) {
+            const { trip } = await res.json();
+            destination = trip.destination || '';
+          }
+        } catch { /* fall through */ }
+      }
+
+      // Fallback: localStorage
+      if (!destination) {
+        try {
+          const stored = localStorage.getItem('generatedTripMeta');
+          if (stored) destination = JSON.parse(stored).destination || '';
+        } catch { /* ignore */ }
+      }
+
+      if (!destination) return;
+      setAiDestination(destination);
+      setAiLoading(true);
+
+      try {
+        const res = await fetch('/api/generate-discover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ destination }),
+        });
+        if (res.ok) {
+          const { items } = await res.json();
+          setAiItems(items);
+        }
+      } catch { /* show empty state */ }
+
+      setAiLoading(false);
+    };
+
+    readDestination();
+  }, [isMockTrip, params.id]);
+
+  // Use AI items for non-mock trips; hardcoded items for mock/demo trips
+  const sourceItems: DiscoverItem[] = isMockTrip ? discoverItems : (aiItems ?? []);
+
   const filteredItems = useMemo(() => {
-    let items = discoverItems;
+    let items = sourceItems;
 
     if (activeCategory !== 'all') {
       items = items.filter(item => item.category === activeCategory);
@@ -352,7 +413,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     });
 
     return items;
-  }, [activeCategory, searchQuery, sortBy, bookableOnly]);
+  }, [activeCategory, searchQuery, sortBy, bookableOnly, sourceItems]);
 
   const toggleSavedItem = (id: string) => {
     const newSaved = new Set(savedItems);
@@ -416,8 +477,12 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           {/* Title + meta row */}
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="font-script italic text-xl font-semibold text-zinc-900">Discover Reykjavik</h2>
-              <p className="text-xs text-zinc-400 mt-0.5">Curated for your group · {filteredItems.length} results</p>
+              <h2 className="font-script italic text-xl font-semibold text-zinc-900">
+                {isMockTrip ? 'Discover Reykjavik' : `Discover ${aiDestination || '…'}`}
+              </h2>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {aiLoading ? 'Finding the best spots…' : `Curated for your group · ${filteredItems.length} results`}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <select
@@ -508,7 +573,25 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       {/* Main Content */}
       <div className="px-6 py-8">
         <div className="max-w-7xl mx-auto">
-          {filteredItems.length === 0 ? (
+          {/* Loading state while AI generates destination recommendations */}
+          {!isMockTrip && aiLoading && (
+            <div className="text-center py-20">
+              <div className="w-14 h-14 bg-sky-800 rounded-2xl flex items-center justify-center shadow-lg animate-pulse mx-auto mb-4">
+                <span className="text-white font-bold text-2xl">t</span>
+              </div>
+              <p className="text-sm font-semibold uppercase tracking-widest text-sky-700 mb-2">AI Recommendations</p>
+              <p className="text-lg font-bold text-zinc-900">Finding things to do in {aiDestination}…</p>
+              <p className="text-sm text-zinc-400 mt-1">Pulling local experiences, dining, and hidden gems</p>
+            </div>
+          )}
+          {!isMockTrip && !aiLoading && aiItems === null && (
+            <div className="text-center py-16">
+              <p className="text-3xl mb-3">🗺️</p>
+              <p className="text-zinc-700 font-semibold">No recommendations loaded yet.</p>
+              <p className="text-sm text-zinc-400 mt-1">Try navigating back to your itinerary and returning here.</p>
+            </div>
+          )}
+          {(isMockTrip || (!aiLoading && aiItems !== null)) && (filteredItems.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-2xl mb-2">🌵</p>
               <p className="text-zinc-600 font-semibold">Tumbleweeds. Try a different filter.</p>
@@ -726,7 +809,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                 ))}
               </div>
             </>
-          )}
+          ))}
 
           {/* Affiliate disclosure */}
           <div className="mt-12 pt-6 border-t border-zinc-200">

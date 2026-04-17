@@ -5,7 +5,9 @@ import { Avatar, AvatarStack } from '@/components/Avatar';
 import { ExpenseRow } from '@/components/ExpenseRow';
 import { VoteCard } from '@/components/VoteCard';
 import { ChatBubble } from '@/components/ChatBubble';
-import { groupMembers, expenses, groupVotes, messages } from '@/data/mock';
+import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes, messages as mockMessages } from '@/data/mock';
+
+const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 import {
   UserPlus,
   Send,
@@ -44,7 +46,12 @@ type ScannedReceipt = {
 
 const CHAT_STORAGE_KEY = 'tripcoord_chat_trip_1';
 
-export default function GroupPage() {
+export default function GroupPage({ params }: { params: { id: string } }) {
+  const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+  const groupMembers = isMockTrip ? mockGroupMembers : [mockGroupMembers[0]]; // only organizer for real trips
+  const expenses = isMockTrip ? mockExpenses : [];
+  const messages = isMockTrip ? mockMessages : [];
+
   const { canAddTraveler, getUpgradePrompt } = useEntitlements();
   const [showTravelerUpgrade, setShowTravelerUpgrade] = useState(false);
 
