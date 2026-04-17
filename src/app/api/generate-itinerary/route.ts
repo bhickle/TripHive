@@ -410,7 +410,7 @@ export async function POST(request: NextRequest) {
     });
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-5',
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [
@@ -488,7 +488,7 @@ export async function POST(request: NextRequest) {
     // "verified: true" placeholder values that Claude generates itself.
     // Example: await enrichWithGooglePlaces(itinerary, process.env.GOOGLE_MAPS_KEY);
 
-    return NextResponse.json({ itinerary, title, practicalNotes, hotelSuggestions, model: 'claude-opus-4-5' });
+    return NextResponse.json({ itinerary, title, practicalNotes, hotelSuggestions, model: 'claude-sonnet-4-5' });
 
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

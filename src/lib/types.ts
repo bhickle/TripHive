@@ -197,6 +197,12 @@ export interface Activity {
     distanceMiles: number;
     notes?: string | null;
   } | null;
+  /**
+   * When true this activity is private — only visible to the traveler who added it.
+   * Full enforcement requires auth (future); for now it's shown with a lock badge
+   * and marked in the data model so it's ready when auth is wired up.
+   */
+  isPrivate?: boolean;
 }
 
 export type TransportType = 'car_rental' | 'bus' | 'train' | 'excursion';

@@ -3,15 +3,29 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { ArrowRight, Sparkles, MapPin, Users } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function ComingSoonPage() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-    // TODO (Supabase): persist early-access emails to a waitlist table
+    setError('');
+
+    const supabase = createClient();
+    const { error: dbError } = await supabase
+      .from('waitlist')
+      .insert({ email: email.trim().toLowerCase() });
+
+    if (dbError && dbError.code !== '23505') {
+      // 23505 = unique violation (already signed up) — treat as success
+      setError('Something went wrong. Please try again.');
+      return;
+    }
+
     setSubmitted(true);
   };
 
@@ -91,6 +105,9 @@ export default function ComingSoonPage() {
           </div>
         )}
 
+        {error && (
+          <p className="text-xs text-red-500 mt-2">{error}</p>
+        )}
         <p className="text-xs text-slate-400 mt-4">
           No spam. Just one email when we go live.
         </p>

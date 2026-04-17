@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Lock, Apple, CheckCircle } from 'lucide-react';
+import { User, Mail, Lock, Apple } from 'lucide-react';
 import { useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -12,15 +13,52 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreedToTerms) return;
     setIsLoading(true);
-    setTimeout(() => {
-      router.push('/onboarding');
-    }, 1200);
+    setError('');
+
+    const supabase = createClient();
+
+    // Create the Supabase auth user
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        // Pass name so the DB trigger can populate the profiles row
+        data: { full_name: name.trim() },
+      },
+    });
+
+    if (signUpError) {
+      setError(signUpError.message);
+      setIsLoading(false);
+      return;
+    }
+
+    // Update the profile name immediately (the trigger sets it from metadata,
+    // but let's ensure it's written even if the trigger runs later)
+    if (data.user) {
+      await supabase
+        .from('profiles')
+        .update({ name: name.trim() })
+        .eq('id', data.user.id);
+    }
+
+    router.push('/onboarding');
+    router.refresh();
+  };
+
+  const handleGoogleSignup = async () => {
+    const supabase = createClient();
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
   };
 
   return (
@@ -37,6 +75,13 @@ export default function SignupPage() {
             Create your account
           </h1>
           <p className="text-slate-600 mb-8">Join thousands of travelers planning amazing trips together</p>
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -93,6 +138,7 @@ export default function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="input-field pl-10"
                   required
+                  minLength={8}
                 />
               </div>
               <p className="text-xs text-slate-500 mt-2">At least 8 characters recommended</p>
@@ -108,7 +154,7 @@ export default function SignupPage() {
                 required
               />
               <span className="text-sm text-slate-600">
-                I agree to tripcoord's{' '}
+                I agree to tripcoord&apos;s{' '}
                 <a href="#" className="font-medium text-sky-700 hover:text-sky-800">
                   Terms of Service
                 </a>{' '}
@@ -141,7 +187,10 @@ export default function SignupPage() {
 
           {/* Social Buttons */}
           <div className="grid grid-cols-2 gap-4 mb-8">
-            <button className="btn-outline flex items-center justify-center gap-2">
+            <button
+              onClick={handleGoogleSignup}
+              className="btn-outline flex items-center justify-center gap-2"
+            >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#1F2937"/>
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -150,7 +199,7 @@ export default function SignupPage() {
               </svg>
               <span className="text-sm font-medium">Google</span>
             </button>
-            <button className="btn-outline flex items-center justify-center gap-2">
+            <button className="btn-outline flex items-center justify-center gap-2" disabled>
               <Apple className="w-5 h-5" />
               <span className="text-sm font-medium">Apple</span>
             </button>

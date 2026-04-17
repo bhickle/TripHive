@@ -438,26 +438,60 @@ function TripBuilderPage() {
         throw new Error(data.message || 'Generation failed');
       }
 
-      // Store generated itinerary for the itinerary page to pick up
-      localStorage.setItem('generatedItinerary', JSON.stringify(data.itinerary));
-      localStorage.setItem('generatedTripMeta', JSON.stringify({
+      // Build the meta object for both localStorage (fallback) and Supabase
+      const tripMeta = {
         destination: state.destination,
         startDate: state.startDate,
         endDate: state.endDate,
         groupType: state.groupType,
+        groupSize: state.groupSize,
         budget: state.budget,
         budgetBreakdown: state.budgetBreakdown,
-        // Pre-booked hotels (for "Where to Stay" card on itinerary page)
         bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
-        // AI-generated trip title, practical notes, and hotel suggestions (when no hotel pre-booked)
+        bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
+        preferences: {
+          priorities: state.priorities,
+          modality: state.modality,
+          accommodationType: state.accommodationType,
+          localMode: state.localMode,
+          curiosityLevel: state.curiosityLevel,
+          ageRanges: state.ageRanges,
+          accessibilityNeeds: state.accessibilityNeeds,
+        },
         title: data.title || null,
         practicalNotes: data.practicalNotes || null,
         hotelSuggestions: data.hotelSuggestions || null,
-      }));
+      };
+
+      // Always write to localStorage as a fallback
+      localStorage.setItem('generatedItinerary', JSON.stringify(data.itinerary));
+      localStorage.setItem('generatedTripMeta', JSON.stringify(tripMeta));
+
+      setGenerationStatus('Saving your trip…');
+
+      // Try to persist to Supabase and get a real trip ID
+      let tripId = 'trip_1'; // fallback to demo ID if Supabase save fails
+      try {
+        const saveRes = await fetch('/api/trips/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripMeta, itinerary: data.itinerary }),
+        });
+        if (saveRes.ok) {
+          const saveData = await saveRes.json();
+          if (saveData.tripId) {
+            tripId = saveData.tripId;
+            // Store the Supabase trip ID so other pages can reference it
+            localStorage.setItem('currentTripId', tripId);
+          }
+        }
+      } catch {
+        // Supabase save failed — localStorage fallback is already set, continue
+      }
 
       setGenerationStatus('Your itinerary is ready ✦');
       await new Promise(r => setTimeout(r, 700));
-      router.push('/trip/trip_1/itinerary');
+      router.push(`/trip/${tripId}/itinerary`);
 
     } catch (err) {
       clearInterval(msgInterval);

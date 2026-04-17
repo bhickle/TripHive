@@ -48,16 +48,36 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
 
   // ── File reading ──────────────────────────────────────────────────────────
 
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+
   const readFile = useCallback((file: File) => {
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      setRawText(text || '');
-      setShowPasteArea(false);
-    };
-    reader.onerror = () => setErrorMsg('Could not read file. Try pasting the text instead.');
-    reader.readAsText(file);
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (isPdf) {
+      // Read PDF as base64 — Claude will extract the text server-side
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        // result is "data:application/pdf;base64,XXXXXXX" — strip the prefix
+        const base64 = result.split(',')[1];
+        setPdfBase64(base64);
+        setRawText('__PDF__'); // sentinel so the CTA enables
+        setShowPasteArea(false);
+      };
+      reader.onerror = () => setErrorMsg('Could not read PDF. Try opening it and copying the text instead.');
+      reader.readAsDataURL(file);
+    } else {
+      setPdfBase64(null);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setRawText(text || '');
+        setShowPasteArea(false);
+      };
+      reader.onerror = () => setErrorMsg('Could not read file. Try pasting the text instead.');
+      reader.readAsText(file);
+    }
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,10 +110,14 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
     }, 1800);
 
     try {
+      const body = pdfBase64
+        ? { pdfBase64, fileName }
+        : { text: rawText };
+
       const res = await fetch('/api/parse-itinerary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText }),
+        body: JSON.stringify(body),
       });
 
       clearInterval(interval);
@@ -198,7 +222,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".txt,.md,.csv,.text"
+                    accept=".pdf,.txt,.md,.csv,.text"
                     onChange={handleFileChange}
                     className="hidden"
                   />
@@ -222,7 +246,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                         <FileText className="w-6 h-6 text-zinc-400" />
                       </div>
                       <p className="font-semibold text-zinc-700">Drop your itinerary file here</p>
-                      <p className="text-xs text-zinc-400">or click to browse · .txt or .md files</p>
+                      <p className="text-xs text-zinc-400">or click to browse · PDF, .txt, or .md</p>
                     </div>
                   )}
                 </div>
@@ -328,7 +352,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
               {/* CTA */}
               <button
                 onClick={handleProcess}
-                disabled={!rawText.trim()}
+                disabled={!rawText.trim() && !pdfBase64}
                 className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-full transition-all"
               >
                 <Sparkles className="w-4 h-4" />

@@ -293,25 +293,58 @@ export default function ItineraryPage() {
   const [showAiBanner, setShowAiBanner] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('generatedItinerary');
-      const meta = localStorage.getItem('generatedTripMeta');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAiDays(parsed);
-          setShowAiBanner(true);
-          if (meta) setAiMeta(JSON.parse(meta));
+    const load = async () => {
+      // Try Supabase first if we have a stored trip ID that looks like a UUID
+      const storedTripId = typeof window !== 'undefined'
+        ? localStorage.getItem('currentTripId')
+        : null;
+      const looksLikeUuid = storedTripId && /^[0-9a-f-]{36}$/i.test(storedTripId);
+
+      if (looksLikeUuid) {
+        try {
+          const res = await fetch(`/api/trips/${storedTripId}`);
+          if (res.ok) {
+            const { itinerary } = await res.json();
+            if (Array.isArray(itinerary.days) && itinerary.days.length > 0) {
+              setAiDays(itinerary.days);
+              setShowAiBanner(true);
+              if (itinerary.meta) setAiMeta(itinerary.meta);
+              // Keep localStorage in sync as a fallback
+              try {
+                localStorage.setItem('generatedItinerary', JSON.stringify(itinerary.days));
+                localStorage.setItem('generatedTripMeta', JSON.stringify(itinerary.meta));
+              } catch { /* ignore */ }
+              return;
+            }
+          }
+        } catch {
+          // Supabase load failed — fall through to localStorage
         }
       }
-    } catch {
-      // localStorage unavailable or invalid JSON — use mock data
-    }
+
+      // localStorage fallback
+      try {
+        const stored = localStorage.getItem('generatedItinerary');
+        const meta = localStorage.getItem('generatedTripMeta');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setAiDays(parsed);
+            setShowAiBanner(true);
+            if (meta) setAiMeta(JSON.parse(meta));
+          }
+        }
+      } catch {
+        // localStorage unavailable or invalid JSON — use mock data
+      }
+    };
+    load();
   }, []);
 
   const clearAiItinerary = useCallback(() => {
     localStorage.removeItem('generatedItinerary');
     localStorage.removeItem('generatedTripMeta');
+    localStorage.removeItem('currentTripId');
     setAiDays(null);
     setAiMeta(null);
     setShowAiBanner(false);
@@ -326,6 +359,7 @@ export default function ItineraryPage() {
   const [newActivityEndTime, setNewActivityEndTime] = useState('');
   const [newActivityTrack, setNewActivityTrack] = useState<'shared' | 'track_a' | 'track_b'>('shared');
   const [newActivityIsRestaurant, setNewActivityIsRestaurant] = useState(false);
+  const [newActivityIsPrivate, setNewActivityIsPrivate] = useState(false);
 
   // Place enrichment state
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
@@ -373,6 +407,7 @@ export default function ItineraryPage() {
     setNewActivityEndTime('');
     setNewActivityTrack('shared');
     setNewActivityIsRestaurant(false);
+    setNewActivityIsPrivate(false);
     setSelectedPlace(null);
     clearSearch();
     setShowSuggestions(false);
@@ -393,10 +428,20 @@ export default function ItineraryPage() {
     : (trips.find(t => t.id === 'trip_1') || trips[0]);
   const currentDayData = activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0];
 
-  // ─── Persist updated days to state + localStorage ────────────────────────────
+  // ─── Persist updated days to state + localStorage + Supabase ─────────────────
   const persistDays = useCallback((updated: typeof itineraryDays) => {
     setAiDays(updated);
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
+
+    // Fire-and-forget sync to Supabase if we have a real trip ID
+    const tripId = typeof window !== 'undefined' ? localStorage.getItem('currentTripId') : null;
+    if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
+      fetch(`/api/trips/${tripId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: updated }),
+      }).catch(() => { /* non-critical — localStorage is the source of truth */ });
+    }
   }, []);
 
   // ─── Save activity (add new or update existing) ──────────────────────────────
@@ -416,6 +461,7 @@ export default function ItineraryPage() {
       address: newActivityAddress || undefined,
       website: newActivityWebsite || undefined,
       isRestaurant: newActivityIsRestaurant,
+      isPrivate: newActivityIsPrivate,
       track: newActivityTrack,
       priceLevel: selectedPlace?.priceLevel ?? (newActivityIsRestaurant ? 2 : 1),
       description: '',
@@ -470,6 +516,7 @@ export default function ItineraryPage() {
     setNewActivityEndTime(end?.trim() ?? '');
     setNewActivityTrack((activity.track as 'shared' | 'track_a' | 'track_b') ?? 'shared');
     setNewActivityIsRestaurant(activity.isRestaurant ?? false);
+    setNewActivityIsPrivate(activity.isPrivate ?? false);
     setShowAddActivityModal(true);
   }, []);
 
@@ -539,13 +586,26 @@ export default function ItineraryPage() {
   // activeDays / trip / currentDayData declared earlier (above persistDays) so callbacks can use them
 
   const weatherData: Record<number, { icon: React.ReactNode; temp: number; condition: string }> = {
-    1: { icon: <Cloud className="w-8 h-8" />, temp: 12, condition: 'Partly Cloudy' },
-    2: { icon: <Sun className="w-8 h-8" />, temp: 14, condition: 'Sunny' },
-    3: { icon: <CloudRain className="w-8 h-8" />, temp: 10, condition: 'Rainy' },
-    4: { icon: <Cloud className="w-8 h-8" />, temp: 11, condition: 'Overcast' },
-    5: { icon: <Wind className="w-8 h-8" />, temp: 9, condition: 'Windy' },
+    1: { icon: <Cloud className="w-8 h-8" />, temp: 54, condition: 'Partly Cloudy' },
+    2: { icon: <Sun className="w-8 h-8" />, temp: 57, condition: 'Sunny' },
+    3: { icon: <CloudRain className="w-8 h-8" />, temp: 50, condition: 'Rainy' },
+    4: { icon: <Cloud className="w-8 h-8" />, temp: 52, condition: 'Overcast' },
+    5: { icon: <Wind className="w-8 h-8" />, temp: 48, condition: 'Windy' },
   };
   const weather = weatherData[selectedDay] || weatherData[1];
+
+  // Show "Weather Today" only during the week of the trip; otherwise "Avg. Weather"
+  const weatherLabel = (() => {
+    const tripStart = aiMeta?.startDate ? new Date(aiMeta.startDate) : null;
+    const tripEnd = aiMeta?.endDate ? new Date(aiMeta.endDate) : null;
+    if (!tripStart) return 'Avg. Weather';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfTripWeek = new Date(tripStart);
+    startOfTripWeek.setDate(startOfTripWeek.getDate() - 7);
+    const isWithinTripWindow = today >= startOfTripWeek && (!tripEnd || today <= tripEnd);
+    return isWithinTripWindow ? 'Weather Today' : 'Avg. Weather';
+  })();
 
   const hasTrackA = currentDayData.tracks.track_a.length > 0;
   const hasTrackB = currentDayData.tracks.track_b.length > 0;
@@ -848,10 +908,15 @@ export default function ItineraryPage() {
 
                         {/* Activity Card */}
                         <div className="flex-1 pb-2">
-                          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card">
+                          <div className={`bg-white rounded-2xl border shadow-sm p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card ${activity.isPrivate ? 'border-amber-200 bg-amber-50/40' : 'border-zinc-100'}`}>
                             <div className="flex items-start justify-between mb-2 gap-2">
-                              <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1">
+                              <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1 flex items-center gap-1.5">
                                 {activity.name || activity.title}
+                                {activity.isPrivate && (
+                                  <span title="Private — only visible to you" className="inline-flex items-center justify-center w-4 h-4 bg-amber-100 rounded-full flex-shrink-0">
+                                    🔒
+                                  </span>
+                                )}
                               </h3>
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 {/* Edit button */}
@@ -1022,11 +1087,11 @@ export default function ItineraryPage() {
           <aside className="w-full lg:w-72 flex flex-col gap-5">
             {/* Weather Card */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">Weather Today</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">{weatherLabel}</p>
               <div className="flex items-center justify-between">
                 <div className="text-sky-700">{weather.icon}</div>
                 <div className="text-right">
-                  <p className="text-3xl font-script italic font-semibold text-zinc-900">{weather.temp}°C</p>
+                  <p className="text-3xl font-script italic font-semibold text-zinc-900">{weather.temp}°F</p>
                   <p className="text-xs text-zinc-500 mt-1">{weather.condition}</p>
                 </div>
               </div>
@@ -1281,6 +1346,24 @@ export default function ItineraryPage() {
                 >
                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${
                     newActivityIsRestaurant ? 'left-6' : 'left-1'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Private toggle */}
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-sm font-medium text-zinc-800">Private (only visible to me)</p>
+                  <p className="text-xs text-zinc-400">Other group members won't see this activity</p>
+                </div>
+                <button
+                  onClick={() => setNewActivityIsPrivate(!newActivityIsPrivate)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    newActivityIsPrivate ? 'bg-amber-500' : 'bg-zinc-200'
+                  }`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                    newActivityIsPrivate ? 'left-6' : 'left-1'
                   }`} />
                 </button>
               </div>

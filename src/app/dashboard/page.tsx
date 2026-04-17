@@ -342,6 +342,31 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* CTA Buttons — above stats bar */}
+          <div className="flex items-center gap-3 mb-6 flex-wrap">
+            <Link
+              href="/trip/new"
+              className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Let's Go →
+            </Link>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-sky-300 hover:text-sky-800 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
+            >
+              <Upload className="w-4 h-4" />
+              Already Planned?
+            </button>
+            <Link
+              href="/layover"
+              className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
+            >
+              <Plane className="w-4 h-4" />
+              Layover Planner
+            </Link>
+          </div>
+
           {/* Stats Bar - Clean horizontal row */}
           <div className="grid grid-cols-3 gap-3 md:gap-6 mb-12">
             {/* Trips Card */}
@@ -376,31 +401,6 @@ export default function DashboardPage() {
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Days Out There</p>
             </div>
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="flex items-center gap-3 mb-8 flex-wrap">
-            <Link
-              href="/trip/new"
-              className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Let's Go →
-            </Link>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-sky-300 hover:text-sky-800 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
-            >
-              <Upload className="w-4 h-4" />
-              Already Planned?
-            </button>
-            <Link
-              href="/layover"
-              className="inline-flex items-center gap-2 bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold px-5 py-2.5 rounded-full shadow-sm transition-all"
-            >
-              <Plane className="w-4 h-4" />
-              Layover Planner
-            </Link>
           </div>
 
           {/* Active Trips Section */}

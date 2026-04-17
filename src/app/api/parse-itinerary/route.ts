@@ -10,14 +10,10 @@ You preserve ALL activities, times, venues, addresses, and notes from the source
 Return ONLY valid JSON — no markdown, no explanation, no code fences.`;
 
 function buildParsePrompt(rawText: string) {
-  return `Parse the following itinerary text into a structured JSON format.
-
-RAW ITINERARY TEXT:
----
-${rawText.slice(0, 12000)}
----
-
-Return a JSON array of day objects. Each day must follow this exact structure:
+  const textSection = rawText.trim()
+    ? `RAW ITINERARY TEXT:\n---\n${rawText.slice(0, 12000)}\n---\n\n`
+    : '';
+  return `Parse the ${rawText.trim() ? 'following itinerary text' : 'itinerary in the attached document'} into a structured JSON format.\n\n${textSection}Return a JSON array of day objects. Each day must follow this exact structure:
 {
   "day": <number>,
   "date": "<YYYY-MM-DD or best guess>",
@@ -62,9 +58,11 @@ Return the response as:
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { text } = body;
+  const { text, pdfBase64, fileName } = body;
 
-  if (!text || text.trim().length < 50) {
+  const isPdf = !!pdfBase64;
+
+  if (!isPdf && (!text || text.trim().length < 50 || text === '__PDF__')) {
     return NextResponse.json({ error: 'TOO_SHORT', message: 'Not enough text to parse an itinerary.' }, { status: 400 });
   }
 
@@ -73,12 +71,38 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Build message content — native PDF document for PDFs, text prompt for everything else
+    type MessageParam = Parameters<typeof client.messages.create>[0]['messages'][number];
+    const userMessage: MessageParam = isPdf
+      ? {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: pdfBase64,
+              },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
+            {
+              type: 'text',
+              text: `This is the itinerary PDF${fileName ? ` (${fileName})` : ''}. ${buildParsePrompt('')}`,
+            },
+          ],
+        }
+      : {
+          role: 'user',
+          content: buildParsePrompt(text),
+        };
+
     const response = await client.messages.create({
       model: 'claude-opus-4-5',
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [
-        { role: 'user', content: buildParsePrompt(text) },
+        userMessage,
         { role: 'assistant', content: '{' },
       ],
     });

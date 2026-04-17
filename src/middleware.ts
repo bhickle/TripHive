@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { updateSession } from '@/lib/supabase/middleware';
 
 const PREVIEW_COOKIE = 'tc_preview';
 // Set PREVIEW_SECRET in your Vercel environment variables to override this default
 const PREVIEW_SECRET = process.env.PREVIEW_SECRET || 'tc2026';
 
-export function middleware(request: NextRequest) {
+// Routes that require the user to be logged in (once auth is fully wired)
+// For now these are gated only by the preview cookie; expand this list later.
+const PROTECTED_PREFIXES = ['/trip', '/dashboard'];
+
+export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
   // ── Always allow: API routes, Next.js internals, and static assets ──
@@ -40,12 +45,28 @@ export function middleware(request: NextRequest) {
 
   // ── Check for existing bypass cookie ──
   const hasCookie = request.cookies.get(PREVIEW_COOKIE)?.value === '1';
-  if (hasCookie) {
-    return NextResponse.next();
+  if (!hasCookie) {
+    // No access → redirect to coming soon
+    return NextResponse.redirect(new URL('/coming-soon', request.url));
   }
 
-  // ── No access → redirect to coming soon ──
-  return NextResponse.redirect(new URL('/coming-soon', request.url));
+  // ── Refresh Supabase session (keeps auth tokens alive) ──
+  // This also returns the current user so we can guard protected routes.
+  const { supabaseResponse } = await updateSession(request);
+
+  // TODO: Once auth is the primary gate (not just preview cookie), uncomment
+  // the block below to redirect unauthenticated users to /auth/login:
+  //
+  // const isProtected = PROTECTED_PREFIXES.some(p => pathname.startsWith(p));
+  // const isAuthPage = pathname.startsWith('/auth/');
+  // if (isProtected && !user && !isAuthPage) {
+  //   return NextResponse.redirect(new URL('/auth/login', request.url));
+  // }
+  // if (isAuthPage && user) {
+  //   return NextResponse.redirect(new URL('/dashboard', request.url));
+  // }
+
+  return supabaseResponse;
 }
 
 export const config = {

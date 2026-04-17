@@ -47,17 +47,38 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   const [aiMeta, setAiMeta] = useState<AiTripMeta | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
-  // Load AI-generated trip meta from localStorage (for trips created via the builder)
+  // Load trip meta: try Supabase first (for UUID trip IDs), then localStorage
   useEffect(() => {
-    if (!mockTrip) {
+    if (mockTrip) return; // mock trip found — no need to fetch
+
+    const load = async () => {
+      const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
+      if (looksLikeUuid) {
+        try {
+          const res = await fetch(`/api/trips/${params.id}`);
+          if (res.ok) {
+            const { trip, itinerary } = await res.json();
+            setAiMeta({
+              destination: trip.destination,
+              title: trip.title,
+              startDate: trip.start_date,
+              endDate: trip.end_date,
+              practicalNotes: itinerary?.meta?.practicalNotes ?? null,
+            });
+            return;
+          }
+        } catch { /* fall through */ }
+      }
+
+      // localStorage fallback
       try {
         const stored = localStorage.getItem('generatedTripMeta');
         if (stored) setAiMeta(JSON.parse(stored));
-      } catch {
-        // ignore
-      }
-    }
-  }, [mockTrip]);
+      } catch { /* ignore */ }
+    };
+
+    load();
+  }, [mockTrip, params.id]);
 
   // Build the trip object: prefer AI meta for destination/title when no mock trip matches
   const trip = mockTrip ?? (() => {
