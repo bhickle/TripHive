@@ -6,10 +6,10 @@ import { trips } from '@/data/mock';
 import {
   X, Upload, FileText, Loader2, CheckCircle2,
   PlusCircle, ChevronRight, ChevronLeft, AlertCircle,
-  Sparkles,
+  Sparkles, Anchor, Ship,
 } from 'lucide-react';
 
-type Step = 'upload' | 'trip-choice' | 'processing' | 'done' | 'error';
+type Step = 'upload' | 'trip-choice' | 'processing' | 'cruise-check' | 'done' | 'error';
 type TripChoice = 'new' | 'existing';
 
 // Destination → Unsplash cover image lookup
@@ -78,6 +78,8 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   const [errorMsg, setErrorMsg] = useState('');
   const [showPasteArea, setShowPasteArea] = useState(false);
   const [savedTripId, setSavedTripId] = useState<string | null>(null);
+  const [isCruise, setIsCruise] = useState<boolean | null>(null);
+  const [cruiseLine, setCruiseLine] = useState('');
 
   // ── File reading ──────────────────────────────────────────────────────────
 
@@ -251,12 +253,37 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
         }));
       }
 
-      setStep('done');
+      setStep('cruise-check');
     } catch (err) {
       clearInterval(interval);
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.');
       setStep('error');
     }
+  };
+
+  // ── Cruise confirmation ───────────────────────────────────────────────────
+
+  const handleCruiseConfirm = (isACruise: boolean) => {
+    setIsCruise(isACruise);
+    if (!isACruise) {
+      // Not a cruise — update meta and proceed straight to done
+      updateMetaWithCruise(false, '');
+      setStep('done');
+    }
+    // If cruise, stay on cruise-check to collect cruise line
+  };
+
+  const handleCruiseLineConfirm = () => {
+    updateMetaWithCruise(true, cruiseLine.trim());
+    setStep('done');
+  };
+
+  const updateMetaWithCruise = (isACruise: boolean, line: string) => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('generatedTripMeta') || '{}');
+      const updated = { ...existing, isCruise: isACruise, cruiseLine: line };
+      localStorage.setItem('generatedTripMeta', JSON.stringify(updated));
+    } catch { /* non-fatal */ }
   };
 
   const handleNavigate = () => {
@@ -476,6 +503,89 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
             </div>
           )}
 
+          {/* ── Step: Cruise Check ── */}
+          {step === 'cruise-check' && (
+            <div className="py-6 flex flex-col gap-6">
+              {/* Header */}
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="w-14 h-14 bg-sky-100 rounded-full flex items-center justify-center">
+                  <Anchor className="w-7 h-7 text-sky-700" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-zinc-900">One quick question</p>
+                  {parsedMeta?.destination && (
+                    <p className="text-sm text-zinc-400 mt-0.5">
+                      {parsedMeta.destination}{parsedMeta.tripLength ? ` · ${parsedMeta.tripLength} days` : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Yes / No */}
+              {isCruise === null && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-zinc-700 text-center">Is this a cruise?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleCruiseConfirm(true)}
+                      className="flex flex-col items-center gap-2 p-5 rounded-2xl border-2 border-zinc-200 hover:border-sky-400 hover:bg-sky-50 transition-all"
+                    >
+                      <Ship className="w-7 h-7 text-sky-600" />
+                      <span className="font-semibold text-zinc-800 text-sm">Yes, it&apos;s a cruise</span>
+                    </button>
+                    <button
+                      onClick={() => handleCruiseConfirm(false)}
+                      className="flex flex-col items-center gap-2 p-5 rounded-2xl border-2 border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all"
+                    >
+                      <span className="text-3xl">🏨</span>
+                      <span className="font-semibold text-zinc-800 text-sm">No, land trip</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Cruise line input (shown after user picks Yes) */}
+              {isCruise === true && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl">
+                    <Ship className="w-4 h-4 text-sky-600 flex-shrink-0" />
+                    <span className="text-sm text-sky-800 font-medium">Cruise itinerary — port stops detected ⚓</span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">Which cruise line?</label>
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="e.g. Royal Caribbean, Carnival, Norwegian…"
+                      value={cruiseLine}
+                      onChange={e => setCruiseLine(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleCruiseLineConfirm()}
+                      className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                    />
+                    <p className="text-xs text-zinc-400 mt-1.5">
+                      AI will suggest activities within walking distance of each port terminal.
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setIsCruise(null)}
+                      className="px-5 py-3 border border-zinc-200 text-zinc-600 font-semibold rounded-full hover:bg-zinc-50 transition-colors text-sm"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={handleCruiseLineConfirm}
+                      className="flex-1 flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black text-white font-semibold py-3 rounded-full transition-colors text-sm"
+                    >
+                      Continue to my trip
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Step: Done ── */}
           {step === 'done' && (
             <div className="py-6 flex flex-col items-center text-center gap-5">
@@ -488,6 +598,11 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   <p className="text-sm text-zinc-500">
                     Parsed <span className="font-semibold text-zinc-700">{parsedMeta.destination}</span>
                     {parsedMeta.tripLength ? ` · ${parsedMeta.tripLength} days` : ''}
+                  </p>
+                )}
+                {isCruise && cruiseLine && (
+                  <p className="text-xs text-sky-700 font-medium mt-1 flex items-center justify-center gap-1">
+                    <Ship className="w-3 h-3" /> {cruiseLine} cruise · port-stop mode active
                   </p>
                 )}
                 <p className="text-xs text-zinc-400 mt-1">

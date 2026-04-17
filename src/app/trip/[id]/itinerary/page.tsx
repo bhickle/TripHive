@@ -280,6 +280,7 @@ export default function ItineraryPage() {
   const [aiMeta, setAiMeta] = useState<{
     destination?: string; startDate?: string; endDate?: string;
     budget?: number; budgetBreakdown?: Record<string, number>;
+    isCruise?: boolean; cruiseLine?: string;
     bookedHotels?: Array<{ name: string; address?: string; checkIn?: string; checkOut?: string }>;
     hotelSuggestions?: Array<{
       name: string; address?: string; neighborhood?: string;
@@ -577,6 +578,8 @@ export default function ItineraryPage() {
           track: activity.track,
           budget: aiMeta?.budget,
           budgetBreakdown: aiMeta?.budgetBreakdown,
+          isCruise: aiMeta?.isCruise ?? false,
+          cruiseLine: aiMeta?.cruiseLine ?? '',
         }),
       });
       const data = await res.json();

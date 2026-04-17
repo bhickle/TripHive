@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
       track,
       budget,
       budgetBreakdown,
+      isCruise,
+      cruiseLine,
     } = body;
 
     // Build a focused prompt for a single replacement activity
@@ -36,6 +38,11 @@ export async function POST(request: NextRequest) {
       ? `Total trip budget: $${budget}.`
       : '';
 
+    // Cruise port context: activities must be walkable from the terminal
+    const cruiseContext = isCruise
+      ? `\nCRUISE PORT STOP: This is a ${cruiseLine ? cruiseLine + ' ' : ''}cruise itinerary. The ship docks at the port in ${destination}. All suggested activities MUST be within easy walking distance of the cruise ship terminal (typically 0–1 mile / 0–1.5 km). Do NOT suggest activities that require a lengthy drive or taxi across the city — cruisers have limited time ashore and must return before all-aboard.`
+      : '';
+
     const prompt = `You are a travel planner suggesting a single replacement ${isRestaurant ? 'restaurant' : 'activity'} for a trip itinerary.
 
 CONTEXT:
@@ -44,14 +51,27 @@ CONTEXT:
 - The user didn't like: "${existingActivityName}"
 - ${mealContext}
 - Track: ${track}
-- ${budgetContext}
+- ${budgetContext}${cruiseContext}
 
 Suggest ONE different ${isRestaurant ? 'restaurant' : 'activity'} that:
-${isRestaurant ? `- Is a real, named establishment in ${destination}
+${isCruise
+  ? isRestaurant
+    ? `- Is a real, named restaurant or café within easy walking distance of the ${destination} cruise terminal
+- Is the kind of place cruisers can enjoy and still make it back in time
+- Is highly regarded — a waterfront favorite, local institution, or well-known spot near the port
+- Fits the budget tier
+- Is NOT "${existingActivityName}" or a very similar venue`
+    : `- Is a real venue or experience within easy walking distance of the ${destination} cruise terminal
+- Is something cruisers can enjoy with limited time ashore
+- Is genuinely different from "${existingActivityName}"
+- Is interesting and accessible from the port`
+  : isRestaurant
+    ? `- Is a real, named establishment in ${destination}
 - Is geographically convenient for the ${mealType ?? 'meal'} time slot
 - Is highly regarded — a local institution, award-winning, or a neighborhood favorite
 - Fits the budget tier
-- Is NOT "${existingActivityName}" or a very similar venue` : `- Is a real venue or experience in ${destination}
+- Is NOT "${existingActivityName}" or a very similar venue`
+    : `- Is a real venue or experience in ${destination}
 - Fits the time slot naturally
 - Is genuinely different from "${existingActivityName}"
 - Is interesting and worth including`}
