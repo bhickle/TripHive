@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * GET /api/trips/[id]
@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Load trip row
     const { data: trip, error: tripError } = await supabase
@@ -55,7 +55,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'days must be an array' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     const { error } = await supabase
       .from('itineraries')
@@ -63,7 +63,7 @@ export async function PATCH(
       .eq('trip_id', params.id);
 
     if (error) {
-      console.error('Itinerary update error:', error);
+      console.error('Itinerary update error:', JSON.stringify(error));
       return NextResponse.json({ error: 'Failed to update itinerary' }, { status: 500 });
     }
 

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/trips/save
  * Persists a newly generated trip + itinerary to Supabase.
  * Returns the Supabase trip ID so the client can navigate to /trip/[id]/itinerary.
+ *
+ * Uses the admin (service role) client for DB writes to avoid RLS/cookie issues.
+ * Uses the cookie-based client only to identify the current user.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -30,15 +34,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    // Identify the current user (cookie-based auth) — optional, anon saves are allowed
+    let userId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      userId = user?.id ?? null;
+    } catch {
+      // If auth check fails, proceed as anonymous
+    }
 
-    // Get the current user (null if not logged in — that's OK for now)
-    const { data: { user } } = await supabase.auth.getUser();
+    // All DB writes use the admin client (bypasses RLS, no cookie dependency)
+    const supabase = createAdminClient();
 
     // ── 1. Insert the trip row ────────────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tripInsert: any = {
-      organizer_id: user?.id ?? null,
+      organizer_id: userId,
       // title is NOT NULL — fall back to 'My Trip' if AI didn't return one
       title: tripMeta.title || 'My Trip',
       destination: tripMeta.destination,
