@@ -65,7 +65,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [newPackCategory, setNewPackCategory] = useState('Clothing');
 
   // Phrases tab state
-  const [phrasebook, setPhrasebook] = useState<PhrasebookData | null>(null);
+  const [phrasebooks, setPhrasebooks] = useState<PhrasebookData[]>([]);
+  const [activePhrasebook, setActivePhrasebook] = useState(0);
   const [phrasesLoading, setPhrasesLoading] = useState(false);
   const [phrasesError, setPhrasesError] = useState<string | null>(null);
   const [expandedPhraseCategories, setExpandedPhraseCategories] = useState<Set<string>>(new Set(['greetings']));
@@ -73,7 +74,24 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
   const documentTasks = prepTasks.filter((t: PrepTask) => t.category === 'document');
   const logisticsTasks = prepTasks.filter((t: PrepTask) => t.category === 'logistics');
-  const tripDestination = trips[0]?.destination ?? 'Iceland';
+
+  // Read trip destination from localStorage for real trips; fall back to mock for demo
+  const tripDestination = (() => {
+    if (isMockTrip) return trips[0]?.destination ?? 'Iceland';
+    try {
+      const stored = localStorage.getItem('generatedTripMeta');
+      if (stored) return JSON.parse(stored).destination || 'your destination';
+    } catch { /* ignore */ }
+    return 'your destination';
+  })();
+
+  // For multi-country trips (cruises, road trips), extract individual port/country names
+  // so we can generate a phrasebook per distinct language region
+  const parseDestinations = (dest: string): string[] => {
+    // Split on common delimiters: "&", "and", ",", "/"
+    const parts = dest.split(/[&,/]|\band\b/i).map(s => s.trim()).filter(Boolean);
+    return parts.length > 1 ? parts : [dest];
+  };
 
   const toggleDocTask = (taskId: string) => {
     const newCompleted = new Set(completedTasks);
@@ -111,18 +129,36 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     setPhrasesLoading(true);
     setPhrasesError(null);
     try {
-      const res = await fetch('/api/generate-phrases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destination: tripDestination }),
-      });
-      if (!res.ok) throw new Error(`API error ${res.status}`);
-      const data: PhrasebookData = await res.json();
-      if ((data as any).error) throw new Error((data as any).message || 'Generation failed');
-      setPhrasebook(data);
-      // Expand first category by default
-      if (data.categories.length > 0) {
-        setExpandedPhraseCategories(new Set([data.categories[0].id]));
+      const destinations = parseDestinations(tripDestination);
+
+      // Fetch a phrasebook for each destination in parallel, then deduplicate by language code
+      const results = await Promise.all(
+        destinations.map(dest =>
+          fetch('/api/generate-phrases', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destination: dest }),
+          }).then(r => r.json())
+        )
+      );
+
+      // Deduplicate: keep only one phrasebook per unique languageCode
+      const seen = new Set<string>();
+      const unique: PhrasebookData[] = [];
+      for (const data of results) {
+        if (data.error) continue;
+        const code = (data.languageCode || data.language || '').toLowerCase();
+        if (!seen.has(code)) {
+          seen.add(code);
+          unique.push(data);
+        }
+      }
+
+      if (unique.length === 0) throw new Error('No phrasebooks generated');
+      setPhrasebooks(unique);
+      setActivePhrasebook(0);
+      if (unique[0].categories.length > 0) {
+        setExpandedPhraseCategories(new Set([unique[0].categories[0].id]));
       }
     } catch (err) {
       setPhrasesError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -444,12 +480,15 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     );
   };
 
+  const phrasebook = phrasebooks[activePhrasebook] ?? null;
+
   const renderPhrasesTab = () => {
     // Empty / pre-load state
-    if (!phrasebook && !phrasesLoading && !phrasesError) {
+    if (phrasebooks.length === 0 && !phrasesLoading && !phrasesError) {
+      const destNames = parseDestinations(tripDestination);
+      const multi = destNames.length > 1;
       return (
         <div className="space-y-6">
-          {/* Header card */}
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0">
@@ -458,24 +497,27 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-zinc-900">Phrase Guide</h3>
                 <p className="text-sm text-zinc-600 mt-0.5">
-                  AI-generated key phrases in the local language for {tripDestination}
+                  AI-generated phrases for {tripDestination}{multi ? ' — one phrasebook per language' : ''}
                 </p>
               </div>
             </div>
           </div>
-          {/* CTA */}
           <div className="text-center py-12 bg-white rounded-2xl border border-zinc-100 shadow-sm">
             <Globe className="w-12 h-12 text-sky-200 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-zinc-900 mb-2">Ready to brush up on your Icelandic?</h3>
+            <h3 className="text-lg font-semibold text-zinc-900 mb-2">
+              {multi ? `Generate phrasebooks for ${destNames.length} destinations` : `Ready to brush up on the local language?`}
+            </h3>
             <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto">
-              Generate a practical phrasebook with pronunciation guides for your trip — greetings, dining, transport, emergencies, and more.
+              {multi
+                ? `We'll generate a separate phrasebook for each language region: ${destNames.join(', ')}.`
+                : 'Generate a practical phrasebook with pronunciation guides — greetings, dining, transport, emergencies, and more.'}
             </p>
             <button
               onClick={loadPhrasebook}
               className="px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-xl font-semibold transition-colors inline-flex items-center gap-2"
             >
               <Globe className="w-4 h-4" />
-              Generate Phrasebook
+              Generate {multi ? 'Phrasebooks' : 'Phrasebook'}
             </button>
           </div>
         </div>
@@ -511,6 +553,23 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
     return (
       <div className="space-y-6">
+        {/* Language tabs — shown when multiple languages available */}
+        {phrasebooks.length > 1 && (
+          <div className="flex gap-2 flex-wrap">
+            {phrasebooks.map((pb, i) => (
+              <button
+                key={pb.languageCode}
+                onClick={() => { setActivePhrasebook(i); setExpandedPhraseCategories(new Set([pb.categories[0]?.id])); }}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  activePhrasebook === i ? 'bg-sky-800 text-white' : 'bg-white border border-zinc-200 text-zinc-600 hover:border-sky-400'
+                }`}
+              >
+                {pb.language}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
           <div className="flex items-start gap-4">

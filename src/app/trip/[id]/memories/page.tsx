@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
   Filter, Users, Calendar
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, trips } from '@/data/mock';
+import { Avatar } from '@/components/Avatar';
 
 const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
-import { Avatar } from '@/components/Avatar';
 
 export default function MemoriesPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
@@ -25,6 +25,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [albumShared, setAlbumShared] = useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const currentTrip = trips[0];
   const filteredPhotos = tripPhotos.filter(photo => {
@@ -178,25 +180,41 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 mb-8">
           <h3 className="text-xl font-display font-bold text-slate-900 mb-6">Trip Recap</h3>
 
-          <div className="prose prose-sm max-w-none text-slate-700 mb-6 leading-relaxed">
-            <p>
-              Reykjavik revealed itself slowly: first the airport's raw brutality, then the city's hushed charm
-              along the harbor. We stumbled through golden-hour light at Þingvellir, where the earth literally pulls
-              apart beneath your feet. The Geysir erupted on cue, sending plumes skyward while Sarah laughed and Alex
-              captured every frame.
-            </p>
-            <p className="mt-4">
-              Day three split us—the glacier called some, while others answered the black sand beaches. That evening,
-              under skies that refused to fully darken, we found ourselves at the Blue Lagoon's milky edge, warm water
-              against cold stone, the moment suspended between day and night. The Northern Lights remained elusive but
-              the memories burned just as bright.
-            </p>
-          </div>
-
-          <button className="flex items-center gap-2 px-4 py-2 bg-sky-100 text-sky-800 hover:bg-sky-200 rounded-lg font-medium transition-all">
-            <Heart className="w-4 h-4" />
-            Save Narrative
-          </button>
+          {isMockTrip ? (
+            <>
+              <div className="prose prose-sm max-w-none text-slate-700 mb-6 leading-relaxed">
+                <p>
+                  Reykjavik revealed itself slowly: first the airport's raw brutality, then the city's hushed charm
+                  along the harbor. We stumbled through golden-hour light at Þingvellir, where the earth literally pulls
+                  apart beneath your feet. The Geysir erupted on cue, sending plumes skyward while Sarah laughed and Alex
+                  captured every frame.
+                </p>
+                <p className="mt-4">
+                  Day three split us—the glacier called some, while others answered the black sand beaches. That evening,
+                  under skies that refused to fully darken, we found ourselves at the Blue Lagoon's milky edge, warm water
+                  against cold stone, the moment suspended between day and night. The Northern Lights remained elusive but
+                  the memories burned just as bright.
+                </p>
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2 bg-sky-100 text-sky-800 hover:bg-sky-200 rounded-lg font-medium transition-all">
+                <Heart className="w-4 h-4" />
+                Save Narrative
+              </button>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-4">✈️📸</div>
+              <p className="text-lg font-semibold text-slate-800 mb-2">Your story is still being written.</p>
+              <p className="text-sm text-slate-500 max-w-sm mx-auto">
+                Upload photos as you go and at the end of your trip we'll craft an AI-generated recap narrative — a keepsake you can share with the whole crew.
+              </p>
+              {uploadedCount > 0 && (
+                <p className="mt-4 text-sm font-medium text-sky-700">
+                  {uploadedCount} photo{uploadedCount !== 1 ? 's' : ''} loaded. Keep adding and we'll weave them into your recap.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-8">
@@ -253,15 +271,24 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            setShowPhotoModal(true);
-            setTimeout(() => setShowPhotoModal(false), 1000);
+        {/* Hidden file input — triggered by Upload Photos button */}
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const count = e.target.files?.length ?? 0;
+            if (count > 0) setUploadedCount(prev => prev + count);
           }}
+        />
+        <button
+          onClick={() => photoInputRef.current?.click()}
           className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-sky-800 to-green-800 text-white font-semibold rounded-lg hover:shadow-lg transition-all mb-8"
         >
           <Camera className="w-5 h-5" />
-          {showPhotoModal ? 'Upload in Progress...' : 'Upload Photos'}
+          {uploadedCount > 0 ? `${uploadedCount} photo${uploadedCount !== 1 ? 's' : ''} added — upload more` : 'Upload Photos'}
         </button>
 
         {photosByDay.map(dayGroup => (

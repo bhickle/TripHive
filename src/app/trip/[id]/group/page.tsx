@@ -44,13 +44,25 @@ type ScannedReceipt = {
   category?: string;
 };
 
-const CHAT_STORAGE_KEY = 'tripcoord_chat_trip_1';
-
 export default function GroupPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+  // Chat key is trip-specific so different trips don't share the same history
+  const CHAT_STORAGE_KEY = `tripcoord_chat_${params.id}`;
+
   const groupMembers = isMockTrip ? mockGroupMembers : [mockGroupMembers[0]]; // only organizer for real trips
   const expenses = isMockTrip ? mockExpenses : [];
   const messages = isMockTrip ? mockMessages : [];
+  const votes = isMockTrip ? groupVotes : [];
+
+  // Read trip name from localStorage for invite messages on real trips
+  const tripName = (() => {
+    if (isMockTrip) return 'Iceland Adventure';
+    try {
+      const stored = localStorage.getItem('generatedTripMeta');
+      if (stored) return JSON.parse(stored).destination || 'our trip';
+    } catch { /* ignore */ }
+    return 'our trip';
+  })();
 
   const { canAddTraveler, getUpgradePrompt } = useEntitlements();
   const [showTravelerUpgrade, setShowTravelerUpgrade] = useState(false);
@@ -330,14 +342,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   };
 
   const expenseData = calculateExpenses();
-  const openVotes = groupVotes.filter(v => v.status === 'open');
-  const closedVotes = groupVotes.filter(v => v.status === 'closed');
+  const openVotes = votes.filter(v => v.status === 'open');
+  const closedVotes = votes.filter(v => v.status === 'closed');
 
   return (
     <div className="min-h-screen bg-parchment p-6">
       <div className="mb-8">
         <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">
-          Iceland Adventure
+          {tripName}
         </h1>
         <p className="text-lg text-zinc-600">
           {groupMembers.length} people on this trip
@@ -473,7 +485,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               </div>
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                 <p className="text-zinc-600 text-sm mb-1">Votes</p>
-                <p className="font-script italic text-2xl font-semibold text-zinc-900">{groupVotes.length}</p>
+                <p className="font-script italic text-2xl font-semibold text-zinc-900">{votes.length}</p>
               </div>
             </div>
 
@@ -1245,8 +1257,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1">Preview</p>
               <p className="text-sm text-zinc-700">
                 {inviteMethod === 'email'
-                  ? "Hey! You're invited to join our Iceland Adventure trip on tripcoord. Click the link to join the group and start planning together!"
-                  : "You're invited to Iceland Adventure on tripcoord! Join here: tripcoord.app/join/trip_1"}
+                  ? `Hey! You're invited to join our ${tripName} trip on tripcoord. Click the link to join the group and start planning together!`
+                  : `You're invited to ${tripName} on tripcoord! Join here: tripcoord.app/join/${params.id}`}
               </p>
             </div>
 
