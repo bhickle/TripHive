@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter, useParams } from 'next/navigation';
 import { trips } from '@/data/mock';
-import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock } from 'lucide-react';
+import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock, Loader } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 
 type JoinStep = 'intro' | 'preferences' | 'confirmation';
 
@@ -16,13 +18,37 @@ interface GuestJoinData {
   curiosity: string;
 }
 
+interface TripData {
+  title: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  travelerCount: number;
+  organizerName: string;
+  coverImage: string;
+  itineraryPreview: Array<{
+    day: number;
+    date?: string;
+    theme: string;
+    activities: string[];
+  }>;
+}
+
 const priorityOptions = ['Food & Dining', 'Culture & History', 'Adventure & Sports', 'Nature & Outdoors', 'Shopping', 'Photography', 'Nightlife', 'Wellness'];
 const accommodationOptions = ['Luxury Hotels', 'Mid-Range Hotels', 'Boutique Stays', 'Hostels', 'Airbnb/Vacation Rentals'];
 const curiosityLevels = ['Exploring casually', 'Moderate pace', 'Packed schedule'];
 
+const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+
 export default function JoinTripPage({ params }: { params: { id: string } }) {
-  const trip = trips[0];
+  const router = useRouter();
+  const p = useParams();
+  const tripId = p?.id as string;
+
   const [step, setStep] = useState<JoinStep>('intro');
+  const [tripData, setTripData] = useState<TripData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [guestData, setGuestData] = useState<GuestJoinData>({
     name: '',
     email: '',
@@ -30,6 +56,142 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
     accommodation: '',
     curiosity: '',
   });
+
+  useEffect(() => {
+    const loadTripData = async () => {
+      setLoading(true);
+      setNotFound(false);
+
+      try {
+        if (!tripId) {
+          setNotFound(true);
+          return;
+        }
+
+        // Check if it's a mock trip
+        if (MOCK_TRIP_IDS.has(tripId)) {
+          const mockTrip = trips.find((t) => t.id === tripId);
+          if (mockTrip) {
+            const startDate = new Date('2024-09-15');
+            const endDate = new Date('2024-09-21');
+            const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+            const itineraryPreview = Array.from({ length: dayCount }, (_, i) => ({
+              day: i + 1,
+              date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              theme: `Day ${i + 1}`,
+              activities: [`Explore ${mockTrip.destination}`],
+            }));
+
+            setTripData({
+              title: mockTrip.title,
+              destination: mockTrip.destination,
+              startDate: '2024-09-15',
+              endDate: '2024-09-21',
+              travelerCount: mockTrip.memberCount + mockTrip.guestCount,
+              organizerName: 'Brandon',
+              coverImage: mockTrip.coverImage,
+              itineraryPreview,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Check if it's a UUID (36 chars with dashes)
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tripId)) {
+          const supabase = createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          );
+
+          const { data, error } = await supabase
+            .from('trips')
+            .select('id, title, destination, start_date, end_date, group_size, cover_image')
+            .eq('id', tripId)
+            .single();
+
+          if (error || !data) {
+            setNotFound(true);
+            setLoading(false);
+            return;
+          }
+
+          const startDate = new Date(data.start_date);
+          const endDate = new Date(data.end_date);
+          const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+          const itineraryPreview = Array.from({ length: dayCount }, (_, i) => ({
+            day: i + 1,
+            date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            theme: `Day ${i + 1}`,
+            activities: ['Itinerary coming soon'],
+          }));
+
+          setTripData({
+            title: data.title,
+            destination: data.destination,
+            startDate: data.start_date,
+            endDate: data.end_date,
+            travelerCount: data.group_size || 0,
+            organizerName: 'Trip Organizer',
+            coverImage: data.cover_image || '/default-trip.jpg',
+            itineraryPreview,
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Check if it starts with 'upload_'
+        if (tripId.startsWith('upload_')) {
+          const storedTripsJson = localStorage.getItem('tripcoord_user_trips');
+          if (storedTripsJson) {
+            const storedTrips = JSON.parse(storedTripsJson);
+            const uploadedTrip = storedTrips.find((t: any) => t.id === tripId);
+
+            if (uploadedTrip) {
+              const startDate = new Date(uploadedTrip.startDate);
+              const endDate = new Date(uploadedTrip.endDate);
+              const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+              const itineraryPreview = Array.from({ length: dayCount }, (_, i) => ({
+                day: i + 1,
+                date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                theme: `Day ${i + 1}`,
+                activities: ['Explore and plan'],
+              }));
+
+              setTripData({
+                title: uploadedTrip.title,
+                destination: uploadedTrip.destination,
+                startDate: uploadedTrip.startDate,
+                endDate: uploadedTrip.endDate,
+                travelerCount: uploadedTrip.groupSize || 1,
+                organizerName: uploadedTrip.organizerName || 'You',
+                coverImage: uploadedTrip.coverImage || '/default-trip.jpg',
+                itineraryPreview,
+              });
+              setLoading(false);
+              return;
+            }
+          }
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+
+        // Not found
+        setNotFound(true);
+      } catch (err) {
+        console.error('Error loading trip:', err);
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTripData();
+  }, [tripId]);
 
   const togglePriority = (priority: string) => {
     setGuestData({
@@ -47,6 +209,54 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       setStep('confirmation');
     }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <header className="bg-white border-b border-slate-200 py-4 px-6">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-2xl font-script italic font-semibold text-sky-900">tripcoord</h1>
+          </div>
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-2xl text-center">
+            <Loader className="w-12 h-12 text-sky-700 mx-auto mb-4 animate-spin" />
+            <p className="text-slate-600 font-medium">Loading trip details...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Not found state
+  if (notFound || !tripData) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <header className="bg-white border-b border-slate-200 py-4 px-6">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-2xl font-script italic font-semibold text-sky-900">tripcoord</h1>
+          </div>
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-2xl bg-white rounded-xl shadow-md p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+              <MapPin className="w-8 h-8 text-slate-400" />
+            </div>
+            <h2 className="text-2xl font-semibold text-slate-900 mb-2">Trip not found</h2>
+            <p className="text-slate-600 mb-6">We couldn't find the trip you're looking for. Please check the link and try again.</p>
+            <Link
+              href="/"
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-all"
+            >
+              <span>Back to Home</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -66,8 +276,8 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               {/* Trip Info Card */}
               <div className="relative h-64 bg-slate-100">
                 <Image
-                  src={trip.coverImage}
-                  alt={trip.destination}
+                  src={tripData.coverImage}
+                  alt={tripData.destination}
                   fill
                   className="object-cover"
                 />
@@ -77,29 +287,29 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               <div className="p-8">
                 {/* Trip Details */}
                 <div className="mb-8">
-                  <h2 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">{trip.destination}</h2>
-                  <p className="text-slate-600">{trip.title}</p>
+                  <h2 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">{tripData.destination}</h2>
+                  <p className="text-slate-600">{tripData.title}</p>
 
                   {/* Meta Info */}
                   <div className="grid grid-cols-3 gap-4 mt-6">
                     <div className="flex items-center space-x-2 text-slate-600">
                       <Calendar className="w-4 h-4 text-sky-700" />
-                      <span className="text-sm">Sep 15-21</span>
+                      <span className="text-sm">{new Date(tripData.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}-{new Date(tripData.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-slate-600">
                       <Users className="w-4 h-4 text-sky-700" />
-                      <span className="text-sm">{trip.memberCount + trip.guestCount} travelers</span>
+                      <span className="text-sm">{tripData.travelerCount} travelers</span>
                     </div>
                     <div className="flex items-center space-x-2 text-slate-600">
                       <MapPin className="w-4 h-4 text-sky-700" />
-                      <span className="text-sm">7 days</span>
+                      <span className="text-sm">{tripData.itineraryPreview.length} days</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="border-t border-slate-200 pt-6 mb-8">
                   <p className="text-sm text-slate-600 mb-3">Organized by</p>
-                  <p className="font-semibold text-slate-900">Brandon</p>
+                  <p className="font-semibold text-slate-900">{tripData.organizerName}</p>
                 </div>
 
                 {/* Guest Flow */}
@@ -234,7 +444,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   <Heart className="w-8 h-8 text-stone-700" />
                 </div>
                 <h3 className="text-2xl font-script italic font-semibold text-slate-900">You're in!</h3>
-                <p className="text-slate-600 mt-2">Your preferences have been submitted to {trip.destination}.</p>
+                <p className="text-slate-600 mt-2">Your preferences have been submitted to {tripData.destination}.</p>
               </div>
 
               {/* Summary */}
@@ -265,42 +475,25 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
 
               {/* Itinerary Preview - Read Only */}
               <div className="mb-8">
-                <h4 className="font-semibold text-slate-900 mb-4">Your 7-Day Itinerary (Read-Only)</h4>
+                <h4 className="font-semibold text-slate-900 mb-4">Your {tripData.itineraryPreview.length}-Day Itinerary (Read-Only)</h4>
                 <p className="text-sm text-slate-600 mb-4">You can view the full itinerary below, but to edit or plan your own trip, download the app.</p>
                 <div className="space-y-3">
-                  <div className="flex items-start space-x-3 p-3 border border-slate-200 rounded-lg">
-                    <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-sky-800">1</span>
+                  {tripData.itineraryPreview.slice(0, 3).map((day) => (
+                    <div key={day.day} className="flex items-start space-x-3 p-3 border border-slate-200 rounded-lg">
+                      <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-bold text-sky-800">{day.day}</span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">{day.theme}</p>
+                        <p className="text-sm text-slate-600">{day.activities[0]}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-slate-900">Arrival & Reykjavik</p>
-                      <p className="text-sm text-slate-600">Meet at Hotel Borg, welcome dinner</p>
+                  ))}
+                  {tripData.itineraryPreview.length > 3 && (
+                    <div className="text-center py-3">
+                      <p className="text-sm text-slate-600">+ {tripData.itineraryPreview.length - 3} more days planned</p>
                     </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 border border-slate-200 rounded-lg">
-                    <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-sky-800">2</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-900">Golden Circle</p>
-                      <p className="text-sm text-slate-600">Þingvellir, Geysir, Gullfoss waterfall</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 border border-slate-200 rounded-lg">
-                    <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-sky-800">3</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-900">South Coast Adventures</p>
-                      <p className="text-sm text-slate-600">Waterfalls, glacier hiking, black sand beach</p>
-                    </div>
-                  </div>
-
-                  <div className="text-center py-3">
-                    <p className="text-sm text-slate-600">+ 4 more days planned</p>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -342,22 +535,36 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
 
               {/* CTA - View Trip */}
               <button
-                onClick={() => alert('Opening full trip view...')}
+                onClick={() => router.push(`/trip/${tripId}/itinerary`)}
                 className="w-full px-6 py-3 border border-sky-300 hover:bg-sky-50 text-sky-700 rounded-lg font-semibold transition-all mb-4"
               >
                 View Full Trip
               </button>
 
-              {/* Footer Signup CTA */}
+              {/* Footer Signup/Login CTA */}
               <div className="bg-slate-50 rounded-lg p-6 text-center border border-slate-200">
-                <p className="text-slate-700 font-medium mb-2">Ready to plan your own adventure?</p>
-                <Link
-                  href="/auth/signup"
-                  className="inline-flex items-center space-x-2 text-sky-700 hover:text-sky-800 font-semibold"
-                >
-                  <span>Start for free</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-slate-700 font-medium mb-2">Ready to plan your own adventure?</p>
+                    <Link
+                      href="/auth/signup"
+                      className="inline-flex items-center space-x-2 text-sky-700 hover:text-sky-800 font-semibold"
+                    >
+                      <span>Start for free</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                  <div className="border-t border-slate-200 pt-3">
+                    <p className="text-sm text-slate-600 mb-2">Already have an account?</p>
+                    <Link
+                      href="/auth/login"
+                      className="inline-flex items-center space-x-2 text-slate-600 hover:text-sky-700 font-medium text-sm"
+                    >
+                      <span>Sign in</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
           )}

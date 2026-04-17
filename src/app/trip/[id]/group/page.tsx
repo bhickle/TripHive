@@ -6,6 +6,7 @@ import { ExpenseRow } from '@/components/ExpenseRow';
 import { VoteCard } from '@/components/VoteCard';
 import { ChatBubble } from '@/components/ChatBubble';
 import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes, messages as mockMessages } from '@/data/mock';
+import { createBrowserClient } from '@supabase/ssr';
 
 const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 import {
@@ -119,6 +120,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [inviteMethod, setInviteMethod] = useState<'email' | 'text'>('email');
   const [inviteContact, setInviteContact] = useState('');
   const [inviteSent, setInviteSent] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   // Create Vote Modal
   const [showVoteModal, setShowVoteModal] = useState(false);
@@ -157,6 +160,45 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       // ignore parse errors — fall back to mock messages
     }
   }, []);
+
+  // Load expenses from Supabase for non-mock trips
+  useEffect(() => {
+    if (isMockTrip) return;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) return;
+
+    const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+
+    supabase
+      .from('expenses')
+      .select('*')
+      .eq('trip_id', params.id)
+      .order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to load expenses:', error);
+          return;
+        }
+        if (data && data.length > 0) {
+          // Map Supabase expenses to local state format
+          const mappedExpenses = data.map((exp: any) => ({
+            id: exp.id || `exp_${Date.now()}_${Math.random()}`,
+            name: exp.description || exp.category || 'Expense',
+            amount: exp.amount || 0,
+            paidBy: exp.paid_by_name || 'Unknown',
+            splitType: exp.split_type || 'equal',
+            category: exp.category,
+            splitAmong: exp.split_among || [],
+            customAmounts: exp.custom_amounts || {},
+            lineItems: exp.line_items || [],
+          }));
+          setLocalExpenses(mappedExpenses);
+        }
+      });
+  }, [params.id, isMockTrip]);
 
   // Persist messages whenever they change (after initialization)
   useEffect(() => {
@@ -813,7 +855,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       Cancel
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (newExpenseName && newExpenseAmount) {
                           const amt = parseFloat(newExpenseAmount);
                           const among = newExpenseSplitAmong.length ? newExpenseSplitAmong : groupMembers.map(m => m.name);
@@ -829,7 +871,35 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                               ? Object.fromEntries(Object.entries(customAmounts).filter(([n]) => among.includes(n)).map(([n, v]) => [n, parseFloat(v) || 0]))
                               : undefined,
                           };
+
+                          // Add to local state first
                           setLocalExpenses(prev => [...prev, newExp]);
+
+                          // Save to Supabase for non-mock trips
+                          if (!isMockTrip) {
+                            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+                            if (supabaseUrl && supabaseKey) {
+                              try {
+                                const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+                                await supabase.from('expenses').insert({
+                                  trip_id: params.id,
+                                  paid_by_name: newExpensePaidBy,
+                                  amount: amt,
+                                  description: newExpenseName,
+                                  category: newExpenseCategory,
+                                  split_type: newExpenseSplit,
+                                  split_among: among,
+                                  custom_amounts: newExp.customAmounts || {},
+                                  line_items: [],
+                                });
+                              } catch (e) {
+                                console.error('Failed to save expense to Supabase:', e);
+                              }
+                            }
+                          }
+
                           setShowAddExpenseModal(false);
                           setNewExpenseName('');
                           setNewExpenseAmount('');
@@ -1270,6 +1340,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               </div>
             ) : null}
 
+            {inviteError ? (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-center mb-4">
+                <p className="text-sm font-semibold text-rose-700">
+                  {inviteError}
+                </p>
+              </div>
+            ) : null}
+
             <div className="flex gap-2">
               <button
                 onClick={() => setShowInviteModal(false)}
@@ -1278,19 +1356,45 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  if (inviteContact.trim()) {
+                onClick={async () => {
+                  if (!inviteContact.trim()) return;
+
+                  setIsSending(true);
+                  setInviteError(null);
+
+                  try {
+                    const endpoint = inviteMethod === 'email' ? '/api/invite/email' : '/api/invite/sms';
+                    const payload = inviteMethod === 'email'
+                      ? { email: inviteContact, tripId: params.id, tripName, inviterName: 'Brandon' }
+                      : { phone: inviteContact, tripId: params.id, tripName, inviterName: 'Brandon' };
+
+                    const res = await fetch(endpoint, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                    });
+
+                    if (!res.ok) {
+                      throw new Error('Failed to send invite');
+                    }
+
                     setInviteSent(true);
                     setTimeout(() => {
                       setShowInviteModal(false);
                       setInviteSent(false);
                       setInviteContact('');
                     }, 2000);
+                  } catch (err) {
+                    console.error('Invite error:', err);
+                    setInviteError('Failed to send invite. Please try again.');
+                  } finally {
+                    setIsSending(false);
                   }
                 }}
-                className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-medium text-sm transition-colors"
+                disabled={isSending}
+                className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-sky-600 text-white rounded-lg font-medium text-sm transition-colors"
               >
-                Send Invite
+                {isSending ? 'Sending...' : 'Send Invite'}
               </button>
             </div>
           </div>

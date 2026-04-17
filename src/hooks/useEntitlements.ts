@@ -10,7 +10,7 @@
  */
 
 import { useMemo } from 'react';
-import { currentUser } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   TIER_LIMITS,
   AI_CREDIT_COSTS,
@@ -102,7 +102,7 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useEntitlements(tripId?: string) {
-  const user = currentUser;
+  const user = useCurrentUser();
   const tier = (user.subscriptionTier ?? 'free') as SubscriptionTier;
   const limits = TIER_LIMITS[tier];
 

@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Sidebar } from '@/components/Sidebar';
 import { TripCard } from '@/components/TripCard';
-import { currentUser, trips } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { trips } from '@/data/mock';
 import {
   Plus,
   Search,
@@ -20,6 +21,7 @@ type StatusFilter = 'all' | 'planning' | 'active' | 'completed';
 type ViewMode = 'grid' | 'list';
 
 export default function TripsPage() {
+  const currentUser = useCurrentUser();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');

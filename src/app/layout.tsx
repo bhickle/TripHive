@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Nunito, Cormorant_Garamond } from 'next/font/google';
+import { AuthProvider } from '@/context/AuthContext';
 import './globals.css';
 
 const nunito = Nunito({
@@ -33,7 +34,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${nunito.variable} ${cormorantGaramond.variable} font-sans`}>
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, trips } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
+import { createBrowserClient } from '@supabase/ssr';
 
 const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 
@@ -26,6 +27,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const [albumShared, setAlbumShared] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
+  const [uploadedPhotos, setUploadedPhotos] = useState<Array<{ url: string; name: string }>>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const currentTrip = trips[0];
@@ -278,18 +282,110 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           accept="image/*"
           multiple
           className="hidden"
-          onChange={(e) => {
-            const count = e.target.files?.length ?? 0;
-            if (count > 0) setUploadedCount(prev => prev + count);
+          onChange={async (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            setIsUploading(true);
+            setUploadProgress(0);
+
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
+              setUploadProgress(Math.round((i / files.length) * 100));
+
+              try {
+                if (isMockTrip) {
+                  // For mock trips, just show local preview
+                  const url = URL.createObjectURL(file);
+                  setUploadedPhotos(prev => [...prev, { url, name: file.name }]);
+                } else if (supabaseUrl && supabaseKey) {
+                  // For real trips, upload to Supabase
+                  const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+                  const timestamp = Date.now();
+                  const path = `${params.id}/${timestamp}-${file.name}`;
+
+                  // Upload file to storage
+                  const { error: uploadError } = await supabase.storage
+                    .from('trip-photos')
+                    .upload(path, file, { upsert: true });
+
+                  if (uploadError) throw uploadError;
+
+                  // Get public URL
+                  const { data: urlData } = supabase.storage
+                    .from('trip-photos')
+                    .getPublicUrl(path);
+                  const publicUrl = urlData?.publicUrl || '';
+
+                  // Insert record into trip_photos table
+                  const { error: insertError } = await supabase
+                    .from('trip_photos')
+                    .insert({
+                      trip_id: params.id,
+                      storage_path: path,
+                      public_url: publicUrl,
+                      uploader_name: 'You',
+                      day_number: 1,
+                    });
+
+                  if (insertError) {
+                    console.error('Failed to insert photo record:', insertError);
+                  }
+
+                  // Add to uploaded photos state
+                  setUploadedPhotos(prev => [...prev, { url: publicUrl, name: file.name }]);
+                } else {
+                  // Fallback: just show local preview
+                  const url = URL.createObjectURL(file);
+                  setUploadedPhotos(prev => [...prev, { url, name: file.name }]);
+                }
+              } catch (err) {
+                console.error('Upload error:', err);
+                // Fallback to local preview on error
+                try {
+                  const url = URL.createObjectURL(file);
+                  setUploadedPhotos(prev => [...prev, { url, name: file.name }]);
+                } catch { /* ignore */ }
+              }
+            }
+
+            setUploadProgress(100);
+            setIsUploading(false);
+            setUploadedCount(prev => prev + files.length);
+            e.target.value = '';
           }}
         />
-        <button
-          onClick={() => photoInputRef.current?.click()}
-          className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-sky-800 to-green-800 text-white font-semibold rounded-lg hover:shadow-lg transition-all mb-8"
-        >
-          <Camera className="w-5 h-5" />
-          {uploadedCount > 0 ? `${uploadedCount} photo${uploadedCount !== 1 ? 's' : ''} added — upload more` : 'Upload Photos'}
-        </button>
+        <div className="mb-8">
+          <button
+            onClick={() => photoInputRef.current?.click()}
+            disabled={isUploading}
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-sky-800 to-green-800 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            <Camera className="w-5 h-5" />
+            {isUploading ? `Uploading... ${uploadProgress}%` : uploadedCount > 0 ? `${uploadedCount} photo${uploadedCount !== 1 ? 's' : ''} added — upload more` : 'Upload Photos'}
+          </button>
+
+          {uploadedPhotos.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Uploaded Photos</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {uploadedPhotos.map((photo, idx) => (
+                  <div key={idx} className="relative overflow-hidden rounded-lg shadow-md bg-slate-200 aspect-square">
+                    <Image
+                      src={photo.url}
+                      alt={photo.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {photosByDay.map(dayGroup => (
           <div key={dayGroup.day} className="mb-12">

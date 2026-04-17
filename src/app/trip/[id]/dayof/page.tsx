@@ -262,15 +262,62 @@ function ActivityCardDayOf({ activity, status }: { activity: Activity; status: '
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+
 export default function DayOfPage() {
   const params = useParams();
   const tripId = params?.id as string;
 
   const [checkedIn, setCheckedIn] = useState<Set<string>>(new Set(['user_1']));
   const [showEndOfDay, setShowEndOfDay] = useState(false);
+  const [destination, setDestination] = useState<string>('Destination');
+  const [currentUserName, setCurrentUserName] = useState<string>('You');
+  const [isMockTrip, setIsMockTrip] = useState(true);
 
+  // Determine current trip and load appropriate data
   const currentTrip = trips.find((t) => t.id === tripId) || trips[0];
-  const currentDay = itineraryDays[1];
+  let currentDay = itineraryDays[1];
+  let crewToShow = groupMembers.slice(0, 4);
+
+  useEffect(() => {
+    // Check if this is a mock trip
+    const isReal = !MOCK_TRIP_IDS.has(tripId);
+    setIsMockTrip(!isReal);
+
+    if (isReal) {
+      // Load from localStorage
+      try {
+        const itineraryJson = localStorage.getItem('generatedItinerary');
+        const metaJson = localStorage.getItem('generatedTripMeta');
+
+        if (itineraryJson && metaJson) {
+          const itinerary = JSON.parse(itineraryJson);
+          const meta = JSON.parse(metaJson);
+
+          // Set destination
+          if (meta.destination) {
+            setDestination(meta.destination);
+          }
+
+          // Set current user name
+          if (meta.organizerName) {
+            setCurrentUserName(meta.organizerName);
+          }
+
+          // Find today's date
+          const today = new Date().toISOString().split('T')[0];
+          if (itinerary && itinerary.length > 0) {
+            const todayDayIndex = itinerary.findIndex((day: any) => day.date === today);
+            const dayIndex = todayDayIndex >= 0 ? todayDayIndex : 0;
+            currentDay = itinerary[dayIndex];
+          }
+        }
+      } catch (err) {
+        console.error('Error loading trip from localStorage:', err);
+      }
+    }
+  }, [tripId]);
+
   const transportLegs = currentDay.transportLegs || [];
 
   // Merged + sorted timeline
@@ -287,8 +334,13 @@ export default function DayOfPage() {
     })),
   ].sort((a, b) => a.sortTime - b.sortTime);
 
-  // Simulate "10:15 AM" as current time for demo (so Golden Circle drive shows as NOW)
-  const displayNow = 10 * 60 + 15;
+  // Get current time
+  const getCurrentTimeInMinutes = () => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  };
+
+  const displayNow = isMockTrip ? (10 * 60 + 15) : getCurrentTimeInMinutes();
 
   const getStatus = (item: TimelineItemDayOf): 'done' | 'now' | 'soon' | 'upcoming' => {
     const endMins = item.kind === 'activity' ? parseEndTime(item.data.timeSlot) : item.sortTime + 20;
@@ -308,6 +360,11 @@ export default function DayOfPage() {
     return `${h12}:${String(m).padStart(2, '0')} ${period}`;
   })();
 
+  // Determine crew display
+  const crewDisplay = isMockTrip
+    ? groupMembers.slice(0, 4)
+    : [{ id: 'current-user', name: currentUserName }];
+
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -318,9 +375,9 @@ export default function DayOfPage() {
             <ChevronLeft className="w-5 h-5 text-slate-600" />
           </Link>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-500 font-medium">Day 2 &mdash; {currentTrip.destination}</p>
+            <p className="text-xs text-slate-500 font-medium">Day {currentDay.day} — {destination}</p>
             <p className="font-script italic font-semibold text-slate-900 truncate">
-              {currentDay.theme || 'Golden Circle & Waterfalls'}
+              {currentDay.theme || 'Today\'s Schedule'}
             </p>
           </div>
           <div className="text-right flex-shrink-0">
@@ -334,51 +391,74 @@ export default function DayOfPage() {
 
         {/* Weather + Crew */}
         <div className="grid grid-cols-5 gap-3">
-          <div className="col-span-3 bg-gradient-to-br from-sky-600 to-sky-700 rounded-xl p-4 text-white">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs text-sky-200 font-medium">{currentTrip.destination}</p>
-                <div className="flex items-end gap-2 mt-1">
-                  <span className="text-3xl font-script italic font-semibold">8&deg;</span>
-                  <span className="text-sky-200 text-xs mb-1">Partly cloudy</span>
+          {isMockTrip ? (
+            <>
+              {/* Mock Weather */}
+              <div className="col-span-3 bg-gradient-to-br from-sky-600 to-sky-700 rounded-xl p-4 text-white">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs text-sky-200 font-medium">{destination}</p>
+                    <div className="flex items-end gap-2 mt-1">
+                      <span className="text-3xl font-script italic font-semibold">8°</span>
+                      <span className="text-sky-200 text-xs mb-1">Partly cloudy</span>
+                    </div>
+                  </div>
+                  <Cloud className="w-10 h-10 text-sky-200 opacity-70" />
+                </div>
+                <div className="grid grid-cols-3 gap-1 pt-2 border-t border-sky-500 text-center">
+                  <div>
+                    <Sun className="w-3.5 h-3.5 text-amber-300 mx-auto mb-0.5" />
+                    <p className="text-xs text-sky-100">High 10°</p>
+                  </div>
+                  <div>
+                    <Wind className="w-3.5 h-3.5 text-sky-300 mx-auto mb-0.5" />
+                    <p className="text-xs text-sky-100">15 km/h</p>
+                  </div>
+                  <div>
+                    <Droplets className="w-3.5 h-3.5 text-sky-300 mx-auto mb-0.5" />
+                    <p className="text-xs text-sky-100">20%</p>
+                  </div>
                 </div>
               </div>
-              <Cloud className="w-10 h-10 text-sky-200 opacity-70" />
-            </div>
-            <div className="grid grid-cols-3 gap-1 pt-2 border-t border-sky-500 text-center">
-              <div>
-                <Sun className="w-3.5 h-3.5 text-amber-300 mx-auto mb-0.5" />
-                <p className="text-xs text-sky-100">High 10&deg;</p>
+            </>
+          ) : (
+            <>
+              {/* Real Trip Weather Placeholder */}
+              <div className="col-span-3 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 text-slate-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-500 font-medium">{destination}</p>
+                    <p className="text-sm text-slate-600 mt-2">Weather coming soon</p>
+                  </div>
+                  <Cloud className="w-10 h-10 text-slate-300 opacity-50" />
+                </div>
               </div>
-              <div>
-                <Wind className="w-3.5 h-3.5 text-sky-300 mx-auto mb-0.5" />
-                <p className="text-xs text-sky-100">15 km/h</p>
-              </div>
-              <div>
-                <Droplets className="w-3.5 h-3.5 text-sky-300 mx-auto mb-0.5" />
-                <p className="text-xs text-sky-100">20%</p>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
 
+          {/* Crew */}
           <div className="col-span-2 bg-white rounded-2xl border border-zinc-100 shadow-sm p-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Crew</p>
             <div className="space-y-1.5">
-              {groupMembers.slice(0, 4).map((m) => (
+              {crewDisplay.map((m) => (
                 <button key={m.id}
                   onClick={() => {
-                    const next = new Set(checkedIn);
-                    if (next.has(m.id)) next.delete(m.id); else next.add(m.id);
-                    setCheckedIn(next);
+                    if (isMockTrip) {
+                      const next = new Set(checkedIn);
+                      if (next.has(m.id)) next.delete(m.id); else next.add(m.id);
+                      setCheckedIn(next);
+                    }
                   }}
-                  className="w-full flex items-center gap-2">
+                  className={`w-full flex items-center gap-2 ${isMockTrip ? '' : 'cursor-default'}`}>
                   <div className="relative flex-shrink-0">
                     <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
                       {m.name.charAt(0)}
                     </div>
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white ${
-                      checkedIn.has(m.id) ? 'bg-emerald-500' : 'bg-slate-300'
-                    }`} />
+                    {isMockTrip && (
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white ${
+                        checkedIn.has(m.id) ? 'bg-emerald-500' : 'bg-slate-300'
+                      }`} />
+                    )}
                   </div>
                   <span className="text-xs text-slate-700 truncate text-left">{m.name.split(' ')[0]}</span>
                 </button>
@@ -441,7 +521,7 @@ export default function DayOfPage() {
           <div>
             <p className="text-sm font-semibold text-red-900">Emergency</p>
             <p className="text-xs text-red-700 mt-0.5">
-              <strong>112</strong> &middot; Landspítali Hospital &middot; US Embassy +354 595-2100
+              <strong>911 (US)</strong> &middot; <strong>112 (Europe/International)</strong> &middot; <strong>999 (UK)</strong>
             </p>
           </div>
         </div>

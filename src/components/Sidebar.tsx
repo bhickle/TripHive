@@ -9,13 +9,14 @@ import { Avatar } from './Avatar';
 interface SidebarProps {
   activeTrip?: { id: string; title: string; destination: string; };
   activePage?: string;
-  user?: { name: string; avatarUrl?: string; subscriptionTier: 'free' | 'explorer' | 'nomad'; };
+  user?: { name: string; avatarUrl?: string; subscriptionTier: 'free' | 'trip_pass' | 'explorer' | 'nomad'; };
 }
 
 const tierConfig = {
-  free:     { label: 'Free',        className: 'bg-white/10 text-parchment/70' },
-  explorer: { label: 'Explorer ✦',  className: 'bg-sky-500/20 text-sky-300' },
-  nomad:    { label: 'Nomad ✦✦',    className: 'bg-orange-500/20 text-orange-300' },
+  free:      { label: 'Free',        className: 'bg-white/10 text-parchment/70' },
+  trip_pass: { label: 'Trip Pass ✦', className: 'bg-sky-500/20 text-sky-300' },
+  explorer:  { label: 'Explorer ✦',  className: 'bg-sky-500/20 text-sky-300' },
+  nomad:     { label: 'Nomad ✦✦',    className: 'bg-orange-500/20 text-orange-300' },
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dashboard', user }) => {

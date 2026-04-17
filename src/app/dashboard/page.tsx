@@ -9,7 +9,8 @@ import { UploadItineraryModal } from '@/components/UploadItineraryModal';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { currentUser, trips, wishlistItems } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { trips, wishlistItems } from '@/data/mock';
 import {
   PlusCircle,
   TrendingUp,
@@ -60,6 +61,7 @@ const mockNotifications: Notification[] = [
 ];
 
 export default function DashboardPage() {
+  const currentUser = useCurrentUser();
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
