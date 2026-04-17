@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tripInsert: any = {
       organizer_id: user?.id ?? null,
-      title: tripMeta.title,
+      // title is NOT NULL — fall back to 'My Trip' if AI didn't return one
+      title: tripMeta.title || 'My Trip',
       destination: tripMeta.destination,
       start_date: tripMeta.startDate || null,
       end_date: tripMeta.endDate || null,
@@ -61,8 +62,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (tripError || !trip) {
-      console.error('Trip insert error:', tripError);
-      return NextResponse.json({ error: 'Failed to save trip' }, { status: 500 });
+      console.error('Trip insert error:', JSON.stringify(tripError));
+      return NextResponse.json({ error: 'Failed to save trip', detail: tripError?.message }, { status: 500 });
     }
 
     // ── 2. Insert the itinerary row ───────────────────────────────────────────
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
       .insert(itinInsert);
 
     if (itinError) {
-      console.error('Itinerary insert error:', itinError);
+      console.error('Itinerary insert error:', JSON.stringify(itinError));
       // Clean up the trip row if itinerary failed
       await supabase.from('trips').delete().eq('id', trip.id);
       return NextResponse.json({ error: 'Failed to save itinerary' }, { status: 500 });
