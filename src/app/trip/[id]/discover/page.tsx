@@ -345,7 +345,16 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         } catch { /* fall through */ }
       }
 
-      // Fallback: localStorage
+      // Fallback 1: user trips registry (for upload_* IDs)
+      if (!destination) {
+        try {
+          const userTrips = JSON.parse(localStorage.getItem('tripcoord_user_trips') || '[]');
+          const found = userTrips.find((t: { id: string; destination?: string }) => t.id === params.id);
+          if (found?.destination) destination = found.destination;
+        } catch { /* ignore */ }
+      }
+
+      // Fallback 2: generatedTripMeta
       if (!destination) {
         try {
           const stored = localStorage.getItem('generatedTripMeta');
@@ -545,8 +554,8 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      {/* Smart Alerts Panel */}
-      {showAlerts && (
+      {/* Smart Alerts Panel — only shown for mock trips (alerts are Iceland-specific) */}
+      {showAlerts && isMockTrip && (
         <div className="bg-white border-b border-zinc-100 px-6 py-4">
           <div className="max-w-7xl mx-auto">
             <h3 className="font-semibold text-zinc-900 mb-3">Smart Alerts</h3>

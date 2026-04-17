@@ -73,7 +73,13 @@ export default function DashboardPage() {
     } catch { /* ignore */ }
   }, []);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Load notifications only for demo account; real users start with an empty inbox
+  useEffect(() => {
+    if (!currentUser.isLoading) {
+      setNotifications(currentUser.isDemo ? mockNotifications : []);
+    }
+  }, [currentUser.isLoading, currentUser.isDemo]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);

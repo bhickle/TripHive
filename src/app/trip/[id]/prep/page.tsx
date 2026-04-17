@@ -219,25 +219,38 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-sky-900 mb-1">Passport Validity</h3>
-              <p className="text-sm text-sky-800">Your passport expires on 2027-03-15. You have 11 months remaining — plenty of time for this trip!</p>
+        {isMockTrip ? (
+          <>
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-sky-900 mb-1">Passport Validity</h3>
+                  <p className="text-sm text-sky-800">Your passport expires on 2027-03-15. You have 11 months remaining — plenty of time for this trip!</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-emerald-900 mb-1">Visa Status</h3>
+                  <p className="text-sm text-emerald-700">No visa required for US citizens visiting Iceland (Schengen area). Your passport and ETIAS (when available) will be sufficient.</p>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
+            <div className="flex gap-3">
+              <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-sky-900 mb-1">Visa & Entry Requirements</h3>
+                <p className="text-sm text-sky-800">Check visa requirements for <strong>{tripDestination}</strong> based on your passport. Visit <a href="https://travel.state.gov" target="_blank" rel="noopener noreferrer" className="underline">travel.state.gov</a> for US citizens or your country&apos;s foreign affairs website.</p>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-          <div className="flex gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-emerald-900 mb-1">Visa Status</h3>
-              <p className="text-sm text-emerald-700">No visa required for US citizens visiting Iceland (Schengen area). Your passport and ETIAS (when available) will be sufficient.</p>
-            </div>
-          </div>
-        </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           {documentTasks.map((task: PrepTask, index: number) => (
@@ -292,7 +305,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-zinc-900">Pack This</h3>
-              <p className="text-sm text-zinc-600 mt-0.5">AI-curated for Iceland in September</p>
+              <p className="text-sm text-zinc-600 mt-0.5">{isMockTrip ? 'AI-curated for Iceland in September' : `Packing list for ${tripDestination}`}</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -306,10 +319,17 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <p className="font-medium text-blue-900">Expected weather: <span className="font-semibold">5-12°C, rain likely</span></p>
-          <p className="text-sm text-blue-700 mt-1">Pack layers and waterproof gear!</p>
-        </div>
+        {isMockTrip ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <p className="font-medium text-blue-900">Expected weather: <span className="font-semibold">5-12°C, rain likely</span></p>
+            <p className="text-sm text-blue-700 mt-1">Pack layers and waterproof gear!</p>
+          </div>
+        ) : (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <p className="font-medium text-blue-900">Weather for <span className="font-semibold">{tripDestination}</span></p>
+            <p className="text-sm text-blue-700 mt-1">Check the forecast closer to your trip and pack accordingly. Add items below based on expected conditions.</p>
+          </div>
+        )}
 
         <div className="space-y-3">
           {categories.map(category => {
@@ -435,47 +455,84 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <div className="flex gap-3">
-            <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-blue-900 mb-1">SIM Card & Data Plan</h3>
-              <p className="text-sm text-blue-700">Iceland has excellent 4G coverage. Consider buying a local SIM at Keflavik Airport (cheaper than roaming). Providers: Nova, Siminn, Vodafone.</p>
+        {isMockTrip ? (
+          <>
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-blue-900 mb-1">SIM Card & Data Plan</h3>
+                  <p className="text-sm text-blue-700">Iceland has excellent 4G coverage. Consider buying a local SIM at Keflavik Airport (cheaper than roaming). Providers: Nova, Siminn, Vodafone.</p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-sky-900 mb-1">Currency Exchange: Icelandic Króna (ISK)</h3>
-              <p className="text-sm text-sky-800 mb-2">Current rate: 1 USD = ~134 ISK</p>
-              <p className="text-sm text-sky-800">Most establishments accept cards. Withdraw ISK at airport ATM or change money at banks.</p>
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-sky-900 mb-1">Currency Exchange: Icelandic Króna (ISK)</h3>
+                  <p className="text-sm text-sky-800 mb-2">Current rate: 1 USD = ~134 ISK</p>
+                  <p className="text-sm text-sky-800">Most establishments accept cards. Withdraw ISK at airport ATM or change money at banks.</p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-          <div className="flex gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-emerald-900 mb-1">Airport Transfer: Arranged</h3>
-              <p className="text-sm text-emerald-700">Rental car pickup at Keflavik Airport, 15 September 3:00 PM. Return car on 21 September before your flight.</p>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-emerald-900 mb-1">Airport Transfer: Arranged</h3>
+                  <p className="text-sm text-emerald-700">Rental car pickup at Keflavik Airport, 15 September 3:00 PM. Return car on 21 September before your flight.</p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-red-900 mb-1">Emergency Information</h3>
-              <ul className="text-sm text-red-700 space-y-1 mt-2">
-                <li><span className="font-semibold">Emergency Number:</span> 112</li>
-                <li><span className="font-semibold">Nearest Hospital:</span> Landspítali University Hospital, Reykjavik</li>
-                <li><span className="font-semibold">US Embassy:</span> +354 595-2100, Reykjavik</li>
-              </ul>
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-red-900 mb-1">Emergency Information</h3>
+                  <ul className="text-sm text-red-700 space-y-1 mt-2">
+                    <li><span className="font-semibold">Emergency Number:</span> 112</li>
+                    <li><span className="font-semibold">Nearest Hospital:</span> Landspítali University Hospital, Reykjavik</li>
+                    <li><span className="font-semibold">US Embassy:</span> +354 595-2100, Reykjavik</li>
+                  </ul>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-blue-900 mb-1">SIM Card & Data Plan</h3>
+                  <p className="text-sm text-blue-700">Research local SIM options for {tripDestination} before you fly. Airport SIMs are convenient but often pricier — compare at a local carrier store on arrival if you have time.</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-sky-900 mb-1">Currency & Payments</h3>
+                  <p className="text-sm text-sky-800">Check the local currency for {tripDestination} and whether cards are widely accepted. Notify your bank of travel dates to avoid card blocks. Airport ATMs are usually the safest withdrawal option.</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-red-900 mb-1">Emergency Information</h3>
+                  <ul className="text-sm text-red-700 space-y-1 mt-2">
+                    <li><span className="font-semibold">Emergency Number:</span> 911 (US) · 112 (Europe) · 999 (UK) — or check local number for {tripDestination}</li>
+                    <li><span className="font-semibold">US Embassy:</span> Find the nearest embassy at <a href="https://www.usembassy.gov" target="_blank" rel="noopener noreferrer" className="underline">usembassy.gov</a></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   };

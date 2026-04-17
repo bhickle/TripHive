@@ -32,6 +32,18 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Read trip destination for non-mock trips
+  const tripDestination = (() => {
+    if (isMockTrip) return 'Iceland';
+    try {
+      const userTrips = JSON.parse(localStorage.getItem('tripcoord_user_trips') || '[]');
+      const found = userTrips.find((t: { id: string; destination?: string }) => t.id === params.id);
+      if (found?.destination) return found.destination;
+      const meta = JSON.parse(localStorage.getItem('generatedTripMeta') || '{}');
+      return meta.destination || 'your trip';
+    } catch { return 'your trip'; }
+  })();
+
   const currentTrip = trips[0];
   const filteredPhotos = tripPhotos.filter(photo => {
     if (filterDay && photo.day !== filterDay) return false;
@@ -56,7 +68,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="mb-12">
           <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">The Pics</h1>
-          <p className="text-slate-600">Your Iceland adventure through photos</p>
+          <p className="text-slate-600">Your {tripDestination} adventure through photos</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
@@ -289,72 +301,60 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             setIsUploading(true);
             setUploadProgress(0);
 
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            const fileArray = Array.from(files);
 
-            for (let i = 0; i < files.length; i++) {
-              const file = files[i];
-              setUploadProgress(Math.round((i / files.length) * 100));
+            // Show local preview immediately so the user sees their photos right away
+            const localPreviews = fileArray.map(file => ({
+              url: URL.createObjectURL(file),
+              name: file.name,
+            }));
+            setUploadedPhotos(prev => [...prev, ...localPreviews]);
+            setUploadedCount(prev => prev + fileArray.length);
+            setUploadProgress(50);
 
-              try {
-                if (isMockTrip) {
-                  // For mock trips, just show local preview
-                  const url = URL.createObjectURL(file);
-                  setUploadedPhotos(prev => [...prev, { url, name: file.name }]);
-                } else if (supabaseUrl && supabaseKey) {
-                  // For real trips, upload to Supabase
-                  const supabase = createBrowserClient(supabaseUrl, supabaseKey);
-                  const timestamp = Date.now();
-                  const path = `${params.id}/${timestamp}-${file.name}`;
-
-                  // Upload file to storage
-                  const { error: uploadError } = await supabase.storage
-                    .from('trip-photos')
-                    .upload(path, file, { upsert: true });
-
-                  if (uploadError) throw uploadError;
-
-                  // Get public URL
-                  const { data: urlData } = supabase.storage
-                    .from('trip-photos')
-                    .getPublicUrl(path);
-                  const publicUrl = urlData?.publicUrl || '';
-
-                  // Insert record into trip_photos table
-                  const { error: insertError } = await supabase
-                    .from('trip_photos')
-                    .insert({
-                      trip_id: params.id,
-                      storage_path: path,
-                      public_url: publicUrl,
-                      uploader_name: 'You',
-                      day_number: 1,
-                    });
-
-                  if (insertError) {
-                    console.error('Failed to insert photo record:', insertError);
+            // Try Supabase upload in background (non-mock trips only)
+            if (!isMockTrip) {
+              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+              const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+              if (supabaseUrl && supabaseKey) {
+                const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+                for (let i = 0; i < fileArray.length; i++) {
+                  const file = fileArray[i];
+                  try {
+                    const timestamp = Date.now() + i;
+                    const path = `${params.id}/${timestamp}-${file.name}`;
+                    const { error: uploadError, data } = await supabase.storage
+                      .from('trip-photos')
+                      .upload(path, file, { upsert: true });
+                    if (!uploadError && data) {
+                      const { data: urlData } = supabase.storage.from('trip-photos').getPublicUrl(path);
+                      if (urlData?.publicUrl) {
+                        // Swap local preview URL with the Supabase URL
+                        setUploadedPhotos(prev => {
+                          const updated = [...prev];
+                          const localIdx = updated.findIndex(p => p.name === file.name && p.url.startsWith('blob:'));
+                          if (localIdx >= 0) updated[localIdx] = { url: urlData.publicUrl, name: file.name };
+                          return updated;
+                        });
+                        // Record in trip_photos table
+                        await supabase.from('trip_photos').insert({
+                          trip_id: params.id,
+                          storage_path: path,
+                          public_url: urlData.publicUrl,
+                          uploader_name: 'You',
+                          day_number: 1,
+                        }).then(({ error }) => { if (error) console.warn('trip_photos insert:', error.message); });
+                      }
+                    }
+                  } catch (err) {
+                    console.warn('Background upload failed for', file.name, err);
                   }
-
-                  // Add to uploaded photos state
-                  setUploadedPhotos(prev => [...prev, { url: publicUrl, name: file.name }]);
-                } else {
-                  // Fallback: just show local preview
-                  const url = URL.createObjectURL(file);
-                  setUploadedPhotos(prev => [...prev, { url, name: file.name }]);
                 }
-              } catch (err) {
-                console.error('Upload error:', err);
-                // Fallback to local preview on error
-                try {
-                  const url = URL.createObjectURL(file);
-                  setUploadedPhotos(prev => [...prev, { url, name: file.name }]);
-                } catch { /* ignore */ }
               }
             }
 
             setUploadProgress(100);
             setIsUploading(false);
-            setUploadedCount(prev => prev + files.length);
             e.target.value = '';
           }}
         />

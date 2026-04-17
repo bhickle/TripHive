@@ -999,13 +999,14 @@ export default function ItineraryPage() {
                                 </span>
                               )}
                               {activity.website && (
-                                <>
+                                <span className="inline-flex items-center gap-2 flex-wrap">
                                   <a
                                     href={activity.website}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-800 text-xs font-medium transition-colors"
                                     onClick={e => e.stopPropagation()}
+                                    title="AI-suggested link — verify before booking"
                                   >
                                     <ExternalLink className="w-3 h-3" />
                                     Website
@@ -1021,7 +1022,8 @@ export default function ItineraryPage() {
                                     <Languages className="w-3 h-3" />
                                     Translate
                                   </a>
-                                </>
+                                  <span className="text-zinc-300 text-xs italic">AI-suggested · verify link</span>
+                                </span>
                               )}
                             </div>
 
@@ -1108,13 +1110,23 @@ export default function ItineraryPage() {
             {/* Weather Card */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">{weatherLabel}</p>
-              <div className="flex items-center justify-between">
-                <div className="text-sky-700">{weather.icon}</div>
-                <div className="text-right">
-                  <p className="text-3xl font-script italic font-semibold text-zinc-900">{weather.temp}°F</p>
-                  <p className="text-xs text-zinc-500 mt-1">{weather.condition}</p>
+              {aiMeta ? (
+                /* Real trip — live weather coming soon */
+                <div className="text-center py-2">
+                  <p className="text-2xl mb-1">🌤️</p>
+                  <p className="text-sm font-medium text-zinc-700">{aiMeta.destination?.split(',')[0]}</p>
+                  <p className="text-xs text-zinc-400 mt-1">Live weather coming soon</p>
                 </div>
-              </div>
+              ) : (
+                /* Mock trip — hardcoded Iceland data */
+                <div className="flex items-center justify-between">
+                  <div className="text-sky-700">{weather.icon}</div>
+                  <div className="text-right">
+                    <p className="text-3xl font-script italic font-semibold text-zinc-900">{weather.temp}°F</p>
+                    <p className="text-xs text-zinc-500 mt-1">{weather.condition}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
 

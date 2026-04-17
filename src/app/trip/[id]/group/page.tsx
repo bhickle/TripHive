@@ -9,6 +9,9 @@ import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes,
 import { createBrowserClient } from '@supabase/ssr';
 
 const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+
+interface VoteOption { id: string; label: string; votes: number; }
+interface Vote { id: string; title: string; status: 'open' | 'closed'; closesAt?: string; options: VoteOption[]; }
 import {
   UserPlus,
   Send,
@@ -53,7 +56,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const groupMembers = isMockTrip ? mockGroupMembers : [mockGroupMembers[0]]; // only organizer for real trips
   const expenses = isMockTrip ? mockExpenses : [];
   const messages = isMockTrip ? mockMessages : [];
-  const votes = isMockTrip ? groupVotes : [];
+  const VOTES_STORAGE_KEY = `tripcoord_votes_${params.id}`;
+  const [votes, setVotes] = useState<Vote[]>(isMockTrip ? (groupVotes as Vote[]) : []);
 
   // Read trip name from localStorage for invite messages on real trips
   const tripName = (() => {
@@ -143,6 +147,18 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Load persisted votes from localStorage on first mount (non-mock trips only)
+  useEffect(() => {
+    if (isMockTrip) return;
+    try {
+      const stored = localStorage.getItem(VOTES_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setVotes(parsed);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // Load persisted messages from localStorage on first mount
   useEffect(() => {
@@ -1164,6 +1180,22 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     </button>
                     <button
                       onClick={() => {
+                        const filledOptions = voteOptions.filter(o => o.trim());
+                        if (!voteQuestion.trim() || filledOptions.length < 2) return;
+                        const newVote: Vote = {
+                          id: `vote_${Date.now()}`,
+                          title: voteQuestion.trim(),
+                          status: 'open' as const,
+                          closesAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                          options: filledOptions.map((label, i) => ({
+                            id: `opt_${Date.now()}_${i}`,
+                            label,
+                            votes: 0,
+                          })),
+                        };
+                        const updated = [...votes, newVote];
+                        setVotes(updated);
+                        try { localStorage.setItem(VOTES_STORAGE_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
                         setVoteCreated(true);
                         setShowVoteModal(false);
                         setVoteQuestion('');

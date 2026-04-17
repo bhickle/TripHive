@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
-import { currentUser } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, AlertCircle, Settings as SettingsIcon,
   ThumbsUp, MessageSquare, ChevronDown, ChevronUp, Send,
@@ -28,11 +28,14 @@ interface ConnectedApp {
 }
 
 export default function SettingsPage() {
+  const currentUser = useCurrentUser();
   const [activeSection, setActiveSection] = useState<ActiveSection>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingPersona, setEditingPersona] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [userTrips, setUserTrips] = useState<any[]>([]);
 
   const [profile, setProfile] = useState({
     name: currentUser.name,
@@ -40,10 +43,27 @@ export default function SettingsPage() {
     avatarUrl: currentUser.avatarUrl,
   });
 
+  // Sync profile fields when auth finishes loading
+  useEffect(() => {
+    if (!currentUser.isLoading) {
+      setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl });
+    }
+  }, [currentUser.isLoading, currentUser.name, currentUser.email, currentUser.avatarUrl]);
+
+  // Load user uploaded trips for Downloads section
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('tripcoord_user_trips');
+      if (stored) setUserTrips(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const travelPersona = (currentUser as any).travelPersona;
   const [persona, setPersona] = useState({
-    style: currentUser.travelPersona?.style || '',
-    groupType: currentUser.travelPersona?.groupType || '',
-    priorities: currentUser.travelPersona?.priorities || [],
+    style: travelPersona?.style || '',
+    groupType: travelPersona?.groupType || '',
+    priorities: (travelPersona?.priorities as string[]) || [],
   });
 
   const [notifications, setNotifications] = useState<NotificationSettings>({
@@ -144,7 +164,7 @@ export default function SettingsPage() {
     setPersona({
       ...persona,
       priorities: persona.priorities.includes(priority)
-        ? persona.priorities.filter(p => p !== priority)
+        ? persona.priorities.filter((p: string) => p !== priority)
         : [...persona.priorities, priority]
     });
   };
@@ -377,9 +397,9 @@ export default function SettingsPage() {
                         <button
                           onClick={() => {
                             setPersona({
-                              style: currentUser.travelPersona?.style || '',
-                              groupType: currentUser.travelPersona?.groupType || '',
-                              priorities: currentUser.travelPersona?.priorities || [],
+                              style: travelPersona?.style || '',
+                              groupType: travelPersona?.groupType || '',
+                              priorities: (travelPersona?.priorities as string[]) || [],
                             });
                             setEditingPersona(false);
                           }}
@@ -402,7 +422,7 @@ export default function SettingsPage() {
                       <div className="pb-6 border-b border-slate-200">
                         <p className="text-sm text-slate-600 mb-2">Top Priorities</p>
                         <div className="flex flex-wrap gap-2">
-                          {persona.priorities.map((p) => (
+                          {persona.priorities.map((p: string) => (
                             <span key={p} className="px-3 py-1 bg-sky-100 text-sky-900 rounded-full text-sm font-medium">
                               {p}
                             </span>
@@ -669,34 +689,35 @@ export default function SettingsPage() {
               {/* DOWNLOADED TRIPS SECTION */}
               {activeSection === 'downloads' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Downloaded Trips</h2>
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">My Trips</h2>
 
                   <div className="space-y-4">
-                    <div className="p-4 border border-slate-200 rounded-lg flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-slate-900">Iceland Adventure</p>
-                        <p className="text-sm text-slate-600 mt-1">234 MB • Downloaded Sep 15, 2026</p>
+                    {userTrips.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-center">
+                        <p className="text-slate-600">No trips uploaded yet.</p>
+                        <p className="text-sm text-slate-400 mt-1">Upload an itinerary from the dashboard to see it here.</p>
                       </div>
-                      <button className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-all font-medium">
-                        <Trash2 className="w-4 h-4 inline mr-2" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="p-4 border border-slate-200 rounded-lg flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-slate-900">Tokyo Food Tour</p>
-                        <p className="text-sm text-slate-600 mt-1">156 MB • Downloaded Oct 28, 2026</p>
-                      </div>
-                      <button className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-all font-medium">
-                        <Trash2 className="w-4 h-4 inline mr-2" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-center">
-                      <p className="text-slate-600">No more downloaded trips</p>
-                    </div>
+                    ) : (
+                      userTrips.map((trip) => (
+                        <div key={trip.id} className="p-4 border border-slate-200 rounded-lg flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-slate-900">{trip.title || trip.destination}</p>
+                            <p className="text-sm text-slate-600 mt-1">{trip.destination} · {trip.status}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const updated = userTrips.filter(t => t.id !== trip.id);
+                              setUserTrips(updated);
+                              localStorage.setItem('tripcoord_user_trips', JSON.stringify(updated));
+                            }}
+                            className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-all font-medium"
+                          >
+                            <Trash2 className="w-4 h-4 inline mr-2" />
+                            Remove
+                          </button>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
