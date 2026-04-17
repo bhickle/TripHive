@@ -374,11 +374,12 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {uploadedPhotos.map((photo, idx) => (
                   <div key={idx} className="relative overflow-hidden rounded-lg shadow-md bg-slate-200 aspect-square">
-                    <Image
+                    {/* Use native img to support both blob: preview URLs and Supabase public URLs */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
                       src={photo.url}
                       alt={photo.name}
-                      fill
-                      className="object-cover"
+                      className="w-full h-full object-cover"
                     />
                   </div>
                 ))}

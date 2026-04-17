@@ -40,6 +40,7 @@ import {
   Trash2,
   RefreshCw,
 } from 'lucide-react';
+import { useParams } from 'next/navigation';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { MapView } from '@/components/MapView';
@@ -222,6 +223,8 @@ function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: num
 }
 
 export default function ItineraryPage() {
+  const params = useParams<{ id: string }>();
+  const tripPageId = params?.id ?? '';
   const [selectedDay, setSelectedDay] = useState(1);
   const [activityAdded, setActivityAdded] = useState(false);
   const [activityDeleted, setActivityDeleted] = useState(false);
@@ -280,6 +283,7 @@ export default function ItineraryPage() {
   const [aiMeta, setAiMeta] = useState<{
     destination?: string; startDate?: string; endDate?: string;
     budget?: number; budgetBreakdown?: Record<string, number>;
+    groupType?: string;
     isCruise?: boolean; cruiseLine?: string;
     bookedHotels?: Array<{ name: string; address?: string; checkIn?: string; checkOut?: string }>;
     hotelSuggestions?: Array<{
@@ -295,26 +299,17 @@ export default function ItineraryPage() {
 
   useEffect(() => {
     const load = async () => {
-      // Try Supabase first if we have a stored trip ID that looks like a UUID
-      const storedTripId = typeof window !== 'undefined'
-        ? localStorage.getItem('currentTripId')
-        : null;
-      const looksLikeUuid = storedTripId && /^[0-9a-f-]{36}$/i.test(storedTripId);
-
+      // 1. Try Supabase first using the CURRENT PAGE's trip ID (from the URL)
+      const looksLikeUuid = tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId);
       if (looksLikeUuid) {
         try {
-          const res = await fetch(`/api/trips/${storedTripId}`);
+          const res = await fetch(`/api/trips/${tripPageId}`);
           if (res.ok) {
             const { itinerary } = await res.json();
             if (Array.isArray(itinerary.days) && itinerary.days.length > 0) {
               setAiDays(itinerary.days);
               setShowAiBanner(true);
               if (itinerary.meta) setAiMeta(itinerary.meta);
-              // Keep localStorage in sync as a fallback
-              try {
-                localStorage.setItem('generatedItinerary', JSON.stringify(itinerary.days));
-                localStorage.setItem('generatedTripMeta', JSON.stringify(itinerary.meta));
-              } catch { /* ignore */ }
               return;
             }
           }
@@ -323,8 +318,16 @@ export default function ItineraryPage() {
         }
       }
 
-      // localStorage fallback
+      // 2. localStorage fallback — ONLY if the stored generated trip matches THIS page's trip ID
       try {
+        const storedCurrentId = typeof window !== 'undefined'
+          ? localStorage.getItem('currentTripId')
+          : null;
+        // Use localStorage data only for the specific trip it belongs to
+        const idMatches = !storedCurrentId || storedCurrentId === tripPageId
+          || tripPageId.startsWith('upload_'); // upload_ IDs are always localStorage-only
+        if (!idMatches) return; // Wrong trip — don't bleed another trip's data in
+
         const stored = localStorage.getItem('generatedItinerary');
         const meta = localStorage.getItem('generatedTripMeta');
         if (stored) {
@@ -340,7 +343,7 @@ export default function ItineraryPage() {
       }
     };
     load();
-  }, []);
+  }, [tripPageId]);
 
   const clearAiItinerary = useCallback(() => {
     localStorage.removeItem('generatedItinerary');
@@ -847,8 +850,9 @@ export default function ItineraryPage() {
                 )}
 
                 <div className="space-y-4">
-                  {/* Meetup time — pinned as the first item in the day */}
-                  {currentDayData.meetupTime && currentDayData.meetupLocation && (
+                  {/* Meetup time — only relevant for group trips, not solo/couple */}
+                  {currentDayData.meetupTime && currentDayData.meetupLocation &&
+                   aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple' && (
                     <div className="flex gap-4">
                       <div className="w-20 flex-shrink-0 text-right pt-3.5">
                         <p className="text-xs font-semibold text-sky-600">{currentDayData.meetupTime}</p>
@@ -902,6 +906,8 @@ export default function ItineraryPage() {
                     const config = trackConfig[activity.track as keyof typeof trackConfig];
                     const startTime = activity.timeSlot.split(/–|—/)[0]?.trim() || '';
                     const price = priceLevelLabel(activity.priceLevel);
+                    const actName = activity.name || activity.title || '';
+                    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(actName + (activity.address ? ' ' + activity.address : ' ' + trip.destination))}`;
 
                     return (
                       <div key={activity.id} className="flex gap-4">
@@ -926,7 +932,16 @@ export default function ItineraryPage() {
                           <div className={`bg-white rounded-2xl border shadow-sm p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card ${activity.isPrivate ? 'border-amber-200 bg-amber-50/40' : 'border-zinc-100'}`}>
                             <div className="flex items-start justify-between mb-2 gap-2">
                               <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1 flex items-center gap-1.5">
-                                {activity.name || activity.title}
+                                <a
+                                  href={googleUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="hover:text-sky-700 transition-colors"
+                                  title="Search on Google"
+                                >
+                                  {actName}
+                                </a>
                                 {activity.isPrivate && (
                                   <span title="Private — only visible to you" className="inline-flex items-center justify-center w-4 h-4 bg-amber-100 rounded-full flex-shrink-0">
                                     🔒
@@ -993,33 +1008,17 @@ export default function ItineraryPage() {
                                   Restaurant
                                 </span>
                               )}
-                              {activity.website && (
-                                <span className="inline-flex items-center gap-2 flex-wrap">
-                                  <a
-                                    href={activity.website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-800 text-xs font-medium transition-colors"
-                                    onClick={e => e.stopPropagation()}
-                                    title="AI-suggested link — verify before booking"
-                                  >
-                                    <ExternalLink className="w-3 h-3" />
-                                    Website
-                                  </a>
-                                  <a
-                                    href={`https://translate.google.com/translate?u=${encodeURIComponent(activity.website)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors"
-                                    onClick={e => e.stopPropagation()}
-                                    title="Translate website"
-                                  >
-                                    <Languages className="w-3 h-3" />
-                                    Translate
-                                  </a>
-                                  <span className="text-zinc-300 text-xs italic">AI-suggested · verify link</span>
-                                </span>
-                              )}
+                              <a
+                                href={googleUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-800 text-xs font-medium transition-colors"
+                                onClick={e => e.stopPropagation()}
+                                title="Search on Google"
+                              >
+                                <Search className="w-3 h-3" />
+                                Search Google
+                              </a>
                             </div>
 
                             {/* Packing tips */}
