@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         groupType: tripMeta.groupType,
         groupSize: tripMeta.groupSize,
       },
-      source: 'ai_generated',
+      source: 'ai',
     };
 
     const { error: itinError } = await supabase
