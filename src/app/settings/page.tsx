@@ -241,23 +241,53 @@ export default function SettingsPage() {
     : `${plan.name} plan`;
 
   // ── Notification state ─────────────────────────────────────────────────────
-  const LS_NOTIF_KEY = 'tripcoord_notifications';
-  const [notifications, setNotifications] = useState<NotificationSettings>({
+  const DEFAULT_NOTIFICATIONS: NotificationSettings = {
     email: true, push: true, tripReminders: true,
     voteAlerts: true, expenseAlerts: true, marketing: false,
-  });
+  };
+  const [notifications, setNotifications] = useState<NotificationSettings>(DEFAULT_NOTIFICATIONS);
   const [notifSaved, setNotifSaved] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
 
-  // Load persisted notification prefs on mount
+  // Load notification prefs from Supabase profile once auth is ready.
+  // Falls back to localStorage for guests/demo users.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LS_NOTIF_KEY);
-      if (stored) setNotifications(JSON.parse(stored));
-    } catch { /* ignore */ }
-  }, []);
+    if (authLoading) return;
+    if (user) {
+      // Fetch from /api/auth/me which now returns notificationPreferences
+      fetch('/api/auth/me')
+        .then(r => r.json())
+        .then(data => {
+          if (data?.notificationPreferences) {
+            setNotifications({ ...DEFAULT_NOTIFICATIONS, ...data.notificationPreferences });
+          }
+        })
+        .catch(() => { /* keep defaults */ });
+    } else {
+      // Guest / demo — fall back to localStorage
+      try {
+        const stored = localStorage.getItem('tripcoord_notifications');
+        if (stored) setNotifications(JSON.parse(stored));
+      } catch { /* ignore */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user]);
 
-  const saveNotifications = () => {
-    try { localStorage.setItem(LS_NOTIF_KEY, JSON.stringify(notifications)); } catch { /* ignore */ }
+  const saveNotifications = async () => {
+    setNotifSaving(true);
+    if (user) {
+      try {
+        await fetch('/api/auth/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notification_preferences: notifications }),
+        });
+      } catch { /* ignore network errors */ }
+    } else {
+      // Guest — persist to localStorage
+      try { localStorage.setItem('tripcoord_notifications', JSON.stringify(notifications)); } catch { /* ignore */ }
+    }
+    setNotifSaving(false);
     setNotifSaved(true);
     setTimeout(() => setNotifSaved(false), 2000);
   };
@@ -716,9 +746,10 @@ export default function SettingsPage() {
                   </div>
                   <button
                     onClick={saveNotifications}
-                    className={`mt-6 px-6 py-2 rounded-lg transition-all font-semibold ${notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                    disabled={notifSaving}
+                    className={`mt-6 px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                   >
-                    {notifSaved ? '✓ Saved!' : 'Save Changes'}
+                    {notifSaved ? '✓ Saved!' : notifSaving ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
               )}

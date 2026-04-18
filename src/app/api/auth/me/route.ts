@@ -32,6 +32,42 @@ export async function DELETE() {
 }
 
 /**
+ * PATCH /api/auth/me
+ * Updates mutable profile fields for the authenticated user.
+ * Currently supports: notification_preferences (JSONB)
+ */
+export async function PATCH(request: Request) {
+  try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const body = await request.json();
+    const { notification_preferences } = body;
+
+    if (!notification_preferences || typeof notification_preferences !== 'object') {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+    const { error } = await supabase
+      .from('profiles')
+      .update({ notification_preferences })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Update notification preferences error:', error);
+      return NextResponse.json({ error: 'Failed to save preferences' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('PATCH /api/auth/me error:', err);
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  }
+}
+
+/**
  * GET /api/auth/me
  * Returns the current authenticated user's profile.
  */
@@ -44,7 +80,7 @@ export async function GET() {
     const supabase = createAdminClient();
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, name, email, avatar_url, subscription_tier')
+      .select('id, name, email, avatar_url, subscription_tier, notification_preferences')
       .eq('id', user.id)
       .single();
 
@@ -56,6 +92,7 @@ export async function GET() {
       name,
       avatarUrl: profile?.avatar_url ?? null,
       subscriptionTier: profile?.subscription_tier ?? 'free',
+      notificationPreferences: profile?.notification_preferences ?? null,
     });
   } catch {
     return NextResponse.json({ user: null }, { status: 401 });
