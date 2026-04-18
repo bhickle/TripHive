@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PREVIEW_COOKIE = 'tc_preview';
+const PREVIEW_COOKIE = 'tc_preview'; // build bump
 // Set PREVIEW_SECRET in your Vercel environment variables to override this default
 const PREVIEW_SECRET = process.env.PREVIEW_SECRET || 'tc2026';
 
