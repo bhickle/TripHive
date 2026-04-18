@@ -1109,7 +1109,7 @@ export default function ItineraryPage() {
               <div className="text-center py-2">
                 <p className="text-2xl mb-1">🌤️</p>
                 <p className="text-sm font-medium text-zinc-700">
-                  {(aiMeta?.destination ?? tripMeta?.destination ?? 'Your destination')?.split(',')[0]}
+                  {(aiMeta?.destination ?? 'Your destination').split(',')[0]}
                 </p>
                 <p className="text-xs text-zinc-400 mt-1">Live weather coming soon</p>
               </div>
