@@ -481,7 +481,7 @@ export default function LayoverPlannerPage() {
                     value={portStop.city}
                     onChange={(e) => setPortStop({...portStop, city: e.target.value})}
                     className="input-field"
-                    placeholder="e.g., Reykjavik, Iceland"
+                    placeholder="e.g., Barcelona, Spain"
                   />
                 </div>
                 <div>

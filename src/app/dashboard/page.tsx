@@ -63,8 +63,40 @@ export default function DashboardPage() {
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
+  const [tripsLoadError, setTripsLoadError] = useState(false);
+  const [tripsLoading, setTripsLoading] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [wishlistPreview, setWishlistPreview] = useState<any[]>(mockWishlistItems.slice(0, 3));
+
+  const loadTrips = () => {
+    if (!currentUser.id || currentUser.isDemo) return;
+    setTripsLoading(true);
+    setTripsLoadError(false);
+    fetch('/api/trips')
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load trips')))
+      .then(({ trips }) => {
+        if (Array.isArray(trips)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setUserTrips(trips.map((t: any) => ({
+            id: t.id,
+            title: t.title,
+            destination: t.destination,
+            startDate: t.start_date,
+            endDate: t.end_date,
+            tripLength: t.trip_length,
+            status: t.status ?? 'planning',
+            groupType: t.group_type,
+            groupSize: t.group_size ?? 1,
+            coverImage: t.cover_image ?? null,
+            budgetTotal: t.budget_total ?? 0,
+            memberCount: 1,
+            guestCount: 0,
+          })));
+        }
+      })
+      .catch(() => setTripsLoadError(true))
+      .finally(() => setTripsLoading(false));
+  };
 
   // For real (non-demo) logged-in users, load trips from Supabase.
   // Fall back to localStorage for demo / unauthenticated visitors.
@@ -72,32 +104,7 @@ export default function DashboardPage() {
     if (currentUser.isLoading) return;
 
     if (!currentUser.isDemo && currentUser.id) {
-      // Authenticated real user — fetch from Supabase
-      fetch('/api/trips')
-        .then(r => r.ok ? r.json() : { trips: [] })
-        .then(({ trips }) => {
-          if (Array.isArray(trips) && trips.length > 0) {
-            // Normalize Supabase column names to the shape the rest of the dashboard expects
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const normalized = trips.map((t: any) => ({
-              id: t.id,
-              title: t.title,
-              destination: t.destination,
-              startDate: t.start_date,
-              endDate: t.end_date,
-              tripLength: t.trip_length,
-              status: t.status ?? 'planning',
-              groupType: t.group_type,
-              groupSize: t.group_size ?? 1,
-              coverImage: t.cover_image ?? null,
-              budgetTotal: t.budget_total ?? 0,
-              memberCount: 1,
-              guestCount: 0,
-            }));
-            setUserTrips(normalized);
-          }
-        })
-        .catch(() => { /* silently fall back to empty list */ });
+      loadTrips();
     } else {
       // Demo or unauthenticated — fall back to localStorage
       try {
@@ -105,6 +112,7 @@ export default function DashboardPage() {
         if (stored) setUserTrips(JSON.parse(stored));
       } catch { /* ignore */ }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
   // Load real wishlist for "Where to Next?" section (non-demo users)
   useEffect(() => {
@@ -472,6 +480,20 @@ export default function DashboardPage() {
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Days Out There</p>
             </div>
           </div>
+
+          {/* Trips load error banner */}
+          {tripsLoadError && (
+            <div className="mb-6 flex items-center justify-between gap-4 px-5 py-4 bg-rose-50 border border-rose-200 rounded-2xl">
+              <p className="text-sm text-rose-800 font-medium">Couldn't load your trips — check your connection and try again.</p>
+              <button
+                onClick={loadTrips}
+                disabled={tripsLoading}
+                className="flex-shrink-0 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                {tripsLoading ? 'Retrying…' : 'Retry'}
+              </button>
+            </div>
+          )}
 
           {/* Active Trips Section */}
           <section className="mb-12">

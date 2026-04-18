@@ -93,7 +93,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'Transport confirmation parser',
     'Split-track itineraries',
     'Co-organizer role',
-    'Trip Story, Year in Review & photo gallery',
+    'Trip Story & photo gallery',
     'Packing & prep checklists',
     'Wishlist & destination discovery',
     'Unlimited flight price alerts',
@@ -119,6 +119,10 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<ActiveSection>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingPersona, setEditingPersona] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -237,10 +241,26 @@ export default function SettingsPage() {
     : `${plan.name} plan`;
 
   // ── Notification state ─────────────────────────────────────────────────────
+  const LS_NOTIF_KEY = 'tripcoord_notifications';
   const [notifications, setNotifications] = useState<NotificationSettings>({
     email: true, push: true, tripReminders: true,
     voteAlerts: true, expenseAlerts: true, marketing: false,
   });
+  const [notifSaved, setNotifSaved] = useState(false);
+
+  // Load persisted notification prefs on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_NOTIF_KEY);
+      if (stored) setNotifications(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveNotifications = () => {
+    try { localStorage.setItem(LS_NOTIF_KEY, JSON.stringify(notifications)); } catch { /* ignore */ }
+    setNotifSaved(true);
+    setTimeout(() => setNotifSaved(false), 2000);
+  };
 
   // ── Integration voting ─────────────────────────────────────────────────────
   interface Integration { id: string; name: string; description: string; icon: string; votes: number; }
@@ -309,6 +329,22 @@ export default function SettingsPage() {
 
   const toggleNotification = (key: keyof NotificationSettings) =>
     setNotifications({ ...notifications, [key]: !notifications[key] });
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await fetch('/api/auth/me', { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete account');
+      // Clear all local data and redirect home
+      localStorage.clear();
+      window.location.href = '/';
+    } catch {
+      setDeleteError('Something went wrong. Please try again or contact support.');
+      setDeleting(false);
+    }
+  };
 
   const SectionButton = ({ section, label, icon: Icon }: { section: ActiveSection; label: string; icon: any }) => (
     <button
@@ -678,8 +714,11 @@ export default function SettingsPage() {
                       </div>
                     ))}
                   </div>
-                  <button className="mt-6 px-6 py-2 bg-sky-800 text-white rounded-lg hover:bg-sky-900 transition-all font-semibold">
-                    Save Changes
+                  <button
+                    onClick={saveNotifications}
+                    className={`mt-6 px-6 py-2 rounded-lg transition-all font-semibold ${notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                  >
+                    {notifSaved ? '✓ Saved!' : 'Save Changes'}
                   </button>
                 </div>
               )}
@@ -776,15 +815,48 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <div className="p-4 border border-red-200 rounded-lg bg-red-50">
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="font-semibold text-red-900">Delete Account</p>
-                          <p className="text-sm text-red-700 mt-1">Permanently delete your account and all associated data</p>
+                          <p className="text-sm text-red-700 mt-1">Permanently delete your account and all associated data. This cannot be undone.</p>
                         </div>
-                        <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all font-medium">
-                          <Trash2 className="w-4 h-4 inline mr-2" />Delete
-                        </button>
+                        {!showDeleteConfirm && (
+                          <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all font-medium flex-shrink-0 ml-4"
+                          >
+                            <Trash2 className="w-4 h-4 inline mr-2" />Delete
+                          </button>
+                        )}
                       </div>
+                      {showDeleteConfirm && (
+                        <div className="mt-3 space-y-3">
+                          <p className="text-sm text-red-800 font-medium">Type <strong>DELETE</strong> to confirm:</p>
+                          <input
+                            type="text"
+                            value={deleteConfirmText}
+                            onChange={e => setDeleteConfirmText(e.target.value)}
+                            placeholder="DELETE"
+                            className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
+                          />
+                          {deleteError && <p className="text-xs text-red-700">{deleteError}</p>}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleDeleteAccount}
+                              disabled={deleteConfirmText !== 'DELETE' || deleting}
+                              className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition-all"
+                            >
+                              {deleting ? 'Deleting…' : 'Permanently Delete My Account'}
+                            </button>
+                            <button
+                              onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeleteError(''); }}
+                              className="px-4 py-2 border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-all"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="p-4 border border-slate-200 rounded-lg">
                       <div className="flex items-start justify-between">
