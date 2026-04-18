@@ -504,8 +504,10 @@ function TripBuilderPage() {
 
     } catch (err) {
       clearInterval(msgInterval);
-      setGenerationError(err instanceof Error ? err.message : 'Something went wrong');
-      setIsGenerating(false);
+      // Keep isGenerating true so the loading screen stays visible —
+      // the error banner inside it lets the user read what went wrong
+      // and choose to try again.
+      setGenerationError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     }
   };
 
@@ -666,20 +668,23 @@ function TripBuilderPage() {
             </p>
           </div>
 
-          {/* Animated progress bar */}
-          <div className="w-64 h-1.5 bg-zinc-900/10 rounded-full overflow-hidden">
-            <div className="h-full bg-orange-500 rounded-full"
-              style={{ width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
-          </div>
+          {/* Animated progress bar — hidden once an error occurs */}
+          {!generationError && (
+            <div className="w-64 h-1.5 bg-zinc-900/10 rounded-full overflow-hidden">
+              <div className="h-full bg-orange-500 rounded-full"
+                style={{ width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+            </div>
+          )}
 
           {generationError && (
-            <div className="mt-8 px-5 py-3 bg-rose-50 border border-rose-200 rounded-xl">
-              <p className="text-rose-700 text-sm font-medium">{generationError}</p>
+            <div className="mt-8 w-full max-w-sm px-5 py-4 bg-rose-50 border border-rose-200 rounded-2xl text-left">
+              <p className="text-rose-800 text-sm font-semibold mb-1">Something went wrong</p>
+              <p className="text-rose-600 text-xs mb-3 leading-relaxed">{generationError}</p>
               <button
-                onClick={() => setIsGenerating(false)}
-                className="mt-2 text-xs text-rose-500 hover:text-rose-700 underline"
+                onClick={() => { setIsGenerating(false); setGenerationError(''); }}
+                className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors"
               >
-                Go back and try again
+                ← Go back and try again
               </button>
             </div>
           )}
