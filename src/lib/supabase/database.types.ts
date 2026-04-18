@@ -356,6 +356,7 @@ export type Database = {
           email: string | null
           id: string
           name: string | null
+          notification_preferences: Json | null
           subscription_tier: string
           updated_at: string
         }
@@ -367,6 +368,7 @@ export type Database = {
           email?: string | null
           id: string
           name?: string | null
+          notification_preferences?: Json | null
           subscription_tier?: string
           updated_at?: string
         }
@@ -378,6 +380,7 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string | null
+          notification_preferences?: Json | null
           subscription_tier?: string
           updated_at?: string
         }
