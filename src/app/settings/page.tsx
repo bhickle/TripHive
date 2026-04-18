@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useAuth } from '@/context/AuthContext';
 import { PRICING } from '@/hooks/useEntitlements';
 import {
   User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, Settings as SettingsIcon,
@@ -114,6 +115,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
 
 export default function SettingsPage() {
   const currentUser = useCurrentUser();
+  const { user, profile: authProfile, isLoading: authLoading } = useAuth();
   const [activeSection, setActiveSection] = useState<ActiveSection>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingPersona, setEditingPersona] = useState(false);
@@ -123,17 +125,26 @@ export default function SettingsPage() {
   const [userTrips, setUserTrips] = useState<any[]>([]);
 
   const [profile, setProfile] = useState({
-    name: currentUser.name,
-    email: currentUser.email,
-    avatarUrl: currentUser.avatarUrl,
+    name: '',
+    email: '',
+    avatarUrl: undefined as string | undefined,
   });
 
-  // Sync profile fields when auth finishes loading
+  // Populate profile from real auth data once it loads (bypasses mock user fallback)
   useEffect(() => {
-    if (!currentUser.isLoading) {
-      setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl });
+    if (!authLoading) {
+      if (user) {
+        setProfile({
+          name: authProfile?.name ?? (user.user_metadata as Record<string, string> | undefined)?.full_name ?? user.email?.split('@')[0] ?? '',
+          email: user.email ?? authProfile?.email ?? '',
+          avatarUrl: authProfile?.avatar_url ?? undefined,
+        });
+      } else {
+        // Not logged in — fall back to mock for demo experience
+        setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl });
+      }
     }
-  }, [currentUser.isLoading, currentUser.name, currentUser.email, currentUser.avatarUrl]);
+  }, [authLoading, user, authProfile, currentUser.name, currentUser.email, currentUser.avatarUrl]);
 
   // Load user uploaded trips for Downloads section
   useEffect(() => {
@@ -208,13 +219,16 @@ export default function SettingsPage() {
     }));
 
   // ── Subscription derived values ────────────────────────────────────────────
-  const rawTier = (currentUser as any).subscriptionTier as string | undefined;
-  const tier = (rawTier && rawTier in PLAN_DISPLAY) ? rawTier : 'free';
+  // Use real auth profile tier when available; fall back to currentUser (mock) for demo/guest
+  const rawTier = authLoading
+    ? 'free'
+    : (user ? (authProfile?.subscription_tier ?? 'free') : ((currentUser as any).subscriptionTier ?? 'free')) as string;
+  const tier = (rawTier in PLAN_DISPLAY) ? rawTier : 'free';
   const plan = PLAN_DISPLAY[tier];
   const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
 
-  const aiUsed    = currentUser.aiCredits?.used  ?? 0;
-  const aiTotal   = currentUser.aiCredits?.total ?? 0;
+  const aiUsed  = authLoading ? 0 : (user ? (authProfile?.ai_credits_used ?? 0) : (currentUser.aiCredits?.used ?? 0));
+  const aiTotal = authLoading ? 0 : (currentUser.aiCredits?.total ?? 0);
   const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : '0 / 10';
   const aiPct     = aiTotal > 0 ? Math.min(100, Math.round((aiUsed / aiTotal) * 100)) : 0;
 
@@ -343,7 +357,17 @@ export default function SettingsPage() {
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Your Profile</h2>
 
-                  {editingProfile ? (
+                  {/* Loading skeleton */}
+                  {authLoading ? (
+                    <div className="animate-pulse flex items-center gap-6 pb-6 border-b border-slate-200">
+                      <div className="w-16 h-16 rounded-full bg-slate-200" />
+                      <div className="space-y-2">
+                        <div className="h-4 w-32 bg-slate-200 rounded" />
+                        <div className="h-3 w-48 bg-slate-100 rounded" />
+                        <div className="h-3 w-24 bg-slate-100 rounded" />
+                      </div>
+                    </div>
+                  ) : editingProfile ? (
                     <div className="space-y-6">
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-3">Profile Picture</label>
@@ -392,8 +416,8 @@ export default function SettingsPage() {
                       <div className="flex items-center space-x-6">
                         <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
                         <div>
-                          <p className="font-semibold text-slate-900">{profile.name}</p>
-                          <p className="text-slate-600">{profile.email}</p>
+                          <p className="font-semibold text-slate-900">{profile.name || '—'}</p>
+                          <p className="text-slate-600">{profile.email || '—'}</p>
                           <p className="text-sm text-slate-500 mt-1 capitalize">{tierLabel}</p>
                         </div>
                       </div>
