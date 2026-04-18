@@ -7,24 +7,29 @@ function score(dest: typeof ALL_DESTINATIONS[0], q: string): number {
   const country = dest.country.toLowerCase();
   const region  = (dest.region ?? '').toLowerCase();
 
-  let s = 0;
+  let base = 0;
 
-  if (name === q)                s += 20;
-  else if (name.startsWith(q))   s += 12;
-  else if (name.includes(q))     s += 6;
+  // Base match score — must be > 0 for any bonuses to apply
+  if (name === q)                base += 20;
+  else if (name.startsWith(q))   base += 12;
+  else if (name.includes(q))     base += 6;
 
-  if (country === q)             s += 8;
-  else if (country.startsWith(q)) s += 4;
-  else if (country.includes(q))  s += 2;
+  if (country === q)             base += 8;
+  else if (country.startsWith(q)) base += 4;
+  else if (country.includes(q))  base += 2;
 
-  if (region.startsWith(q))      s += 3;
-  else if (region.includes(q))   s += 1;
+  if (region.startsWith(q))      base += 3;
+  else if (region.includes(q))   base += 1;
 
-  if (FEATURED_NAMES.has(name))  s += 3;
-  if (dest.type === 'city'    && s > 0) s += 1;
-  if (dest.type === 'country' && s > 0) s -= 0.5;
+  // No match at all — skip entirely
+  if (base === 0) return 0;
 
-  return s;
+  // Bonuses only applied when there's already a real match
+  if (FEATURED_NAMES.has(name))  base += 3;
+  if (dest.type === 'city')      base += 1;
+  if (dest.type === 'country')   base -= 0.5;
+
+  return base;
 }
 
 export async function GET(request: NextRequest) {
@@ -51,6 +56,9 @@ export async function GET(request: NextRequest) {
       );
       const data = await res.json();
 
+      // Log status so we can diagnose key/restriction issues
+      console.log('[destinations/search] Google status:', data.status, '| query:', q);
+
       if (data.status === 'OK' && data.predictions?.length) {
         const results = data.predictions.slice(0, 8).map((p: {
           place_id: string;
@@ -65,10 +73,16 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ results, source: 'google' });
       }
-      // Fall through to local on ZERO_RESULTS or other non-error statuses
-    } catch {
-      // Fall through to local on network error
+
+      // Return the status so we can diagnose from the API response itself
+      if (data.status !== 'ZERO_RESULTS') {
+        console.warn('[destinations/search] Google non-OK status:', data.status, data.error_message);
+      }
+    } catch (err) {
+      console.error('[destinations/search] Google fetch error:', err);
     }
+  } else {
+    console.log('[destinations/search] No GOOGLE_MAPS_KEY — using local fallback');
   }
 
   // ── Local fallback ────────────────────────────────────────────────────────
