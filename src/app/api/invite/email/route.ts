@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, stub: true });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://tripcoord.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
   const joinUrl = `${appUrl}/join/${tripId}`;
   const subject = `${inviterName || 'Someone'} invited you to join ${tripName || 'a trip'} on tripcoord`;
   const body = message || `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on tripcoord — AI-powered group travel planning.`;
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'tripcoord <invites@tripcoord.app>',
+        from: 'tripcoord <onboarding@resend.dev>',
         to: email,
         subject,
         html: `
