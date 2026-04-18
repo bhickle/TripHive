@@ -292,15 +292,42 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
           // Silently fall back to localStorage-only if Supabase save fails
         }
       } else {
+        // Existing trip — write localStorage then PATCH Supabase with the new itinerary
         const trip = realTrips.find(t => t.id === selectedTripId);
+        const tripDestination = trip?.destination || destination;
         localStorage.setItem('generatedTripMeta', JSON.stringify({
-          destination: trip?.destination || destination,
+          destination: tripDestination,
           startDate: trip?.start_date || meta.startDate || '',
           endDate: trip?.end_date || meta.endDate || '',
           budget: 5000,
           budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
           fromUpload: true,
         }));
+        localStorage.setItem('currentTripId', selectedTripId);
+        setSavedTripId(selectedTripId);
+
+        // Persist the newly-parsed itinerary into Supabase, replacing the old one
+        try {
+          await fetch(`/api/trips/${selectedTripId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: data.itinerary }),
+          });
+        } catch {
+          // Non-fatal — localStorage fallback is still set
+        }
+
+        // Regenerate packing list for the updated itinerary (fire-and-forget)
+        fetch('/api/generate-packing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tripId: selectedTripId,
+            destination: tripDestination,
+            startDate: trip?.start_date || meta.startDate,
+            endDate: trip?.end_date || meta.endDate,
+          }),
+        }).catch(() => { /* non-fatal */ });
       }
 
       setStep('cruise-check');
