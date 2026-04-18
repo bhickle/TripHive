@@ -120,6 +120,11 @@ export default function SettingsPage() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingPersona, setEditingPersona] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCookiePanel, setShowCookiePanel] = useState(false);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(() => {
+    try { return localStorage.getItem('tc_analytics') !== 'false'; } catch { return true; }
+  });
+  const [exportingData, setExportingData] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -377,6 +382,36 @@ export default function SettingsPage() {
 
   const toggleNotification = (key: keyof NotificationSettings) =>
     setNotifications({ ...notifications, [key]: !notifications[key] });
+
+  const handleExportData = async () => {
+    setExportingData(true);
+    try {
+      // Fetch profile from Supabase (or use mock for guests)
+      const profileRes = await fetch('/api/auth/me').catch(() => null);
+      const profileData = profileRes?.ok ? await profileRes.json() : null;
+
+      // Collect localStorage trip data
+      let trips: unknown[] = [];
+      try { trips = JSON.parse(localStorage.getItem('tripcoord_user_trips') || '[]'); } catch { /* ignore */ }
+
+      const exportPayload = {
+        exportedAt: new Date().toISOString(),
+        profile: profileData ?? { note: 'Not logged in — no profile data' },
+        trips,
+      };
+
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tripcoord-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+    setExportingData(false);
+  };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'DELETE') return;
@@ -859,8 +894,12 @@ export default function SettingsPage() {
                           <p className="font-semibold text-slate-900">Download Your Data</p>
                           <p className="text-sm text-slate-600 mt-1">Export all your trips, itineraries, and settings as JSON</p>
                         </div>
-                        <button className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
-                          <Download className="w-4 h-4 inline mr-2" />Export
+                        <button
+                          onClick={handleExportData}
+                          disabled={exportingData}
+                          className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium disabled:opacity-60"
+                        >
+                          <Download className="w-4 h-4 inline mr-2" />{exportingData ? 'Exporting…' : 'Export'}
                         </button>
                       </div>
                     </div>
@@ -914,8 +953,40 @@ export default function SettingsPage() {
                           <p className="font-semibold text-slate-900">Cookie Preferences</p>
                           <p className="text-sm text-slate-600 mt-1">Manage which cookies we use on your device</p>
                         </div>
-                        <button className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">Manage</button>
+                        <button
+                          onClick={() => setShowCookiePanel(!showCookiePanel)}
+                          className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
+                        >
+                          {showCookiePanel ? 'Close' : 'Manage'}
+                        </button>
                       </div>
+                      {showCookiePanel && (
+                        <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">Essential Cookies</p>
+                              <p className="text-xs text-slate-500">Required for login and core functionality</p>
+                            </div>
+                            <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded">Always on</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">Analytics Cookies</p>
+                              <p className="text-xs text-slate-500">Help us understand how the app is used</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const next = !analyticsEnabled;
+                                setAnalyticsEnabled(next);
+                                try { localStorage.setItem('tc_analytics', String(next)); } catch { /* ignore */ }
+                              }}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all ${analyticsEnabled ? 'bg-sky-800' : 'bg-slate-300'}`}
+                            >
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-all ${analyticsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

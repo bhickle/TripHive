@@ -51,7 +51,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [newDocItem, setNewDocItem] = useState('');
   const [newLogItem, setNewLogItem] = useState('');
   const [newPackItem, setNewPackItem] = useState('');
-  const [newPackCategory, setNewPackCategory] = useState('Clothing');
+  const [newPackCategory, setNewPackCategory] = useState('');
 
   // Packing generation state
   const [packingGenerating, setPackingGenerating] = useState(false);
@@ -564,13 +564,15 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
           <div className="flex gap-2">
             <select value={newPackCategory} onChange={(e) => setNewPackCategory(e.target.value)} className="px-4 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
+              <option value="" disabled>Category</option>
               {['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
             <input type="text" placeholder="Add packing item..." value={newPackItem} onChange={(e) => setNewPackItem(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') addPackItem(newPackItem, newPackCategory); }}
               className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
             <button onClick={() => addPackItem(newPackItem, newPackCategory)}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
+              disabled={!newPackCategory}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
               <Plus className="w-5 h-5" />
             </button>
           </div>

@@ -28,6 +28,7 @@ import {
   Bus,
   TrainFront,
   Compass,
+  BookOpen,
   ChevronDown,
   ChevronUp,
   Hash,
@@ -362,6 +363,7 @@ function ItineraryPageContent() {
   const [newActivityWebsite, setNewActivityWebsite] = useState('');
   const [newActivityStartTime, setNewActivityStartTime] = useState('');
   const [newActivityEndTime, setNewActivityEndTime] = useState('');
+  const [newActivityTimeError, setNewActivityTimeError] = useState<string | null>(null);
   const [newActivityTrack, setNewActivityTrack] = useState<'shared' | 'track_a' | 'track_b'>('shared');
   const [newActivityIsRestaurant, setNewActivityIsRestaurant] = useState(false);
   const [newActivityIsPrivate, setNewActivityIsPrivate] = useState(false);
@@ -455,6 +457,13 @@ function ItineraryPageContent() {
 
   // ─── Save activity (add new or update existing) ──────────────────────────────
   const handleSubmit = () => {
+    // Validate time ordering
+    if (newActivityStartTime && newActivityEndTime && newActivityEndTime <= newActivityStartTime) {
+      setNewActivityTimeError('End time must be after start time');
+      return;
+    }
+    setNewActivityTimeError(null);
+
     const timeSlot = newActivityStartTime && newActivityEndTime
       ? `${newActivityStartTime}–${newActivityEndTime}`
       : newActivityStartTime
@@ -777,6 +786,14 @@ function ItineraryPageContent() {
               <Sparkles className="w-4 h-4 text-sky-600" />
               <span className="hidden sm:inline">Add </span>Transport
               {!hasTransportParser && <LockBadge />}
+            </button>
+            <button
+              onClick={() => hasTripStory ? setShowStoryModal(true) : setUpgradePromptKey('feature_locked')}
+              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+            >
+              <BookOpen className="w-4 h-4 text-sky-600" />
+              <span className="hidden sm:inline">Trip </span>Story
+              {!hasTripStory && <LockBadge />}
             </button>
           </div>
         </div>
@@ -1344,11 +1361,14 @@ function ItineraryPageContent() {
                     <input
                       type="time"
                       value={newActivityEndTime}
-                      onChange={e => setNewActivityEndTime(e.target.value)}
-                      className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
+                      onChange={e => { setNewActivityEndTime(e.target.value); setNewActivityTimeError(null); }}
+                      className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent ${newActivityTimeError ? 'border-red-400' : 'border-zinc-200'}`}
                     />
                   </div>
                 </div>
+                {newActivityTimeError && (
+                  <p className="mt-1.5 text-xs text-red-600 font-medium">{newActivityTimeError}</p>
+                )}
               </div>
 
               {/* Restaurant toggle */}

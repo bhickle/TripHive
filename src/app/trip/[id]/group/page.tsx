@@ -286,8 +286,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const sharedInterests = interestOverlap.filter(i => i.count > 2);
 
   // ─── Expense calculations (keyed by member NAME throughout) ────────────────
+  // For real trips, actual data lives in localExpenses (Supabase-loaded);
+  // for mock trips it lives in expenses (static). Merge both for calculations.
+  const allExpenses = [...expenses, ...localExpenses];
   const calculateExpenses = () => {
-    const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const totalSpent = allExpenses.reduce((sum, exp) => sum + exp.amount, 0);
     // owedByName: how much each person owes (their share of all expenses)
     const owedByName: Record<string, number> = {};
     // paidByName: how much each person has paid out
@@ -295,15 +298,15 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
     groupMembers.forEach((m) => { owedByName[m.name] = 0; paidByName[m.name] = 0; });
 
-    expenses.forEach((exp) => {
+    allExpenses.forEach((exp) => {
       paidByName[exp.paidBy] = (paidByName[exp.paidBy] || 0) + exp.amount;
 
-      const participants = exp.splitAmong?.length ? exp.splitAmong : groupMembers.map(m => m.name);
+      const participants = (exp as any).splitAmong?.length ? (exp as any).splitAmong : groupMembers.map(m => m.name);
 
-      if (exp.splitType === 'custom' && exp.customAmounts) {
+      if ((exp as any).splitType === 'custom' && (exp as any).customAmounts) {
         // Use explicit per-person amounts
-        Object.entries(exp.customAmounts).forEach(([name, amt]) => {
-          owedByName[name] = (owedByName[name] || 0) + amt;
+        Object.entries((exp as any).customAmounts).forEach(([name, amt]) => {
+          owedByName[name] = (owedByName[name] || 0) + (amt as number);
         });
       } else {
         // Equal split among participants
