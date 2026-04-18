@@ -4,8 +4,8 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Sidebar } from '@/components/Sidebar';
-import { currentUser } from '@/data/mock';
 import { discoverDestinations, DiscoverDestination, VibeTag } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
   Globe2, ChevronRight, ArrowRight, Sparkles, Clock, DollarSign,
@@ -215,6 +215,7 @@ function FeaturedCard({ dest, onWishlist, wishlisted }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DiscoverPage() {
+  const currentUser = useCurrentUser();
   const { hasWishlist } = useEntitlements();
   const [query, setQuery] = useState('');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);

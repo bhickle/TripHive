@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sidebar } from '@/components/Sidebar';
-import { currentUser, wishlistItems as mockWishlistItems } from '@/data/mock';
+import { wishlistItems as mockWishlistItems } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { WishlistItem } from '@/lib/types';
 import {
   Heart, Plus, Sparkles, Calendar, DollarSign, Search,
@@ -514,6 +515,7 @@ function getTagColor(tag: string) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function WishlistPage() {
+  const currentUser = useCurrentUser();
   const { hasWishlist, getUpgradePrompt } = useEntitlements();
 
   const [filterType, setFilterType] = useState<FilterType>('all');

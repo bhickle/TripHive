@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { currentUser } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   ChevronLeft,
   ChevronRight,
@@ -214,6 +214,7 @@ function calcBudgetFromStyle(destination: string, tripLength: number, curiosityL
 }
 
 function TripBuilderPage() {
+  const currentUser = useCurrentUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const isFirstTrip = searchParams.get('firsttrip') === 'true';

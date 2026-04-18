@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Sidebar } from '@/components/Sidebar';
-import { currentUser } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Plane,
   Clock,
@@ -43,6 +43,7 @@ interface LayoverResult {
 }
 
 export default function LayoverPlannerPage() {
+  const currentUser = useCurrentUser();
   const [airport, setAirport] = useState('');
   const [layoverHours, setLayoverHours] = useState('');
   const [isSearching, setIsSearching] = useState(false);

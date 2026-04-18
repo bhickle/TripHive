@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
-import { trips, currentUser } from '@/data/mock';
+import { trips } from '@/data/mock';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface TripLayoutProps {
   children: React.ReactNode;
@@ -42,6 +43,7 @@ const pathToTab: Record<string, string> = {
 export default function TripLayout({ children, params }: TripLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const currentUser = useCurrentUser();
 
   const mockTrip = trips.find(t => t.id === params.id);
 
