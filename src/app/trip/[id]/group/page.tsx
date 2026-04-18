@@ -5,13 +5,14 @@ import { Avatar, AvatarStack } from '@/components/Avatar';
 import { ExpenseRow } from '@/components/ExpenseRow';
 import { VoteCard } from '@/components/VoteCard';
 import { ChatBubble } from '@/components/ChatBubble';
-import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes, messages as mockMessages } from '@/data/mock';
+import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes as mockGroupVotes, messages as mockMessages } from '@/data/mock';
 import { createBrowserClient } from '@supabase/ssr';
 
 const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 
-interface VoteOption { id: string; label: string; votes: number; }
+interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }
 interface Vote { id: string; title: string; status: 'open' | 'closed'; closesAt?: string; options: VoteOption[]; }
+interface GroupMemberData { id: string; name: string; email?: string | null; avatarUrl?: string | null; role: string; joinedAt?: string; interests?: string[]; }
 import {
   UserPlus,
   Send,
@@ -50,45 +51,80 @@ type ScannedReceipt = {
 
 export default function GroupPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
-  // Chat key is trip-specific so different trips don't share the same history
-  const CHAT_STORAGE_KEY = `tripcoord_chat_${params.id}`;
 
-  const groupMembers = isMockTrip ? mockGroupMembers : [mockGroupMembers[0]]; // only organizer for real trips
+  // For mock trips: static data. For real trips: fetched from Supabase.
+  const [groupMembers, setGroupMembers] = useState<GroupMemberData[]>(
+    isMockTrip ? (mockGroupMembers as GroupMemberData[]) : []
+  );
   const expenses = isMockTrip ? mockExpenses : [];
-  const messages = isMockTrip ? mockMessages : [];
-  const VOTES_STORAGE_KEY = `tripcoord_votes_${params.id}`;
-  const [votes, setVotes] = useState<Vote[]>(isMockTrip ? (groupVotes as Vote[]) : []);
+  const [chatMessages, setChatMessages] = useState(isMockTrip ? mockMessages : []);
+  const [votes, setVotes] = useState<Vote[]>(isMockTrip ? (mockGroupVotes as Vote[]) : []);
+  const [dataLoading, setDataLoading] = useState(!isMockTrip);
+
+  // Current user info (for message attribution)
+  const [currentUserName, setCurrentUserName] = useState<string>('You');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Trip name for invite messages — fetched from Supabase for real trips
   const [tripName, setTripName] = useState<string>(isMockTrip ? 'Iceland Adventure' : 'our trip');
+
+  // Fetch current user info for message attribution
+  useEffect(() => {
+    if (isMockTrip) return;
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.name) { setCurrentUserName(data.name); setNewExpensePaidBy(data.name); }
+      if (data?.id) setCurrentUserId(data.id);
+    }).catch(() => {});
+  }, [isMockTrip]);
+
+  // Load all real-trip data from Supabase APIs
   useEffect(() => {
     if (isMockTrip) return;
     const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
-    if (looksLikeUuid) {
-      fetch(`/api/trips/${params.id}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data?.trip?.title) setTripName(data.trip.title); })
-        .catch(() => {});
-    } else {
-      // localStorage fallback only for the current trip
+    if (!looksLikeUuid) return;
+
+    const loadAll = async () => {
+      setDataLoading(true);
       try {
-        const storedId = localStorage.getItem('currentTripId');
-        if (storedId === params.id || params.id.startsWith('upload_')) {
-          const stored = localStorage.getItem('generatedTripMeta');
-          if (stored) setTripName(JSON.parse(stored).destination || 'our trip');
+        // Fetch trip title, members, votes, messages in parallel
+        const [tripRes, membersRes, votesRes, messagesRes] = await Promise.allSettled([
+          fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/trips/${params.id}/members`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/trips/${params.id}/group-votes`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/trips/${params.id}/messages`).then(r => r.ok ? r.json() : null),
+        ]);
+
+        if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.title) {
+          setTripName(tripRes.value.trip.title);
         }
-      } catch { /* ignore */ }
-    }
-  }, [isMockTrip, params.id]);
+        if (membersRes.status === 'fulfilled' && membersRes.value?.members) {
+          setGroupMembers(membersRes.value.members);
+        }
+        if (votesRes.status === 'fulfilled' && votesRes.value?.votes) {
+          setVotes(votesRes.value.votes);
+        }
+        if (messagesRes.status === 'fulfilled' && messagesRes.value?.messages) {
+          // Mark messages from current user as isOwn
+          const msgs = messagesRes.value.messages.map((m: any) => ({
+            ...m,
+            isOwn: currentUserId ? m.senderId === currentUserId : false,
+          }));
+          setChatMessages(msgs);
+        }
+      } catch { /* ignore */ } finally {
+        setDataLoading(false);
+      }
+    };
+
+    loadAll();
+  }, [isMockTrip, params.id, currentUserId]);
 
   const { canAddTraveler, getUpgradePrompt } = useEntitlements();
   const [showTravelerUpgrade, setShowTravelerUpgrade] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [messageInput, setMessageInput] = useState('');
-  const [chatMessages, setChatMessages] = useState(messages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatInitialized = useRef(false);
   const [uploadedReceipt, setUploadedReceipt] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<ScannedReceipt | null>(null);
@@ -148,7 +184,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [newExpenseName, setNewExpenseName] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
-  const [newExpensePaidBy, setNewExpensePaidBy] = useState('Brandon');
+  const [newExpensePaidBy, setNewExpensePaidBy] = useState(isMockTrip ? 'Brandon' : '');
   const [newExpenseSplit, setNewExpenseSplit] = useState<'equal' | 'custom'>('equal');
   const [newExpenseCategory, setNewExpenseCategory] = useState<string>('dining');
   const [newExpenseSplitAmong, setNewExpenseSplitAmong] = useState<string[]>(groupMembers.map(m => m.name));
@@ -159,35 +195,6 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  // Load persisted votes from localStorage on first mount (non-mock trips only)
-  useEffect(() => {
-    if (isMockTrip) return;
-    try {
-      const stored = localStorage.getItem(VOTES_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) setVotes(parsed);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  // Load persisted messages from localStorage on first mount
-  useEffect(() => {
-    if (chatInitialized.current) return;
-    chatInitialized.current = true;
-    try {
-      const stored = localStorage.getItem(CHAT_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setChatMessages(parsed);
-        }
-      }
-    } catch {
-      // ignore parse errors — fall back to mock messages
-    }
-  }, []);
 
   // Load expenses from Supabase for non-mock trips
   useEffect(() => {
@@ -228,40 +235,42 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       });
   }, [params.id, isMockTrip]);
 
-  // Persist messages whenever they change (after initialization)
-  useEffect(() => {
-    if (!chatInitialized.current) return;
-    try {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
-    } catch {
-      // ignore storage errors (e.g. private mode quota)
-    }
-  }, [chatMessages]);
-
   useEffect(() => {
     scrollToBottom();
   }, [chatMessages]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageInput.trim()) return;
+    const content = messageInput.trim();
+    setMessageInput('');
 
-    const newMessage = {
-      id: `msg_${Date.now()}`,
-      senderName: 'Brandon',
-      content: messageInput,
+    // Optimistic update
+    const optimistic = {
+      id: `msg_opt_${Date.now()}`,
+      senderName: currentUserName,
+      content,
       createdAt: new Date().toISOString(),
       isOwn: true,
     };
+    setChatMessages(prev => [...prev, optimistic]);
 
-    setChatMessages(prev => [...prev, newMessage]);
-    setMessageInput('');
+    // Persist to Supabase for real trips
+    if (!isMockTrip) {
+      try {
+        await fetch(`/api/trips/${params.id}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        });
+      } catch { /* message is already shown optimistically */ }
+    }
   };
 
   const calculateInterestOverlap = () => {
     const interestMap: Record<string, number> = {};
 
     groupMembers.forEach((member) => {
-      member.interests.forEach((interest) => {
+      (member.interests ?? []).forEach((interest) => {
         interestMap[interest] = (interestMap[interest] || 0) + 1;
       });
     });
@@ -477,13 +486,13 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   onChange={handleAvatarUpload}
                 />
                 {groupMembers.map((member) => {
-                  const isMe = member.id === 'user_1';
+                  const isMe = currentUserId ? member.id === currentUserId : member.id === 'user_1';
                   const uploadedAvatar = memberAvatars[member.id];
                   const avatarSrc = uploadedAvatar || member.avatarUrl;
                   return (
                     <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                       <div className="relative mb-4 group/avatar">
-                        <Avatar src={avatarSrc} name={member.name} size="lg" />
+                        <Avatar src={avatarSrc ?? undefined} name={member.name} size="lg" />
                         <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
                         {/* Upload button — only on own card */}
                         {isMe && (
@@ -606,7 +615,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   return (
                     <div key={expense.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
                       <div className="flex items-start gap-4">
-                        <Avatar src={paidByMember?.avatarUrl} name={expense.paidBy} size="sm" />
+                        <Avatar src={paidByMember?.avatarUrl ?? undefined} name={expense.paidBy} size="sm" />
                         <div className="flex-1">
                           <p className="font-bold text-zinc-900">{expense.description}</p>
                           <p className="text-sm text-zinc-600 mt-1">{expense.paidBy} paid</p>
@@ -1191,11 +1200,13 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       Cancel
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const filledOptions = voteOptions.filter(o => o.trim());
                         if (!voteQuestion.trim() || filledOptions.length < 2) return;
-                        const newVote: Vote = {
-                          id: `vote_${Date.now()}`,
+
+                        // Optimistic local state
+                        const optimisticVote: Vote = {
+                          id: `vote_opt_${Date.now()}`,
                           title: voteQuestion.trim(),
                           status: 'open' as const,
                           closesAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -1205,14 +1216,33 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                             votes: 0,
                           })),
                         };
-                        const updated = [...votes, newVote];
-                        setVotes(updated);
-                        try { localStorage.setItem(VOTES_STORAGE_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+                        setVotes(prev => [...prev, optimisticVote]);
                         setVoteCreated(true);
                         setShowVoteModal(false);
                         setVoteQuestion('');
                         setVoteOptions(['', '', '']);
                         setTimeout(() => setVoteCreated(false), 3000);
+
+                        // Persist to Supabase for real trips
+                        if (!isMockTrip) {
+                          try {
+                            const res = await fetch(`/api/trips/${params.id}/group-votes`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                title: voteQuestion.trim(),
+                                options: filledOptions,
+                                closesAt: optimisticVote.closesAt,
+                                createdByName: currentUserName,
+                              }),
+                            });
+                            if (res.ok) {
+                              // Refresh votes to get real IDs
+                              const fresh = await fetch(`/api/trips/${params.id}/group-votes`).then(r => r.json());
+                              if (fresh.votes) setVotes(fresh.votes);
+                            }
+                          } catch { /* optimistic already shown */ }
+                        }
                       }}
                       className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-medium text-sm transition-colors"
                     >
@@ -1409,8 +1439,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   try {
                     const endpoint = inviteMethod === 'email' ? '/api/invite/email' : '/api/invite/sms';
                     const payload = inviteMethod === 'email'
-                      ? { email: inviteContact, tripId: params.id, tripName, inviterName: 'Brandon' }
-                      : { phone: inviteContact, tripId: params.id, tripName, inviterName: 'Brandon' };
+                      ? { email: inviteContact, tripId: params.id, tripName, inviterName: currentUserName }
+                      : { phone: inviteContact, tripId: params.id, tripName, inviterName: currentUserName };
 
                     const res = await fetch(endpoint, {
                       method: 'POST',

@@ -3,20 +3,9 @@
 import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips } from '@/data/mock';
+import { useEffect } from 'react';
 
 const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
-
-// Generic prep tasks for real/uploaded trips — no destination-specific references
-const genericPrepTasks = [
-  { id: 'prep_1', category: 'document', title: 'Check passport validity (6+ months required for most destinations)', completed: false },
-  { id: 'prep_2', category: 'document', title: 'Confirm visa requirements for your destination', completed: false },
-  { id: 'prep_3', category: 'document', title: 'Purchase travel insurance', completed: false, urgent: true },
-  { id: 'prep_4', category: 'document', title: 'Save copies of passport & bookings to phone/cloud', completed: false },
-  { id: 'prep_5', category: 'logistics', title: 'Notify your bank of travel dates', completed: false },
-  { id: 'prep_6', category: 'logistics', title: 'Check roaming / arrange a local SIM', completed: false },
-  { id: 'prep_7', category: 'logistics', title: 'Confirm accommodation check-in details', completed: false },
-  { id: 'prep_8', category: 'logistics', title: 'Download offline maps for your destination', completed: false },
-];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,8 +38,10 @@ interface PhrasebookData {
 
 export default function PrepPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
-  const prepTasks = isMockTrip ? mockPrepTasks : genericPrepTasks;
-  const packingItems = isMockTrip ? mockPackingItems : [];
+
+  // For real trips, prep tasks and packing items are loaded from Supabase
+  const [prepTasks, setPrepTasks] = useState<PrepTask[]>(isMockTrip ? (mockPrepTasks as PrepTask[]) : []);
+  const [packingItems, setPackingItems] = useState<PackingItem[]>(isMockTrip ? (mockPackingItems as PackingItem[]) : []);
 
   const [activeTab, setActiveTab] = useState<'documents' | 'packing' | 'logistics' | 'phrases'>('documents');
   const [completedTasks, setCompletedTasks] = useState(new Set(prepTasks.filter(t => t.completed).map((t: PrepTask) => t.id)));
@@ -75,6 +66,54 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const documentTasks = prepTasks.filter((t: PrepTask) => t.category === 'document');
   const logisticsTasks = prepTasks.filter((t: PrepTask) => t.category === 'logistics');
 
+  // Load prep tasks and packing items from Supabase for real trips
+  useEffect(() => {
+    if (isMockTrip) return;
+    const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
+    if (!looksLikeUuid) return;
+
+    Promise.allSettled([
+      fetch(`/api/trips/${params.id}/prep`).then(r => r.ok ? r.json() : null),
+      fetch(`/api/trips/${params.id}/packing`).then(r => r.ok ? r.json() : null),
+      fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
+    ]).then(([prepRes, packingRes, tripRes]) => {
+      if (prepRes.status === 'fulfilled' && prepRes.value?.tasks) {
+        const tasks: PrepTask[] = prepRes.value.tasks.map((t: any) => ({
+          id: t.id,
+          category: t.category,
+          title: t.title,
+          dueDate: t.due_date,
+          completed: t.completed,
+          urgent: t.urgent,
+        }));
+        setPrepTasks(tasks);
+        setCompletedTasks(new Set(tasks.filter(t => t.completed).map(t => t.id)));
+      }
+      if (packingRes.status === 'fulfilled' && packingRes.value?.items) {
+        const items: PackingItem[] = packingRes.value.items.map((i: any) => ({
+          id: i.id,
+          name: i.name,
+          category: i.category,
+          packed: i.packed,
+        }));
+        setPackingItems(items);
+        setPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
+      }
+      if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
+        // store destination for the phrasebook feature
+        try {
+          const existing = JSON.parse(localStorage.getItem('generatedTripMeta') || '{}');
+          if (!existing.destination) {
+            localStorage.setItem('generatedTripMeta', JSON.stringify({
+              ...existing,
+              destination: tripRes.value.trip.destination,
+            }));
+          }
+        } catch { /* ignore */ }
+      }
+    });
+  }, [isMockTrip, params.id]);
+
   // Read trip destination from localStorage for real trips; fall back to mock for demo
   const tripDestination = (() => {
     if (isMockTrip) return trips[0]?.destination ?? 'Iceland';
@@ -94,15 +133,85 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   };
 
   const toggleDocTask = (taskId: string) => {
+    const wasCompleted = completedTasks.has(taskId);
     const newCompleted = new Set(completedTasks);
-    if (newCompleted.has(taskId)) newCompleted.delete(taskId); else newCompleted.add(taskId);
+    if (wasCompleted) newCompleted.delete(taskId); else newCompleted.add(taskId);
     setCompletedTasks(newCompleted);
+    if (!isMockTrip) {
+      fetch(`/api/trips/${params.id}/prep`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, completed: !wasCompleted }),
+      }).catch(() => setCompletedTasks(completedTasks));
+    }
   };
 
   const togglePackedItem = (itemId: string) => {
+    const wasPacked = packedItems.has(itemId);
     const newPacked = new Set(packedItems);
-    if (newPacked.has(itemId)) newPacked.delete(itemId); else newPacked.add(itemId);
+    if (wasPacked) newPacked.delete(itemId); else newPacked.add(itemId);
     setPackedItems(newPacked);
+    if (!isMockTrip) {
+      fetch(`/api/trips/${params.id}/packing`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, packed: !wasPacked }),
+      }).catch(() => setPackedItems(packedItems));
+    }
+  };
+
+  const addDocTask = (title: string) => {
+    if (!title.trim()) return;
+    if (isMockTrip) {
+      setCustomDocTasks(prev => [...prev, { id: `custom_doc_${Date.now()}`, title: title.trim(), completed: false }]);
+    } else {
+      const tempId = `temp_${Date.now()}`;
+      setPrepTasks(prev => [...prev, { id: tempId, category: 'document', title: title.trim(), completed: false }]);
+      fetch(`/api/trips/${params.id}/prep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), category: 'document' }),
+      }).then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.task) setPrepTasks(prev => prev.map(t => t.id === tempId ? { id: data.task.id, category: data.task.category, title: data.task.title, completed: data.task.completed } : t));
+      }).catch(() => setPrepTasks(prev => prev.filter(t => t.id !== tempId)));
+    }
+    setNewDocItem('');
+  };
+
+  const addLogTask = (title: string) => {
+    if (!title.trim()) return;
+    if (isMockTrip) {
+      setCustomLogTasks(prev => [...prev, { id: `custom_log_${Date.now()}`, title: title.trim(), completed: false }]);
+    } else {
+      const tempId = `temp_${Date.now()}`;
+      setPrepTasks(prev => [...prev, { id: tempId, category: 'logistics', title: title.trim(), completed: false }]);
+      fetch(`/api/trips/${params.id}/prep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), category: 'logistics' }),
+      }).then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.task) setPrepTasks(prev => prev.map(t => t.id === tempId ? { id: data.task.id, category: data.task.category, title: data.task.title, completed: data.task.completed } : t));
+      }).catch(() => setPrepTasks(prev => prev.filter(t => t.id !== tempId)));
+    }
+    setNewLogItem('');
+  };
+
+  const addPackItem = (name: string, category: string) => {
+    if (!name.trim()) return;
+    if (isMockTrip) {
+      setCustomPackItems(prev => [...prev, { id: `custom_pack_${Date.now()}`, name: name.trim(), category, packed: false }]);
+    } else {
+      const tempId = `temp_${Date.now()}`;
+      setPackingItems(prev => [...prev, { id: tempId, name: name.trim(), category, packed: false }]);
+      fetch(`/api/trips/${params.id}/packing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), category }),
+      }).then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.item) setPackingItems(prev => prev.map(i => i.id === tempId ? { id: data.item.id, name: data.item.name, category: data.item.category, packed: data.item.packed } : i));
+      }).catch(() => setPackingItems(prev => prev.filter(i => i.id !== tempId)));
+    }
+    setNewPackItem('');
   };
 
   const toggleCategory = (category: string) => {
@@ -279,9 +388,9 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
           <div className="flex gap-2">
             <input type="text" placeholder="Add Document task..." value={newDocItem} onChange={(e) => setNewDocItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && newDocItem.trim()) { setCustomDocTasks(prev => [...prev, { id: `custom_doc_${Date.now()}`, title: newDocItem.trim(), completed: false }]); setNewDocItem(''); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') addDocTask(newDocItem); }}
               className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => { if (newDocItem.trim()) { setCustomDocTasks(prev => [...prev, { id: `custom_doc_${Date.now()}`, title: newDocItem.trim(), completed: false }]); setNewDocItem(''); } }}
+            <button onClick={() => addDocTask(newDocItem)}
               className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
               <Plus className="w-5 h-5" />
             </button>
@@ -380,9 +489,9 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               {['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
             <input type="text" placeholder="Add packing item..." value={newPackItem} onChange={(e) => setNewPackItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && newPackItem.trim()) { setCustomPackItems(prev => [...prev, { id: `custom_pack_${Date.now()}`, name: newPackItem.trim(), category: newPackCategory, packed: false }]); setNewPackItem(''); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') addPackItem(newPackItem, newPackCategory); }}
               className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => { if (newPackItem.trim()) { setCustomPackItems(prev => [...prev, { id: `custom_pack_${Date.now()}`, name: newPackItem.trim(), category: newPackCategory, packed: false }]); setNewPackItem(''); } }}
+            <button onClick={() => addPackItem(newPackItem, newPackCategory)}
               className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
               <Plus className="w-5 h-5" />
             </button>
@@ -446,9 +555,9 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
           <div className="flex gap-2">
             <input type="text" placeholder="Add something to handle..." value={newLogItem} onChange={(e) => setNewLogItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && newLogItem.trim()) { setCustomLogTasks(prev => [...prev, { id: `custom_log_${Date.now()}`, title: newLogItem.trim(), completed: false }]); setNewLogItem(''); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') addLogTask(newLogItem); }}
               className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => { if (newLogItem.trim()) { setCustomLogTasks(prev => [...prev, { id: `custom_log_${Date.now()}`, title: newLogItem.trim(), completed: false }]); setNewLogItem(''); } }}
+            <button onClick={() => addLogTask(newLogItem)}
               className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
               <Plus className="w-5 h-5" />
             </button>

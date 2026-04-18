@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
   Filter, Users, Calendar
 } from 'lucide-react';
-import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, trips } from '@/data/mock';
+import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
 import { createBrowserClient } from '@supabase/ssr';
 
@@ -14,9 +14,36 @@ const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 
 export default function MemoriesPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
-  const tripPhotos = isMockTrip ? mockTripPhotos : [];
+  const [tripPhotos, setTripPhotos] = useState<any[]>(isMockTrip ? mockTripPhotos : []);
   const itineraryDays = isMockTrip ? mockItineraryDays : [];
   const groupMembers = isMockTrip ? mockGroupMembers : [];
+  const [tripDestinationFromApi, setTripDestinationFromApi] = useState<string | null>(null);
+
+  // Load photos and trip destination from Supabase for real trips
+  useEffect(() => {
+    if (isMockTrip) return;
+    const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
+    if (!looksLikeUuid) return;
+
+    Promise.allSettled([
+      fetch(`/api/trips/${params.id}/photos`).then(r => r.ok ? r.json() : null),
+      fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
+    ]).then(([photosRes, tripRes]) => {
+      if (photosRes.status === 'fulfilled' && photosRes.value?.photos) {
+        setTripPhotos(photosRes.value.photos.map((p: any) => ({
+          id: p.id,
+          url: p.url,
+          activity: p.caption || 'Photo',
+          uploadedBy: p.uploaderName || 'You',
+          day: p.dayNumber || 1,
+          timestamp: p.createdAt || new Date().toISOString(),
+        })));
+      }
+      if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
+        setTripDestinationFromApi(tripRes.value.trip.destination);
+      }
+    });
+  }, [isMockTrip, params.id]);
 
   const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
   const [filterDay, setFilterDay] = useState<number | null>(null);
@@ -32,19 +59,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  // Read trip destination for non-mock trips
-  const tripDestination = (() => {
-    if (isMockTrip) return 'Iceland';
-    try {
-      const userTrips = JSON.parse(localStorage.getItem('tripcoord_user_trips') || '[]');
-      const found = userTrips.find((t: { id: string; destination?: string }) => t.id === params.id);
-      if (found?.destination) return found.destination;
-      const meta = JSON.parse(localStorage.getItem('generatedTripMeta') || '{}');
-      return meta.destination || 'your trip';
-    } catch { return 'your trip'; }
-  })();
-
-  const currentTrip = trips[0];
+  const tripDestination = isMockTrip ? 'Iceland' : (tripDestinationFromApi ?? 'your trip');
   const filteredPhotos = tripPhotos.filter(photo => {
     if (filterDay && photo.day !== filterDay) return false;
     if (filterPerson && photo.uploadedBy !== filterPerson) return false;

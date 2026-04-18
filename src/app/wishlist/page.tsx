@@ -520,13 +520,74 @@ export default function WishlistPage() {
 
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [sortType, setSortType] = useState<SortType>('name');
-  const [allItems, setAllItems] = useState<WishlistItem[]>(mockWishlistItems);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set(mockWishlistItems.map(i => i.id)));
+  const [allItems, setAllItems] = useState<WishlistItem[]>(currentUser.isDemo ? mockWishlistItems : []);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set(currentUser.isDemo ? mockWishlistItems.map(i => i.id) : []));
   const [showModal, setShowModal] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
 
-  const handleSaveNew = (item: WishlistItem) => {
-    setAllItems(prev => [...prev, item]);
-    setSavedIds(prev => new Set([...Array.from(prev), item.id]));
+  // Load real wishlist from API for authenticated (non-demo) users
+  useEffect(() => {
+    if (currentUser.isLoading || currentUser.isDemo) return;
+    setWishlistLoading(true);
+    fetch('/api/wishlist')
+      .then(r => r.ok ? r.json() : { items: [] })
+      .then(({ items }) => {
+        const mapped: WishlistItem[] = (items ?? []).map((i: any) => ({
+          id: i.id,
+          destination: i.destination,
+          country: i.country ?? '',
+          coverImage: i.coverImage ?? getCoverImage(i.destination),
+          bestSeason: i.bestSeason ?? 'Year-round',
+          estimatedCost: i.estimatedCost ?? 0,
+          tags: i.tags ?? [],
+          highlights: [],
+          aiGenerated: false,
+        }));
+        setAllItems(mapped);
+        setSavedIds(new Set(mapped.map(i => i.id)));
+      })
+      .catch(() => {})
+      .finally(() => setWishlistLoading(false));
+  }, [currentUser.isLoading, currentUser.isDemo]);
+
+  const handleSaveNew = async (item: WishlistItem) => {
+    if (currentUser.isDemo) {
+      setAllItems(prev => [...prev, item]);
+      setSavedIds(prev => new Set([...Array.from(prev), item.id]));
+      return;
+    }
+    // POST to API for real users
+    try {
+      const res = await fetch('/api/wishlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: item.destination,
+          country: item.country,
+          coverImage: item.coverImage,
+          bestSeason: item.bestSeason,
+          estimatedCost: item.estimatedCost,
+          tags: item.tags,
+        }),
+      });
+      if (res.ok) {
+        const { item: saved } = await res.json();
+        const mapped: WishlistItem = {
+          id: saved.id,
+          destination: saved.destination,
+          country: saved.country ?? '',
+          coverImage: saved.coverImage ?? item.coverImage,
+          bestSeason: saved.bestSeason ?? item.bestSeason,
+          estimatedCost: saved.estimatedCost ?? item.estimatedCost,
+          tags: saved.tags ?? item.tags,
+          highlights: item.highlights,
+          aiGenerated: item.aiGenerated,
+          tripDays: item.tripDays,
+        };
+        setAllItems(prev => [...prev, mapped]);
+        setSavedIds(prev => new Set([...Array.from(prev), mapped.id]));
+      }
+    } catch { /* silently ignore */ }
   };
 
   const getFilteredAndSorted = () => {
@@ -554,11 +615,18 @@ export default function WishlistPage() {
   const filteredItems = getFilteredAndSorted();
 
   const toggleWishlist = (id: string) => {
+    const isRemoving = savedIds.has(id);
     setSavedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      isRemoving ? next.delete(id) : next.add(id);
       return next;
     });
+    if (!currentUser.isDemo && isRemoving) {
+      fetch(`/api/wishlist?id=${id}`, { method: 'DELETE' }).catch(() => {
+        // Revert on failure
+        setSavedIds(prev => new Set([...Array.from(prev), id]));
+      });
+    }
   };
 
   // ── Wishlist is a paid feature — show upgrade wall for free users ─────────

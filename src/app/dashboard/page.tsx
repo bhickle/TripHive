@@ -10,7 +10,7 @@ import { TripStoryModal } from '@/components/TripStoryModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { trips, wishlistItems } from '@/data/mock';
+import { trips, wishlistItems as mockWishlistItems } from '@/data/mock';
 import {
   PlusCircle,
   TrendingUp,
@@ -65,6 +65,8 @@ export default function DashboardPage() {
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [wishlistPreview, setWishlistPreview] = useState<any[]>(mockWishlistItems.slice(0, 3));
 
   // For real (non-demo) logged-in users, load trips from Supabase.
   // Fall back to localStorage for demo / unauthenticated visitors.
@@ -106,6 +108,15 @@ export default function DashboardPage() {
       } catch { /* ignore */ }
     }
   }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
+  // Load real wishlist for "Where to Next?" section (non-demo users)
+  useEffect(() => {
+    if (currentUser.isLoading || currentUser.isDemo) return;
+    fetch('/api/wishlist')
+      .then(r => r.ok ? r.json() : { items: [] })
+      .then(({ items }) => { if (Array.isArray(items) && items.length > 0) setWishlistPreview(items.slice(0, 3)); })
+      .catch(() => {});
+  }, [currentUser.isLoading, currentUser.isDemo]);
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   // Load notifications only for demo account; real users start with an empty inbox
@@ -554,7 +565,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {wishlistItems.slice(0, 3).map((item) => (
+              {wishlistPreview.map((item) => (
                 <div
                   key={item.id}
                   className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group"
@@ -573,7 +584,7 @@ export default function DashboardPage() {
                   {/* Content */}
                   <div className="p-5">
                     <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-                      {item.tags.slice(0, 3).map(tag => (
+                      {(item.tags as string[]).slice(0, 3).map((tag: string) => (
                         <span key={tag} className="text-xs font-medium text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full">{tag}</span>
                       ))}
                     </div>

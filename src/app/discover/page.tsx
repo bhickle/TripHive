@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Sidebar } from '@/components/Sidebar';
-import { discoverDestinations, DiscoverDestination, VibeTag } from '@/data/mock';
+import { discoverDestinations as mockDiscoverDestinations, DiscoverDestination, VibeTag } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
@@ -217,11 +217,22 @@ function FeaturedCard({ dest, onWishlist, wishlisted }: {
 export default function DiscoverPage() {
   const currentUser = useCurrentUser();
   const { hasWishlist } = useEntitlements();
+  const [destinations, setDestinations] = useState<DiscoverDestination[]>(mockDiscoverDestinations);
   const [query, setQuery] = useState('');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
   const [activeContinent, setActiveContinent] = useState('All');
   const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
   const [showWishlistToast, setShowWishlistToast] = useState(false);
+
+  // Load destinations from Supabase (replaces mock data once fetched)
+  useEffect(() => {
+    fetch('/api/discover')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.destinations?.length) setDestinations(data.destinations);
+      })
+      .catch(() => { /* keep mock fallback */ });
+  }, []);
 
   const toggleVibe = (v: VibeTag) => {
     setActiveVibes(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
@@ -239,16 +250,16 @@ export default function DiscoverPage() {
   };
 
   const filtered = useMemo(() => {
-    return discoverDestinations.filter(d => {
+    return destinations.filter(d => {
       const matchQuery = !query || d.name.toLowerCase().includes(query.toLowerCase()) || d.country.toLowerCase().includes(query.toLowerCase());
       const matchVibe = activeVibes.length === 0 || activeVibes.some(v => d.vibes.includes(v));
       const matchContinent = activeContinent === 'All' || d.continent === activeContinent;
       return matchQuery && matchVibe && matchContinent;
     });
-  }, [query, activeVibes, activeContinent]);
+  }, [destinations, query, activeVibes, activeContinent]);
 
-  const editorPicks = discoverDestinations.filter(d => d.editorPick);
-  const trending = discoverDestinations.filter(d => d.trending);
+  const editorPicks = destinations.filter(d => d.editorPick);
+  const trending = destinations.filter(d => d.trending);
 
   return (
     <div className="flex h-screen bg-parchment">
