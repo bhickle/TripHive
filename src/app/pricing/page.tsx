@@ -26,7 +26,7 @@ const featureRows: {
   { label: 'Travelers per trip', icon: <Users className="w-4 h-4" />, free: 'Up to 4', trip_pass: 'Up to 6 (+add-ons)', explorer: 'Up to 8', nomad: 'Up to 15' },
   { label: 'Manual itinerary builder', icon: <CalendarDays className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   // AI
-  { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
+  { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: 'Up to 7 days', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
   { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: false, trip_pass: '30 per pass', explorer: '100 / month', nomad: '350 / month', nomadHighlight: true },
   { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   // Group
@@ -273,7 +273,7 @@ export default function PricingPage() {
                 'Plan trips all year long',
                 'Up to 8 travelers per trip',
                 '100 AI credits / month',
-                'AI itinerary generation',
+                'AI itinerary generation — up to 10 days',
                 'Transport confirmation parser',
                 'Trip Story for every trip',
                 'Group chat & expense splitting',
@@ -314,6 +314,7 @@ export default function PricingPage() {
               {[
                 { text: 'Everything in Explorer', highlight: false },
                 { text: 'Up to 15 travelers per trip', highlight: false },
+                { text: 'AI itineraries up to 14 days', highlight: true },
                 { text: '350 AI credits / month', highlight: true },
                 { text: 'Split-track itineraries (Track A/B)', highlight: true },
                 { text: 'Co-organizer role — share edit access', highlight: true },

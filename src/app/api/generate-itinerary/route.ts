@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -536,6 +539,45 @@ export async function POST(request: NextRequest) {
       }, { status: 503 });
     }
 
+    // ── Tier-based trip length enforcement ────────────────────────────────────
+    // Look up the requesting user's subscription tier. Default to 'free' for
+    // anonymous requests or if the profile lookup fails.
+    let userTier: SubscriptionTier = 'free';
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      if (user?.id) {
+        const adminClient = createAdminClient();
+        const { data: profile } = await adminClient
+          .from('profiles')
+          .select('subscription_tier')
+          .eq('id', user.id)
+          .single();
+        if (profile?.subscription_tier) {
+          userTier = profile.subscription_tier as SubscriptionTier;
+        }
+      }
+    } catch {
+      // Auth / DB unavailable — fall back to free-tier limits
+    }
+
+    const tierLimits = TIER_LIMITS[userTier];
+    const requestedLength = Number(body.tripLength) || 7;
+
+    if (requestedLength > tierLimits.maxTripDays) {
+      return NextResponse.json({
+        error: 'TRIP_LENGTH_LIMIT',
+        message: `Your ${userTier} plan supports itineraries up to ${tierLimits.maxTripDays} days. Upgrade to generate longer trips.`,
+      }, { status: 403 });
+    }
+
+    // Choose model and token budget based on tier + trip length.
+    // claude-sonnet-4-6 supports higher output token limits, which prevents
+    // truncation on longer (10–14 day) itineraries that need ~20k+ output tokens.
+    const useHighCapModel = userTier === 'nomad' && requestedLength > 7;
+    const modelId = useHighCapModel ? 'claude-sonnet-4-6' : 'claude-sonnet-4-5';
+    const maxTokens = useHighCapModel ? 32000 : 16000;
+
     // Pre-fetch real places from Google Places before running Claude.
     // This prevents the AI from hallucinating venue names and addresses.
     let realPlaces = null;
@@ -570,8 +612,8 @@ export async function POST(request: NextRequest) {
     });
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 16000,
+      model: modelId,
+      max_tokens: maxTokens,
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: prompt },
@@ -648,7 +690,7 @@ export async function POST(request: NextRequest) {
     // "verified: true" placeholder values that Claude generates itself.
     // Example: await enrichWithGooglePlaces(itinerary, process.env.GOOGLE_MAPS_KEY);
 
-    return NextResponse.json({ itinerary, title, practicalNotes, hotelSuggestions, model: 'claude-sonnet-4-5' });
+    return NextResponse.json({ itinerary, title, practicalNotes, hotelSuggestions, model: modelId });
 
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -30,6 +30,7 @@ import {
   Shuffle,
   X,
   Plus,
+  Lock,
 } from 'lucide-react';
 
 interface BookedFlight {
@@ -222,7 +223,7 @@ function TripBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const { canAffordAction, getUpgradePrompt } = useEntitlements();
+  const { canAffordAction, getUpgradePrompt, maxTripDays, tier } = useEntitlements();
   const [budgetInput, setBudgetInput] = useState('5000');
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [state, setState] = useState<TripWizardState>({
@@ -1008,19 +1009,41 @@ function TripBuilderPage() {
                     </label>
                     <p className="text-xs text-slate-400 mb-3">Quick-pick or set exact dates below — selecting dates auto-calculates length</p>
                     <div className="grid grid-cols-5 gap-2">
-                      {[3, 5, 7, 10, 14].map((days) => (
-                        <button
-                          key={days}
-                          onClick={() => handleTripLengthClick(days)}
-                          className={`p-3 rounded-lg border-2 font-semibold transition-all ${
-                            state.tripLength === days
-                              ? 'border-green-700 bg-green-50 text-green-800'
-                              : 'border-slate-200 text-slate-700 hover:border-sky-300'
-                          }`}
-                        >
-                          {days}d
-                        </button>
-                      ))}
+                      {[3, 5, 7, 10, 14].map((days) => {
+                        const isLocked = days > maxTripDays;
+                        const upgradeTo = maxTripDays <= 7 ? 'Explorer' : 'Nomad';
+                        return (
+                          <div key={days} className="relative group">
+                            <button
+                              onClick={() => {
+                                if (!isLocked) handleTripLengthClick(days);
+                              }}
+                              disabled={isLocked}
+                              title={isLocked ? `${days}-day trips require ${upgradeTo} or higher` : undefined}
+                              className={`w-full p-3 rounded-lg border-2 font-semibold transition-all ${
+                                isLocked
+                                  ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
+                                  : state.tripLength === days
+                                    ? 'border-green-700 bg-green-50 text-green-800'
+                                    : 'border-slate-200 text-slate-700 hover:border-sky-300'
+                              }`}
+                            >
+                              {days}d
+                              {isLocked && (
+                                <Lock className="w-3 h-3 inline-block ml-1 mb-0.5 text-slate-300" />
+                              )}
+                            </button>
+                            {isLocked && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-40 bg-slate-800 text-white text-xs rounded-lg px-3 py-2 text-center shadow-lg pointer-events-none">
+                                Requires {upgradeTo}+
+                                <Link href="/pricing" className="block mt-1 text-sky-300 underline pointer-events-auto">
+                                  Upgrade
+                                </Link>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 

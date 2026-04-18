@@ -228,5 +228,6 @@ export function useEntitlements(tripId?: string) {
     hasAIPacking: limits.canUseAIPacking,
     hasAIPhrasebook: limits.canUseAIPhrasebook,
     hasEarlyAccess: limits.earlyAccess,
+    maxTripDays: limits.maxTripDays,
   };
 }
