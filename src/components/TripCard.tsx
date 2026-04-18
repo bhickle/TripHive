@@ -6,6 +6,33 @@ import Image from 'next/image';
 import { Calendar, Users, ArrowRight } from 'lucide-react';
 import { Trip } from '@/lib/types';
 
+// Destination keyword → Unsplash photo (same set used across dashboard/trip-new)
+const DEST_PHOTOS: Record<string, string> = {
+  iceland:     'https://images.unsplash.com/photo-1504829857797-ddff29c27927?w=800&h=416&fit=crop',
+  tokyo:       'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&h=416&fit=crop',
+  japan:       'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&h=416&fit=crop',
+  bali:        'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&h=416&fit=crop',
+  barcelona:   'https://images.unsplash.com/photo-1583422409516-2895a77efded?w=800&h=416&fit=crop',
+  paris:       'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&h=416&fit=crop',
+  italy:       'https://images.unsplash.com/photo-1555992336-03a23c7b20ee?w=800&h=416&fit=crop',
+  santorini:   'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=800&h=416&fit=crop',
+  greece:      'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=800&h=416&fit=crop',
+  marrakech:   'https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=800&h=416&fit=crop',
+  morocco:     'https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=800&h=416&fit=crop',
+  patagonia:   'https://images.unsplash.com/photo-1531761535209-180857e963b9?w=800&h=416&fit=crop',
+  queenstown:  'https://images.unsplash.com/photo-1589871973318-9ca1258faa5d?w=800&h=416&fit=crop',
+  new_zealand: 'https://images.unsplash.com/photo-1589871973318-9ca1258faa5d?w=800&h=416&fit=crop',
+  default:     'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=416&fit=crop',
+};
+
+function getDestinationPhoto(destination: string): string {
+  const lower = destination.toLowerCase();
+  for (const key of Object.keys(DEST_PHOTOS)) {
+    if (key !== 'default' && lower.includes(key)) return DEST_PHOTOS[key];
+  }
+  return DEST_PHOTOS.default;
+}
+
 interface TripCardProps {
   trip: Trip;
   onCardClick?: (tripId: string) => void;
@@ -32,14 +59,12 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick }) => {
     >
       {/* Image — tall, editorial */}
       <div className="relative h-52 overflow-hidden bg-zinc-200">
-        {trip.coverImage && (
-          <Image
-            src={trip.coverImage}
-            alt={trip.destination}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        )}
+        <Image
+          src={trip.coverImage || getDestinationPhoto(trip.destination)}
+          alt={trip.destination}
+          fill
+          className="object-cover group-hover:scale-105 transition-transform duration-500"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
         {/* Status badge — Cormorant italic */}

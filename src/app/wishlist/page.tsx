@@ -116,6 +116,50 @@ const VIBE_HIGHLIGHTS: Record<TravelVibe, string[]> = {
   shopping:    ['Local market browsing', 'Artisan craft district', 'Design district stroll', 'Night market haul'],
 };
 
+// ─── Social URL destination extractor ────────────────────────────────────────
+
+function extractDestinationFromUrl(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl.trim().startsWith('http') ? rawUrl.trim() : `https://${rawUrl.trim()}`);
+    const hostname = url.hostname.replace('www.', '');
+    const parts = url.pathname.split('/').filter(Boolean);
+
+    // Pinterest board: pinterest.com/user/board-name
+    if (hostname === 'pinterest.com' || hostname.endsWith('.pinterest.com')) {
+      if (parts.length >= 2 && parts[1] !== 'pin') {
+        return parts[1].replace(/-/g, ' ').replace(/_/g, ' ');
+      }
+    }
+
+    // Instagram explore tags: instagram.com/explore/tags/kyoto
+    if (hostname === 'instagram.com' || hostname === 'instagr.am') {
+      if (parts[0] === 'explore' && parts[1] === 'tags' && parts[2]) {
+        return decodeURIComponent(parts[2]).replace(/-/g, ' ');
+      }
+      // Instagram location pages: instagram.com/explore/locations/id/place-name
+      if (parts[0] === 'explore' && parts[1] === 'locations' && parts[3]) {
+        return decodeURIComponent(parts[3]).replace(/-/g, ' ');
+      }
+    }
+
+    // TikTok hashtag: tiktok.com/tag/travel-bali
+    if (hostname === 'tiktok.com' || hostname === 'vm.tiktok.com') {
+      if (parts[0] === 'tag' && parts[1]) {
+        return parts[1].replace(/-/g, ' ');
+      }
+    }
+
+    // Generic: look for meaningful path segments (not IDs, not short tokens)
+    const meaningful = parts.filter(
+      (s) => s.length > 3 && !/^\d+$/.test(s) && !s.startsWith('@') && !['video', 'p', 'reel', 'stories', 'pin'].includes(s)
+    );
+    if (meaningful.length) {
+      return decodeURIComponent(meaningful[meaningful.length - 1]).replace(/[-_]/g, ' ');
+    }
+  } catch { /* invalid URL */ }
+  return null;
+}
+
 // ─── Add Destination Modal ────────────────────────────────────────────────────
 
 function AddDestinationModal({
@@ -131,6 +175,8 @@ function AddDestinationModal({
   const [tripDays, setTripDays] = useState<number>(7);
   const [msgIdx, setMsgIdx] = useState(0);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
+  const [socialUrl, setSocialUrl] = useState('');
+  const [showSocialInput, setShowSocialInput] = useState(false);
 
   const { query, setQuery, suggestions, loading } = usePlacesSearch(200, '/api/destinations/search');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -319,15 +365,72 @@ function AddDestinationModal({
               )}
             </div>
 
-            {/* Social import hint */}
-            <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-lg">📌</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-700">Saw it on Instagram or TikTok?</p>
-                <p className="text-xs text-slate-400">Pinterest sync & link import coming soon</p>
+            {/* Social link import */}
+            {!showSocialInput ? (
+              <button
+                type="button"
+                onClick={() => setShowSocialInput(true)}
+                className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 w-full hover:bg-sky-50 hover:border-sky-200 transition-colors group"
+              >
+                <span className="text-base">📌</span>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-xs font-medium text-slate-700 group-hover:text-sky-800">Saw it on Pinterest, TikTok or Instagram?</p>
+                  <p className="text-xs text-slate-400 group-hover:text-sky-600">Paste a link to import the destination</p>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-sky-500 flex-shrink-0" />
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-slate-700">Paste a Pinterest, TikTok or Instagram link</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://pinterest.com/..."
+                    value={socialUrl}
+                    onChange={(e) => setSocialUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const extracted = extractDestinationFromUrl(socialUrl);
+                        if (extracted) {
+                          setQuery(extracted);
+                          setDestination(extracted);
+                          setShowSuggestions(true);
+                        }
+                        setShowSocialInput(false);
+                        setSocialUrl('');
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-600 focus:border-transparent"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const extracted = extractDestinationFromUrl(socialUrl);
+                      if (extracted) {
+                        setQuery(extracted);
+                        setDestination(extracted);
+                        setShowSuggestions(true);
+                      }
+                      setShowSocialInput(false);
+                      setSocialUrl('');
+                    }}
+                    className="px-3 py-2 bg-sky-600 text-white text-xs font-semibold rounded-xl hover:bg-sky-700 transition-colors flex-shrink-0"
+                  >
+                    Import
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowSocialInput(false); setSocialUrl(''); }}
+                    className="px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">Works with Pinterest boards, Instagram location/tag pages, and TikTok hashtags</p>
               </div>
-              <span className="text-xs font-semibold text-sky-600 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex-shrink-0">Soon</span>
-            </div>
+            )}
 
             {/* Trip length */}
             <div>
@@ -696,15 +799,6 @@ export default function WishlistPage() {
               <div className="bg-sky-800 text-white font-semibold px-4 py-2 rounded-full text-sm">
                 {savedIds.size} saved
               </div>
-            </div>
-          </div>
-
-          {/* Seasonality Alert */}
-          <div className="mb-8 bg-sky-50 border border-sky-200 rounded-2xl p-4 flex items-start gap-3">
-            <Calendar className="w-5 h-5 text-sky-700 flex-shrink-0 mt-1" />
-            <div>
-              <p className="font-semibold text-sky-900">Best time to visit Kyoto is in 3 weeks!</p>
-              <p className="text-sm text-sky-900 mt-1">Spring cherry blossoms typically peak mid-April. Book your flight now for better prices.</p>
             </div>
           </div>
 

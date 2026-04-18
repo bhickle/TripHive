@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, MapPin, UserPlus, Copy, Check, Map, Sparkles, Users, CheckSquare, Camera } from 'lucide-react';
 import { NotificationBell } from '@/components/NotificationPanel';
 
@@ -27,6 +27,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   tripTitle, destination, activeTab = 'itinerary', onTabChange, onInvite, tripId, showBackButton = true,
 }) => {
   const [inviteCopied, setInviteCopied] = useState(false);
+  const router = useRouter();
 
   const handleInvite = () => {
     if (onInvite) onInvite();
@@ -39,9 +40,19 @@ export const TopBar: React.FC<TopBarProps> = ({
       <div className="px-6 py-3.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {showBackButton && (
-            <Link href="/dashboard" className="p-2 rounded-xl hover:bg-zinc-100 transition-colors flex-shrink-0" title="Back to dashboard">
+            <button
+              onClick={() => {
+                if (window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push('/dashboard');
+                }
+              }}
+              className="p-2 rounded-xl hover:bg-zinc-100 transition-colors flex-shrink-0"
+              title="Go back"
+            >
               <ArrowLeft className="w-5 h-5 text-zinc-600" />
-            </Link>
+            </button>
           )}
           <div className="flex-1 min-w-0">
             <h1 className="font-script italic text-lg font-semibold text-zinc-900 truncate leading-tight">{tripTitle}</h1>
