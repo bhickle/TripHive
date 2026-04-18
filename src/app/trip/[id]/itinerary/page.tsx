@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { itineraryDays, trips } from '@/data/mock';
 import { Activity, TransportLeg } from '@/lib/types';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
@@ -222,7 +223,7 @@ function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: num
   );
 }
 
-export default function ItineraryPage() {
+function ItineraryPageContent() {
   const params = useParams<{ id: string }>();
   const tripPageId = params?.id ?? '';
   const [selectedDay, setSelectedDay] = useState(1);
@@ -1501,5 +1502,13 @@ export default function ItineraryPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ItineraryPage() {
+  return (
+    <ErrorBoundary context="itinerary">
+      <ItineraryPageContent />
+    </ErrorBoundary>
   );
 }

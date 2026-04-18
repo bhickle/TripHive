@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
-import { trips } from '@/data/mock';
+import { trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock, Loader } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 
@@ -38,7 +38,7 @@ const priorityOptions = ['Food & Dining', 'Culture & History', 'Adventure & Spor
 const accommodationOptions = ['Luxury Hotels', 'Mid-Range Hotels', 'Boutique Stays', 'Hostels', 'Airbnb/Vacation Rentals'];
 const curiosityLevels = ['Exploring casually', 'Moderate pace', 'Packed schedule'];
 
-const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+// MOCK_TRIP_IDS imported from @/data/mock
 
 export default function JoinTripPage({ params }: { params: { id: string } }) {
   const router = useRouter();

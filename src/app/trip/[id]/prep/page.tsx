@@ -2,10 +2,8 @@
 
 import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles } from 'lucide-react';
-import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips } from '@/data/mock';
+import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
-
-const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

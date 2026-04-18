@@ -89,6 +89,10 @@ export const currentUser = {
   tripPasses: [] as import('@/lib/types').TripPass[],
 };
 
+// ─── Mock trip ID set — single source of truth used across all trip pages ─────
+// Import this instead of defining a local MOCK_TRIP_IDS constant per-file.
+export const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+
 export const trips: Trip[] = [
   {
     id: 'trip_1',

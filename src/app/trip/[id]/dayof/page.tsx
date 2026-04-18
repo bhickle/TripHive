@@ -10,7 +10,7 @@ import {
   ChevronLeft, Zap, Utensils, Star,
   CalendarDays, MessageSquare,
 } from 'lucide-react';
-import { itineraryDays, groupMembers, trips } from '@/data/mock';
+import { itineraryDays, groupMembers, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import type { TransportLeg, TransportType, Activity } from '@/lib/types';
 
 // ─── Transport config ─────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ function ActivityCardDayOf({ activity, status }: { activity: Activity; status: '
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+// MOCK_TRIP_IDS imported from @/data/mock
 
 export default function DayOfPage() {
   const params = useParams();

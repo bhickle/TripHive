@@ -6,11 +6,9 @@ import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
   Filter, Users, Calendar
 } from 'lucide-react';
-import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers } from '@/data/mock';
+import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, MOCK_TRIP_IDS } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
 import { createBrowserClient } from '@supabase/ssr';
-
-const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 
 export default function MemoriesPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);

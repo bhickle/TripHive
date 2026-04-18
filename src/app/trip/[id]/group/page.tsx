@@ -5,10 +5,8 @@ import { Avatar, AvatarStack } from '@/components/Avatar';
 import { ExpenseRow } from '@/components/ExpenseRow';
 import { VoteCard } from '@/components/VoteCard';
 import { ChatBubble } from '@/components/ChatBubble';
-import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes as mockGroupVotes, messages as mockMessages } from '@/data/mock';
+import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes as mockGroupVotes, messages as mockMessages, MOCK_TRIP_IDS } from '@/data/mock';
 import { createBrowserClient } from '@supabase/ssr';
-
-const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
 
 interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }
 interface Vote { id: string; title: string; status: 'open' | 'closed'; closesAt?: string; options: VoteOption[]; }

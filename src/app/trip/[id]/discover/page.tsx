@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, MapPin, Star, Clock, Plus, AlertCircle, Check, ExternalLink } from 'lucide-react';
+import { MOCK_TRIP_IDS } from '@/data/mock';
 
 interface DiscoverItem {
   id: string;
@@ -304,8 +305,7 @@ const categoryIcons: Record<DiscoverItem['category'], string> = {
 type FilterCategory = 'all' | DiscoverItem['category'];
 type SortOption = 'match' | 'rating' | 'price';
 
-// Mock trip IDs — these use the hardcoded Iceland discoverItems
-const MOCK_TRIP_IDS = new Set(['trip_1', 'trip_2', 'trip_3', 'trip_4']);
+// MOCK_TRIP_IDS is imported from @/data/mock — single source of truth
 
 export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [searchQuery, setSearchQuery] = useState('');

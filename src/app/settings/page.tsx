@@ -124,6 +124,7 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
@@ -178,6 +179,23 @@ export default function SettingsPage() {
       }
     } catch { /* ignore */ }
   }, []);
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    if (user) {
+      try {
+        await fetch('/api/auth/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: profile.name }),
+        });
+      } catch { /* ignore network errors */ }
+    }
+    setProfileSaving(false);
+    setEditingProfile(false);
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 2000);
+  };
 
   const savePersona = () => {
     try {
@@ -464,10 +482,11 @@ export default function SettingsPage() {
                       </div>
                       <div className="flex space-x-3 pt-4">
                         <button
-                          onClick={() => { setEditingProfile(false); setProfileSaved(true); setTimeout(() => setProfileSaved(false), 2000); }}
-                          className={`px-6 py-2 rounded-lg transition-all font-semibold ${profileSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                          onClick={saveProfile}
+                          disabled={profileSaving}
+                          className={`px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${profileSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                         >
-                          {profileSaved ? '✓ Saved!' : 'Save Changes'}
+                          {profileSaved ? '✓ Saved!' : profileSaving ? 'Saving…' : 'Save Changes'}
                         </button>
                         <button
                           onClick={() => { setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl }); setEditingProfile(false); }}

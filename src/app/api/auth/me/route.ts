@@ -34,7 +34,8 @@ export async function DELETE() {
 /**
  * PATCH /api/auth/me
  * Updates mutable profile fields for the authenticated user.
- * Currently supports: notification_preferences (JSONB)
+ * Supports: name (string), notification_preferences (JSONB)
+ * Note: email changes require Supabase re-auth and are handled separately.
  */
 export async function PATCH(request: Request) {
   try {
@@ -43,21 +44,30 @@ export async function PATCH(request: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { notification_preferences } = body;
+    const { name, notification_preferences } = body;
 
-    if (!notification_preferences || typeof notification_preferences !== 'object') {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    // Build the update payload — only include fields that were sent
+    const updates: Record<string, unknown> = {};
+    if (typeof name === 'string' && name.trim().length > 0) {
+      updates.name = name.trim();
+    }
+    if (notification_preferences && typeof notification_preferences === 'object') {
+      updates.notification_preferences = notification_preferences;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const supabase = createAdminClient();
     const { error } = await supabase
       .from('profiles')
-      .update({ notification_preferences })
+      .update(updates)
       .eq('id', user.id);
 
     if (error) {
-      console.error('Update notification preferences error:', error);
-      return NextResponse.json({ error: 'Failed to save preferences' }, { status: 500 });
+      console.error('PATCH profiles error:', error);
+      return NextResponse.json({ error: 'Failed to save changes' }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
