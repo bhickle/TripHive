@@ -301,7 +301,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     allExpenses.forEach((exp) => {
       paidByName[exp.paidBy] = (paidByName[exp.paidBy] || 0) + exp.amount;
 
-      const participants = (exp as any).splitAmong?.length ? (exp as any).splitAmong : groupMembers.map(m => m.name);
+      const participants: string[] = (exp as any).splitAmong?.length ? (exp as any).splitAmong : groupMembers.map(m => m.name);
 
       if ((exp as any).splitType === 'custom' && (exp as any).customAmounts) {
         // Use explicit per-person amounts
