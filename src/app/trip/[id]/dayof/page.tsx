@@ -268,55 +268,63 @@ export default function DayOfPage() {
   const params = useParams();
   const tripId = params?.id as string;
 
+  // Determine synchronously so initial state is correct (avoids flash of mock data)
+  const isRealTrip = !MOCK_TRIP_IDS.has(tripId) && /^[0-9a-f-]{36}$/i.test(tripId);
+
   const [checkedIn, setCheckedIn] = useState<Set<string>>(new Set(['user_1']));
   const [showEndOfDay, setShowEndOfDay] = useState(false);
   const [destination, setDestination] = useState<string>('Destination');
   const [currentUserName, setCurrentUserName] = useState<string>('You');
-  const [isMockTrip, setIsMockTrip] = useState(true);
-
-  // Determine current trip and load appropriate data
-  const currentTrip = trips.find((t) => t.id === tripId) || trips[0];
-  let currentDay = itineraryDays[1];
-  let crewToShow = groupMembers.slice(0, 4);
+  const [isMockTrip, setIsMockTrip] = useState(!isRealTrip);
+  // Use state for currentDay so Supabase/localStorage loads trigger a re-render
+  const [currentDay, setCurrentDay] = useState<(typeof itineraryDays)[0]>(
+    isRealTrip ? itineraryDays[0] : itineraryDays[1]
+  );
 
   useEffect(() => {
-    // Check if this is a mock trip
-    const isReal = !MOCK_TRIP_IDS.has(tripId);
-    setIsMockTrip(!isReal);
+    if (!isRealTrip) return;
 
-    if (isReal) {
-      // Load from localStorage
+    const load = async () => {
+      // ── Supabase first (UUID trips) ────────────────────────────────────────
+      try {
+        const res = await fetch(`/api/trips/${tripId}`);
+        if (res.ok) {
+          const { trip, itinerary } = await res.json();
+          if (trip?.destination) setDestination(trip.destination);
+          const days = itinerary?.days ?? itinerary?.itinerary;
+          if (days?.length > 0) {
+            const today = new Date().toISOString().split('T')[0];
+            const idx = days.findIndex((d: { date?: string }) => d.date === today);
+            setCurrentDay(days[idx >= 0 ? idx : 0]);
+            setIsMockTrip(false);
+            return;
+          }
+        }
+      } catch { /* fall through to localStorage */ }
+
+      // ── localStorage fallback ──────────────────────────────────────────────
       try {
         const itineraryJson = localStorage.getItem('generatedItinerary');
         const metaJson = localStorage.getItem('generatedTripMeta');
-
         if (itineraryJson && metaJson) {
           const itinerary = JSON.parse(itineraryJson);
           const meta = JSON.parse(metaJson);
-
-          // Set destination
-          if (meta.destination) {
-            setDestination(meta.destination);
+          if (meta?.destination) setDestination(meta.destination);
+          if (meta?.organizerName) setCurrentUserName(meta.organizerName);
+          if (itinerary?.length > 0) {
+            const today = new Date().toISOString().split('T')[0];
+            const idx = itinerary.findIndex((d: { date?: string }) => d.date === today);
+            setCurrentDay(itinerary[idx >= 0 ? idx : 0]);
           }
-
-          // Set current user name
-          if (meta.organizerName) {
-            setCurrentUserName(meta.organizerName);
-          }
-
-          // Find today's date
-          const today = new Date().toISOString().split('T')[0];
-          if (itinerary && itinerary.length > 0) {
-            const todayDayIndex = itinerary.findIndex((day: any) => day.date === today);
-            const dayIndex = todayDayIndex >= 0 ? todayDayIndex : 0;
-            currentDay = itinerary[dayIndex];
-          }
+          setIsMockTrip(false);
         }
       } catch (err) {
-        console.error('Error loading trip from localStorage:', err);
+        console.error('Error loading trip for day-of view:', err);
       }
-    }
-  }, [tripId]);
+    };
+
+    load();
+  }, [tripId, isRealTrip]);
 
   const transportLegs = currentDay.transportLegs || [];
 

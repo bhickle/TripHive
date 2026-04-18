@@ -439,8 +439,10 @@ export default function ItineraryPage() {
     setAiDays(updated);
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
 
-    // Fire-and-forget sync to Supabase if we have a real trip ID
-    const tripId = typeof window !== 'undefined' ? localStorage.getItem('currentTripId') : null;
+    // Fire-and-forget sync to Supabase — use the URL trip ID directly so this
+    // works regardless of whether localStorage has 'currentTripId' set (e.g. on
+    // direct navigation via bookmark or dashboard link).
+    const tripId = params.id;
     if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
       fetch(`/api/trips/${tripId}`, {
         method: 'PATCH',
@@ -448,7 +450,7 @@ export default function ItineraryPage() {
         body: JSON.stringify({ days: updated }),
       }).catch(() => { /* non-critical — localStorage is the source of truth */ });
     }
-  }, []);
+  }, [params.id]);
 
   // ─── Save activity (add new or update existing) ──────────────────────────────
   const handleSubmit = () => {
