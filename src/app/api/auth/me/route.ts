@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { TablesUpdate } from '@/lib/supabase/database.types';
 
 /**
  * DELETE /api/auth/me
@@ -47,7 +48,7 @@ export async function PATCH(request: Request) {
     const { name, notification_preferences } = body;
 
     // Build the update payload — only include fields that were sent
-    const updates: Record<string, unknown> = {};
+    const updates: TablesUpdate<'profiles'> = {};
     if (typeof name === 'string' && name.trim().length > 0) {
       updates.name = name.trim();
     }
