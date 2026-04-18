@@ -3,28 +3,68 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-interface GooglePlaceApiResult {
-  name: string;
-  formatted_address: string;
-  place_id: string;
+interface PlacesApiNewResult {
+  id?: string;
+  displayName?: { text: string };
+  formattedAddress?: string;
   rating?: number;
+  userRatingCount?: number;
+  priceLevel?: string;
+  types?: string[];
+  regularOpeningHours?: { weekdayDescriptions?: string[] };
 }
+
+const PRICE_LEVEL_MAP: Record<string, string> = {
+  PRICE_LEVEL_FREE: '$0',
+  PRICE_LEVEL_INEXPENSIVE: '$',
+  PRICE_LEVEL_MODERATE: '$$',
+  PRICE_LEVEL_EXPENSIVE: '$$$',
+  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
+};
 
 async function fetchRealPlaces(destination: string, isRestaurant: boolean, apiKey: string): Promise<string> {
   try {
     const query = isRestaurant
       ? `restaurants in ${destination}`
       : `things to do attractions in ${destination}`;
-    const params = new URLSearchParams({ query, key: apiKey });
     const res = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`,
-      { headers: { Referer: 'https://www.tripcoord.ai' } }
+      'https://places.googleapis.com/v1/places:searchText',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.regularOpeningHours.weekdayDescriptions',
+        },
+        body: JSON.stringify({ textQuery: query, maxResultCount: 15 }),
+      }
     );
     const data = await res.json();
-    if (data.status !== 'OK') return '';
-    const places = (data.results as GooglePlaceApiResult[]).slice(0, 15);
-    return places.map(p => `• ${p.name} — ${p.formatted_address}${p.rating ? ` (★${p.rating})` : ''}`).join('\n');
-  } catch {
+    if (!data.places?.length) return '';
+
+    const places = (data.places as PlacesApiNewResult[])
+      .map(p => ({
+        name: p.displayName?.text ?? '',
+        address: p.formattedAddress ?? '',
+        rating: p.rating,
+        reviewCount: p.userRatingCount,
+        priceLevel: p.priceLevel,
+        hours: p.regularOpeningHours?.weekdayDescriptions,
+      }))
+      .filter(p => p.name && (p.rating ?? 0) >= 3.5 && (p.reviewCount ?? 0) >= 5);
+
+    return places.map(p => {
+      let line = `• ${p.name} — ${p.address}`;
+      const meta: string[] = [];
+      if (p.rating)      meta.push(`★${p.rating}`);
+      if (p.reviewCount) meta.push(`${p.reviewCount} reviews`);
+      if (p.priceLevel && PRICE_LEVEL_MAP[p.priceLevel]) meta.push(PRICE_LEVEL_MAP[p.priceLevel]);
+      if (meta.length)   line += ` (${meta.join(', ')})`;
+      if (p.hours?.length) line += `\n    Hours: ${p.hours.join(' | ')}`;
+      return line;
+    }).join('\n');
+  } catch (err) {
+    console.error('[fetchRealPlaces]', err);
     return '';
   }
 }
@@ -58,7 +98,9 @@ export async function POST(request: NextRequest) {
       if (placesList) {
         realPlacesBlock = `\n\nCRITICAL — USE ONLY REAL VERIFIED PLACES:
 You MUST suggest a venue from this list only. Do NOT invent place names or addresses.
-REAL ${isRestaurant ? 'RESTAURANTS' : 'ATTRACTIONS'} IN ${destination}:
+Each venue includes opening hours where available — only suggest a venue that is open during the timeSlot ${timeSlot}.
+A venue closing before 4 PM cannot be dinner. A venue opening at 5 PM cannot be breakfast or lunch.
+REAL ${isRestaurant ? 'RESTAURANTS' : 'ATTRACTIONS'} IN ${destination} (quality-filtered, ★3.5+ with reviews):
 ${placesList}`;
       }
     }

@@ -33,14 +33,32 @@ interface GooglePlace {
   address: string;
   placeId: string;
   rating?: number;
+  reviewCount?: number;
+  priceLevel?: string;
+  types?: string[];
+  openingHours?: string[]; // weekdayDescriptions e.g. ["Monday: 11:00 AM – 9:00 PM", ...]
 }
 
-interface GooglePlaceApiResult {
-  name: string;
-  formatted_address: string;
-  place_id: string;
+interface PlacesApiNewResult {
+  id?: string;
+  displayName?: { text: string };
+  formattedAddress?: string;
   rating?: number;
+  userRatingCount?: number;
+  priceLevel?: string;
+  types?: string[];
+  regularOpeningHours?: {
+    weekdayDescriptions?: string[];
+  };
 }
+
+const PRICE_LEVEL_MAP: Record<string, string> = {
+  PRICE_LEVEL_FREE: '$0',
+  PRICE_LEVEL_INEXPENSIVE: '$',
+  PRICE_LEVEL_MODERATE: '$$',
+  PRICE_LEVEL_EXPENSIVE: '$$$',
+  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
+};
 
 async function fetchDestinationPlaces(
   destination: string,
@@ -48,22 +66,52 @@ async function fetchDestinationPlaces(
 ): Promise<{ restaurants: GooglePlace[]; attractions: GooglePlace[] }> {
   const searchPlaces = async (query: string): Promise<GooglePlace[]> => {
     try {
-      const params = new URLSearchParams({ query, key: apiKey });
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`,
-        { headers: { Referer: 'https://www.tripcoord.ai' } }
+        'https://places.googleapis.com/v1/places:searchText',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+            'X-Goog-FieldMask': [
+              'places.id',
+              'places.displayName',
+              'places.formattedAddress',
+              'places.rating',
+              'places.userRatingCount',
+              'places.priceLevel',
+              'places.types',
+              'places.regularOpeningHours.weekdayDescriptions',
+            ].join(','),
+          },
+          body: JSON.stringify({ textQuery: query, maxResultCount: 20 }),
+        }
       );
       const data = await res.json();
-      if (data.status !== 'OK') {
-        console.warn(`[fetchDestinationPlaces] Status ${data.status} for: ${query}`);
+      if (!data.places?.length) {
+        console.warn(`[fetchDestinationPlaces] No places returned for: ${query}`);
         return [];
       }
-      return (data.results as GooglePlaceApiResult[]).slice(0, 20).map(p => ({
-        name: p.name,
-        address: p.formatted_address,
-        placeId: p.place_id,
+
+      const raw: GooglePlace[] = (data.places as PlacesApiNewResult[]).map(p => ({
+        name: p.displayName?.text ?? '',
+        address: p.formattedAddress ?? '',
+        placeId: p.id ?? '',
         rating: p.rating,
-      }));
+        reviewCount: p.userRatingCount,
+        priceLevel: p.priceLevel,
+        types: p.types ?? [],
+        openingHours: p.regularOpeningHours?.weekdayDescriptions,
+      })).filter(p => p.name);
+
+      // Quality filter: 4.0+ rating with meaningful review count
+      // Adaptive threshold — fall back to 3.5/5 reviews for sparse small-town results
+      const highQuality = raw.filter(p => (p.rating ?? 0) >= 4.0 && (p.reviewCount ?? 0) >= 20);
+      const fallback    = raw.filter(p => (p.rating ?? 0) >= 3.5 && (p.reviewCount ?? 0) >= 5);
+
+      const filtered = highQuality.length >= 5 ? highQuality : fallback;
+      console.log(`[fetchDestinationPlaces] "${query}": ${raw.length} raw → ${filtered.length} quality-filtered`);
+      return filtered;
     } catch (err) {
       console.error('[fetchDestinationPlaces] Error:', err);
       return [];
@@ -76,6 +124,19 @@ async function fetchDestinationPlaces(
   ]);
 
   return { restaurants, attractions };
+}
+
+function formatPlaceForPrompt(p: GooglePlace): string {
+  let line = `• ${p.name} — ${p.address}`;
+  const meta: string[] = [];
+  if (p.rating)       meta.push(`★${p.rating}`);
+  if (p.reviewCount)  meta.push(`${p.reviewCount} reviews`);
+  if (p.priceLevel && PRICE_LEVEL_MAP[p.priceLevel]) meta.push(PRICE_LEVEL_MAP[p.priceLevel]);
+  if (meta.length)    line += ` (${meta.join(', ')})`;
+  if (p.openingHours?.length) {
+    line += `\n    Hours: ${p.openingHours.join(' | ')}`;
+  }
+  return line;
 }
 
 function buildPrompt(params: {
@@ -249,20 +310,35 @@ TRIP DETAILS:
 ${(() => {
     if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
     const { restaurants, attractions } = realPlaces;
-    let section = `\nCRITICAL — USE ONLY REAL VERIFIED PLACES:
-You MUST use ONLY the venues listed below for ALL restaurants and activities.
-Do NOT invent, guess, or hallucinate any place names, businesses, or addresses.
-Every single venue in the itinerary must appear in one of these two lists.
-If there are insufficient unique restaurants for all meal slots, reuse venues at different times — that is far better than inventing fake places.
-If the lists are sparse, reduce the number of activities per day to match what actually exists.`;
+
+    let section = `\nCRITICAL — REAL PLACES ONLY (verified via Google Places):
+You MUST use ONLY the venues listed below. Do NOT invent, guess, or hallucinate any place names, businesses, or addresses.
+Every restaurant and activity in the itinerary must come from one of these two lists — no exceptions.
+
+OPENING HOURS RULES (strictly enforce):
+- Each venue's opening hours are listed. Schedule it ONLY within those hours.
+- A restaurant closed before 10:00 AM cannot be breakfast. One opening at 5:00 PM cannot be lunch.
+- If hours are not listed for a venue, apply common-sense defaults (restaurants: noon–10 PM; parks/outdoor sites: all day).
+- Do NOT schedule any venue outside its listed hours even if it creates a scheduling gap — fill gaps with a venue that IS open.
+
+QUALITY & CURATION RULES (travel agent standard):
+- All venues are pre-filtered for quality (minimum rating + review count). Prefer venues with more reviews when choosing between similar options.
+- Match price level to the trip budget. Venues marked $$$$ are not appropriate for budget trips.
+- For restaurants: read the types and hours to determine meal fit.
+  - Cafes, bakeries, diners open before 10 AM → breakfast-appropriate.
+  - Restaurants opening at or after 11 AM → lunch/dinner only.
+  - Venues closing before 4 PM → breakfast/lunch only, never dinner.
+  - Bars and pubs → dinner or after, never breakfast or lunch.
+- Vary cuisine and activity type across meals and days. Do not repeat the same venue or same cuisine type back-to-back.
+- If the lists are sparse (small town), reduce daily activities to match what actually exists. Reuse a restaurant across days before inventing a fake one.`;
 
     if (restaurants.length > 0) {
-      section += `\n\nREAL RESTAURANTS IN ${destination} (use ONLY these for all meal slots):\n`;
-      section += restaurants.map(r => `• ${r.name} — ${r.address}${r.rating ? ` (★${r.rating})` : ''}`).join('\n');
+      section += `\n\nREAL RESTAURANTS IN ${destination}:\n`;
+      section += restaurants.map(r => formatPlaceForPrompt(r)).join('\n');
     }
     if (attractions.length > 0) {
-      section += `\n\nREAL ATTRACTIONS & ACTIVITIES IN ${destination} (use ONLY these for non-meal activities):\n`;
-      section += attractions.map(a => `• ${a.name} — ${a.address}${a.rating ? ` (★${a.rating})` : ''}`).join('\n');
+      section += `\n\nREAL ATTRACTIONS & ACTIVITIES IN ${destination}:\n`;
+      section += attractions.map(a => formatPlaceForPrompt(a)).join('\n');
     }
     return section + '\n';
   })()}
