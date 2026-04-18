@@ -132,7 +132,7 @@ function AddDestinationModal({
   const [msgIdx, setMsgIdx] = useState(0);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
 
-  const { query, setQuery, suggestions, loading } = usePlacesSearch(250);
+  const { query, setQuery, suggestions, loading } = usePlacesSearch(200, '/api/destinations/search');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 

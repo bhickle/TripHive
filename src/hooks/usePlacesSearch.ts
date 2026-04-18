@@ -26,7 +26,7 @@ export interface PlaceDetails {
   source?: 'google' | 'demo';
 }
 
-export function usePlacesSearch(debounceMs = 300) {
+export function usePlacesSearch(debounceMs = 300, endpoint = '/api/places/search') {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +44,7 @@ export function usePlacesSearch(debounceMs = 300) {
     setLoading(true);
     timerRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/places/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
         if (!res.ok) throw new Error('Search failed');
         const data = await res.json();
         setSuggestions(data.results || []);
@@ -58,7 +58,7 @@ export function usePlacesSearch(debounceMs = 300) {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [query, debounceMs]);
+  }, [query, debounceMs, endpoint]);
 
   const fetchDetails = useCallback(async (placeId: string): Promise<PlaceDetails | null> => {
     try {

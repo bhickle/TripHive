@@ -8,6 +8,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { usePlacesSearch } from '@/hooks/usePlacesSearch';
 import {
   ChevronLeft,
   ChevronRight,
@@ -257,6 +258,13 @@ function TripBuilderPage() {
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
     useState(false);
   const [budgetAutoFilled, setBudgetAutoFilled] = useState(false);
+
+  // Destination typeahead — powered by world cities dataset
+  const {
+    suggestions: destSuggestions,
+    loading: destLoading,
+    setQuery: setDestQuery,
+  } = usePlacesSearch(150, '/api/destinations/search');
 
   // Load profile from onboarding if coming from first-trip flow
   useEffect(() => {
@@ -913,60 +921,55 @@ function TripBuilderPage() {
                         type="text"
                         value={state.destination}
                         onChange={(e) => {
-                          setState((prev) => ({
-                            ...prev,
-                            destination: e.target.value,
-                          }));
-                          setShowDestinationSuggestions(
-                            e.target.value.length > 0
-                          );
+                          const val = e.target.value;
+                          setState((prev) => ({ ...prev, destination: val }));
+                          setDestQuery(val);
+                          setShowDestinationSuggestions(val.length >= 2);
                         }}
-                        placeholder="Type a destination..."
-                        className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                        placeholder="Type a city, country, or region…"
+                        className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
                       />
+                      {destLoading && (
+                        <Loader2 className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 animate-spin" />
+                      )}
                     </div>
 
-                    {/* Suggestions Dropdown — fuzzy-matched from known destinations */}
-                    {showDestinationSuggestions && state.destination.trim().length > 1 && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
-                        {(() => {
-                          const q = state.destination.toLowerCase();
-                          const matched = Object.entries(DESTINATION_COSTS)
-                            .filter(([key]) => key !== 'default')
-                            .filter(([key, costs]) => key.includes(q) || costs.label.toLowerCase().includes(q))
-                            .map(([, costs]) => costs.label)
-                            .slice(0, 6);
-                          return (
-                            <>
-                              {matched.map((label) => (
-                                <button
-                                  key={label}
-                                  onClick={() => {
-                                    setState((prev) => ({ ...prev, destination: label }));
-                                    setShowDestinationSuggestions(false);
-                                  }}
-                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-center gap-3"
-                                >
-                                  <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                  <span className="font-medium text-slate-900">{label}</span>
-                                </button>
-                              ))}
-                              {/* Always show "use exactly what was typed" as a fallback */}
-                              {!matched.some(l => l.toLowerCase() === state.destination.toLowerCase()) && (
-                                <button
-                                  onClick={() => {
-                                    setState((prev) => ({ ...prev, destination: state.destination.trim() }));
-                                    setShowDestinationSuggestions(false);
-                                  }}
-                                  className="w-full text-left px-4 py-3 hover:bg-sky-50 transition-colors flex items-center gap-3"
-                                >
-                                  <Search className="w-4 h-4 text-sky-600 flex-shrink-0" />
-                                  <span className="text-sky-700 font-medium">Use &quot;{state.destination.trim()}&quot;</span>
-                                </button>
-                              )}
-                            </>
-                          );
-                        })()}
+                    {/* Suggestions Dropdown — world cities typeahead */}
+                    {showDestinationSuggestions && state.destination.trim().length >= 2 && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-72 overflow-y-auto">
+                        {destSuggestions.map((s) => (
+                          <button
+                            key={s.placeId}
+                            type="button"
+                            onClick={() => {
+                              setState((prev) => ({ ...prev, destination: s.name }));
+                              setDestQuery('');
+                              setShowDestinationSuggestions(false);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-start gap-3"
+                          >
+                            <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-medium text-slate-900 text-sm">{s.name}</p>
+                              <p className="text-xs text-slate-500">{s.address}</p>
+                            </div>
+                          </button>
+                        ))}
+                        {/* Always allow free-typing any destination */}
+                        {!destSuggestions.some(s => s.name.toLowerCase() === state.destination.trim().toLowerCase()) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setState((prev) => ({ ...prev, destination: state.destination.trim() }));
+                              setDestQuery('');
+                              setShowDestinationSuggestions(false);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-sky-50 transition-colors flex items-center gap-3"
+                          >
+                            <Search className="w-4 h-4 text-sky-600 flex-shrink-0" />
+                            <span className="text-sky-700 text-sm font-medium">Use &quot;{state.destination.trim()}&quot;</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
