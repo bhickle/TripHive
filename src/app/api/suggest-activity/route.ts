@@ -3,6 +3,32 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+interface GooglePlaceApiResult {
+  name: string;
+  formatted_address: string;
+  place_id: string;
+  rating?: number;
+}
+
+async function fetchRealPlaces(destination: string, isRestaurant: boolean, apiKey: string): Promise<string> {
+  try {
+    const query = isRestaurant
+      ? `restaurants in ${destination}`
+      : `things to do attractions in ${destination}`;
+    const params = new URLSearchParams({ query, key: apiKey });
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`,
+      { headers: { Referer: 'https://www.tripcoord.ai' } }
+    );
+    const data = await res.json();
+    if (data.status !== 'OK') return '';
+    const places = (data.results as GooglePlaceApiResult[]).slice(0, 15);
+    return places.map(p => `• ${p.name} — ${p.formatted_address}${p.rating ? ` (★${p.rating})` : ''}`).join('\n');
+  } catch {
+    return '';
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY', message: 'API key not configured' }, { status: 503 });
@@ -24,6 +50,18 @@ export async function POST(request: NextRequest) {
       isCruise,
       cruiseLine,
     } = body;
+
+    // Pre-fetch real places from Google to prevent hallucinations
+    let realPlacesBlock = '';
+    if (process.env.GOOGLE_MAPS_KEY) {
+      const placesList = await fetchRealPlaces(destination, isRestaurant, process.env.GOOGLE_MAPS_KEY);
+      if (placesList) {
+        realPlacesBlock = `\n\nCRITICAL — USE ONLY REAL VERIFIED PLACES:
+You MUST suggest a venue from this list only. Do NOT invent place names or addresses.
+REAL ${isRestaurant ? 'RESTAURANTS' : 'ATTRACTIONS'} IN ${destination}:
+${placesList}`;
+      }
+    }
 
     // Build a focused prompt for a single replacement activity
     const mealContext = mealType
@@ -96,7 +134,7 @@ Return ONLY a JSON object (no markdown, no explanation):
   "packingTips": []
 }
 
-IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — hallucinated links cause errors for users.`;
+IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — hallucinated links cause errors for users.${realPlacesBlock}`;
 
     const message = await client.messages.create({
       model: 'claude-opus-4-5',

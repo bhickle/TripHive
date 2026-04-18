@@ -28,6 +28,56 @@ interface BookedHotel {
   checkOut?: string;
 }
 
+interface GooglePlace {
+  name: string;
+  address: string;
+  placeId: string;
+  rating?: number;
+}
+
+interface GooglePlaceApiResult {
+  name: string;
+  formatted_address: string;
+  place_id: string;
+  rating?: number;
+}
+
+async function fetchDestinationPlaces(
+  destination: string,
+  apiKey: string
+): Promise<{ restaurants: GooglePlace[]; attractions: GooglePlace[] }> {
+  const searchPlaces = async (query: string): Promise<GooglePlace[]> => {
+    try {
+      const params = new URLSearchParams({ query, key: apiKey });
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`,
+        { headers: { Referer: 'https://www.tripcoord.ai' } }
+      );
+      const data = await res.json();
+      if (data.status !== 'OK') {
+        console.warn(`[fetchDestinationPlaces] Status ${data.status} for: ${query}`);
+        return [];
+      }
+      return (data.results as GooglePlaceApiResult[]).slice(0, 20).map(p => ({
+        name: p.name,
+        address: p.formatted_address,
+        placeId: p.place_id,
+        rating: p.rating,
+      }));
+    } catch (err) {
+      console.error('[fetchDestinationPlaces] Error:', err);
+      return [];
+    }
+  };
+
+  const [restaurants, attractions] = await Promise.all([
+    searchPlaces(`restaurants in ${destination}`),
+    searchPlaces(`things to do attractions in ${destination}`),
+  ]);
+
+  return { restaurants, attractions };
+}
+
 function buildPrompt(params: {
   destination: string;
   startDate: string;
@@ -46,13 +96,14 @@ function buildPrompt(params: {
   bookedFlight?: BookedFlight | null;
   bookedHotel?: BookedHotel | null;    // legacy single-hotel (kept for backward compat)
   bookedHotels?: BookedHotel[];        // preferred: array of hotels for multi-hotel trips
+  realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
 }) {
   const {
     destination, startDate, endDate, tripLength,
     groupType, priorities, budget, budgetBreakdown,
     ageRanges, accessibilityNeeds,
     localMode, curiosityLevel, modality, accommodationType,
-    bookedFlight,
+    bookedFlight, realPlaces,
   } = params;
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
@@ -195,6 +246,26 @@ TRIP DETAILS:
 - Accessibility needs: ${accessibilityText}
 - Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${preBookingText}
 
+${(() => {
+    if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
+    const { restaurants, attractions } = realPlaces;
+    let section = `\nCRITICAL — USE ONLY REAL VERIFIED PLACES:
+You MUST use ONLY the venues listed below for ALL restaurants and activities.
+Do NOT invent, guess, or hallucinate any place names, businesses, or addresses.
+Every single venue in the itinerary must appear in one of these two lists.
+If there are insufficient unique restaurants for all meal slots, reuse venues at different times — that is far better than inventing fake places.
+If the lists are sparse, reduce the number of activities per day to match what actually exists.`;
+
+    if (restaurants.length > 0) {
+      section += `\n\nREAL RESTAURANTS IN ${destination} (use ONLY these for all meal slots):\n`;
+      section += restaurants.map(r => `• ${r.name} — ${r.address}${r.rating ? ` (★${r.rating})` : ''}`).join('\n');
+    }
+    if (attractions.length > 0) {
+      section += `\n\nREAL ATTRACTIONS & ACTIVITIES IN ${destination} (use ONLY these for non-meal activities):\n`;
+      section += attractions.map(a => `• ${a.name} — ${a.address}${a.rating ? ` (★${a.rating})` : ''}`).join('\n');
+    }
+    return section + '\n';
+  })()}
 OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects.
 
 IMPORTANT: The FIRST day object (day 1) must include these additional top-level fields before "day":
@@ -389,6 +460,18 @@ export async function POST(request: NextRequest) {
       }, { status: 503 });
     }
 
+    // Pre-fetch real places from Google Places before running Claude.
+    // This prevents the AI from hallucinating venue names and addresses.
+    let realPlaces = null;
+    if (process.env.GOOGLE_MAPS_KEY) {
+      try {
+        realPlaces = await fetchDestinationPlaces(body.destination, process.env.GOOGLE_MAPS_KEY);
+        console.log(`[generate-itinerary] Real places for "${body.destination}": ${realPlaces.restaurants.length} restaurants, ${realPlaces.attractions.length} attractions`);
+      } catch (err) {
+        console.warn('[generate-itinerary] Could not fetch real places, proceeding without constraint:', err);
+      }
+    }
+
     const prompt = buildPrompt({
       destination: body.destination,
       startDate: body.startDate,
@@ -407,6 +490,7 @@ export async function POST(request: NextRequest) {
       bookedFlight: body.bookedFlight,
       bookedHotel: body.bookedHotel,   // legacy — still accepted
       bookedHotels: body.bookedHotels, // preferred array
+      realPlaces,
     });
 
     const message = await client.messages.create({
