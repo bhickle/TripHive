@@ -526,175 +526,211 @@ function recoverTruncatedArray(raw: string): string {
   return raw;
 }
 
+// ── JSON helpers ──────────────────────────────────────────────────────────────
+
+/** Clean common Claude JSON quirks (smart quotes, trailing commas). */
+function cleanJson(raw: string): string {
+  return raw
+    .replace(/[\u201C\u201D]/g, '"')   // curly double quotes → straight
+    .replace(/[\u2018\u2019]/g, "'")   // curly single quotes → straight
+    .replace(/,(\s*[}\]])/g, '$1');    // trailing commas before } or ]
+}
+
+// ── Streaming POST handler ────────────────────────────────────────────────────
+
 export async function POST(request: NextRequest) {
+  // ── Parse body ──────────────────────────────────────────────────────────────
+  let body: Record<string, unknown>;
   try {
-    const body = await request.json();
-
-    // Check for API key
-    if (!process.env.ANTHROPIC_API_KEY) {
-      // Return demo data if no key configured
-      return NextResponse.json({
-        error: 'NO_API_KEY',
-        message: 'Add ANTHROPIC_API_KEY to .env.local to enable AI generation',
-      }, { status: 503 });
-    }
-
-    // ── Tier-based trip length enforcement ────────────────────────────────────
-    // Look up the requesting user's subscription tier. Default to 'free' for
-    // anonymous requests or if the profile lookup fails.
-    let userTier: SubscriptionTier = 'free';
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      if (user?.id) {
-        const adminClient = createAdminClient();
-        const { data: profile } = await adminClient
-          .from('profiles')
-          .select('subscription_tier')
-          .eq('id', user.id)
-          .single();
-        if (profile?.subscription_tier) {
-          userTier = profile.subscription_tier as SubscriptionTier;
-        }
-      }
-    } catch {
-      // Auth / DB unavailable — fall back to free-tier limits
-    }
-
-    const tierLimits = TIER_LIMITS[userTier];
-    const requestedLength = Number(body.tripLength) || 7;
-
-    if (requestedLength > tierLimits.maxTripDays) {
-      return NextResponse.json({
-        error: 'TRIP_LENGTH_LIMIT',
-        message: `Your ${userTier} plan supports itineraries up to ${tierLimits.maxTripDays} days. Upgrade to generate longer trips.`,
-      }, { status: 403 });
-    }
-
-    // Choose model and token budget based on tier + trip length.
-    // claude-sonnet-4-6 supports higher output token limits, which prevents
-    // truncation on longer (10–14 day) itineraries that need ~20k+ output tokens.
-    const useHighCapModel = userTier === 'nomad' && requestedLength > 7;
-    const modelId = useHighCapModel ? 'claude-sonnet-4-6' : 'claude-sonnet-4-5';
-    const maxTokens = useHighCapModel ? 32000 : 16000;
-
-    // Pre-fetch real places from Google Places before running Claude.
-    // This prevents the AI from hallucinating venue names and addresses.
-    let realPlaces = null;
-    if (process.env.GOOGLE_MAPS_KEY) {
-      try {
-        realPlaces = await fetchDestinationPlaces(body.destination, process.env.GOOGLE_MAPS_KEY);
-        console.log(`[generate-itinerary] Real places for "${body.destination}": ${realPlaces.restaurants.length} restaurants, ${realPlaces.attractions.length} attractions`);
-      } catch (err) {
-        console.warn('[generate-itinerary] Could not fetch real places, proceeding without constraint:', err);
-      }
-    }
-
-    const prompt = buildPrompt({
-      destination: body.destination,
-      startDate: body.startDate,
-      endDate: body.endDate,
-      tripLength: body.tripLength,
-      groupType: body.groupType,
-      priorities: body.priorities,
-      budget: body.budget,
-      budgetBreakdown: body.budgetBreakdown,
-      ageRanges: body.ageRanges,
-      accessibilityNeeds: body.accessibilityNeeds,
-      localMode: body.localMode,
-      curiosityLevel: body.curiosityLevel,
-      modality: body.modality,
-      accommodationType: body.accommodationType,
-      bookedFlight: body.bookedFlight,
-      bookedHotel: body.bookedHotel,   // legacy — still accepted
-      bookedHotels: body.bookedHotels, // preferred array
-      realPlaces,
-    });
-
-    const message = await client.messages.create({
-      model: modelId,
-      max_tokens: maxTokens,
-      system: SYSTEM_PROMPT,
-      messages: [
-        { role: 'user', content: prompt },
-        // Prefill forces Claude to start directly with the JSON array
-        { role: 'assistant', content: '[' },
-      ],
-    });
-
-    // Since we prefilled '[', prepend it back onto the response
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
-
-    const rawText = '[' + responseText;
-
-    // Robustly extract the JSON array by finding first [ and last ]
-    // This handles markdown fences, preamble text, and trailing commentary
-    const arrayStart = rawText.indexOf('[');
-    const arrayEnd = rawText.lastIndexOf(']');
-
-    if (arrayStart === -1 || arrayEnd === -1 || arrayEnd <= arrayStart) {
-      throw new Error('Response did not contain a JSON array');
-    }
-
-    let cleaned = rawText.slice(arrayStart, arrayEnd === -1 ? rawText.length : arrayEnd + 1);
-
-    // Fix common Claude JSON quirks:
-    // 1. Smart/curly quotes → straight quotes
-    cleaned = cleaned
-      .replace(/[\u201C\u201D]/g, '"')  // " "
-      .replace(/[\u2018\u2019]/g, "'"); // ' '
-
-    // 2. Trailing commas before } or ] (invalid JSON)
-    cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
-
-    let itinerary;
-    try {
-      itinerary = JSON.parse(cleaned);
-    } catch {
-      // Response was likely truncated — recover by finding the last complete day object
-      console.warn('[generate-itinerary] Initial parse failed, attempting truncation recovery...');
-      const recovered = recoverTruncatedArray(cleaned);
-      try {
-        itinerary = JSON.parse(recovered);
-        console.log('[generate-itinerary] Recovered', itinerary.length, 'days from truncated response');
-      } catch (parseErr) {
-        const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-        throw new Error(`JSON parse failed: ${errMsg}`);
-      }
-    }
-
-    if (!Array.isArray(itinerary)) {
-      throw new Error('Response was not a JSON array');
-    }
-
-    // Extract trip-level metadata from day 1 (generated once, not repeated per day)
-    // These fields are included on day 1 by the prompt and stripped here for clean storage.
-    const title = (itinerary[0]?.title as string | undefined) || undefined;
-    const practicalNotes = itinerary[0]?.practicalNotes || undefined;
-    const hotelSuggestions = itinerary[0]?.hotelSuggestions || undefined;
-
-    // Remove meta fields from day objects — they live in the trip meta, not per-day data
-    if (itinerary[0]) {
-      delete (itinerary[0] as Record<string, unknown>).title;
-      delete (itinerary[0] as Record<string, unknown>).practicalNotes;
-      delete (itinerary[0] as Record<string, unknown>).hotelSuggestions;
-    }
-
-    // TODO (Booking.com affiliate): Once registered at partners.booking.com, append
-    // &aid=YOUR_AFFILIATE_ID to each hotelSuggestion.bookingUrl here before returning.
-    // The URLs are already structured as Booking.com search links — just add the aid param.
-
-    // TODO (Google Maps API): Once GOOGLE_MAPS_KEY is available, add a post-processing
-    // step here to verify venue addresses, fetch live ratings, and enrich each activity
-    // with real-time Google Places data (rating, hours, photo). This will replace the
-    // "verified: true" placeholder values that Claude generates itself.
-    // Example: await enrichWithGooglePlaces(itinerary, process.env.GOOGLE_MAPS_KEY);
-
-    return NextResponse.json({ itinerary, title, practicalNotes, hotelSuggestions, model: modelId });
-
+    body = await request.json();
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[generate-itinerary]', message);
-    return NextResponse.json({ error: 'GENERATION_FAILED', message }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Bad request';
+    return NextResponse.json({ error: 'BAD_REQUEST', message }, { status: 400 });
   }
+
+  // ── Pre-stream checks (return plain JSON so client can handle them simply) ──
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({
+      error: 'NO_API_KEY',
+      message: 'Add ANTHROPIC_API_KEY to .env.local to enable AI generation',
+    }, { status: 503 });
+  }
+
+  // Resolve subscription tier
+  let userTier: SubscriptionTier = 'free';
+  try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (user?.id) {
+      const adminClient = createAdminClient();
+      const { data: profile } = await adminClient
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single();
+      if (profile?.subscription_tier) {
+        userTier = profile.subscription_tier as SubscriptionTier;
+      }
+    }
+  } catch { /* fall back to free */ }
+
+  const tierLimits = TIER_LIMITS[userTier];
+  const requestedLength = Number(body.tripLength) || 7;
+
+  if (requestedLength > tierLimits.maxTripDays) {
+    return NextResponse.json({
+      error: 'TRIP_LENGTH_LIMIT',
+      message: `Your ${userTier} plan supports itineraries up to ${tierLimits.maxTripDays} days. Upgrade to generate longer trips.`,
+    }, { status: 403 });
+  }
+
+  // Model selection: Nomad trips >7 days use claude-sonnet-4-6 (higher token cap)
+  const useHighCapModel = userTier === 'nomad' && requestedLength > 7;
+  const modelId = useHighCapModel ? 'claude-sonnet-4-6' : 'claude-sonnet-4-5';
+  const maxTokens = useHighCapModel ? 32000 : 16000;
+
+  // Pre-fetch real places (before the stream opens — this is fast, ~1s)
+  let realPlaces = null;
+  if (process.env.GOOGLE_MAPS_KEY) {
+    try {
+      realPlaces = await fetchDestinationPlaces(body.destination as string, process.env.GOOGLE_MAPS_KEY);
+      console.log(`[generate-itinerary] Real places for "${body.destination}": ${(realPlaces as {restaurants: unknown[]}).restaurants.length} restaurants, ${(realPlaces as {attractions: unknown[]}).attractions.length} attractions`);
+    } catch (err) {
+      console.warn('[generate-itinerary] Could not fetch real places:', err);
+    }
+  }
+
+  const prompt = buildPrompt({
+    destination: body.destination as string,
+    startDate: body.startDate as string,
+    endDate: body.endDate as string,
+    tripLength: body.tripLength as number,
+    groupType: body.groupType as string,
+    priorities: body.priorities as string[],
+    budget: body.budget as number,
+    budgetBreakdown: body.budgetBreakdown as Record<string, number>,
+    ageRanges: body.ageRanges as string[],
+    accessibilityNeeds: body.accessibilityNeeds as string[],
+    localMode: body.localMode as boolean,
+    curiosityLevel: body.curiosityLevel as number,
+    modality: body.modality as string,
+    accommodationType: body.accommodationType as string,
+    bookedFlight: body.bookedFlight as BookedFlight | null,
+    bookedHotel: body.bookedHotel as BookedHotel | null,   // legacy
+    bookedHotels: body.bookedHotels as BookedHotel[],      // preferred
+    realPlaces,
+  });
+
+  // ── Open SSE stream ──────────────────────────────────────────────────────────
+  const encoder = new TextEncoder();
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      /** Encode and enqueue one SSE event. */
+      const send = (event: Record<string, unknown>) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch { /* controller already closed */ }
+      };
+
+      try {
+        const anthropicStream = await client.messages.create({
+          model: modelId,
+          max_tokens: maxTokens,
+          stream: true,
+          system: SYSTEM_PROMPT,
+          messages: [
+            { role: 'user', content: prompt },
+            // Prefill forces Claude to start output directly with the JSON array
+            { role: 'assistant', content: '[' },
+          ],
+        });
+
+        // ── Character-level JSON object extractor ───────────────────────────
+        // We scan the token stream character by character, tracking brace
+        // depth so we can detect the exact moment each top-level day object
+        // is complete and emit it immediately as an SSE event.
+        let buffer = '';
+        let braceDepth = 0;
+        let inString = false;
+        let escape = false;
+        let objStart = -1;
+        let dayIndex = 0;
+
+        for await (const event of anthropicStream) {
+          if (event.type !== 'content_block_delta') continue;
+          if (event.delta.type !== 'text_delta') continue;
+
+          for (const ch of event.delta.text) {
+            // String / escape tracking (so braces inside string values are ignored)
+            if (escape)                      { escape = false; buffer += ch; continue; }
+            if (ch === '\\' && inString)     { escape = true;  buffer += ch; continue; }
+            if (ch === '"')                  { inString = !inString; buffer += ch; continue; }
+            if (inString)                    { buffer += ch; continue; }
+
+            buffer += ch;
+
+            if (ch === '{') {
+              if (braceDepth === 0) objStart = buffer.length - 1; // mark start of day object
+              braceDepth++;
+            } else if (ch === '}' && braceDepth > 0) {
+              braceDepth--;
+              if (braceDepth === 0 && objStart >= 0) {
+                // Candidate complete day object: buffer[objStart..end]
+                const rawObj = buffer.slice(objStart);
+                try {
+                  const dayObj = JSON.parse(cleanJson(rawObj)) as Record<string, unknown>;
+
+                  // Day 1 carries trip-level meta fields — extract and emit separately
+                  if (dayIndex === 0) {
+                    send({
+                      type: 'meta',
+                      title: dayObj.title ?? null,
+                      practicalNotes: dayObj.practicalNotes ?? null,
+                      hotelSuggestions: dayObj.hotelSuggestions ?? null,
+                    });
+                    delete dayObj.title;
+                    delete dayObj.practicalNotes;
+                    delete dayObj.hotelSuggestions;
+                  }
+
+                  send({ type: 'day', index: dayIndex, data: dayObj });
+                  dayIndex++;
+
+                  // Trim the buffer — the object has been consumed
+                  buffer = '';
+                  objStart = -1;
+                } catch {
+                  // Malformed object (rare) — keep scanning; don't advance dayIndex
+                  // Reset depth tracking so the next { starts fresh
+                  objStart = -1;
+                }
+              }
+            }
+          }
+        }
+
+        // Signal stream end to client. Include total days emitted so the client
+        // can detect partial results (e.g. truncated generation).
+        send({ type: 'done', daysEmitted: dayIndex, model: modelId });
+
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('[generate-itinerary] stream error:', message);
+        send({ type: 'error', message });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // disable Nginx/proxy buffering
+    },
+  });
 }

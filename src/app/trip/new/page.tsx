@@ -222,6 +222,7 @@ function TripBuilderPage() {
   const isFirstTrip = searchParams.get('firsttrip') === 'true';
   const [currentStep, setCurrentStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [daysReceived, setDaysReceived] = useState(0);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { canAffordAction, getUpgradePrompt, maxTripDays, tier } = useEntitlements();
   const [budgetInput, setBudgetInput] = useState('5000');
@@ -401,14 +402,8 @@ function TripBuilderPage() {
   const handleGenerateItinerary = async () => {
     setIsGenerating(true);
     setGenerationError('');
-    setGenerationStatus(LOADING_MESSAGES[0]);
-
-    // Cycle through loading messages
-    let msgIndex = 0;
-    const msgInterval = setInterval(() => {
-      msgIndex = (msgIndex + 1) % LOADING_MESSAGES.length;
-      setGenerationStatus(LOADING_MESSAGES[msgIndex]);
-    }, 2200);
+    setDaysReceived(0);
+    setGenerationStatus('Crafting your itinerary…');
 
     try {
       const res = await fetch('/api/generate-itinerary', {
@@ -434,11 +429,10 @@ function TripBuilderPage() {
         }),
       });
 
-      const data = await res.json();
-      clearInterval(msgInterval);
-
-      if (!res.ok || data.error) {
-        // No API key — fall back gracefully to demo trip
+      // Pre-stream errors (NO_API_KEY, TRIP_LENGTH_LIMIT, etc.) come back as JSON
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!res.ok || !contentType.includes('text/event-stream')) {
+        const data = await res.json();
         if (data.error === 'NO_API_KEY') {
           setGenerationStatus('Loading your demo itinerary…');
           await new Promise(r => setTimeout(r, 800));
@@ -448,8 +442,63 @@ function TripBuilderPage() {
         throw new Error(data.message || 'Generation failed');
       }
 
-      // Build the meta object for both localStorage (fallback) and Supabase
-      const tripMeta = {
+      // ── Read the SSE stream ──────────────────────────────────────────────────
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let sseBuffer = '';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const collectedDays: any[] = [];
+      let tripMeta: { title?: string; practicalNotes?: unknown; hotelSuggestions?: unknown } = {};
+      const totalDays = state.tripLength || 7;
+
+      outer: while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        sseBuffer += decoder.decode(value, { stream: true });
+
+        // SSE events are delimited by \n\n
+        const events = sseBuffer.split('\n\n');
+        sseBuffer = events.pop() ?? ''; // keep incomplete trailing event
+
+        for (const rawEvent of events) {
+          for (const line of rawEvent.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            let parsed: Record<string, unknown>;
+            try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
+
+            switch (parsed.type) {
+              case 'meta':
+                tripMeta = {
+                  title: parsed.title as string | undefined,
+                  practicalNotes: parsed.practicalNotes,
+                  hotelSuggestions: parsed.hotelSuggestions,
+                };
+                break;
+
+              case 'day': {
+                const idx = parsed.index as number;
+                collectedDays[idx] = parsed.data;
+                const received = idx + 1;
+                setDaysReceived(received);
+                setGenerationStatus(`Building Day ${received} of ${totalDays}…`);
+                break;
+              }
+
+              case 'done':
+                break outer;
+
+              case 'error':
+                throw new Error((parsed.message as string) || 'Generation failed');
+            }
+          }
+        }
+      }
+
+      // ── All days received — build meta and save ──────────────────────────────
+      setGenerationStatus('Saving your trip…');
+
+      const tripMetaFull = {
         destination: state.destination,
         startDate: state.startDate,
         endDate: state.endDate,
@@ -468,35 +517,32 @@ function TripBuilderPage() {
           ageRanges: state.ageRanges,
           accessibilityNeeds: state.accessibilityNeeds,
         },
-        title: data.title || null,
-        practicalNotes: data.practicalNotes || null,
-        hotelSuggestions: data.hotelSuggestions || null,
+        title: tripMeta.title || null,
+        practicalNotes: tripMeta.practicalNotes || null,
+        hotelSuggestions: tripMeta.hotelSuggestions || null,
       };
 
       // Always write to localStorage as a fallback
-      localStorage.setItem('generatedItinerary', JSON.stringify(data.itinerary));
-      localStorage.setItem('generatedTripMeta', JSON.stringify(tripMeta));
-
-      setGenerationStatus('Saving your trip…');
+      localStorage.setItem('generatedItinerary', JSON.stringify(collectedDays));
+      localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaFull));
 
       // Try to persist to Supabase and get a real trip ID
-      let tripId = 'trip_1'; // fallback to demo ID if Supabase save fails
+      let tripId = 'trip_1';
       try {
         const saveRes = await fetch('/api/trips/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripMeta, itinerary: data.itinerary }),
+          body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: collectedDays }),
         });
         if (saveRes.ok) {
           const saveData = await saveRes.json();
           if (saveData.tripId) {
             tripId = saveData.tripId;
-            // Store the Supabase trip ID so other pages can reference it
             localStorage.setItem('currentTripId', tripId);
           }
         }
       } catch {
-        // Supabase save failed — localStorage fallback is already set, continue
+        // Supabase save failed — localStorage fallback already set, continue
       }
 
       setGenerationStatus('Your itinerary is ready ✦');
@@ -504,10 +550,8 @@ function TripBuilderPage() {
       router.push(`/trip/${tripId}/itinerary`);
 
     } catch (err) {
-      clearInterval(msgInterval);
-      // Keep isGenerating true so the loading screen stays visible —
-      // the error banner inside it lets the user read what went wrong
-      // and choose to try again.
+      // Keep isGenerating true — the error card inside the loading screen
+      // lets the user read what went wrong and choose to go back.
       setGenerationError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     }
   };
@@ -669,13 +713,30 @@ function TripBuilderPage() {
             </p>
           </div>
 
-          {/* Animated progress bar — hidden once an error occurs */}
-          {!generationError && (
-            <div className="w-64 h-1.5 bg-zinc-900/10 rounded-full overflow-hidden">
-              <div className="h-full bg-orange-500 rounded-full"
-                style={{ width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
-            </div>
-          )}
+          {/* Progress bar — hidden once an error occurs */}
+          {!generationError && (() => {
+            const totalDays = state.tripLength || 7;
+            // Phase 0: pre-stream (Places fetch + first token) → indeterminate pulse at 8%
+            // Phase 1: days streaming in → real progress 8% → 92%
+            // Phase 2: saving → 96%
+            const isSaving = generationStatus.startsWith('Saving') || generationStatus.startsWith('Your itinerary');
+            const pct = isSaving
+              ? 96
+              : daysReceived > 0
+                ? Math.round(8 + (daysReceived / totalDays) * 84)
+                : 8;
+            return (
+              <div className="w-64 h-1.5 bg-zinc-900/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-orange-500 rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: `${pct}%`,
+                    animation: daysReceived === 0 && !isSaving ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                  }}
+                />
+              </div>
+            );
+          })()}
 
           {generationError && (
             <div className="mt-8 w-full max-w-sm px-5 py-4 bg-rose-50 border border-rose-200 rounded-2xl text-left">
