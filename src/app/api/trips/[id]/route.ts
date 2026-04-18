@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/trips/[id]
@@ -44,6 +45,7 @@ export async function GET(
 /**
  * PATCH /api/trips/[id]
  * Updates the itinerary days (e.g. after adding/editing an activity).
+ * Requires the caller to be the trip organizer.
  */
 export async function PATCH(
   request: NextRequest,
@@ -58,7 +60,36 @@ export async function PATCH(
       return NextResponse.json({ error: 'days (array) or metaPatch (object) required' }, { status: 400 });
     }
 
+    // ── Auth check: verify caller owns this trip ───────────────────────────────
+    let userId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      userId = user?.id ?? null;
+    } catch {
+      // Auth check failed
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createAdminClient();
+
+    // Verify the user owns this trip (organizer_id check)
+    const { data: tripRow, error: tripLookupError } = await supabase
+      .from('trips')
+      .select('organizer_id')
+      .eq('id', params.id)
+      .single();
+
+    if (tripLookupError || !tripRow) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    }
+
+    if (tripRow.organizer_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // ── Update itinerary days ──────────────────────────────────────────────────
     if (Array.isArray(days)) {

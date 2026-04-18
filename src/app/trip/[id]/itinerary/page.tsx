@@ -1106,23 +1106,13 @@ export default function ItineraryPage() {
             {/* Weather Card */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">{weatherLabel}</p>
-              {aiMeta ? (
-                /* Real trip — live weather coming soon */
-                <div className="text-center py-2">
-                  <p className="text-2xl mb-1">🌤️</p>
-                  <p className="text-sm font-medium text-zinc-700">{aiMeta.destination?.split(',')[0]}</p>
-                  <p className="text-xs text-zinc-400 mt-1">Live weather coming soon</p>
-                </div>
-              ) : (
-                /* Mock trip — hardcoded Iceland data */
-                <div className="flex items-center justify-between">
-                  <div className="text-sky-700">{weather.icon}</div>
-                  <div className="text-right">
-                    <p className="text-3xl font-script italic font-semibold text-zinc-900">{weather.temp}°F</p>
-                    <p className="text-xs text-zinc-500 mt-1">{weather.condition}</p>
-                  </div>
-                </div>
-              )}
+              <div className="text-center py-2">
+                <p className="text-2xl mb-1">🌤️</p>
+                <p className="text-sm font-medium text-zinc-700">
+                  {(aiMeta?.destination ?? tripMeta?.destination ?? 'Your destination')?.split(',')[0]}
+                </p>
+                <p className="text-xs text-zinc-400 mt-1">Live weather coming soon</p>
+              </div>
             </div>
 
 
@@ -1258,7 +1248,7 @@ export default function ItineraryPage() {
                       if (selectedPlace) setSelectedPlace(null);
                     }}
                     onFocus={() => setShowSuggestions(true)}
-                    placeholder="e.g., Blue Lagoon, Hallgrímskirkja…"
+                    placeholder="e.g., Eiffel Tower, Central Park…"
                     className="w-full pl-9 pr-10 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
                   />
                   {(searchLoading || loadingDetails) && (

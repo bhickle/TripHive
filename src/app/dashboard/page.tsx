@@ -48,16 +48,14 @@ interface Notification {
 }
 
 const mockNotifications: Notification[] = [
-  { id: 'n1', type: 'activity', title: 'Itinerary Updated', message: 'Sarah Chen added "Hot Spring Visit" to Day 3 of Iceland Adventure.', trip: 'Iceland Adventure', time: '12 min ago', read: false, icon: '🗺️' },
-  { id: 'n2', type: 'chat', title: 'New Message', message: 'Marcus Johnson: "Should we book the Northern Lights tour now? Spots are filling up."', trip: 'Iceland Adventure', time: '34 min ago', read: false, icon: '💬' },
-  { id: 'n3', type: 'expense', title: 'Expense Added', message: 'Emily Park added "Whale Watching Tickets — $340" and split it equally.', trip: 'Iceland Adventure', time: '1 hr ago', read: false, icon: '💰' },
-  { id: 'n4', type: 'vote', title: 'Vote Closing Soon', message: '"Restaurant for Day 4 dinner?" closes tomorrow. 5 of 6 members have voted.', trip: 'Iceland Adventure', time: '2 hrs ago', read: false, icon: '🗳️' },
-  { id: 'n5', type: 'member', title: 'New Member Joined', message: 'Jordan accepted the invite and joined Iceland Adventure.', trip: 'Iceland Adventure', time: '3 hrs ago', read: true, icon: '👋' },
-  { id: 'n6', type: 'ai', title: 'Price Drop Alert', message: 'Blue Lagoon premium tickets dropped 15% ($85 → $72). Book before Sep 1!', trip: 'Iceland Adventure', time: '5 hrs ago', read: true, icon: '📉' },
-  { id: 'n7', type: 'prep', title: 'Deadline Approaching', message: 'Travel insurance purchase is due in 5 days for Iceland Adventure.', trip: 'Iceland Adventure', time: '6 hrs ago', read: true, icon: '⏰' },
-  { id: 'n8', type: 'activity', title: 'Activity Uploaded', message: 'Alex Rivera uploaded a PDF itinerary for review in Iceland Adventure.', trip: 'Iceland Adventure', time: '1 day ago', read: true, icon: '📄' },
-  { id: 'n9', type: 'ai', title: 'Weather Advisory', message: 'Rain expected Sep 17 in South Iceland. Consider packing extra waterproof layers.', trip: 'Iceland Adventure', time: '1 day ago', read: true, icon: '🌧️' },
-  { id: 'n10', type: 'vote', title: 'Vote Result', message: '"Skip Blue Lagoon for Sky Lagoon?" — Blue Lagoon wins with 4 votes.', trip: 'Iceland Adventure', time: '2 days ago', read: true, icon: '✅' },
+  { id: 'n1', type: 'vote', title: 'New votes on Boat Tour', message: 'Sarah and 2 others voted for the sunset boat tour on Day 3.', trip: 'Bali Escape', time: '8 min ago', read: false, icon: '🗳️' },
+  { id: 'n2', type: 'chat', title: 'Marcus in Group Chat', message: '"Should we book the cooking class now? Spots are filling up fast!"', trip: 'Bali Escape', time: '22 min ago', read: false, icon: '💬' },
+  { id: 'n3', type: 'expense', title: 'Expense Added', message: 'Emily Park added Spa Day ($340) — split equally 5 ways.', trip: 'Bali Escape', time: '1 hr ago', read: false, icon: '💰' },
+  { id: 'n4', type: 'activity', title: 'Transport leg added', message: 'A private driver transfer from the airport to the resort was added to Day 1.', trip: 'Bali Escape', time: '2 hrs ago', read: false, icon: '🗺️' },
+  { id: 'n5', type: 'activity', title: 'Itinerary Updated', message: 'Sarah Chen added "Temple Visit" to Day 3 of Bali Escape.', trip: 'Bali Escape', time: '3 hrs ago', read: true, icon: '🗺️' },
+  { id: 'n6', type: 'ai', title: 'AI suggestion ready', message: 'Your personalised Day 4 itinerary was generated based on your group\'s votes.', trip: 'Bali Escape', time: '4 hrs ago', read: true, icon: '✨' },
+  { id: 'n7', type: 'member', title: 'Tyler joined the trip', message: 'Tyler Hansen accepted your invite and joined Bali Escape.', trip: 'Bali Escape', time: 'Yesterday', read: true, icon: '👋' },
+  { id: 'n8', type: 'prep', title: '3 days until departure', message: 'Your trip to Bali starts on May 12. Time to check your prep list!', trip: 'Bali Escape', time: 'Yesterday', read: true, icon: '⏰' },
 ];
 
 export default function DashboardPage() {
@@ -127,6 +125,7 @@ export default function DashboardPage() {
   }, [currentUser.isLoading, currentUser.isDemo]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteTripId, setInviteTripId] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showYearlyReview, setShowYearlyReview] = useState(false);
   const [showYearInReviewUpgrade, setShowYearInReviewUpgrade] = useState(false);
@@ -275,7 +274,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3">
                 {/* Invite Button */}
                 <button
-                  onClick={() => setShowInviteModal(true)}
+                  onClick={() => { setInviteTripId(userTrips[0]?.id ?? null); setShowInviteModal(true); }}
                   className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white rounded-full px-4 py-2 text-sm font-semibold transition-all shadow-sm"
                 >
                   <UserPlus className="w-4 h-4" />
@@ -632,21 +631,50 @@ export default function DashboardPage() {
       </main>
 
       {/* Invite Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">Get the Crew Together</h3>
-            <p className="text-sm text-zinc-500 mb-5">Send this link and they're in. Easy.</p>
-            <div className="flex gap-2 mb-4">
-              <input type="text" readOnly value="https://tripcoord.app/join/trip_1" className="flex-1 px-4 py-2.5 bg-parchment border border-zinc-200 rounded-xl text-sm text-zinc-600 focus:outline-none" />
-              <button onClick={() => { navigator.clipboard.writeText('https://tripcoord.app/join/trip_1'); setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); }} className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-xl text-sm transition-all">
-                {inviteCopied ? 'Copied!' : 'Copy'}
-              </button>
+      {showInviteModal && (() => {
+        const inviteLink = inviteTripId ? `https://tripcoord.ai/join/${inviteTripId}` : '';
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+              <h3 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">Get the Crew Together</h3>
+              <p className="text-sm text-zinc-500 mb-5">Send this link and they&apos;re in. Easy.</p>
+
+              {userTrips.length === 0 ? (
+                <p className="text-sm text-zinc-400 mb-4 text-center py-4">Create a trip first, then invite your crew.</p>
+              ) : (
+                <>
+                  {userTrips.length > 1 && (
+                    <select
+                      value={inviteTripId ?? ''}
+                      onChange={e => { setInviteTripId(e.target.value); setInviteCopied(false); }}
+                      className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 mb-3 focus:outline-none focus:ring-2 focus:ring-sky-700"
+                    >
+                      {userTrips.map(t => (
+                        <option key={t.id} value={t.id}>{t.title} — {t.destination}</option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      readOnly
+                      value={inviteLink}
+                      className="flex-1 px-4 py-2.5 bg-parchment border border-zinc-200 rounded-xl text-sm text-zinc-600 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(inviteLink); setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); }}
+                      className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-xl text-sm transition-all"
+                    >
+                      {inviteCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </>
+              )}
+              <button onClick={() => setShowInviteModal(false)} className="w-full py-2.5 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-600 hover:bg-parchment-dark transition-all">Close</button>
             </div>
-            <button onClick={() => setShowInviteModal(false)} className="w-full py-2.5 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-600 hover:bg-parchment-dark transition-all">Close</button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Upload Itinerary Modal */}
       {showUploadModal && (
