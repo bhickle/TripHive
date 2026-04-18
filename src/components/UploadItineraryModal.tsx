@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { trips } from '@/data/mock';
 import {
   X, Upload, FileText, Loader2, CheckCircle2,
-  PlusCircle, ChevronRight, ChevronLeft, AlertCircle,
-  Sparkles, Anchor, Ship,
+  PlusCircle, ChevronRight, AlertCircle,
+  Sparkles, Anchor, Ship, Trash2,
 } from 'lucide-react';
 
 type Step = 'upload' | 'trip-choice' | 'processing' | 'cruise-check' | 'done' | 'error';
@@ -44,6 +43,9 @@ function getCoverImageForDestination(destination: string): string {
   return COVER_IMAGES.default;
 }
 
+// Suppress unused-function warning until this is used elsewhere
+void getCoverImageForDestination;
+
 interface ParsedMeta {
   destination?: string;
   startDate?: string;
@@ -53,6 +55,22 @@ interface ParsedMeta {
 
 interface UploadItineraryModalProps {
   onClose: () => void;
+}
+
+interface LoadedFile {
+  id: string;
+  name: string;
+  text?: string;       // plain-text files
+  pdfBase64?: string;  // PDFs
+  size: number;
+}
+
+interface RealTrip {
+  id: string;
+  title: string;
+  destination: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 const LOADING_MESSAGES = [
@@ -69,46 +87,66 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
 
   const [step, setStep] = useState<Step>('upload');
   const [tripChoice, setTripChoice] = useState<TripChoice>('new');
-  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || '');
-  const [rawText, setRawText] = useState('');
-  const [fileName, setFileName] = useState('');
+  const [selectedTripId, setSelectedTripId] = useState('');
+  const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [parsedMeta, setParsedMeta] = useState<ParsedMeta | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
   const [errorMsg, setErrorMsg] = useState('');
   const [showPasteArea, setShowPasteArea] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   const [savedTripId, setSavedTripId] = useState<string | null>(null);
   const [isCruise, setIsCruise] = useState<boolean | null>(null);
   const [cruiseLine, setCruiseLine] = useState('');
 
+  // Real trips loaded from Supabase
+  const [realTrips, setRealTrips] = useState<RealTrip[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(false);
+
+  // ── Load real trips when user picks "Existing Trip" ───────────────────────
+  useEffect(() => {
+    if (tripChoice !== 'existing') return;
+    setTripsLoading(true);
+    fetch('/api/trips')
+      .then(r => r.ok ? r.json() : { trips: [] })
+      .then(data => {
+        const trips: RealTrip[] = (data.trips ?? []).map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          destination: t.destination,
+          start_date: t.start_date,
+          end_date: t.end_date,
+        }));
+        setRealTrips(trips);
+        if (trips.length > 0 && !selectedTripId) {
+          setSelectedTripId(trips[0].id);
+        }
+      })
+      .catch(() => setRealTrips([]))
+      .finally(() => setTripsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripChoice]);
+
   // ── File reading ──────────────────────────────────────────────────────────
 
-  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
-
   const readFile = useCallback((file: File) => {
-    setFileName(file.name);
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const id = `file_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     if (isPdf) {
-      // Read PDF as base64 — Claude will extract the text server-side
       const reader = new FileReader();
       reader.onload = (e) => {
         const result = e.target?.result as string;
-        // result is "data:application/pdf;base64,XXXXXXX" — strip the prefix
         const base64 = result.split(',')[1];
-        setPdfBase64(base64);
-        setRawText('__PDF__'); // sentinel so the CTA enables
-        setShowPasteArea(false);
+        setLoadedFiles(prev => [...prev, { id, name: file.name, pdfBase64: base64, size: file.size }]);
       };
       reader.onerror = () => setErrorMsg('Could not read PDF. Try opening it and copying the text instead.');
       reader.readAsDataURL(file);
     } else {
-      setPdfBase64(null);
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
-        setRawText(text || '');
-        setShowPasteArea(false);
+        setLoadedFiles(prev => [...prev, { id, name: file.name, text: text || '', size: file.size }]);
       };
       reader.onerror = () => setErrorMsg('Could not read file. Try pasting the text instead.');
       reader.readAsText(file);
@@ -116,28 +154,60 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) readFile(file);
+    const files = Array.from(e.target.files ?? []);
+    files.forEach(readFile);
+    // Reset so the same file can be re-added if needed
+    e.target.value = '';
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) readFile(file);
+    Array.from(e.dataTransfer.files).forEach(readFile);
   }, [readFile]);
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = () => setIsDragging(false);
 
+  const removeFile = (id: string) => setLoadedFiles(prev => prev.filter(f => f.id !== id));
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  // True when there's something to parse
+  const hasContent = loadedFiles.length > 0 || pasteText.trim().length > 0;
+
+  // Build the body for /api/parse-itinerary
+  // If there's exactly one PDF (and optionally text), send it as a document.
+  // If there are only text files, concatenate them.
+  // Multiple PDFs: concatenate only the text portion; send first PDF as document.
+  function buildParseBody(): { pdfBase64?: string; fileName?: string; text?: string } {
+    const pdfFiles = loadedFiles.filter(f => f.pdfBase64);
+    const textFiles = loadedFiles.filter(f => f.text !== undefined);
+
+    const allText = [
+      ...textFiles.map(f => `--- ${f.name} ---\n${f.text}`),
+      ...(pasteText.trim() ? [`--- Pasted text ---\n${pasteText.trim()}`] : []),
+    ].join('\n\n');
+
+    if (pdfFiles.length > 0) {
+      // Use first PDF as native document; append any text files as supplemental context
+      return {
+        pdfBase64: pdfFiles[0].pdfBase64,
+        fileName: pdfFiles[0].name,
+        ...(allText ? { text: allText } : {}),
+      };
+    }
+
+    return { text: allText };
+  }
+
   // ── AI parsing ────────────────────────────────────────────────────────────
 
   const handleProcess = async () => {
-    if (!rawText.trim()) return;
+    if (!hasContent) return;
     setStep('processing');
     setErrorMsg('');
 
-    // Cycle loading messages
     let msgIdx = 0;
     const interval = setInterval(() => {
       msgIdx = (msgIdx + 1) % LOADING_MESSAGES.length;
@@ -145,9 +215,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
     }, 1800);
 
     try {
-      const body = pdfBase64
-        ? { pdfBase64, fileName }
-        : { text: rawText };
+      const body = buildParseBody();
 
       const res = await fetch('/api/parse-itinerary', {
         method: 'POST',
@@ -168,7 +236,6 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
         return;
       }
 
-      // Store parsed itinerary
       localStorage.setItem('generatedItinerary', JSON.stringify(data.itinerary));
       const meta: ParsedMeta = data.meta || {};
       setParsedMeta(meta);
@@ -186,7 +253,6 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
         };
         localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaForStorage));
 
-        // Save to Supabase so the trip appears in the dashboard and has a real ID
         let finalTripId = `upload_${Date.now()}`;
         try {
           const saveRes = await fetch('/api/trips/save', {
@@ -214,20 +280,25 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
             finalTripId = tripId;
             setSavedTripId(tripId);
             localStorage.setItem('currentTripId', tripId);
+
+            // Kick off AI packing list generation in the background (non-blocking)
+            fetch('/api/generate-packing', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tripId, destination, startDate: meta.startDate, endDate: meta.endDate }),
+            }).catch(() => { /* non-fatal */ });
           }
         } catch {
           // Silently fall back to localStorage-only if Supabase save fails
         }
-
-        // Dashboard reads from Supabase now — no need to write to tripcoord_user_trips localStorage
       } else {
-        const trip = trips.find(t => t.id === selectedTripId);
+        const trip = realTrips.find(t => t.id === selectedTripId);
         localStorage.setItem('generatedTripMeta', JSON.stringify({
           destination: trip?.destination || destination,
-          startDate: trip?.startDate || meta.startDate || '',
-          endDate: trip?.endDate || meta.endDate || '',
-          budget: trip?.budgetTotal || 5000,
-          budgetBreakdown: trip?.budgetBreakdown || { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
+          startDate: trip?.start_date || meta.startDate || '',
+          endDate: trip?.end_date || meta.endDate || '',
+          budget: 5000,
+          budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
           fromUpload: true,
         }));
       }
@@ -245,11 +316,9 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   const handleCruiseConfirm = (isACruise: boolean) => {
     setIsCruise(isACruise);
     if (!isACruise) {
-      // Not a cruise — update meta and proceed straight to done
       updateMetaWithCruise(false, '');
       setStep('done');
     }
-    // If cruise, stay on cruise-check to collect cruise line
   };
 
   const handleCruiseLineConfirm = () => {
@@ -258,14 +327,11 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   };
 
   const updateMetaWithCruise = (isACruise: boolean, line: string) => {
-    // Update localStorage
     try {
       const existing = JSON.parse(localStorage.getItem('generatedTripMeta') || '{}');
-      const updated = { ...existing, isCruise: isACruise, cruiseLine: line };
-      localStorage.setItem('generatedTripMeta', JSON.stringify(updated));
+      localStorage.setItem('generatedTripMeta', JSON.stringify({ ...existing, isCruise: isACruise, cruiseLine: line }));
     } catch { /* non-fatal */ }
 
-    // Persist to Supabase if we have a real UUID trip ID
     if (savedTripId && /^[0-9a-f-]{36}$/i.test(savedTripId)) {
       fetch(`/api/trips/${savedTripId}`, {
         method: 'PATCH',
@@ -276,9 +342,6 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   };
 
   const handleNavigate = () => {
-    // Use the real Supabase UUID if we saved it; fall back to existing trip ID.
-    // NEVER fall back to 'trip_1' — that loads the Iceland mock trip.
-    // 'upload_<ts>' is not a mock ID, so the layout reads destination from localStorage instead.
     const tripId = savedTripId ?? (tripChoice === 'existing' ? selectedTripId : `upload_${Date.now()}`);
     router.push(`/trip/${tripId}/itinerary`);
     onClose();
@@ -322,11 +385,11 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
+                  className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
                     isDragging
                       ? 'border-sky-400 bg-sky-50'
-                      : rawText
-                        ? 'border-emerald-300 bg-emerald-50'
+                      : loadedFiles.length > 0
+                        ? 'border-emerald-300 bg-emerald-50/40'
                         : 'border-zinc-200 hover:border-sky-300 hover:bg-sky-50/40'
                   }`}
                 >
@@ -334,37 +397,51 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                     ref={fileInputRef}
                     type="file"
                     accept=".pdf,.txt,.md,.csv,.text"
+                    multiple
                     onChange={handleFileChange}
                     className="hidden"
                   />
-                  {rawText ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-zinc-400" />
+                    </div>
+                    <p className="font-semibold text-zinc-700">Drop your itinerary files here</p>
+                    <p className="text-xs text-zinc-400">or click to browse · PDF, .txt, or .md · multiple files OK</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Loaded files list */}
+              {loadedFiles.length > 0 && (
+                <div className="space-y-2">
+                  {loadedFiles.map(file => (
+                    <div key={file.id} className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-emerald-800 truncate">{file.name}</p>
+                        <p className="text-xs text-emerald-600">
+                          {file.pdfBase64 ? 'PDF' : `${(file.text ?? '').length.toLocaleString()} characters`}
+                        </p>
                       </div>
-                      <p className="font-semibold text-emerald-800">{fileName || 'File loaded'}</p>
-                      <p className="text-xs text-emerald-600">{rawText.length.toLocaleString()} characters ready to parse</p>
                       <button
-                        onClick={e => { e.stopPropagation(); setRawText(''); setFileName(''); }}
-                        className="mt-1 text-xs text-zinc-400 hover:text-zinc-600 underline"
+                        onClick={e => { e.stopPropagation(); removeFile(file.id); }}
+                        className="w-6 h-6 rounded-full bg-emerald-100 hover:bg-emerald-200 flex items-center justify-center transition-colors"
                       >
-                        Remove & upload different file
+                        <Trash2 className="w-3 h-3 text-emerald-700" />
                       </button>
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-zinc-400" />
-                      </div>
-                      <p className="font-semibold text-zinc-700">Drop your itinerary file here</p>
-                      <p className="text-xs text-zinc-400">or click to browse · PDF, .txt, or .md</p>
-                    </div>
-                  )}
+                  ))}
+                  <button
+                    onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                    className="w-full text-xs text-sky-600 hover:text-sky-800 font-medium py-1 transition-colors"
+                  >
+                    + Add another file
+                  </button>
                 </div>
               )}
 
               {/* Divider */}
-              {!rawText && (
+              {loadedFiles.length === 0 && (
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-px bg-zinc-100" />
                   <button
@@ -380,8 +457,8 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
               {/* Paste area */}
               {showPasteArea && (
                 <textarea
-                  value={rawText}
-                  onChange={e => setRawText(e.target.value)}
+                  value={pasteText}
+                  onChange={e => setPasteText(e.target.value)}
                   placeholder="Paste your itinerary here — from an email, PDF copy, travel agent doc, or any text…"
                   rows={8}
                   className="w-full px-4 py-3 border border-zinc-200 rounded-2xl text-sm text-zinc-700 placeholder:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-sky-600 resize-none"
@@ -393,7 +470,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-2xl">
                   <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-rose-800">Couldn't parse itinerary</p>
+                    <p className="text-sm font-semibold text-rose-800">Couldn&apos;t parse itinerary</p>
                     <p className="text-xs text-rose-600 mt-0.5">{errorMsg}</p>
                   </div>
                 </div>
@@ -445,17 +522,29 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 {/* Trip selector for existing */}
                 {tripChoice === 'existing' && (
                   <div className="mt-3">
-                    <select
-                      value={selectedTripId}
-                      onChange={e => setSelectedTripId(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-800 focus:outline-none focus:ring-2 focus:ring-sky-600"
-                    >
-                      {trips.map(trip => (
-                        <option key={trip.id} value={trip.id}>
-                          {trip.title} — {trip.destination}
-                        </option>
-                      ))}
-                    </select>
+                    {tripsLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-3 text-sm text-zinc-500">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading your trips…
+                      </div>
+                    ) : realTrips.length === 0 ? (
+                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                        <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        <p className="text-xs text-amber-800">No trips found. Create a new trip first, or select &quot;New trip&quot; above.</p>
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedTripId}
+                        onChange={e => setSelectedTripId(e.target.value)}
+                        className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-800 focus:outline-none focus:ring-2 focus:ring-sky-600"
+                      >
+                        {realTrips.map(trip => (
+                          <option key={trip.id} value={trip.id}>
+                            {trip.title} — {trip.destination}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 )}
               </div>
@@ -463,7 +552,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
               {/* CTA */}
               <button
                 onClick={handleProcess}
-                disabled={!rawText.trim() && !pdfBase64}
+                disabled={!hasContent || (tripChoice === 'existing' && realTrips.length === 0)}
                 className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-full transition-all"
               >
                 <Sparkles className="w-4 h-4" />
@@ -495,7 +584,6 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
           {/* ── Step: Cruise Check ── */}
           {step === 'cruise-check' && (
             <div className="py-6 flex flex-col gap-6">
-              {/* Header */}
               <div className="flex flex-col items-center text-center gap-3">
                 <div className="w-14 h-14 bg-sky-100 rounded-full flex items-center justify-center">
                   <Anchor className="w-7 h-7 text-sky-700" />
@@ -510,7 +598,6 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 </div>
               </div>
 
-              {/* Yes / No */}
               {isCruise === null && (
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-zinc-700 text-center">Is this a cruise?</p>
@@ -533,7 +620,6 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 </div>
               )}
 
-              {/* Cruise line input (shown after user picks Yes) */}
               {isCruise === true && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl">
@@ -597,8 +683,11 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 <p className="text-xs text-zinc-400 mt-1">
                   {tripChoice === 'new'
                     ? 'A new trip has been created with your itinerary.'
-                    : `Added to ${trips.find(t => t.id === selectedTripId)?.title || 'your trip'}.`}
+                    : `Added to ${realTrips.find(t => t.id === selectedTripId)?.title || 'your trip'}.`}
                 </p>
+                {loadedFiles.length > 1 && (
+                  <p className="text-xs text-zinc-400 mt-0.5">{loadedFiles.length} files merged and parsed.</p>
+                )}
               </div>
               <div className="flex gap-3 w-full">
                 <button

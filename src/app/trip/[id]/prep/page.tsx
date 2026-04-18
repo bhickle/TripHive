@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips } from '@/data/mock';
 import { useEffect } from 'react';
 
@@ -55,6 +55,11 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [newPackItem, setNewPackItem] = useState('');
   const [newPackCategory, setNewPackCategory] = useState('Clothing');
 
+  // Packing generation state
+  const [packingGenerating, setPackingGenerating] = useState(false);
+  const [packingGenError, setPackingGenError] = useState<string | null>(null);
+  const [packingLoaded, setPackingLoaded] = useState(false);
+
   // Phrases tab state
   const [phrasebooks, setPhrasebooks] = useState<PhrasebookData[]>([]);
   const [activePhrasebook, setActivePhrasebook] = useState(0);
@@ -99,6 +104,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         setPackingItems(items);
         setPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
       }
+      setPackingLoaded(true);
       if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
         // store destination for the phrasebook feature
         try {
@@ -212,6 +218,36 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       }).catch(() => setPackingItems(prev => prev.filter(i => i.id !== tempId)));
     }
     setNewPackItem('');
+  };
+
+  const generatePackingList = async () => {
+    setPackingGenerating(true);
+    setPackingGenError(null);
+    try {
+      const res = await fetch('/api/generate-packing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId: params.id, destination: tripDestination }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.message || 'Generation failed');
+
+      // Reload packing items from Supabase so we have real IDs
+      const reloadRes = await fetch(`/api/trips/${params.id}/packing`);
+      if (reloadRes.ok) {
+        const reloadData = await reloadRes.json();
+        const items: PackingItem[] = (reloadData.items ?? []).map((i: any) => ({
+          id: i.id, name: i.name, category: i.category, packed: i.packed,
+        }));
+        setPackingItems(items);
+        setPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
+        setExpandedCategories(new Set(['Clothing']));
+      }
+    } catch (err) {
+      setPackingGenError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setPackingGenerating(false);
+    }
   };
 
   const toggleCategory = (category: string) => {
@@ -437,6 +473,50 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
             <p className="font-medium text-blue-900">Weather for <span className="font-semibold">{tripDestination}</span></p>
             <p className="text-sm text-blue-700 mt-1">Check the forecast closer to your trip and pack accordingly. Add items below based on expected conditions.</p>
+          </div>
+        )}
+
+        {/* AI generation CTA — shown for real trips when packing list is empty */}
+        {!isMockTrip && packingLoaded && packingItems.length === 0 && customPackItems.length === 0 && (
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-center">
+            <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Backpack className="w-6 h-6 text-sky-700" />
+            </div>
+            <h3 className="font-semibold text-zinc-900 mb-1">No packing list yet</h3>
+            <p className="text-sm text-zinc-500 mb-4">
+              Generate a smart, destination-specific packing list for <span className="font-medium text-zinc-700">{tripDestination}</span> in seconds.
+            </p>
+            {packingGenError && (
+              <p className="text-xs text-rose-600 mb-3">{packingGenError}</p>
+            )}
+            <button
+              onClick={generatePackingList}
+              disabled={packingGenerating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-xl font-semibold text-sm transition-colors"
+            >
+              {packingGenerating ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+              ) : (
+                <><Sparkles className="w-4 h-4" /> Generate AI Packing List</>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Regenerate button — shown when items exist on a real trip */}
+        {!isMockTrip && packingLoaded && packingItems.length > 0 && (
+          <div className="flex justify-end">
+            <button
+              onClick={generatePackingList}
+              disabled={packingGenerating}
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border border-zinc-200 rounded-lg text-zinc-500 hover:bg-zinc-50 disabled:opacity-50 transition-colors"
+            >
+              {packingGenerating ? (
+                <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</>
+              ) : (
+                <><RefreshCw className="w-3 h-3" /> Regenerate AI List</>
+              )}
+            </button>
           </div>
         )}
 
