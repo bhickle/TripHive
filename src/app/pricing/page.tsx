@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
-  CalendarDays, Map, Camera, Bell, Shield, Star, ChevronDown,
+  CalendarDays, Map, Camera, Shield, Star, ChevronDown,
   ChevronUp, Lock, Crown,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
@@ -36,12 +36,12 @@ const featureRows: {
   { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   // Stories & memories
   { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Year in Review', icon: <CalendarDays className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   // Tools
   { label: 'Packing & prep checklists', icon: <CheckCircle className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
+  { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
+  { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Wishlist & destination discovery', icon: <Globe className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
-  { label: 'Flight price alerts', icon: <Bell className="w-4 h-4" />, free: false, trip_pass: false, explorer: 'Up to 3', nomad: 'As many as you need' },
   // Support
   { label: 'Early access to new features', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Support', icon: <Shield className="w-4 h-4" />, free: 'Community', trip_pass: 'Email', explorer: 'Email', nomad: 'Priority' },
@@ -279,7 +279,6 @@ export default function PricingPage() {
                 'Group chat & expense splitting',
                 'Packing & prep checklists',
                 'Wishlist & destination discovery',
-                'Flight price alerts (up to 3)',
                 'Photo gallery',
                 'Email support',
               ].map(f => (
@@ -318,8 +317,8 @@ export default function PricingPage() {
                 { text: '350 AI credits / month', highlight: true },
                 { text: 'Split-track itineraries (Track A/B)', highlight: true },
                 { text: 'Co-organizer role — share edit access', highlight: true },
-                { text: 'Year in Review', highlight: true },
-                { text: 'Flight alerts — as many as you need', highlight: false },
+                { text: 'AI packing list (destination-specific)', highlight: true },
+                { text: 'AI travel phrasebook', highlight: true },
                 { text: 'Early access to new features', highlight: true },
                 { text: 'Priority support', highlight: false },
               ].map(f => (

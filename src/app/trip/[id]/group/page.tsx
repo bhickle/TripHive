@@ -24,6 +24,10 @@ import {
   FileText,
   ScanLine,
   Lock,
+  ShieldCheck,
+  Crown,
+  CalendarDays,
+  CheckCircle2,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
@@ -117,8 +121,95 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     loadAll();
   }, [isMockTrip, params.id, currentUserId]);
 
-  const { canAddTraveler, getUpgradePrompt } = useEntitlements();
+  const { canAddTraveler, getUpgradePrompt, hasCoOrganizer } = useEntitlements(params.id);
   const [showTravelerUpgrade, setShowTravelerUpgrade] = useState(false);
+
+  // Co-organizer role state
+  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
+
+  const handleRoleChange = async (memberId: string, newRole: 'member' | 'co_organizer') => {
+    if (!hasCoOrganizer || isMockTrip) return;
+    setRoleUpdating(memberId);
+    try {
+      const res = await fetch(`/api/trips/${params.id}/members`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId, role: newRole }),
+      });
+      if (res.ok) {
+        setGroupMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+      }
+    } catch { /* ignore */ } finally {
+      setRoleUpdating(null);
+    }
+  };
+
+  // Vote → Add to Itinerary state
+  const [addToItinVote, setAddToItinVote] = useState<{ voteId: string; label: string } | null>(null);
+  const [addToItinDay, setAddToItinDay] = useState<number>(1);
+  const [addToItinDays, setAddToItinDays] = useState<number>(7);
+  const [addToItinSaving, setAddToItinSaving] = useState(false);
+  const [addToItinDone, setAddToItinDone] = useState<string | null>(null);
+
+  const openAddToItinerary = async (voteId: string, label: string) => {
+    setAddToItinVote({ voteId, label });
+    setAddToItinDay(1);
+    setAddToItinDone(null);
+    // Try to load the number of itinerary days
+    if (!isMockTrip) {
+      try {
+        const r = await fetch(`/api/trips/${params.id}`);
+        const data = await r.json();
+        const days = data?.itinerary?.days;
+        if (Array.isArray(days) && days.length > 0) setAddToItinDays(days.length);
+      } catch { /* use default */ }
+    }
+  };
+
+  const confirmAddToItinerary = async () => {
+    if (!addToItinVote) return;
+    setAddToItinSaving(true);
+    try {
+      if (!isMockTrip) {
+        // Fetch current itinerary, inject new activity, save
+        const r = await fetch(`/api/trips/${params.id}`);
+        const data = await r.json();
+        const days: any[] = data?.itinerary?.days ?? [];
+        const dayIdx = days.findIndex((d: any) => d.day === addToItinDay);
+        const newActivity = {
+          id: `act_vote_${Date.now()}`,
+          dayNumber: addToItinDay,
+          timeSlot: '12:00',
+          title: addToItinVote.label,
+          name: addToItinVote.label,
+          description: `Added from group vote: "${addToItinVote.label}"`,
+          costEstimate: 0,
+          confidence: 1,
+          verified: false,
+          track: 'shared',
+          isRestaurant: false,
+        };
+        if (dayIdx >= 0) {
+          days[dayIdx] = {
+            ...days[dayIdx],
+            tracks: {
+              ...days[dayIdx].tracks,
+              shared: [...(days[dayIdx].tracks?.shared ?? []), newActivity],
+            },
+          };
+        }
+        await fetch(`/api/trips/${params.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days }),
+        });
+      }
+      setAddToItinDone(addToItinVote.label);
+      setTimeout(() => setAddToItinVote(null), 1800);
+    } catch { /* ignore */ } finally {
+      setAddToItinSaving(false);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [messageInput, setMessageInput] = useState('');
@@ -490,6 +581,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   const isMe = currentUserId ? member.id === currentUserId : member.id === 'user_1';
                   const uploadedAvatar = memberAvatars[member.id];
                   const avatarSrc = uploadedAvatar || member.avatarUrl;
+                  const isOrganizer = currentUserId
+                    ? groupMembers.find(m => m.id === currentUserId)?.role === 'organizer'
+                    : false;
+                  const isCoOrg = member.role === 'co_organizer';
+                  const canPromote = hasCoOrganizer && isOrganizer && !isMe && member.role !== 'organizer';
                   return (
                     <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                       <div className="relative mb-4 group/avatar">
@@ -508,13 +604,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       </div>
                       <h3 className="font-bold text-zinc-900 mb-1">{member.name}</h3>
                       <span
-                        className={`inline-block text-xs font-medium px-3 py-1 rounded-full mb-3 ${
-                          member.role === 'owner'
+                        className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full mb-3 ${
+                          member.role === 'organizer'
                             ? 'bg-sky-100 text-sky-900'
+                            : isCoOrg
+                            ? 'bg-amber-100 text-amber-800'
                             : 'bg-zinc-100 text-zinc-700'
                         }`}
                       >
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                        {isCoOrg && <ShieldCheck className="w-3 h-3" />}
+                        {member.role === 'co_organizer' ? 'Co-organizer' : member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                       </span>
                       {isMe && (
                         <button
@@ -522,6 +621,24 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           className="text-xs text-sky-700 hover:text-sky-900 font-medium transition-colors"
                         >
                           {uploadedAvatar ? 'Change photo' : '+ Add photo'}
+                        </button>
+                      )}
+                      {/* Co-organizer promote/demote button — visible to organizer only */}
+                      {canPromote && (
+                        <button
+                          onClick={() => handleRoleChange(member.id, isCoOrg ? 'member' : 'co_organizer')}
+                          disabled={roleUpdating === member.id}
+                          className={`mt-2 text-xs font-semibold px-3 py-1.5 rounded-full transition-all ${
+                            isCoOrg
+                              ? 'text-zinc-500 border border-zinc-200 hover:bg-zinc-50'
+                              : 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100'
+                          } disabled:opacity-50`}
+                        >
+                          {roleUpdating === member.id
+                            ? '…'
+                            : isCoOrg
+                            ? 'Remove co-organizer'
+                            : '+ Make co-organizer'}
                         </button>
                       )}
                     </div>
@@ -1123,8 +1240,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           {(() => {
                             const winner = vote.options.find(o => o.votes === Math.max(...vote.options.map(x => x.votes)));
                             return winner ? (
-                              <button className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors">
-                                <span>+</span> Add &quot;{winner.label}&quot; to itinerary
+                              <button
+                                onClick={() => openAddToItinerary(vote.id, winner.label)}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors"
+                              >
+                                <CalendarDays className="w-3.5 h-3.5" />
+                                Add &quot;{winner.label}&quot; to itinerary
                               </button>
                             ) : null;
                           })()}
@@ -1250,6 +1371,56 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       Put It Out There
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Add to Itinerary modal */}
+            {addToItinVote && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setAddToItinVote(null)}>
+                <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+                  {addToItinDone ? (
+                    <div className="text-center py-4">
+                      <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                      <h3 className="font-semibold text-zinc-900 text-lg mb-1">Added!</h3>
+                      <p className="text-sm text-zinc-500">&ldquo;{addToItinDone}&rdquo; is now on Day {addToItinDay} of your itinerary.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">Add to Itinerary</h3>
+                      <p className="text-sm text-zinc-500 mb-6">
+                        Adding <span className="font-semibold text-zinc-800">&ldquo;{addToItinVote.label}&rdquo;</span> — choose which day.
+                      </p>
+                      <div className="mb-6">
+                        <label className="block text-sm font-semibold text-zinc-700 mb-2">Day</label>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setAddToItinDay(d => Math.max(1, d - 1))}
+                            className="w-9 h-9 rounded-full border border-zinc-200 hover:bg-zinc-50 flex items-center justify-center font-bold text-zinc-600 transition-colors"
+                          >−</button>
+                          <span className="flex-1 text-center text-xl font-bold text-zinc-900">Day {addToItinDay}</span>
+                          <button
+                            onClick={() => setAddToItinDay(d => Math.min(addToItinDays, d + 1))}
+                            className="w-9 h-9 rounded-full border border-zinc-200 hover:bg-zinc-50 flex items-center justify-center font-bold text-zinc-600 transition-colors"
+                          >+</button>
+                        </div>
+                        <p className="text-center text-xs text-zinc-400 mt-1">of {addToItinDays} days</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setAddToItinVote(null)}
+                          className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg font-medium text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
+                        >Cancel</button>
+                        <button
+                          onClick={confirmAddToItinerary}
+                          disabled={addToItinSaving}
+                          className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg font-semibold text-sm transition-colors"
+                        >
+                          {addToItinSaving ? 'Saving…' : 'Add to Itinerary'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

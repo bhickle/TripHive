@@ -95,3 +95,63 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ members: [] });
   }
 }
+
+/**
+ * PATCH /api/trips/[id]/members
+ * Updates a member's role (e.g. promote to co_organizer or demote back to member).
+ * Requires the caller to be the trip organizer with a Nomad subscription.
+ * Body: { memberId: string, role: 'member' | 'co_organizer' }
+ */
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  try {
+    // Auth check
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const supabase = createAdminClient();
+
+    // Only the organizer may change roles
+    const { data: trip } = await supabase
+      .from('trips')
+      .select('organizer_id')
+      .eq('id', params.id)
+      .single();
+
+    if (!trip || trip.organizer_id !== user.id) {
+      return NextResponse.json({ error: 'Only the trip organizer can change roles' }, { status: 403 });
+    }
+
+    // Caller must be on Nomad
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.subscription_tier !== 'nomad') {
+      return NextResponse.json({ error: 'Co-organizer roles require a Nomad subscription' }, { status: 403 });
+    }
+
+    const { memberId, role } = await req.json();
+    if (!memberId || !['member', 'co_organizer'].includes(role)) {
+      return NextResponse.json({ error: 'memberId and role (member | co_organizer) required' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('trip_members')
+      .update({ role })
+      .eq('trip_id', params.id)
+      .eq('user_id', memberId);
+
+    if (error) {
+      console.error('role update error:', error);
+      return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, memberId, role });
+  } catch (err) {
+    console.error('PATCH members error:', err);
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  }
+}

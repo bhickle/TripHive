@@ -225,7 +225,8 @@ export function useEntitlements(tripId?: string) {
     hasSplitTracks: limits.canUseSplitTracks,
     hasCoOrganizer: limits.canAddCoOrganizer,
     hasWishlist: limits.canUseWishlist,
-    hasFlightAlerts: limits.canUseFlightAlerts,
+    hasAIPacking: limits.canUseAIPacking,
+    hasAIPhrasebook: limits.canUseAIPhrasebook,
     hasEarlyAccess: limits.earlyAccess,
   };
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -10,13 +11,32 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
  * Body: { tripId, destination, startDate?, endDate? }
  *
  * Returns { items } on success.
- * Non-blocking — caller should fire-and-forget.
+ * Nomad-only feature — requires subscription_tier = 'nomad'.
  */
 export async function POST(req: NextRequest) {
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'NO_API_KEY' }, { status: 500 });
     }
+
+    // Tier check — Nomad only
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      if (user) {
+        const admin = createAdminClient();
+        const { data: profile } = await admin
+          .from('profiles')
+          .select('subscription_tier')
+          .eq('id', user.id)
+          .single();
+        const tier = profile?.subscription_tier ?? 'free';
+        if (tier !== 'nomad') {
+          return NextResponse.json({ error: 'NOMAD_REQUIRED', message: 'AI packing list is a Nomad feature' }, { status: 403 });
+        }
+      }
+      // No session (demo/guest) — allow through so the demo experience still works
+    } catch { /* ignore auth errors — don't block demo users */ }
 
     const { tripId, destination, startDate, endDate } = await req.json();
     if (!tripId || !destination) {

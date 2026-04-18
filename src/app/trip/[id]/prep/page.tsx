@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +38,7 @@ interface PhrasebookData {
 
 export default function PrepPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+  const { hasAIPacking, hasAIPhrasebook } = useEntitlements(params.id);
 
   // For real trips, prep tasks and packing items are loaded from Supabase
   const [prepTasks, setPrepTasks] = useState<PrepTask[]>(isMockTrip ? (mockPrepTasks as PrepTask[]) : []);
@@ -487,17 +490,29 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             {packingGenError && (
               <p className="text-xs text-rose-600 mb-3">{packingGenError}</p>
             )}
-            <button
-              onClick={generatePackingList}
-              disabled={packingGenerating}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-xl font-semibold text-sm transition-colors"
-            >
-              {packingGenerating ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
-              ) : (
-                <><Sparkles className="w-4 h-4" /> Generate AI Packing List</>
-              )}
-            </button>
+            {hasAIPacking ? (
+              <button
+                onClick={generatePackingList}
+                disabled={packingGenerating}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-xl font-semibold text-sm transition-colors"
+              >
+                {packingGenerating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> Generate AI Packing List</>
+                )}
+              </button>
+            ) : (
+              <div className="inline-flex flex-col items-center gap-2">
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-100 text-zinc-400 rounded-xl font-semibold text-sm cursor-not-allowed">
+                  <Lock className="w-4 h-4" /> Generate AI Packing List
+                </div>
+                <p className="text-xs text-zinc-500">
+                  <Crown className="w-3 h-3 inline text-amber-400 mr-1" />
+                  AI packing lists are a <Link href="/pricing" className="text-sky-700 font-semibold hover:underline">Nomad</Link> feature
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -505,9 +520,10 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         {!isMockTrip && packingLoaded && packingItems.length > 0 && (
           <div className="flex justify-end">
             <button
-              onClick={generatePackingList}
-              disabled={packingGenerating}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border border-zinc-200 rounded-lg text-zinc-500 hover:bg-zinc-50 disabled:opacity-50 transition-colors"
+              onClick={hasAIPacking ? generatePackingList : undefined}
+              disabled={packingGenerating || !hasAIPacking}
+              title={hasAIPacking ? undefined : 'AI packing list is a Nomad feature'}
+              className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border border-zinc-200 rounded-lg transition-colors ${hasAIPacking ? 'text-zinc-500 hover:bg-zinc-50 disabled:opacity-50' : 'text-zinc-300 cursor-not-allowed'}`}
             >
               {packingGenerating ? (
                 <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</>
@@ -729,6 +745,28 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const phrasebook = phrasebooks[activePhrasebook] ?? null;
 
   const renderPhrasesTab = () => {
+    // Nomad gate — show upgrade prompt for non-Nomad users
+    if (!hasAIPhrasebook) {
+      return (
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-12 text-center">
+          <div className="w-16 h-16 bg-amber-50 border border-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-8 h-8 text-amber-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-zinc-900 mb-2">AI Phrasebook is a Nomad feature</h3>
+          <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto">
+            Upgrade to Nomad to generate a destination-specific phrasebook with pronunciation guides for greetings, dining, transport, emergencies, and more.
+          </p>
+          <Link
+            href="/pricing"
+            className="px-6 py-3 bg-zinc-900 hover:bg-zinc-700 text-white rounded-xl font-semibold transition-colors inline-flex items-center gap-2 text-sm"
+          >
+            <Crown className="w-4 h-4 text-amber-400" />
+            Upgrade to Nomad
+          </Link>
+        </div>
+      );
+    }
+
     // Empty / pre-load state
     if (phrasebooks.length === 0 && !phrasesLoading && !phrasesError) {
       const destNames = parseDestinations(tripDestination);

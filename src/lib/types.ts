@@ -41,7 +41,6 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   activeTrips: number | 'plan_based';
   travelersPerTrip: number | 'plan_based';
   aiCreditsPerMonth: number | 'plan_based';
-  flightAlerts: number;
   canUseAI: boolean;
   canUseTripStory: boolean;
   canUseYearInReview: boolean;
@@ -49,7 +48,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   canAddCoOrganizer: boolean;
   canUseTransportParser: boolean;
   canUseWishlist: boolean;
-  canUseFlightAlerts: boolean;
+  canUseAIPacking: boolean;
+  canUseAIPhrasebook: boolean;
   supportLevel: 'community' | 'email' | 'priority';
   earlyAccess: boolean;
 }> = {
@@ -57,7 +57,6 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     activeTrips: 1,
     travelersPerTrip: 4,
     aiCreditsPerMonth: 10,
-    flightAlerts: 0,
     canUseAI: true,
     canUseTripStory: false,
     canUseYearInReview: false,
@@ -65,7 +64,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canAddCoOrganizer: false,
     canUseTransportParser: false,
     canUseWishlist: false,
-    canUseFlightAlerts: false,
+    canUseAIPacking: false,
+    canUseAIPhrasebook: false,
     supportLevel: 'community',
     earlyAccess: false,
   },
@@ -73,7 +73,6 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     activeTrips: 'plan_based',   // only the purchased trip
     travelersPerTrip: 'plan_based', // 6 base + extras purchased
     aiCreditsPerMonth: 'plan_based', // 30 per pass
-    flightAlerts: 0,
     canUseAI: true,
     canUseTripStory: true,
     canUseYearInReview: false,
@@ -81,7 +80,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canAddCoOrganizer: false,
     canUseTransportParser: true,
     canUseWishlist: false,
-    canUseFlightAlerts: false,
+    canUseAIPacking: false,
+    canUseAIPhrasebook: false,
     supportLevel: 'email',
     earlyAccess: false,
   },
@@ -89,15 +89,15 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     activeTrips: 8,
     travelersPerTrip: 8,
     aiCreditsPerMonth: 100,
-    flightAlerts: 3,
     canUseAI: true,
     canUseTripStory: true,
-    canUseYearInReview: false,
+    canUseYearInReview: true,
     canUseSplitTracks: false,
     canAddCoOrganizer: false,
     canUseTransportParser: true,
     canUseWishlist: true,
-    canUseFlightAlerts: true,
+    canUseAIPacking: false,
+    canUseAIPhrasebook: false,
     supportLevel: 'email',
     earlyAccess: false,
   },
@@ -105,7 +105,6 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     activeTrips: 15,
     travelersPerTrip: 15,
     aiCreditsPerMonth: 350,
-    flightAlerts: Infinity,
     canUseAI: true,
     canUseTripStory: true,
     canUseYearInReview: true,
@@ -113,7 +112,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canAddCoOrganizer: true,
     canUseTransportParser: true,
     canUseWishlist: true,
-    canUseFlightAlerts: true,
+    canUseAIPacking: true,
+    canUseAIPhrasebook: true,
     supportLevel: 'priority',
     earlyAccess: true,
   },

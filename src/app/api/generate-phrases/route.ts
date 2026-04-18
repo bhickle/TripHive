@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -144,6 +146,25 @@ const MOCK_PHRASES = {
 
 export async function POST(request: NextRequest) {
   try {
+    // Tier check — Nomad only
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      if (user) {
+        const admin = createAdminClient();
+        const { data: profile } = await admin
+          .from('profiles')
+          .select('subscription_tier')
+          .eq('id', user.id)
+          .single();
+        const tier = profile?.subscription_tier ?? 'free';
+        if (tier !== 'nomad') {
+          return NextResponse.json({ error: 'NOMAD_REQUIRED', message: 'AI phrasebook is a Nomad feature' }, { status: 403 });
+        }
+      }
+      // No session (demo/guest) — allow through so the demo experience still works
+    } catch { /* ignore auth errors — don't block demo users */ }
+
     const body = await request.json();
     const { destination = 'Iceland', language } = body;
 
