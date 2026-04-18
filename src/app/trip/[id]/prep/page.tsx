@@ -477,15 +477,34 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* AI generation CTA — shown for real trips when packing list is empty */}
+        {/* ── Manual add form — available to all tiers, always visible at the top ── */}
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Add item</p>
+          <div className="flex gap-2">
+            <select value={newPackCategory} onChange={(e) => setNewPackCategory(e.target.value)} className="px-4 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
+              <option value="" disabled>Category</option>
+              {['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <input type="text" placeholder="Add packing item..." value={newPackItem} onChange={(e) => setNewPackItem(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addPackItem(newPackItem, newPackCategory); }}
+              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
+            <button onClick={() => addPackItem(newPackItem, newPackCategory)}
+              disabled={!newPackCategory}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* ── AI generation — Nomad-gated, shown for real trips only ── */}
         {!isMockTrip && packingLoaded && packingItems.length === 0 && customPackItems.length === 0 && (
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-center">
             <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <Backpack className="w-6 h-6 text-sky-700" />
             </div>
-            <h3 className="font-semibold text-zinc-900 mb-1">No packing list yet</h3>
+            <h3 className="font-semibold text-zinc-900 mb-1">Or let AI build your list</h3>
             <p className="text-sm text-zinc-500 mb-4">
-              Generate a smart, destination-specific packing list for <span className="font-medium text-zinc-700">{tripDestination}</span> in seconds.
+              Generate a destination-specific packing list for <span className="font-medium text-zinc-700">{tripDestination}</span> in seconds.
             </p>
             {packingGenError && (
               <p className="text-xs text-rose-600 mb-3">{packingGenError}</p>
@@ -516,7 +535,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* Regenerate button — shown when items exist on a real trip */}
+        {/* Regenerate button — shown when AI-generated items exist on a real trip */}
         {!isMockTrip && packingLoaded && packingItems.length > 0 && (
           <div className="flex justify-end">
             <button
@@ -575,23 +594,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               </div>
             );
           })}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-          <div className="flex gap-2">
-            <select value={newPackCategory} onChange={(e) => setNewPackCategory(e.target.value)} className="px-4 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
-              <option value="" disabled>Category</option>
-              {['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            <input type="text" placeholder="Add packing item..." value={newPackItem} onChange={(e) => setNewPackItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addPackItem(newPackItem, newPackCategory); }}
-              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => addPackItem(newPackItem, newPackCategory)}
-              disabled={!newPackCategory}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
         </div>
       </div>
     );
