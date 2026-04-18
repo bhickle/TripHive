@@ -177,6 +177,8 @@ function AddDestinationModal({
   const [preview, setPreview] = useState<WishlistItem | null>(null);
   const [socialUrl, setSocialUrl] = useState('');
   const [showSocialInput, setShowSocialInput] = useState(false);
+  const [socialExtractError, setSocialExtractError] = useState(false);
+  const destInputRef = useRef<HTMLInputElement>(null);
 
   const { query, setQuery, suggestions, loading } = usePlacesSearch(200, '/api/destinations/search');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -298,9 +300,9 @@ function AddDestinationModal({
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-sky-600" />
             <h2 className="font-script italic font-semibold text-slate-900">
@@ -316,19 +318,21 @@ function AddDestinationModal({
 
         {/* ── Stage: Search ─────────────────────────────────────────────── */}
         {stage === 'search' && (
-          <div className="p-6 space-y-5">
+          <div className="p-6 space-y-5 overflow-y-auto">
             {/* Destination search */}
             <div ref={searchRef} className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">Where to?</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
+                  ref={destInputRef}
                   type="text"
                   placeholder="Search cities, countries, regions…"
                   value={query || destination}
                   onChange={(e) => {
                     setQuery(e.target.value);
                     setDestination(e.target.value);
+                    setSocialExtractError(false);
                     setShowSuggestions(e.target.value.length >= 2);
                   }}
                   onFocus={() => query.length >= 2 && setShowSuggestions(true)}
@@ -369,7 +373,7 @@ function AddDestinationModal({
             {!showSocialInput ? (
               <button
                 type="button"
-                onClick={() => setShowSocialInput(true)}
+                onClick={() => { setShowSocialInput(true); setSocialExtractError(false); }}
                 className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 w-full hover:bg-sky-50 hover:border-sky-200 transition-colors group"
               >
                 <span className="text-base">📌</span>
@@ -381,13 +385,13 @@ function AddDestinationModal({
               </button>
             ) : (
               <div className="space-y-2">
-                <label className="block text-xs font-medium text-slate-700">Paste a Pinterest, TikTok or Instagram link</label>
+                <label className="block text-xs font-medium text-slate-700">Paste a link from Pinterest, TikTok or Instagram</label>
                 <div className="flex gap-2">
                   <input
                     type="url"
-                    placeholder="https://pinterest.com/..."
+                    placeholder="https://pinterest.com/user/board-name/"
                     value={socialUrl}
-                    onChange={(e) => setSocialUrl(e.target.value)}
+                    onChange={(e) => { setSocialUrl(e.target.value); setSocialExtractError(false); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -396,12 +400,20 @@ function AddDestinationModal({
                           setQuery(extracted);
                           setDestination(extracted);
                           setShowSuggestions(true);
+                          setShowSocialInput(false);
+                          setSocialUrl('');
+                          setSocialExtractError(false);
+                        } else {
+                          setSocialExtractError(true);
+                          setTimeout(() => destInputRef.current?.focus(), 50);
                         }
-                        setShowSocialInput(false);
-                        setSocialUrl('');
                       }
                     }}
-                    className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-600 focus:border-transparent"
+                    className={`flex-1 px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:border-transparent ${
+                      socialExtractError
+                        ? 'border-red-300 focus:ring-red-400'
+                        : 'border-slate-200 focus:ring-sky-600'
+                    }`}
                     autoFocus
                   />
                   <button
@@ -412,9 +424,13 @@ function AddDestinationModal({
                         setQuery(extracted);
                         setDestination(extracted);
                         setShowSuggestions(true);
+                        setShowSocialInput(false);
+                        setSocialUrl('');
+                        setSocialExtractError(false);
+                      } else {
+                        setSocialExtractError(true);
+                        setTimeout(() => destInputRef.current?.focus(), 50);
                       }
-                      setShowSocialInput(false);
-                      setSocialUrl('');
                     }}
                     className="px-3 py-2 bg-sky-600 text-white text-xs font-semibold rounded-xl hover:bg-sky-700 transition-colors flex-shrink-0"
                   >
@@ -422,13 +438,19 @@ function AddDestinationModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setShowSocialInput(false); setSocialUrl(''); }}
+                    onClick={() => { setShowSocialInput(false); setSocialUrl(''); setSocialExtractError(false); }}
                     className="px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p className="text-xs text-slate-400">Works with Pinterest boards, Instagram location/tag pages, and TikTok hashtags</p>
+                {socialExtractError ? (
+                  <p className="text-xs text-red-500">
+                    Couldn&apos;t detect a place from that link — try a Pinterest board URL, or just type the destination in the search above.
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400">Best with Pinterest board URLs (e.g. pinterest.com/user/bali-travel)</p>
+                )}
               </div>
             )}
 
