@@ -4,9 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { PRICING } from '@/hooks/useEntitlements';
 import {
-  User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, AlertCircle, Settings as SettingsIcon,
-  ThumbsUp, MessageSquare, ChevronDown, ChevronUp, Send,
+  User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, Settings as SettingsIcon,
+  ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap,
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -21,11 +22,95 @@ interface NotificationSettings {
   marketing: boolean;
 }
 
-interface ConnectedApp {
-  id: string;
-  name: string;
-  status: 'connected' | 'disconnected';
-}
+// ─── Persona options — must match onboarding + trip builder exactly ──────────
+
+const VIBE_OPTIONS = [
+  { id: 'adventure', label: 'Adventure',  desc: 'Hikes, thrills, outdoors' },
+  { id: 'relaxed',   label: 'Relaxed',    desc: 'Slow pace, recharge' },
+  { id: 'cultural',  label: 'Cultural',   desc: 'History, art, museums' },
+  { id: 'foodie',    label: 'Foodie',     desc: 'Restaurants, markets' },
+  { id: 'party',     label: 'Nightlife',  desc: 'Bars, clubs, events' },
+  { id: 'balanced',  label: 'Balanced',   desc: 'A bit of everything' },
+];
+
+const GROUP_TYPE_OPTIONS = [
+  { id: 'friends', label: 'Friend Group', emoji: '🎉' },
+  { id: 'couple',  label: 'Couple',       emoji: '💑' },
+  { id: 'family',  label: 'Family',       emoji: '👨‍👩‍👧‍👦' },
+  { id: 'solo',    label: 'Solo',         emoji: '🧍' },
+  { id: 'work',    label: 'Work Trip',    emoji: '💼' },
+];
+
+// Matches trip/new/page.tsx priorityOptions exactly
+const PRIORITY_OPTIONS = [
+  { id: 'nature',      label: 'Nature',       icon: '🌿' },
+  { id: 'food',        label: 'Food',         icon: '🍽️' },
+  { id: 'nightlife',   label: 'Nightlife',    icon: '🎉' },
+  { id: 'history',     label: 'History',      icon: '🏛️' },
+  { id: 'sports',      label: 'Sports',       icon: '⚽' },
+  { id: 'photography', label: 'Photography',  icon: '📸' },
+  { id: 'wellness',    label: 'Wellness',     icon: '🧘' },
+  { id: 'shopping',    label: 'Shopping',     icon: '🛍️' },
+  { id: 'adventure',   label: 'Adventure',    icon: '🪂' },
+  { id: 'culture',     label: 'Culture',      icon: '🎨' },
+];
+
+// ─── Subscription display helpers ─────────────────────────────────────────────
+
+const PLAN_DISPLAY: Record<string, { name: string; price: string; per: string; gradient: string }> = {
+  free:      { name: 'Free',      price: '$0',    per: '',        gradient: 'bg-gradient-to-br from-slate-600 to-slate-800' },
+  explorer:  { name: 'Explorer',  price: `$${PRICING.explorer.monthly}`, per: '/month', gradient: 'bg-gradient-to-br from-sky-600 to-sky-800' },
+  nomad:     { name: 'Nomad',     price: `$${PRICING.nomad.monthly}`,    per: '/month', gradient: 'bg-gradient-to-br from-emerald-700 to-sky-800' },
+  trip_pass: { name: 'Trip Pass', price: `$${PRICING.trip_pass.base}`,   per: '/trip',  gradient: 'bg-gradient-to-br from-amber-600 to-rose-700' },
+};
+
+const PLAN_FEATURES: Record<string, string[]> = {
+  free: [
+    '1 active trip',
+    'Up to 4 travelers',
+    '10 AI credits / month',
+    'Manual itinerary builder',
+    'Community support',
+  ],
+  explorer: [
+    'Unlimited trips',
+    'Up to 8 travelers',
+    '100 AI credits / month',
+    'AI itinerary generation',
+    'Transport confirmation parser',
+    'Trip Story & photo gallery',
+    'Packing & prep checklists',
+    'Wishlist & destination discovery',
+    'Up to 3 flight price alerts',
+    'Email support',
+  ],
+  nomad: [
+    'Unlimited trips',
+    'Up to 15 travelers',
+    '350 AI credits / month',
+    'AI itinerary generation',
+    'Transport confirmation parser',
+    'Split-track itineraries',
+    'Co-organizer role',
+    'Trip Story, Year in Review & photo gallery',
+    'Packing & prep checklists',
+    'Wishlist & destination discovery',
+    'Unlimited flight price alerts',
+    'Early access to new features',
+    'Priority support',
+  ],
+  trip_pass: [
+    '1 trip, up to 6 travelers',
+    '30 AI credits',
+    'AI itinerary generation',
+    'Transport confirmation parser',
+    'Trip Story & photo gallery',
+    'Packing & prep checklists',
+    'Email support',
+  ],
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const currentUser = useCurrentUser();
@@ -58,45 +143,106 @@ export default function SettingsPage() {
     } catch { /* ignore */ }
   }, []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const travelPersona = (currentUser as any).travelPersona;
+  // ── Persona — load from localStorage (same store as onboarding + trip builder) ──
   const [persona, setPersona] = useState({
-    style: travelPersona?.style || '',
-    groupType: travelPersona?.groupType || '',
-    priorities: (travelPersona?.priorities as string[]) || [],
+    vibes:      [] as string[],
+    groupType:  'friends',
+    priorities: [] as string[],
   });
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('tripcoord_profile');
+      if (stored) {
+        const p = JSON.parse(stored);
+        setPersona({
+          vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
+          groupType:  p.groupType  ?? 'friends',
+          priorities: Array.isArray(p.priorities) ? p.priorities : [],
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const savePersona = () => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('tripcoord_profile') || '{}');
+      localStorage.setItem('tripcoord_profile', JSON.stringify({
+        ...existing,
+        vibes:      persona.vibes,
+        groupType:  persona.groupType,
+        priorities: persona.priorities,
+      }));
+    } catch { /* ignore */ }
+    setEditingPersona(false);
+    setPersonaSaved(true);
+    setTimeout(() => setPersonaSaved(false), 2000);
+  };
+
+  const cancelPersona = () => {
+    // Reload from localStorage
+    try {
+      const stored = localStorage.getItem('tripcoord_profile');
+      if (stored) {
+        const p = JSON.parse(stored);
+        setPersona({
+          vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
+          groupType:  p.groupType  ?? 'friends',
+          priorities: Array.isArray(p.priorities) ? p.priorities : [],
+        });
+      }
+    } catch { /* ignore */ }
+    setEditingPersona(false);
+  };
+
+  const toggleVibe = (id: string) =>
+    setPersona(prev => ({
+      ...prev,
+      vibes: prev.vibes.includes(id) ? prev.vibes.filter(v => v !== id) : [...prev.vibes, id],
+    }));
+
+  const togglePriority = (id: string) =>
+    setPersona(prev => ({
+      ...prev,
+      priorities: prev.priorities.includes(id) ? prev.priorities.filter(p => p !== id) : [...prev.priorities, id],
+    }));
+
+  // ── Subscription derived values ────────────────────────────────────────────
+  const rawTier = (currentUser as any).subscriptionTier as string | undefined;
+  const tier = (rawTier && rawTier in PLAN_DISPLAY) ? rawTier : 'free';
+  const plan = PLAN_DISPLAY[tier];
+  const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
+
+  const aiUsed    = currentUser.aiCredits?.used  ?? 0;
+  const aiTotal   = currentUser.aiCredits?.total ?? 0;
+  const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : '0 / 10';
+  const aiPct     = aiTotal > 0 ? Math.min(100, Math.round((aiUsed / aiTotal) * 100)) : 0;
+
+  const tierLabel = tier === 'free' ? 'Free plan'
+    : tier === 'trip_pass' ? 'Trip Pass'
+    : `${plan.name} plan`;
+
+  // ── Notification state ─────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<NotificationSettings>({
-    email: true,
-    push: true,
-    tripReminders: true,
-    voteAlerts: true,
-    expenseAlerts: true,
-    marketing: false,
+    email: true, push: true, tripReminders: true,
+    voteAlerts: true, expenseAlerts: true, marketing: false,
   });
 
-  // ── Integration voting state ──────────────────────────────────────────────
-  interface Integration {
-    id: string;
-    name: string;
-    description: string;
-    icon: string;
-    votes: number;
-  }
+  // ── Integration voting ─────────────────────────────────────────────────────
+  interface Integration { id: string; name: string; description: string; icon: string; votes: number; }
 
   const INTEGRATIONS: Integration[] = [
-    { id: 'splitwise',  name: 'Splitwise',  description: 'Sync expenses so splits show up automatically in your trip budget.',    icon: '💸', votes: 34 },
-    { id: 'revolut',   name: 'Revolut',    description: 'Pull real-time exchange rates and card transactions into your budget.',  icon: '💳', votes: 28 },
-    { id: 'paypal',    name: 'PayPal',     description: 'Pay for trip add-ons and split costs via PayPal balance.',               icon: '🅿️', votes: 19 },
-    { id: 'tripit',    name: 'TripIt',     description: 'Import confirmed bookings from TripIt into your itinerary automatically.', icon: '✈️', votes: 41 },
-    { id: 'airbnb',    name: 'Airbnb',     description: 'Import Airbnb reservations straight into your accommodation step.',       icon: '🏠', votes: 52 },
-    { id: 'google',    name: 'Google Calendar', description: 'Push your itinerary to Google Calendar and get trip reminders.',    icon: '📅', votes: 67 },
-    { id: 'spotify',   name: 'Spotify',    description: 'Auto-generate a trip playlist based on the destination vibe.',           icon: '🎵', votes: 23 },
-    { id: 'other',     name: 'Something else?', description: "Don't see what you need? Tell us below.",                          icon: '💡', votes: 0 },
+    { id: 'splitwise', name: 'Splitwise',       description: 'Sync expenses so splits show up automatically in your trip budget.',     icon: '💸', votes: 34 },
+    { id: 'revolut',   name: 'Revolut',         description: 'Pull real-time exchange rates and card transactions into your budget.',   icon: '💳', votes: 28 },
+    { id: 'paypal',    name: 'PayPal',          description: 'Pay for trip add-ons and split costs via PayPal balance.',                icon: '🅿️', votes: 19 },
+    { id: 'tripit',    name: 'TripIt',          description: 'Import confirmed bookings from TripIt into your itinerary automatically.', icon: '✈️', votes: 41 },
+    { id: 'airbnb',    name: 'Airbnb',          description: 'Import Airbnb reservations straight into your accommodation step.',        icon: '🏠', votes: 52 },
+    { id: 'google',    name: 'Google Calendar', description: 'Push your itinerary to Google Calendar and get trip reminders.',          icon: '📅', votes: 67 },
+    { id: 'spotify',   name: 'Spotify',         description: 'Auto-generate a trip playlist based on the destination vibe.',            icon: '🎵', votes: 23 },
+    { id: 'other',     name: 'Something else?', description: "Don't see what you need? Tell us below.",                                icon: '💡', votes: 0  },
   ];
 
   const LS_KEY = 'tripcoord_integration_votes';
-
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>(
     Object.fromEntries(INTEGRATIONS.map(i => [i.id, i.votes]))
@@ -105,18 +251,12 @@ export default function SettingsPage() {
   const [comments, setComments] = useState<Record<string, string>>({});
   const [submittedComments, setSubmittedComments] = useState<Set<string>>(new Set());
 
-  // Rehydrate votes from localStorage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem(LS_KEY);
       if (!stored) return;
       const ids: string[] = JSON.parse(stored);
       setVotedIds(new Set(ids));
-      setVoteCounts(prev => {
-        const next = { ...prev };
-        ids.forEach(id => { if (next[id] !== undefined) next[id] = prev[id]; });
-        return next;
-      });
     } catch { /* ignore */ }
   }, []);
 
@@ -125,25 +265,22 @@ export default function SettingsPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ integrationId, integrationName, action, comment }),
-    }).catch(() => { /* fire-and-forget; UI never blocks on this */ });
+    }).catch(() => {});
   };
 
   const handleVote = (id: string, name: string) => {
     setVotedIds(prev => {
       const next = new Set(prev);
-      let action: 'vote' | 'unvote';
       if (next.has(id)) {
         next.delete(id);
-        action = 'unvote';
         setVoteCounts(c => ({ ...c, [id]: c[id] - 1 }));
+        postVote(id, name, 'unvote');
       } else {
         next.add(id);
-        action = 'vote';
         setVoteCounts(c => ({ ...c, [id]: c[id] + 1 }));
+        postVote(id, name, 'vote');
       }
-      // Persist to localStorage
       try { localStorage.setItem(LS_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
-      postVote(id, name, action);
       return next;
     });
   };
@@ -156,30 +293,14 @@ export default function SettingsPage() {
     setExpandedComment(null);
   };
 
-  const toggleNotification = (key: keyof NotificationSettings) => {
+  const toggleNotification = (key: keyof NotificationSettings) =>
     setNotifications({ ...notifications, [key]: !notifications[key] });
-  };
-
-  const togglePriority = (priority: string) => {
-    setPersona({
-      ...persona,
-      priorities: persona.priorities.includes(priority)
-        ? persona.priorities.filter((p: string) => p !== priority)
-        : [...persona.priorities, priority]
-    });
-  };
-
-  const travelStyles = ['Explorer', 'Relaxer', 'Adventurer', 'Culture Seeker', 'Foodie'];
-  const groupTypes = ['Solo', 'Couple', 'Friends', 'Family', 'Group Tour'];
-  const priorityOptions = ['Food', 'Culture', 'Adventure', 'Nature', 'Wellness', 'Shopping', 'Photography'];
 
   const SectionButton = ({ section, label, icon: Icon }: { section: ActiveSection; label: string; icon: any }) => (
     <button
       onClick={() => setActiveSection(section)}
       className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all flex items-center space-x-3 ${
-        activeSection === section
-          ? 'bg-sky-100 text-sky-900'
-          : 'text-slate-700 hover:bg-slate-100'
+        activeSection === section ? 'bg-sky-100 text-sky-900' : 'text-slate-700 hover:bg-slate-100'
       }`}
     >
       <Icon className="w-5 h-5" />
@@ -187,100 +308,79 @@ export default function SettingsPage() {
     </button>
   );
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="flex h-screen bg-parchment">
       <Sidebar activePage="settings" user={currentUser} />
 
       <main className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto px-6 py-8">
-          {/* Header */}
           <div className="mb-8">
             <h1 className="text-4xl font-script italic font-semibold text-slate-900">Settings</h1>
             <p className="text-slate-600 mt-2">Manage your profile and preferences</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Settings Navigation */}
+            {/* Navigation */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 space-y-2">
-                <SectionButton section="profile" label="Profile" icon={User} />
-                <SectionButton section="persona" label="Travel Persona" icon={SettingsIcon} />
-                <SectionButton section="subscription" label="Subscription" icon={CreditCard} />
-                <SectionButton section="notifications" label="Notifications" icon={Bell} />
-                <SectionButton section="apps" label="Connected Apps" icon={Wifi} />
-                <SectionButton section="privacy" label="Privacy & Data" icon={Lock} />
-                <SectionButton section="downloads" label="Downloaded Trips" icon={Download} />
+                <SectionButton section="profile"      label="Profile"          icon={User} />
+                <SectionButton section="persona"      label="Travel Persona"   icon={SettingsIcon} />
+                <SectionButton section="subscription" label="Subscription"     icon={CreditCard} />
+                <SectionButton section="notifications" label="Notifications"   icon={Bell} />
+                <SectionButton section="apps"         label="Connected Apps"   icon={Wifi} />
+                <SectionButton section="privacy"      label="Privacy & Data"   icon={Lock} />
+                <SectionButton section="downloads"    label="Downloaded Trips" icon={Download} />
               </div>
             </div>
 
-            {/* Settings Content */}
+            {/* Content */}
             <div className="lg:col-span-3">
-              {/* PROFILE SECTION */}
+
+              {/* ── PROFILE ── */}
               {activeSection === 'profile' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Your Profile</h2>
 
                   {editingProfile ? (
                     <div className="space-y-6">
-                      {/* Avatar Upload */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-3">Profile Picture</label>
                         <div className="flex items-end space-x-6">
                           <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
                           <button className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
-                            <Upload className="w-4 h-4 inline mr-2" />
-                            Upload Photo
+                            <Upload className="w-4 h-4 inline mr-2" />Upload Photo
                           </button>
                         </div>
                       </div>
-
-                      {/* Name Input */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-2">Full Name</label>
                         <input
                           type="text"
                           value={profile.name}
-                          onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                          onChange={e => setProfile({ ...profile, name: e.target.value })}
                           className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
                         />
                       </div>
-
-                      {/* Email Input */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-2">Email</label>
                         <input
                           type="email"
                           value={profile.email}
-                          onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                          onChange={e => setProfile({ ...profile, email: e.target.value })}
                           className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
                         />
                       </div>
-
-                      {/* Buttons */}
                       <div className="flex space-x-3 pt-4">
                         <button
-                          onClick={() => {
-                            setEditingProfile(false);
-                            setProfileSaved(true);
-                            setTimeout(() => setProfileSaved(false), 2000);
-                          }}
-                          className={`px-6 py-2 rounded-lg transition-all font-semibold ${
-                            profileSaved
-                              ? 'bg-green-600 text-white hover:bg-green-700'
-                              : 'bg-sky-800 text-white hover:bg-sky-900'
-                          }`}
+                          onClick={() => { setEditingProfile(false); setProfileSaved(true); setTimeout(() => setProfileSaved(false), 2000); }}
+                          className={`px-6 py-2 rounded-lg transition-all font-semibold ${profileSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                         >
                           {profileSaved ? '✓ Saved!' : 'Save Changes'}
                         </button>
                         <button
-                          onClick={() => {
-                            setProfile({
-                              name: currentUser.name,
-                              email: currentUser.email,
-                              avatarUrl: currentUser.avatarUrl,
-                            });
-                            setEditingProfile(false);
-                          }}
+                          onClick={() => { setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl }); setEditingProfile(false); }}
                           className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
                         >
                           Cancel
@@ -288,149 +388,17 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-6">
-                      {/* Display Profile */}
-                      <div className="flex items-center justify-between pb-6 border-b border-slate-200">
-                        <div className="flex items-center space-x-6">
-                          <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
-                          <div>
-                            <p className="font-semibold text-slate-900">{profile.name}</p>
-                            <p className="text-slate-600">{profile.email}</p>
-                            <p className="text-sm text-slate-500 mt-1 capitalize">Nomad tier member</p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setEditingProfile(true)}
-                          className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TRAVEL PERSONA SECTION */}
-              {activeSection === 'persona' && (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Travel Persona</h2>
-
-                  {editingPersona ? (
-                    <div className="space-y-6">
-                      {/* Travel Style */}
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-3">Travel Style</label>
-                        <div className="flex flex-wrap gap-2">
-                          {travelStyles.map((style) => (
-                            <button
-                              key={style}
-                              onClick={() => setPersona({ ...persona, style })}
-                              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                                persona.style === style
-                                  ? 'bg-sky-800 text-white'
-                                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                              }`}
-                            >
-                              {style}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Group Type */}
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-3">Travel With</label>
-                        <div className="flex flex-wrap gap-2">
-                          {groupTypes.map((type) => (
-                            <button
-                              key={type}
-                              onClick={() => setPersona({ ...persona, groupType: type })}
-                              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                                persona.groupType === type
-                                  ? 'bg-green-800 text-white'
-                                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                              }`}
-                            >
-                              {type}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Priorities */}
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-3">Top Priorities</label>
-                        <div className="flex flex-wrap gap-2">
-                          {priorityOptions.map((priority) => (
-                            <button
-                              key={priority}
-                              onClick={() => togglePriority(priority)}
-                              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                                persona.priorities.includes(priority)
-                                  ? 'bg-sky-800 text-white'
-                                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                              }`}
-                            >
-                              {priority}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Buttons */}
-                      <div className="flex space-x-3 pt-4">
-                        <button
-                          onClick={() => {
-                            setEditingPersona(false);
-                            setPersonaSaved(true);
-                            setTimeout(() => setPersonaSaved(false), 2000);
-                          }}
-                          className={`px-6 py-2 rounded-lg transition-all font-semibold ${
-                            personaSaved
-                              ? 'bg-green-600 text-white hover:bg-green-700'
-                              : 'bg-sky-800 text-white hover:bg-sky-900'
-                          }`}
-                        >
-                          {personaSaved ? '✓ Saved!' : 'Save Changes'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setPersona({
-                              style: travelPersona?.style || '',
-                              groupType: travelPersona?.groupType || '',
-                              priorities: (travelPersona?.priorities as string[]) || [],
-                            });
-                            setEditingPersona(false);
-                          }}
-                          className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      <div className="pb-6 border-b border-slate-200">
-                        <p className="text-sm text-slate-600 mb-2">Travel Style</p>
-                        <p className="font-semibold text-slate-900 text-lg">{persona.style}</p>
-                      </div>
-                      <div className="pb-6 border-b border-slate-200">
-                        <p className="text-sm text-slate-600 mb-2">Group Type</p>
-                        <p className="font-semibold text-slate-900 text-lg">{persona.groupType}</p>
-                      </div>
-                      <div className="pb-6 border-b border-slate-200">
-                        <p className="text-sm text-slate-600 mb-2">Top Priorities</p>
-                        <div className="flex flex-wrap gap-2">
-                          {persona.priorities.map((p: string) => (
-                            <span key={p} className="px-3 py-1 bg-sky-100 text-sky-900 rounded-full text-sm font-medium">
-                              {p}
-                            </span>
-                          ))}
+                    <div className="flex items-center justify-between pb-6 border-b border-slate-200">
+                      <div className="flex items-center space-x-6">
+                        <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
+                        <div>
+                          <p className="font-semibold text-slate-900">{profile.name}</p>
+                          <p className="text-slate-600">{profile.email}</p>
+                          <p className="text-sm text-slate-500 mt-1 capitalize">{tierLabel}</p>
                         </div>
                       </div>
                       <button
-                        onClick={() => setEditingPersona(true)}
+                        onClick={() => setEditingProfile(true)}
                         className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
                       >
                         Edit
@@ -440,40 +408,197 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* SUBSCRIPTION SECTION */}
+              {/* ── TRAVEL PERSONA ── */}
+              {activeSection === 'persona' && (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Travel Persona</h2>
+
+                  {editingPersona ? (
+                    <div className="space-y-6">
+                      {/* Travel Vibe */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-1">Travel Vibe</label>
+                        <p className="text-xs text-slate-500 mb-3">Pick all that apply</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {VIBE_OPTIONS.map(v => (
+                            <button
+                              key={v.id}
+                              onClick={() => toggleVibe(v.id)}
+                              className={`flex flex-col items-start gap-0.5 p-3 rounded-xl border-2 text-left transition-all ${
+                                persona.vibes.includes(v.id)
+                                  ? 'border-sky-500 bg-sky-50 text-sky-800'
+                                  : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="text-sm font-semibold">{v.label}</span>
+                              <span className="text-xs text-slate-400">{v.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Travel With */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-3">Travel With</label>
+                        <div className="grid grid-cols-5 gap-2">
+                          {GROUP_TYPE_OPTIONS.map(g => (
+                            <button
+                              key={g.id}
+                              onClick={() => setPersona(prev => ({ ...prev, groupType: g.id }))}
+                              className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 text-center transition-all ${
+                                persona.groupType === g.id
+                                  ? 'border-sky-500 bg-sky-50 text-sky-700'
+                                  : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="text-xl">{g.emoji}</span>
+                              <span className="text-xs font-medium leading-tight">{g.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Top Priorities */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-1">Top Priorities</label>
+                        <p className="text-xs text-slate-500 mb-3">Pick all that apply</p>
+                        <div className="flex flex-wrap gap-2">
+                          {PRIORITY_OPTIONS.map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => togglePriority(p.id)}
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                                persona.priorities.includes(p.id)
+                                  ? 'border-sky-500 bg-sky-50 text-sky-800'
+                                  : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              <span>{p.icon}</span>{p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex space-x-3 pt-4">
+                        <button
+                          onClick={savePersona}
+                          className={`px-6 py-2 rounded-lg transition-all font-semibold ${personaSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                        >
+                          {personaSaved ? '✓ Saved!' : 'Save Changes'}
+                        </button>
+                        <button onClick={cancelPersona} className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Display view */}
+                      <div className="pb-5 border-b border-slate-200">
+                        <p className="text-sm text-slate-500 mb-2">Travel Vibe</p>
+                        {persona.vibes.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {persona.vibes.map(id => {
+                              const v = VIBE_OPTIONS.find(o => o.id === id);
+                              return (
+                                <span key={id} className="px-3 py-1 bg-sky-100 text-sky-800 rounded-full text-sm font-medium">
+                                  {v?.label ?? id}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-400 italic">Not set — edit to add your travel vibe</p>
+                        )}
+                      </div>
+
+                      <div className="pb-5 border-b border-slate-200">
+                        <p className="text-sm text-slate-500 mb-2">Travel With</p>
+                        {persona.groupType ? (
+                          <p className="font-semibold text-slate-900">
+                            {GROUP_TYPE_OPTIONS.find(g => g.id === persona.groupType)?.label ?? persona.groupType}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-slate-400 italic">Not set</p>
+                        )}
+                      </div>
+
+                      <div className="pb-5 border-b border-slate-200">
+                        <p className="text-sm text-slate-500 mb-2">Top Priorities</p>
+                        {persona.priorities.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {persona.priorities.map(id => {
+                              const p = PRIORITY_OPTIONS.find(o => o.id === id);
+                              return (
+                                <span key={id} className="flex items-center gap-1 px-3 py-1 bg-sky-100 text-sky-800 rounded-full text-sm font-medium">
+                                  <span>{p?.icon}</span>{p?.label ?? id}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-400 italic">Not set — edit to add your priorities</p>
+                        )}
+                      </div>
+
+                      <button onClick={() => setEditingPersona(true)} className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
+                        Edit
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── SUBSCRIPTION ── */}
               {activeSection === 'subscription' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Subscription</h2>
 
-                  <div className="bg-gradient-earth rounded-lg p-6 text-white mb-6">
-                    <div className="flex justify-between items-start mb-6">
+                  {/* Plan card */}
+                  <div className={`${plan.gradient} rounded-xl p-6 text-white mb-6`}>
+                    <div className="flex justify-between items-start mb-4">
                       <div>
-                        <p className="text-sm opacity-90">Current Plan</p>
-                        <h3 className="text-3xl font-bold">Nomad</h3>
+                        <p className="text-sm opacity-80">Current Plan</p>
+                        <h3 className="text-3xl font-bold mt-0.5">{plan.name}</h3>
                       </div>
                       <div className="text-right">
-                        <p className="text-3xl font-bold">$14.99</p>
-                        <p className="text-sm opacity-90">/month</p>
+                        {plan.price !== '$0' ? (
+                          <>
+                            <p className="text-3xl font-bold">{plan.price}</p>
+                            <p className="text-sm opacity-80">{plan.per}</p>
+                          </>
+                        ) : (
+                          <span className="text-sm font-semibold px-3 py-1.5 bg-white/20 rounded-lg">Free</span>
+                        )}
                       </div>
                     </div>
-
-                    <button className="px-6 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-all">
-                      Manage Subscription
-                    </button>
+                    {tier === 'free' ? (
+                      <a
+                        href="/pricing"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 hover:bg-slate-100 rounded-lg font-semibold text-sm transition-colors"
+                      >
+                        <Sparkles className="w-4 h-4 text-sky-600" />
+                        Upgrade to Explorer or Nomad
+                      </a>
+                    ) : (
+                      <button className="px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition-all">
+                        Manage Subscription
+                      </button>
+                    )}
                   </div>
 
-                  {/* Usage Stats */}
+                  {/* Usage */}
                   <div className="mb-6">
-                    <h3 className="font-semibold text-slate-900 mb-4">Usage This Month</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <p className="text-sm font-medium text-slate-700">AI Itinerary Generations</p>
-                          <p className="text-sm font-semibold text-slate-900">8/Unlimited</p>
-                        </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2">
-                          <div className="bg-sky-800 h-2 rounded-full" style={{ width: '30%' }}></div>
-                        </div>
+                    <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-sky-700" /> Usage This Month
+                    </h3>
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-sm font-medium text-slate-700">AI Credits Used</p>
+                        <p className="text-sm font-semibold text-slate-900">{aiDisplay}</p>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2">
+                        <div className="bg-sky-800 h-2 rounded-full transition-all" style={{ width: `${aiPct}%` }} />
                       </div>
                     </div>
                   </div>
@@ -482,30 +607,34 @@ export default function SettingsPage() {
                   <div>
                     <h3 className="font-semibold text-slate-900 mb-4">Plan Features</h3>
                     <ul className="space-y-3">
-                      {['Unlimited trips', 'Unlimited travelers', 'Premium AI (faster)', 'Flight price alerts', 'Offline maps', 'AI-organized photo albums', 'Trip narrative generation', 'Travel agent marketplace access', 'Aurora & weather alerts', 'Cruise search add-on (+$4.99/mo)', 'Email support'].map((feature) => (
+                      {planFeatures.map(feature => (
                         <li key={feature} className="flex items-center space-x-3 text-slate-700">
-                          <Check className="w-5 h-5 text-stone-700" />
+                          <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                           <span>{feature}</span>
                         </li>
                       ))}
                     </ul>
+                    {tier === 'free' && (
+                      <a href="/pricing" className="inline-flex items-center gap-2 mt-5 text-sm font-semibold text-sky-700 hover:text-sky-900 transition-colors">
+                        See what Explorer &amp; Nomad unlock →
+                      </a>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* NOTIFICATIONS SECTION */}
+              {/* ── NOTIFICATIONS ── */}
               {activeSection === 'notifications' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Notification Preferences</h2>
-
                   <div className="space-y-4">
                     {[
-                      { key: 'email', label: 'Email Notifications', desc: 'Receive updates via email' },
-                      { key: 'push', label: 'Push Notifications', desc: 'Get alerts on your devices' },
-                      { key: 'tripReminders', label: 'Trip Reminders', desc: 'Reminders for upcoming trip dates' },
-                      { key: 'voteAlerts', label: 'Vote Alerts', desc: 'Notifications for group votes' },
-                      { key: 'expenseAlerts', label: 'Expense Alerts', desc: 'Updates on trip expenses' },
-                      { key: 'marketing', label: 'Marketing Emails', desc: 'Tips, deals, and new features' },
+                      { key: 'email',         label: 'Email Notifications',  desc: 'Receive updates via email' },
+                      { key: 'push',          label: 'Push Notifications',   desc: 'Get alerts on your devices' },
+                      { key: 'tripReminders', label: 'Trip Reminders',       desc: 'Reminders for upcoming trip dates' },
+                      { key: 'voteAlerts',    label: 'Vote Alerts',          desc: 'Notifications for group votes' },
+                      { key: 'expenseAlerts', label: 'Expense Alerts',       desc: 'Updates on trip expenses' },
+                      { key: 'marketing',     label: 'Marketing Emails',     desc: 'Tips, deals, and new features' },
                     ].map(({ key, label, desc }) => (
                       <div key={key} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
                         <div>
@@ -518,96 +647,65 @@ export default function SettingsPage() {
                             notifications[key as keyof NotificationSettings] ? 'bg-sky-800' : 'bg-slate-300'
                           }`}
                         >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-all ${
-                              notifications[key as keyof NotificationSettings] ? 'translate-x-6' : 'translate-x-1'
-                            }`}
-                          />
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-all ${
+                            notifications[key as keyof NotificationSettings] ? 'translate-x-6' : 'translate-x-1'
+                          }`} />
                         </button>
                       </div>
                     ))}
                   </div>
-
                   <button className="mt-6 px-6 py-2 bg-sky-800 text-white rounded-lg hover:bg-sky-900 transition-all font-semibold">
                     Save Changes
                   </button>
                 </div>
               )}
 
-              {/* CONNECTED APPS SECTION */}
+              {/* ── CONNECTED APPS ── */}
               {activeSection === 'apps' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-1">Integrations</h2>
                   <p className="text-sm text-slate-500 mb-6">
                     We're building integrations next — vote for what you want most and we'll prioritise accordingly.
                   </p>
-
                   <div className="space-y-3">
-                    {INTEGRATIONS.sort((a, b) => voteCounts[b.id] - voteCounts[a.id]).map((integration) => {
+                    {INTEGRATIONS.sort((a, b) => voteCounts[b.id] - voteCounts[a.id]).map(integration => {
                       const voted = votedIds.has(integration.id);
                       const isExpanded = expandedComment === integration.id;
                       const submitted = submittedComments.has(integration.id);
-
                       return (
-                        <div
-                          key={integration.id}
-                          className={`border rounded-xl transition-all ${
-                            voted ? 'border-sky-200 bg-sky-50/40' : 'border-slate-200'
-                          }`}
-                        >
+                        <div key={integration.id} className={`border rounded-xl transition-all ${voted ? 'border-sky-200 bg-sky-50/40' : 'border-slate-200'}`}>
                           <div className="flex items-center gap-4 p-4">
-                            {/* Icon */}
                             <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl flex-shrink-0">
                               {integration.icon}
                             </div>
-
-                            {/* Name + description */}
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-slate-900 text-sm">{integration.name}</p>
                               <p className="text-xs text-slate-500 mt-0.5 leading-snug">{integration.description}</p>
                             </div>
-
-                            {/* Actions */}
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              {/* Comment toggle */}
                               <button
                                 onClick={() => setExpandedComment(isExpanded ? null : integration.id)}
-                                className={`p-2 rounded-lg transition-colors ${
-                                  submitted
-                                    ? 'text-emerald-600 bg-emerald-50'
-                                    : isExpanded
-                                    ? 'text-sky-700 bg-sky-100'
-                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                                }`}
-                                title={submitted ? 'Comment sent' : 'Add a comment'}
+                                className={`p-2 rounded-lg transition-colors ${submitted ? 'text-emerald-600 bg-emerald-50' : isExpanded ? 'text-sky-700 bg-sky-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
                               >
                                 <MessageSquare className="w-4 h-4" />
                               </button>
-
-                              {/* Vote button */}
                               <button
                                 onClick={() => handleVote(integration.id, integration.name)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                                  voted
-                                    ? 'bg-sky-700 text-white shadow-sm'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${voted ? 'bg-sky-700 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                               >
                                 <ThumbsUp className={`w-3.5 h-3.5 ${voted ? 'fill-white' : ''}`} />
                                 <span>{voteCounts[integration.id]}</span>
                               </button>
                             </div>
                           </div>
-
-                          {/* Comment box */}
                           {isExpanded && !submitted && (
                             <div className="px-4 pb-4 flex gap-2">
                               <input
                                 type="text"
                                 placeholder={`Tell us more about how you'd use ${integration.name}…`}
                                 value={comments[integration.id] || ''}
-                                onChange={(e) => setComments(prev => ({ ...prev, [integration.id]: e.target.value }))}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleSubmitComment(integration.id, integration.name); }}
+                                onChange={e => setComments(prev => ({ ...prev, [integration.id]: e.target.value }))}
+                                onKeyDown={e => { if (e.key === 'Enter') handleSubmitComment(integration.id, integration.name); }}
                                 className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 bg-white"
                                 autoFocus
                               />
@@ -620,7 +718,6 @@ export default function SettingsPage() {
                               </button>
                             </div>
                           )}
-
                           {isExpanded && submitted && (
                             <div className="px-4 pb-4">
                               <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5">
@@ -632,18 +729,16 @@ export default function SettingsPage() {
                       );
                     })}
                   </div>
-
                   <p className="text-xs text-slate-400 mt-5 leading-relaxed">
-                    Votes are anonymous and help us decide what to build next. We'll notify you when an integration you voted for goes live.
+                    Votes are anonymous and help us decide what to build next.
                   </p>
                 </div>
               )}
 
-              {/* PRIVACY & DATA SECTION */}
+              {/* ── PRIVACY ── */}
               {activeSection === 'privacy' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Privacy & Data</h2>
-
                   <div className="space-y-4">
                     <div className="p-4 border border-slate-200 rounded-lg hover:border-sky-400 transition-all">
                       <div className="flex items-start justify-between">
@@ -652,12 +747,10 @@ export default function SettingsPage() {
                           <p className="text-sm text-slate-600 mt-1">Export all your trips, itineraries, and settings as JSON</p>
                         </div>
                         <button className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
-                          <Download className="w-4 h-4 inline mr-2" />
-                          Export
+                          <Download className="w-4 h-4 inline mr-2" />Export
                         </button>
                       </div>
                     </div>
-
                     <div className="p-4 border border-red-200 rounded-lg bg-red-50">
                       <div className="flex items-start justify-between">
                         <div>
@@ -665,32 +758,27 @@ export default function SettingsPage() {
                           <p className="text-sm text-red-700 mt-1">Permanently delete your account and all associated data</p>
                         </div>
                         <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all font-medium">
-                          <Trash2 className="w-4 h-4 inline mr-2" />
-                          Delete
+                          <Trash2 className="w-4 h-4 inline mr-2" />Delete
                         </button>
                       </div>
                     </div>
-
                     <div className="p-4 border border-slate-200 rounded-lg">
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="font-semibold text-slate-900">Cookie Preferences</p>
                           <p className="text-sm text-slate-600 mt-1">Manage which cookies we use on your device</p>
                         </div>
-                        <button className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
-                          Manage
-                        </button>
+                        <button className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">Manage</button>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* DOWNLOADED TRIPS SECTION */}
+              {/* ── DOWNLOADS ── */}
               {activeSection === 'downloads' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">My Trips</h2>
-
                   <div className="space-y-4">
                     {userTrips.length === 0 ? (
                       <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-center">
@@ -698,7 +786,7 @@ export default function SettingsPage() {
                         <p className="text-sm text-slate-400 mt-1">Upload an itinerary from the dashboard to see it here.</p>
                       </div>
                     ) : (
-                      userTrips.map((trip) => (
+                      userTrips.map(trip => (
                         <div key={trip.id} className="p-4 border border-slate-200 rounded-lg flex items-center justify-between">
                           <div>
                             <p className="font-semibold text-slate-900">{trip.title || trip.destination}</p>
@@ -712,8 +800,7 @@ export default function SettingsPage() {
                             }}
                             className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-all font-medium"
                           >
-                            <Trash2 className="w-4 h-4 inline mr-2" />
-                            Remove
+                            <Trash2 className="w-4 h-4 inline mr-2" />Remove
                           </button>
                         </div>
                       ))
@@ -721,6 +808,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+
             </div>
           </div>
         </div>
