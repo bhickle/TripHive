@@ -88,8 +88,11 @@ export default function DashboardPage() {
               tripLength: t.trip_length,
               status: t.status ?? 'planning',
               groupType: t.group_type,
-              groupSize: t.group_size,
+              groupSize: t.group_size ?? 1,
               coverImage: t.cover_image ?? null,
+              budgetTotal: t.budget_total ?? 0,
+              memberCount: 1,
+              guestCount: 0,
             }));
             setUserTrips(normalized);
           }

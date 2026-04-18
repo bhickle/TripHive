@@ -81,7 +81,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick }) => {
           </div>
 
           <div className="flex flex-col items-end">
-            <span className="font-script italic text-xl text-zinc-900">${trip.budgetTotal.toLocaleString()}</span>
+            <span className="font-script italic text-xl text-zinc-900">${(trip.budgetTotal ?? 0).toLocaleString()}</span>
             <span className="text-xs text-zinc-400">total budget</span>
           </div>
         </div>

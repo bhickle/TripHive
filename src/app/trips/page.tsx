@@ -45,8 +45,11 @@ export default function TripsPage() {
               tripLength: t.trip_length,
               status: t.status ?? 'planning',
               groupType: t.group_type,
-              groupSize: t.group_size,
+              groupSize: t.group_size ?? 1,
               coverImage: t.cover_image ?? null,
+              budgetTotal: t.budget_total ?? 0,
+              memberCount: 1,
+              guestCount: 0,
             })));
           }
         })
@@ -286,7 +289,7 @@ export default function TripsPage() {
                     </div>
                     <div className="flex items-center gap-1.5 text-sm font-bold text-sky-700">
                       <DollarSign className="w-4 h-4" />
-                      <span>${trip.budgetTotal.toLocaleString()}</span>
+                      <span>${(trip.budgetTotal ?? 0).toLocaleString()}</span>
                     </div>
                   </div>
                 </Link>
