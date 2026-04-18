@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Bell, X, Check, CheckCheck, MapPin, MessageSquare,
-  DollarSign, ThumbsUp, UserPlus, Sparkles, Route, AlertCircle,
+  Bell, X, CheckCheck, MapPin, MessageSquare,
+  DollarSign, ThumbsUp, UserPlus, Sparkles, Route,
   Calendar,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -218,8 +219,13 @@ function NotifItem({
 // ─── Bell Button (exported for use in TopBar) ─────────────────────────────────
 
 export function NotificationBell() {
+  const { user, isDemo } = useAuth();
+  const isRealUser = !!user && !isDemo;
+
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>(
+    isRealUser ? [] : MOCK_NOTIFICATIONS,
+  );
   const panelRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -299,9 +305,12 @@ export function NotificationBell() {
           {/* List */}
           <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-50">
             {notifications.length === 0 ? (
-              <div className="py-12 text-center">
+              <div className="py-12 text-center px-6">
                 <Bell className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">No notifications yet</p>
+                <p className="text-sm font-semibold text-slate-600 mb-1">No notifications yet</p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Activity from your trips — group chat messages, expense splits, itinerary changes, and more — will appear here.
+                </p>
               </div>
             ) : (
               <>
@@ -334,7 +343,7 @@ export function NotificationBell() {
           {/* Footer */}
           <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
             <p className="text-xs text-slate-400 text-center">
-              Notifications are per-trip. Real-time updates coming soon.
+              {isRealUser ? 'Notifications are per-trip.' : 'Demo mode — showing sample notifications.'}
             </p>
           </div>
         </div>
