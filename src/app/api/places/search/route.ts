@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
       });
 
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`,
+        { headers: { Referer: 'https://www.tripcoord.ai' } }
       );
       const data = await response.json();
 

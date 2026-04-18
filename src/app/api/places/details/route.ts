@@ -223,7 +223,8 @@ export async function GET(request: NextRequest) {
 
       const params = new URLSearchParams({ place_id: placeId, fields, key: apiKey });
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?${params}`
+        `https://maps.googleapis.com/maps/api/place/details/json?${params}`,
+        { headers: { Referer: 'https://www.tripcoord.ai' } }
       );
       const data = await response.json();
       const r = data.result || {};
