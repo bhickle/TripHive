@@ -58,7 +58,7 @@ Rules:
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 4096,
       messages: [
         { role: 'user', content: prompt },
       ],
@@ -77,11 +77,20 @@ Rules:
       .trim();
 
     // Ensure the response is wrapped in an array — add brackets only if the model omitted them
-    const raw = cleaned.startsWith('[') ? cleaned : '[' + cleaned + ']';
+    let raw = cleaned.startsWith('[') ? cleaned : '[' + cleaned + ']';
 
     // Find the outermost JSON array
     const arrStart = raw.indexOf('[');
-    const arrEnd = raw.lastIndexOf(']');
+    let arrEnd = raw.lastIndexOf(']');
+
+    // Truncated response: starts with '[' but closing ']' is missing — try to recover
+    // by finding the last complete object and closing the array there
+    if (arrStart !== -1 && arrEnd === -1) {
+      const lastBrace = raw.lastIndexOf('}');
+      if (lastBrace !== -1) raw = raw.slice(0, lastBrace + 1) + ']';
+      arrEnd = raw.lastIndexOf(']');
+    }
+
     if (arrStart === -1 || arrEnd === -1) throw new Error('No JSON array in response');
 
     const items = JSON.parse(raw.slice(arrStart, arrEnd + 1));
