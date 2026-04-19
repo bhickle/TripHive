@@ -115,6 +115,113 @@ const mockDestinations = [
   { name: 'Bangkok, Thailand', match: 82 },
 ];
 
+// ─── Guided Destination Browser ───────────────────────────────────────────────
+
+interface RegionCity { name: string; emoji: string; }
+interface Region { label: string; emoji: string; cities: RegionCity[]; }
+
+const REGION_DESTINATIONS: Record<string, Region> = {
+  featured: {
+    label: 'Featured',
+    emoji: '⭐',
+    cities: [
+      { name: 'Tokyo, Japan', emoji: '🗾' },
+      { name: 'Paris, France', emoji: '🗼' },
+      { name: 'Bali, Indonesia', emoji: '🌴' },
+      { name: 'Rome, Italy', emoji: '🏛️' },
+      { name: 'Kyoto, Japan', emoji: '⛩️' },
+      { name: 'Barcelona, Spain', emoji: '💃' },
+      { name: 'Marrakech, Morocco', emoji: '🕌' },
+      { name: 'New York City, USA', emoji: '🗽' },
+      { name: 'Lisbon, Portugal', emoji: '🌊' },
+      { name: 'Bangkok, Thailand', emoji: '🏯' },
+      { name: 'Cape Town, South Africa', emoji: '🦁' },
+      { name: 'Queenstown, New Zealand', emoji: '🏔️' },
+    ],
+  },
+  europe: {
+    label: 'Europe',
+    emoji: '🏰',
+    cities: [
+      { name: 'Paris, France', emoji: '🗼' },
+      { name: 'Rome, Italy', emoji: '🏛️' },
+      { name: 'Barcelona, Spain', emoji: '💃' },
+      { name: 'Amsterdam, Netherlands', emoji: '🌷' },
+      { name: 'Prague, Czech Republic', emoji: '🏰' },
+      { name: 'Lisbon, Portugal', emoji: '🌊' },
+      { name: 'Vienna, Austria', emoji: '🎵' },
+      { name: 'Athens, Greece', emoji: '⚱️' },
+      { name: 'Budapest, Hungary', emoji: '🛁' },
+      { name: 'Copenhagen, Denmark', emoji: '🧜' },
+      { name: 'Edinburgh, Scotland', emoji: '🏴' },
+      { name: 'Santorini, Greece', emoji: '🌅' },
+      { name: 'Dubrovnik, Croatia', emoji: '🌊' },
+      { name: 'Florence, Italy', emoji: '🎨' },
+      { name: 'Porto, Portugal', emoji: '🍷' },
+      { name: 'Reykjavik, Iceland', emoji: '🌋' },
+    ],
+  },
+  asia: {
+    label: 'Asia & Pacific',
+    emoji: '🌏',
+    cities: [
+      { name: 'Tokyo, Japan', emoji: '🗾' },
+      { name: 'Kyoto, Japan', emoji: '⛩️' },
+      { name: 'Bali, Indonesia', emoji: '🌴' },
+      { name: 'Bangkok, Thailand', emoji: '🏯' },
+      { name: 'Singapore', emoji: '🦁' },
+      { name: 'Seoul, South Korea', emoji: '🏙️' },
+      { name: 'Chiang Mai, Thailand', emoji: '🐘' },
+      { name: 'Hoi An, Vietnam', emoji: '🏮' },
+      { name: 'Hanoi, Vietnam', emoji: '🍜' },
+      { name: 'Taipei, Taiwan', emoji: '🧋' },
+      { name: 'Queenstown, New Zealand', emoji: '🏔️' },
+      { name: 'Sydney, Australia', emoji: '🦘' },
+    ],
+  },
+  americas: {
+    label: 'Americas',
+    emoji: '🌎',
+    cities: [
+      { name: 'New York City, USA', emoji: '🗽' },
+      { name: 'Mexico City, Mexico', emoji: '🌮' },
+      { name: 'Cartagena, Colombia', emoji: '💛' },
+      { name: 'Buenos Aires, Argentina', emoji: '🥩' },
+      { name: 'Cusco, Peru', emoji: '🦙' },
+      { name: 'Rio de Janeiro, Brazil', emoji: '🌈' },
+      { name: 'Nashville, USA', emoji: '🎸' },
+      { name: 'Vancouver, Canada', emoji: '🍁' },
+      { name: 'Oaxaca, Mexico', emoji: '🎭' },
+      { name: 'Medellin, Colombia', emoji: '🌸' },
+      { name: 'New Orleans, USA', emoji: '🎷' },
+      { name: 'Tulum, Mexico', emoji: '🏖️' },
+    ],
+  },
+  africa: {
+    label: 'Africa & M.E.',
+    emoji: '🌍',
+    cities: [
+      { name: 'Marrakech, Morocco', emoji: '🕌' },
+      { name: 'Cape Town, South Africa', emoji: '🦁' },
+      { name: 'Dubai, UAE', emoji: '🏙️' },
+      { name: 'Zanzibar, Tanzania', emoji: '🐠' },
+      { name: 'Cairo, Egypt', emoji: '🔺' },
+      { name: 'Nairobi, Kenya', emoji: '🦒' },
+      { name: 'Fes, Morocco', emoji: '🏺' },
+      { name: 'Accra, Ghana', emoji: '🌍' },
+    ],
+  },
+};
+
+const VIBE_SUGGESTIONS: { label: string; emoji: string; destinations: string[] }[] = [
+  { label: 'Beach & Sun', emoji: '🏖️', destinations: ['Bali, Indonesia', 'Tulum, Mexico', 'Santorini, Greece', 'Zanzibar, Tanzania'] },
+  { label: 'City Break', emoji: '🏙️', destinations: ['Tokyo, Japan', 'Paris, France', 'New York City, USA', 'Singapore', 'Barcelona, Spain'] },
+  { label: 'History', emoji: '🏛️', destinations: ['Rome, Italy', 'Athens, Greece', 'Kyoto, Japan', 'Cairo, Egypt', 'Cusco, Peru'] },
+  { label: 'Adventure', emoji: '⛰️', destinations: ['Queenstown, New Zealand', 'Cusco, Peru', 'Reykjavik, Iceland', 'Chiang Mai, Thailand'] },
+  { label: 'Food Lover', emoji: '🍜', destinations: ['Bangkok, Thailand', 'Bologna, Italy', 'Tokyo, Japan', 'Oaxaca, Mexico', 'Hanoi, Vietnam'] },
+  { label: 'Romantic', emoji: '💕', destinations: ['Paris, France', 'Santorini, Greece', 'Florence, Italy', 'Porto, Portugal', 'Cartagena, Colombia'] },
+];
+
 const ageRangeOptions = [
   'Under 12',
   '12-17',
@@ -278,6 +385,7 @@ function TripBuilderPage() {
   const [budgetAutoFilled, setBudgetAutoFilled] = useState(false);
   const [mustHaveInput, setMustHaveInput] = useState('');
   const [destinationCityInput, setDestinationCityInput] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState<string>('featured');
 
   // Destination typeahead — powered by world cities dataset
   const {
@@ -1080,17 +1188,76 @@ function TripBuilderPage() {
                     )}
                   </div>
 
-                  {/* Surprise Me — hidden for now, revisit in a future phase
-                  <div>
-                    <button
-                      onClick={handleSurpriseMe}
-                      className="w-full btn btn-secondary flex items-center justify-center space-x-2"
-                    >
-                      <Shuffle className="w-5 h-5" />
-                      <span>Surprise Me</span>
-                    </button>
-                  </div>
-                  */}
+                  {/* ── Guided destination browser — visible when search is empty ── */}
+                  {(!state.destination || state.destination.length < 2) && !showDestinationSuggestions && (
+                    <div className="mt-2 pt-4 border-t border-slate-100">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                        Need inspiration?
+                      </p>
+
+                      {/* Vibe pills */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {VIBE_SUGGESTIONS.map((vibe) => (
+                          <button
+                            key={vibe.label}
+                            type="button"
+                            onClick={() => {
+                              const pick = vibe.destinations[Math.floor(Math.random() * vibe.destinations.length)];
+                              setState(prev => ({ ...prev, destination: pick }));
+                              setDestQuery('');
+                              setShowDestinationSuggestions(false);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50 text-slate-700 hover:text-sky-800 rounded-full text-xs font-medium transition-colors shadow-sm"
+                          >
+                            <span>{vibe.emoji}</span>
+                            {vibe.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Region tabs */}
+                      <div className="flex gap-1.5 flex-wrap mb-3">
+                        {Object.entries(REGION_DESTINATIONS).map(([key, region]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedRegion(key)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                              selectedRegion === key
+                                ? 'bg-sky-800 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {region.emoji} {region.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* City cards grid */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {REGION_DESTINATIONS[selectedRegion].cities.map((city) => (
+                          <button
+                            key={city.name}
+                            type="button"
+                            onClick={() => {
+                              setState(prev => ({ ...prev, destination: city.name }));
+                              setDestQuery('');
+                              setShowDestinationSuggestions(false);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50 rounded-xl text-left transition-colors shadow-sm group"
+                          >
+                            <span className="text-lg leading-none flex-shrink-0">{city.emoji}</span>
+                            <span className="text-xs font-medium text-slate-700 group-hover:text-sky-800 leading-tight">
+                              {city.name.split(',')[0]}
+                              {city.name.includes(',') && (
+                                <span className="block text-slate-400 font-normal text-[10px]">{city.name.split(', ').slice(1).join(', ')}</span>
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Multi-city section — Explorer/Nomad, for users planning without hotels */}
                   {(tier === 'explorer' || tier === 'nomad') && (
