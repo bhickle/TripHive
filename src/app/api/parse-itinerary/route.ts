@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         };
 
     const response = await client.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [
@@ -110,13 +110,15 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    let rawText = '{' + (response.content[0] as { type: string; text: string }).text;
-
-    // Normalize smart quotes and clean up
-    rawText = rawText
+    // Strip markdown fences and normalize quotes/trailing commas
+    let rawText = (response.content[0] as { type: string; text: string }).text
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
-      .replace(/,\s*([}\]])/g, '$1');
+      .replace(/,\s*([}\]])/g, '$1')
+      .trim();
 
     // Extract the outer JSON object
     const start = rawText.indexOf('{');
