@@ -218,6 +218,30 @@ function buildPrompt(params: {
     ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour timing, interesting angles, and any access restrictions. Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, murals, reflections, etc. Include at least one spot that most tourists miss.`
     : '';
 
+  // Multi-city routing rules — injected when multiple hotels span different cities
+  const multiCityText = (() => {
+    if (bookedHotels.length < 2) return '';
+    // Extract distinct city names from hotel addresses / names
+    const cities = bookedHotels
+      .map(h => (h.address || h.name || '').split(',')[0].trim())
+      .filter(Boolean);
+    const uniqueCities = Array.from(new Set(cities));
+    if (uniqueCities.length < 2) return '';
+    return `
+MULTI-CITY TRIP — CRITICAL ROUTING RULES:
+This trip visits multiple cities: ${uniqueCities.join(' → ')} (in check-in date order).
+You MUST follow ALL of these rules:
+
+1. GEOGRAPHIC ORDER: Route cities in a logical geographic sequence that minimises backtracking. Never route from City A to City C and back to City B — always move in one direction.
+2. REALISTIC TRAVEL TIMES: Before scheduling any inter-city travel leg, estimate the actual travel time. Apply these minimums:
+   - Same-country rail or bus: 1.5 hours minimum, often 3–5 hours for 200–400 km
+   - International flights (even short-haul): minimum 4 hours door-to-door (check-in + flight + arrival)
+   - Driving between cities: calculate at realistic road speed; 300 km = ~3.5 hrs, 500 km = ~5.5 hrs
+3. NO SAME-DAY IMPOSSIBLE HOPS: If travel between two cities takes more than 3 hours, that travel must occupy most of a day. Do not schedule full activity blocks on both ends of a long travel day.
+4. TRANSITION DAYS: On any day where the group moves between hotels in different cities, treat it as a travel day: light activity in the morning near the departing hotel, the travel leg mid-day, and only 1–2 activities upon arrival near the new hotel.
+5. ASSIGN DATES TO CITIES: Each day's activities must be in the city whose hotel covers that night. Do not schedule activities in City B on a night the group sleeps in City A.`;
+  })();
+
   // Must-haves: hard-requirement text injected if user specified any
   const mustHaveText = mustHaves.length > 0
     ? `\n- MUST-HAVES (non-negotiable — each item below MUST appear as a named activity somewhere in the itinerary. Do not omit or replace any of them):\n${mustHaves.map(m => `    • ${m}`).join('\n')}`
@@ -322,7 +346,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${mustHaveText}${preBookingText}
+- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${mustHaveText}${preBookingText}${multiCityText}
 
 ${(() => {
     if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
