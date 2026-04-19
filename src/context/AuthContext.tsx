@@ -98,7 +98,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     );
 
-    return () => subscription.unsubscribe();
+    // Re-fetch profile when the user returns to the tab (catches tier changes
+    // made server-side — e.g. a Stripe webhook or manual Supabase update —
+    // without requiring the user to sign out and back in).
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) fetchProfile(session.user.id);
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
