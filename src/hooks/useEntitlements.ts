@@ -106,6 +106,12 @@ export function useEntitlements(tripId?: string) {
   const tier = (user.subscriptionTier ?? 'free') as SubscriptionTier;
   const limits = TIER_LIMITS[tier];
 
+  // True once we know the user's real tier. While the profile is still loading
+  // from Supabase, we must NOT gate features — otherwise paid users (like Nomad/
+  // Explorer) briefly see the free-tier locked UI every page load because the
+  // session cookie resolves before the profile DB fetch completes.
+  const entitlementsReady = !user.isLoading;
+
   // Find the active trip pass for the given tripId (if any)
   const activeTripPass: TripPass | undefined = useMemo(() => {
     if (!tripId || !user.tripPasses) return undefined;
@@ -133,24 +139,30 @@ export function useEntitlements(tripId?: string) {
   }, [tier, activeTripPass, limits]);
 
   // ── Capability checks ──────────────────────────────────────────────────────
+  // All checks return true while entitlements are still loading to prevent
+  // false lockouts for paid users during profile fetch.
 
   function canUseAI(): boolean {
+    if (!entitlementsReady) return true;
     if (!limits.canUseAI) return false;
     if (tier === 'trip_pass' && !activeTripPass) return false;
     return aiCreditsRemaining > 0;
   }
 
   function canAffordAction(action: AiAction): boolean {
+    if (!entitlementsReady) return true;
     if (!canUseAI()) return false;
     return aiCreditsRemaining >= AI_CREDIT_COSTS[action];
   }
 
   function canAddTrip(currentTripCount: number): boolean {
-    if (limits.activeTrips === 'plan_based') return false; // trip pass users can't add new trips
+    if (!entitlementsReady) return true;
+    if (limits.activeTrips === 'plan_based') return false;
     return currentTripCount < (limits.activeTrips as number);
   }
 
   function canAddTraveler(currentCount: number): boolean {
+    if (!entitlementsReady) return true;
     if (limits.travelersPerTrip === 'plan_based') {
       if (!activeTripPass) return false;
       const maxForPass = PRICING.trip_pass.baseGroupSize + activeTripPass.extraPeople;
@@ -168,6 +180,7 @@ export function useEntitlements(tripId?: string) {
   }
 
   function isFeatureAvailable(feature: keyof typeof limits): boolean {
+    if (!entitlementsReady) return true;
     return !!limits[feature];
   }
 
@@ -205,6 +218,8 @@ export function useEntitlements(tripId?: string) {
     activeTripPass,
     aiCreditsRemaining,
     aiCreditsTotal,
+    // True once profile has loaded — gates should not render while false
+    entitlementsReady,
     // Capability checks
     canUseAI,
     canAffordAction,
@@ -219,15 +234,16 @@ export function useEntitlements(tripId?: string) {
     tripPassExtraPeopleCost,
     tripPassTotalCost,
     // Shorthand flags (for simple conditional rendering)
-    hasTripStory: limits.canUseTripStory,
-    hasYearInReview: limits.canUseYearInReview,
-    hasTransportParser: limits.canUseTransportParser,
-    hasSplitTracks: limits.canUseSplitTracks,
-    hasCoOrganizer: limits.canAddCoOrganizer,
-    hasWishlist: limits.canUseWishlist,
-    hasAIPacking: limits.canUseAIPacking,
-    hasAIPhrasebook: limits.canUseAIPhrasebook,
-    hasEarlyAccess: limits.earlyAccess,
+    // All return true while loading to prevent false lockouts for paid users
+    hasTripStory: !entitlementsReady || limits.canUseTripStory,
+    hasYearInReview: !entitlementsReady || limits.canUseYearInReview,
+    hasTransportParser: !entitlementsReady || limits.canUseTransportParser,
+    hasSplitTracks: !entitlementsReady || limits.canUseSplitTracks,
+    hasCoOrganizer: !entitlementsReady || limits.canAddCoOrganizer,
+    hasWishlist: !entitlementsReady || limits.canUseWishlist,
+    hasAIPacking: !entitlementsReady || limits.canUseAIPacking,
+    hasAIPhrasebook: !entitlementsReady || limits.canUseAIPhrasebook,
+    hasEarlyAccess: !entitlementsReady || limits.earlyAccess,
     maxTripDays: limits.maxTripDays,
   };
 }
