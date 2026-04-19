@@ -282,6 +282,9 @@ function ItineraryPageContent() {
   const [showMapView, setShowMapView] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  // Keep a ref to the latest aiDays so the vote handler can read current state
+  // without causing stale-closure issues or side effects inside state updaters
+  const aiDaysRef = useRef<typeof itineraryDays | null>(null);
   const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | null>(null);
 
   // Edit destination / dates modal
@@ -307,10 +310,12 @@ function ItineraryPageContent() {
   const [votes, setVotes] = useState<Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }>>({});
 
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
+    // Compute new vote counts using the current votes state via functional updater
+    // (captures prev synchronously so next is available immediately after)
+    let next: { up: number; down: number; myVote: 'up' | 'down' | null } = { up: 0, down: 0, myVote: null };
+
     setVotes(prev => {
       const current = prev[activityId] ?? { up: 0, down: 0, myVote: null };
-      let next: { up: number; down: number; myVote: 'up' | 'down' | null };
-
       if (current.myVote === direction) {
         // Toggle off
         next = {
@@ -326,42 +331,37 @@ function ItineraryPageContent() {
           myVote: direction,
         };
       }
-
-      // Persist vote counts back into the activity object so they survive page reload
-      // (fire-and-forget — don't wait for it during the state update)
-      setTimeout(() => {
-        setAiDays(days => {
-          if (!days) return days;
-          const updated = days.map(day => ({
-            ...day,
-            tracks: {
-              shared:  (day.tracks.shared as Activity[]).map(a =>
-                a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
-              ),
-              track_a: (day.tracks.track_a as Activity[]).map(a =>
-                a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
-              ),
-              track_b: (day.tracks.track_b as Activity[]).map(a =>
-                a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
-              ),
-            },
-          }));
-          // Persist to Supabase + localStorage
-          const tripId = params.id;
-          if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
-            fetch(`/api/trips/${tripId}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ days: updated }),
-            }).catch(() => {});
-          }
-          try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
-          return updated;
-        });
-      }, 0);
-
       return { ...prev, [activityId]: next };
     });
+
+    // Persist vote counts to aiDays + Supabase outside the state updater (no side effects in updaters)
+    // Read from ref so we always have the latest value without stale closure issues
+    const days = aiDaysRef.current;
+    if (!days) return;
+    const updated = days.map(day => ({
+      ...day,
+      tracks: {
+        shared:  (day.tracks.shared as Activity[]).map(a =>
+          a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
+        ),
+        track_a: (day.tracks.track_a as Activity[]).map(a =>
+          a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
+        ),
+        track_b: (day.tracks.track_b as Activity[]).map(a =>
+          a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
+        ),
+      },
+    }));
+    syncAiDays(updated);
+    const tripId = params.id;
+    if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
+      fetch(`/api/trips/${tripId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: updated }),
+      }).catch(() => {});
+    }
+    try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
   }, [params.id]);
 
   // Seed votes from activity upVotes/downVotes when itinerary loads
@@ -387,6 +387,11 @@ function ItineraryPageContent() {
 
   // AI-generated itinerary (loaded from localStorage if available)
   const [aiDays, setAiDays] = useState<typeof itineraryDays | null>(null);
+  // Keep ref in sync so vote handler can read latest value without stale closures
+  const syncAiDays = (days: typeof itineraryDays | null) => {
+    aiDaysRef.current = days;
+    setAiDays(days);
+  };
   const [aiMeta, setAiMeta] = useState<{
     destination?: string; startDate?: string; endDate?: string;
     budget?: number; budgetBreakdown?: Record<string, number>;
@@ -419,7 +424,7 @@ function ItineraryPageContent() {
           if (res.ok) {
             const { itinerary } = await res.json();
             if (Array.isArray(itinerary.days) && itinerary.days.length > 0) {
-              setAiDays(itinerary.days);
+              syncAiDays(itinerary.days);
               setShowAiBanner(true);
               if (itinerary.meta) setAiMeta(itinerary.meta);
               seedVotesFromActivities(itinerary.days);
@@ -446,7 +451,7 @@ function ItineraryPageContent() {
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setAiDays(parsed);
+            syncAiDays(parsed);
             setShowAiBanner(true);
             if (meta) setAiMeta(JSON.parse(meta));
             seedVotesFromActivities(parsed);
@@ -463,7 +468,7 @@ function ItineraryPageContent() {
     localStorage.removeItem('generatedItinerary');
     localStorage.removeItem('generatedTripMeta');
     localStorage.removeItem('currentTripId');
-    setAiDays(null);
+    syncAiDays(null);
     setAiMeta(null);
     setShowAiBanner(false);
     setSelectedDay(1);
@@ -562,7 +567,7 @@ function ItineraryPageContent() {
 
   // ─── Persist updated days to state + localStorage + Supabase ─────────────────
   const persistDays = useCallback((updated: typeof itineraryDays) => {
-    setAiDays(updated);
+    syncAiDays(updated);
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
 
     // Fire-and-forget sync to Supabase — use the URL trip ID directly so this

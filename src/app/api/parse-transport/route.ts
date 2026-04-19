@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [
@@ -77,22 +77,25 @@ export async function POST(request: NextRequest) {
       ],
     });
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
-    const rawJson = '{' + responseText;
+    if (!message.content[0] || message.content[0].type !== 'text') {
+      throw new Error('Unexpected response type from AI');
+    }
+
+    let cleaned = message.content[0].text
+      .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '')
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/,(\s*[}\]])/g, '$1')
+      .trim();
 
     // Find outermost JSON object
-    const objStart = rawJson.indexOf('{');
-    const objEnd = rawJson.lastIndexOf('}');
+    const objStart = cleaned.indexOf('{');
+    const objEnd = cleaned.lastIndexOf('}');
     if (objStart === -1 || objEnd === -1 || objEnd <= objStart) {
       throw new Error('Response did not contain a JSON object');
     }
 
-    let cleaned = rawJson.slice(objStart, objEnd + 1);
-    // Fix common quirks
-    cleaned = cleaned
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/,(\s*[}\]])/g, '$1');
+    cleaned = cleaned.slice(objStart, objEnd + 1);
 
     const parsed = JSON.parse(cleaned);
 

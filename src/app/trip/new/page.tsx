@@ -240,7 +240,6 @@ const accessibilityOptions = [
   'Limited mobility',
   'Visual assistance',
   'Hearing assistance',
-  'No special needs',
 ];
 
 const difficultyLevels = ['Easy', 'Moderate', 'Challenging'];
@@ -391,6 +390,9 @@ function TripBuilderPage() {
   const [budgetAutoFilled, setBudgetAutoFilled] = useState(false);
   const [mustHaveInput, setMustHaveInput] = useState('');
   const [destinationCityInput, setDestinationCityInput] = useState('');
+  const [showAccessibilityOptions, setShowAccessibilityOptions] = useState(
+    () => state.accessibilityNeeds.length > 0
+  );
   const [selectedRegion, setSelectedRegion] = useState<string>('featured');
 
   // Destination typeahead — powered by world cities dataset
@@ -477,14 +479,9 @@ function TripBuilderPage() {
 
   const toggleAccessibilityNeed = (need: string) => {
     setState((prev) => {
-      if (need === 'No special needs') {
-        // Clicking "No special needs" clears all other selections
-        return { ...prev, accessibilityNeeds: [] };
-      }
-      // Selecting any real need removes implicit "no needs" state
       const next = prev.accessibilityNeeds.includes(need)
         ? prev.accessibilityNeeds.filter((a) => a !== need)
-        : [...prev.accessibilityNeeds.filter((a) => a !== 'No special needs'), need];
+        : [...prev.accessibilityNeeds, need];
       return { ...prev, accessibilityNeeds: next };
     });
   };
@@ -557,7 +554,7 @@ function TripBuilderPage() {
           // Derive ordered city list: hotel cities take priority, then explicit destinations
           destinations: (() => {
             const hotelCities = state.hasPreBookedHotel
-              ? state.bookedHotels.filter(h => h.city.trim()).map(h => h.city.trim())
+              ? state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())
               : [];
             const uniqueHotelCities = Array.from(new Set(hotelCities));
             if (uniqueHotelCities.length > 1) return uniqueHotelCities;
@@ -1947,8 +1944,8 @@ function TripBuilderPage() {
                       {/* Multi-city route preview */}
                       {(() => {
                         const cities = state.bookedHotels
-                          .filter(h => h.city.trim())
-                          .map(h => h.city.trim());
+                          .filter(h => h.city?.trim())
+                          .map(h => h.city?.trim());
                         const uniqueCities = Array.from(new Set(cities));
                         if (uniqueCities.length < 2) return (
                           state.bookedHotels.length > 1
@@ -2026,30 +2023,52 @@ function TripBuilderPage() {
                   <label className="block text-sm font-semibold text-slate-900 mb-1">
                     Accessibility Needs
                   </label>
-                  <p className="text-xs text-slate-400 mb-4">Select any that apply — defaults to no special needs</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {accessibilityOptions.map((need) => {
-                      const noNeeds = need === 'No special needs';
-                      // "No special needs" shows checked when nothing else is selected
-                      const isChecked = noNeeds
-                        ? state.accessibilityNeeds.length === 0
-                        : state.accessibilityNeeds.includes(need);
-                      return (
+                  <p className="text-xs text-slate-400 mb-4">Does anyone in your group have accessibility requirements?</p>
+                  <div className="flex gap-3 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAccessibilityOptions(false);
+                        setState(prev => ({ ...prev, accessibilityNeeds: [] }));
+                      }}
+                      className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
+                        !showAccessibilityOptions
+                          ? 'border-sky-700 bg-sky-50 text-sky-800'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      No
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAccessibilityOptions(true)}
+                      className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
+                        showAccessibilityOptions
+                          ? 'border-sky-700 bg-sky-50 text-sky-800'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      Yes
+                    </button>
+                  </div>
+                  {showAccessibilityOptions && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {accessibilityOptions.map((need) => (
                         <label
                           key={need}
                           className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50"
                         >
                           <input
                             type="checkbox"
-                            checked={isChecked}
+                            checked={state.accessibilityNeeds.includes(need)}
                             onChange={() => toggleAccessibilityNeed(need)}
                             className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                           />
                           <span className="text-sm font-medium text-slate-900">{need}</span>
                         </label>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Travel Priorities */}
@@ -2449,7 +2468,7 @@ function TripBuilderPage() {
                       <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide mb-2">
                         {(() => {
                           const hotelCities = state.hasPreBookedHotel
-                            ? Array.from(new Set(state.bookedHotels.filter(h => h.city.trim()).map(h => h.city.trim())))
+                            ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())))
                             : [];
                           const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
                           return routeCities.length > 1 ? 'Route' : 'Destination';
@@ -2457,7 +2476,7 @@ function TripBuilderPage() {
                       </p>
                       {(() => {
                         const hotelCities = state.hasPreBookedHotel
-                          ? Array.from(new Set(state.bookedHotels.filter(h => h.city.trim()).map(h => h.city.trim())))
+                          ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())))
                           : [];
                         const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
                         if (routeCities.length > 1) {

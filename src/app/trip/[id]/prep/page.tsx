@@ -56,6 +56,9 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [newPackItem, setNewPackItem] = useState('');
   const [newPackCategory, setNewPackCategory] = useState('');
 
+  // Trip data load error state
+  const [prepLoadError, setPrepLoadError] = useState(false);
+
   // Packing generation state
   const [packingGenerating, setPackingGenerating] = useState(false);
   const [packingGenError, setPackingGenError] = useState<string | null>(null);
@@ -79,10 +82,15 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     if (!looksLikeUuid) return;
 
     Promise.allSettled([
-      fetch(`/api/trips/${params.id}/prep`).then(r => r.ok ? r.json() : null),
-      fetch(`/api/trips/${params.id}/packing`).then(r => r.ok ? r.json() : null),
-      fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
+      fetch(`/api/trips/${params.id}/prep`).then(r => r.ok ? r.json() : Promise.reject(new Error(`prep ${r.status}`))),
+      fetch(`/api/trips/${params.id}/packing`).then(r => r.ok ? r.json() : Promise.reject(new Error(`packing ${r.status}`))),
+      fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : Promise.reject(new Error(`trip ${r.status}`))),
     ]).then(([prepRes, packingRes, tripRes]) => {
+      // If the critical trip fetch failed, surface an error rather than silently showing mock data
+      if (tripRes.status === 'rejected') {
+        console.error('[prep] Failed to load trip data:', tripRes.reason);
+        setPrepLoadError(true);
+      }
       if (prepRes.status === 'fulfilled' && prepRes.value?.tasks) {
         const tasks: PrepTask[] = prepRes.value.tasks.map((t: any) => ({
           id: t.id,
@@ -979,6 +987,19 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${overallProgress}%` }} />
           </div>
         </div>
+
+        {/* Trip load error banner */}
+        {prepLoadError && (
+          <div className="mb-6 flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-sm text-amber-800">⚠️ Couldn't load your trip data — showing defaults. Check your connection and try refreshing.</p>
+            <button
+              onClick={() => { setPrepLoadError(false); window.location.reload(); }}
+              className="ml-4 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Tab Navigation */}
         <div className="mb-8 bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 inline-flex gap-1 flex-wrap">

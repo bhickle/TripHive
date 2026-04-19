@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -632,6 +633,10 @@ function cleanJson(raw: string): string {
 // ── Streaming POST handler ────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  // ── Auth guard — must be logged in to generate itineraries ─────────────────
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   // ── Parse body ──────────────────────────────────────────────────────────────
   let body: Record<string, unknown>;
   try {

@@ -110,6 +110,11 @@ export async function POST(req: NextRequest) {
       ],
     });
 
+    // Guard: ensure the response block is a text block before accessing .text
+    if (!response.content[0] || response.content[0].type !== 'text') {
+      throw new Error('Unexpected response type from AI — expected a text block');
+    }
+
     // Strip markdown fences and normalize quotes/trailing commas
     let rawText = (response.content[0] as { type: string; text: string }).text
       .replace(/^```json\s*/i, '')
