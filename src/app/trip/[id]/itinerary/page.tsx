@@ -279,6 +279,8 @@ function ItineraryPageContent() {
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [showParseModal, setShowParseModal] = useState(false);
   const [showMapView, setShowMapView] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
   const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | null>(null);
 
   const { hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements();
@@ -424,6 +426,17 @@ function ItineraryPageContent() {
     const handler = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Close the + add menu when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -803,13 +816,42 @@ function ItineraryPageContent() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
-            <button
-              onClick={() => setShowAddActivityModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-sky-800 hover:bg-sky-900 text-white text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Add Activity
-            </button>
+            {/* Combined + Add dropdown */}
+            <div className="relative" ref={addMenuRef}>
+              <button
+                onClick={() => setShowAddMenu(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-sky-800 hover:bg-sky-900 text-white text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showAddMenu && (
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-zinc-100 py-1.5 min-w-[190px] z-30">
+                  <button
+                    onClick={() => { setShowAddActivityModal(true); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <Plus className="w-4 h-4 text-sky-600" /> Activity
+                  </button>
+                  <button
+                    onClick={() => { hasTransportParser ? setShowParseModal(true) : setUpgradePromptKey('feature_locked'); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <Sparkles className="w-4 h-4 text-sky-600" /> Transportation
+                    {!hasTransportParser && <LockBadge />}
+                  </button>
+                  <div className="my-1 border-t border-zinc-100" />
+                  <button disabled className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-300 flex items-center gap-2.5 cursor-not-allowed">
+                    <span className="text-base leading-none">🏨</span> Hotel <span className="text-xs text-zinc-300 ml-auto">soon</span>
+                  </button>
+                  <button disabled className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-300 flex items-center gap-2.5 cursor-not-allowed">
+                    <span className="text-base leading-none">✈️</span> Flight <span className="text-xs text-zinc-300 ml-auto">soon</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={() => setShowMapView(!showMapView)}
               className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
@@ -822,14 +864,6 @@ function ItineraryPageContent() {
               Map
             </button>
             <button
-              onClick={() => hasTransportParser ? setShowParseModal(true) : setUpgradePromptKey('feature_locked')}
-              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
-            >
-              <Sparkles className="w-4 h-4 text-sky-600" />
-              <span className="hidden sm:inline">Add </span>Transport
-              {!hasTransportParser && <LockBadge />}
-            </button>
-            <button
               onClick={() => hasTripStory ? setShowStoryModal(true) : setUpgradePromptKey('feature_locked')}
               className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
             >
@@ -839,6 +873,14 @@ function ItineraryPageContent() {
             </button>
           </div>
         </div>
+
+        {/* AI accuracy disclaimer — shown on AI-generated itineraries */}
+        {aiDays && (
+          <p className="flex items-center gap-1.5 text-[11px] text-zinc-400 mb-5 -mt-2">
+            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+            AI-generated content may contain errors. Always verify opening hours, prices, and bookings directly.
+          </p>
+        )}
 
         {/* Day Selector */}
         <div className="mb-8 overflow-x-auto pb-2">
@@ -988,7 +1030,9 @@ function ItineraryPageContent() {
                         <div className="relative flex flex-col items-center pt-4">
                           <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
                             activity.track === 'track_a' ? 'bg-violet-400' :
-                            activity.track === 'track_b' ? 'bg-rose-400' : 'bg-sky-400'
+                            activity.track === 'track_b' ? 'bg-rose-400' :
+                            // Solo/couple trips: neutral dot — "Shared" concept doesn't apply
+                            (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-400'
                           }`} />
                           {!isLast && (
                             <div className="w-px flex-1 bg-zinc-100 mt-1.5 min-h-[4rem]" />
@@ -1033,9 +1077,12 @@ function ItineraryPageContent() {
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
-                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${config.badgeColor}`}>
-                                  {config.label}
-                                </span>
+                                {/* Hide "Shared" badge for solo/couple — only show Track A/B labels */}
+                                {(activity.track !== 'shared' || (aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple')) && (
+                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${config.badgeColor}`}>
+                                    {config.label}
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -1337,6 +1384,9 @@ function ItineraryPageContent() {
                     </div>
                   ))}
                 </div>
+                <p className="text-[10px] text-zinc-400 mt-3 pt-2 border-t border-zinc-100">
+                  AI suggestions · May include affiliate links
+                </p>
               </div>
             )}
           </aside>
@@ -1573,7 +1623,10 @@ function ItineraryPageContent() {
                     { id: 'shared' as const, label: 'Shared', active: 'bg-sky-500 text-white', dot: 'bg-sky-500' },
                     { id: 'track_a' as const, label: 'Track A', active: 'bg-violet-500 text-white', dot: 'bg-violet-500' },
                     { id: 'track_b' as const, label: 'Track B', active: 'bg-rose-500 text-white', dot: 'bg-rose-500' },
-                  ].map(t => (
+                  ].filter(t =>
+                    // Solo/couple trips never have split tracks — hide Shared since everything is personal
+                    !(t.id === 'shared' && (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple'))
+                  ).map(t => (
                     <button
                       key={t.id}
                       onClick={() => setNewActivityTrack(t.id)}

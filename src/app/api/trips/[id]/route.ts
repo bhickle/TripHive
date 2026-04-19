@@ -133,3 +133,56 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/trips/[id]
+ * Permanently deletes a trip and its itinerary. Requires the caller to be the organizer.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // Auth check
+    let userId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      userId = user?.id ?? null;
+    } catch { /* auth failed */ }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const supabase = createAdminClient();
+
+    // Verify ownership
+    const { data: tripRow, error: lookupErr } = await supabase
+      .from('trips')
+      .select('organizer_id')
+      .eq('id', params.id)
+      .single();
+
+    if (lookupErr || !tripRow) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    }
+    if (tripRow.organizer_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Delete itinerary first (FK), then the trip row
+    await supabase.from('itineraries').delete().eq('trip_id', params.id);
+    const { error: tripDeleteErr } = await supabase.from('trips').delete().eq('id', params.id);
+
+    if (tripDeleteErr) {
+      console.error('Trip delete error:', JSON.stringify(tripDeleteErr));
+      return NextResponse.json({ error: 'Failed to delete trip' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('Delete trip error:', err);
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  }
+}

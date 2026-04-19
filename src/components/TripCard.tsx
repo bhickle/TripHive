@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Calendar, Users, ArrowRight } from 'lucide-react';
+import { Calendar, Users, ArrowRight, Trash2, X } from 'lucide-react';
 import { Trip } from '@/lib/types';
 
 // Destination keyword → Unsplash photo (same set used across dashboard/trip-new)
@@ -36,6 +36,7 @@ function getDestinationPhoto(destination: string): string {
 interface TripCardProps {
   trip: Trip;
   onCardClick?: (tripId: string) => void;
+  onDelete?: (tripId: string) => void;
 }
 
 const statusConfig = {
@@ -44,12 +45,29 @@ const statusConfig = {
   completed: { label: 'Completed', className: 'bg-black/50 text-white' },
 };
 
-export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick }) => {
+export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete }) => {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
   const daysCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const status = statusConfig[trip.status];
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/trips/${trip.id}`, { method: 'DELETE' });
+      if (res.ok) onDelete?.(trip.id);
+    } catch { /* silently fail */ } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
 
   return (
     <Link
@@ -74,11 +92,36 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick }) => {
           </span>
         </div>
 
-        {/* Duration badge */}
-        <div className="absolute top-3 right-3">
+        {/* Duration badge + delete button */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">
             {daysCount}d
           </span>
+          {onDelete && (
+            <button
+              onClick={handleDelete}
+              title={confirmDelete ? 'Click again to confirm delete' : 'Delete trip'}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm transition-all ${
+                confirmDelete
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-black/40 text-white/70 hover:bg-rose-600/80 hover:text-white opacity-0 group-hover:opacity-100'
+              }`}
+            >
+              {confirmDelete ? (
+                deleting ? '…' : <><Trash2 className="w-3 h-3" /> Sure?</>
+              ) : (
+                <Trash2 className="w-3 h-3" />
+              )}
+            </button>
+          )}
+          {confirmDelete && (
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(false); }}
+              className="flex items-center px-1.5 py-1 rounded-full bg-black/40 backdrop-blur-sm text-white/70 hover:text-white"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
 
         {/* Destination name overlaid — Cormorant italic */}

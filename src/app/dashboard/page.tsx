@@ -527,6 +527,7 @@ export default function DashboardPage() {
                     key={trip.id}
                     trip={trip}
                     onCardClick={setSelectedTrip}
+                    onDelete={(id) => setUserTrips(prev => prev.filter(t => t.id !== id))}
                   />
                 ))}
               </div>
@@ -658,6 +659,7 @@ export default function DashboardPage() {
                     key={trip.id}
                     trip={trip}
                     onCardClick={setSelectedTrip}
+                    onDelete={(id) => setUserTrips(prev => prev.filter(t => t.id !== id))}
                   />
                 ))}
               </div>
