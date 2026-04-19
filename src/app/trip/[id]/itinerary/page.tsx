@@ -893,15 +893,16 @@ function ItineraryPageContent() {
               </div>
             ) : (
               <div>
-                {hasSplitTracks && (
+                {/* Track legend — always visible on AI days so users understand the color coding */}
+                {aiDays && (
                   <div className="mb-6 pb-4 border-b border-zinc-100">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Today&apos;s tracks</p>
                     <div className="flex flex-wrap gap-3">
                       {[
-                        { color: 'bg-sky-500', label: 'Shared' },
-                        { color: 'bg-violet-500', label: currentDayData.trackALabel || 'Track A' },
-                        { color: 'bg-rose-500', label: currentDayData.trackBLabel || 'Track B' },
-                      ].map(t => (
+                        { color: 'bg-sky-500', label: 'Shared', show: true },
+                        { color: 'bg-violet-500', label: currentDayData.trackALabel || 'Track A', show: hasTrackA },
+                        { color: 'bg-rose-500', label: currentDayData.trackBLabel || 'Track B', show: hasTrackB },
+                      ].filter(t => t.show).map(t => (
                         <div key={t.label} className="flex items-center gap-2">
                           <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${t.color}`} />
                           <span className="text-xs font-semibold text-zinc-600">{t.label}</span>

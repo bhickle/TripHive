@@ -64,7 +64,8 @@ export default function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
   const [tripsLoadError, setTripsLoadError] = useState(false);
-  const [tripsLoading, setTripsLoading] = useState(false);
+  // Start in loading state so we never flash the "no trips" empty state before the fetch resolves
+  const [tripsLoading, setTripsLoading] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [wishlistPreview, setWishlistPreview] = useState<any[]>(mockWishlistItems.slice(0, 3));
 
@@ -106,11 +107,12 @@ export default function DashboardPage() {
     if (!currentUser.isDemo && currentUser.id) {
       loadTrips();
     } else {
-      // Demo or unauthenticated — fall back to localStorage
+      // Demo or unauthenticated — fall back to localStorage, resolve loading immediately
       try {
         const stored = localStorage.getItem('tripcoord_user_trips');
         if (stored) setUserTrips(JSON.parse(stored));
       } catch { /* ignore */ }
+      setTripsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
@@ -506,7 +508,19 @@ export default function DashboardPage() {
               </h2>
             </div>
 
-            {activeSoon.length > 0 ? (
+            {tripsLoading ? (
+              /* Skeleton cards while Supabase fetch is in flight */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2].map(i => (
+                  <div key={i} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 animate-pulse">
+                    <div className="h-4 bg-zinc-100 rounded w-2/3 mb-3" />
+                    <div className="h-3 bg-zinc-100 rounded w-1/2 mb-6" />
+                    <div className="h-3 bg-zinc-100 rounded w-full mb-2" />
+                    <div className="h-3 bg-zinc-100 rounded w-3/4" />
+                  </div>
+                ))}
+              </div>
+            ) : activeSoon.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {activeSoon.map((trip) => (
                   <TripCard

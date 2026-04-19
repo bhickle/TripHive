@@ -489,8 +489,8 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
       "track_a": [],
       "track_b": []
     },
-    "meetupTime": "19:00",
-    "meetupLocation": "Hotel lobby or central landmark"
+    "meetupTime": "09:00",
+    "meetupLocation": "Hotel lobby"
   }
 ]
 
@@ -537,7 +537,7 @@ RULES:
 7. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
 8. Vary the pace — not every day should be packed. Include slower, wandering time.
 9. The first and last days should account for travel/arrival/departure logistics
-10. meetupLocation should be a real landmark or the hotel area. For solo or couple trips (groupType "solo" or "couple"), set meetupTime and meetupLocation to null on every day — group meetup points are irrelevant for individual travelers.
+10. meetupTime and meetupLocation are the MORNING departure point — the place where the whole group gathers at the start of the day before heading out. meetupLocation must ALWAYS be the hotel lobby (e.g. "Hotel lobby" or "[Hotel Name] lobby") and meetupTime should be between 08:30 and 10:00. Do NOT use the evening reconvene point, a restaurant, or a landmark for meetupLocation — it is always the hotel lobby. For solo or couple trips (groupType "solo" or "couple"), set meetupTime and meetupLocation to null on every day — group meetup points are irrelevant for individual travelers.
 11. photoSpots: REQUIRED on every itinerary, every day — include 1-3 per day regardless of whether photography is a selected priority. Always include the destination's iconic must-photograph landmarks (e.g. Trevi Fountain in Rome, Eiffel Tower in Paris, Hagia Sophia in Istanbul) as the primary spot on the relevant day. These are the shots every visitor wants and they must not be omitted. Pair each with a specific time of day (sunrise/golden hour/blue hour/midday) and one actionable shooting tip (best angle, where to stand, what to frame). Additional spots can be local or lesser-known but the famous landmark always anchors the list.
 12. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
 13. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
