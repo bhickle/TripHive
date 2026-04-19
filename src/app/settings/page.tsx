@@ -240,10 +240,14 @@ export default function SettingsPage() {
     }));
 
   const togglePriority = (id: string) =>
-    setPersona(prev => ({
-      ...prev,
-      priorities: prev.priorities.includes(id) ? prev.priorities.filter(p => p !== id) : [...prev.priorities, id],
-    }));
+    setPersona(prev => {
+      const already = prev.priorities.includes(id);
+      if (!already && prev.priorities.length >= 4) return prev; // cap at 4
+      return {
+        ...prev,
+        priorities: already ? prev.priorities.filter(p => p !== id) : [...prev.priorities, id],
+      };
+    });
 
   // ── Subscription derived values ────────────────────────────────────────────
   // Use real auth profile tier when available; fall back to currentUser (mock) for demo/guest
@@ -604,22 +608,38 @@ export default function SettingsPage() {
 
                       {/* Top Priorities */}
                       <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-1">Top Priorities</label>
-                        <p className="text-xs text-slate-500 mb-3">Pick all that apply</p>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-sm font-semibold text-slate-900">Top Priorities</label>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            persona.priorities.length >= 4
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {persona.priorities.length}/4 selected
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-3">Pick up to 4</p>
                         <div className="flex flex-wrap gap-2">
-                          {PRIORITY_OPTIONS.map(p => (
+                          {PRIORITY_OPTIONS.map(p => {
+                            const isSelected = persona.priorities.includes(p.id);
+                            const isDisabled = !isSelected && persona.priorities.length >= 4;
+                            return (
                             <button
                               key={p.id}
                               onClick={() => togglePriority(p.id)}
+                              disabled={isDisabled}
                               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                                persona.priorities.includes(p.id)
+                                isSelected
                                   ? 'border-sky-500 bg-sky-50 text-sky-800'
+                                  : isDisabled
+                                  ? 'border-slate-100 text-slate-300 cursor-not-allowed bg-slate-50'
                                   : 'border-slate-200 text-slate-600 hover:border-slate-300'
                               }`}
                             >
                               <span>{p.icon}</span>{p.label}
                             </button>
-                          ))}
+                          );
+                          })}
                         </div>
                       </div>
 
