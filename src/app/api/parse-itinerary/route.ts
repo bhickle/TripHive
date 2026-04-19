@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -57,6 +58,9 @@ Return the response as:
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { text, pdfBase64, fileName } = body;
 

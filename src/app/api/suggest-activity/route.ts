@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -70,6 +71,9 @@ async function fetchRealPlaces(destination: string, isRestaurant: boolean, apiKe
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY', message: 'API key not configured' }, { status: 503 });
   }

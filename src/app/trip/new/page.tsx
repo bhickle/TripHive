@@ -659,7 +659,7 @@ function TripBuilderPage() {
         hotelSuggestions: tripMeta.hotelSuggestions || null,
       };
 
-      // Always write to localStorage as a fallback
+      // Write to localStorage as an immediate fallback while we attempt the Supabase save
       localStorage.setItem('generatedItinerary', JSON.stringify(collectedDays));
       localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaFull));
 
@@ -676,10 +676,16 @@ function TripBuilderPage() {
           if (saveData.tripId) {
             tripId = saveData.tripId;
             localStorage.setItem('currentTripId', tripId);
+            // Supabase confirmed — clear the bulky localStorage backup.
+            // The itinerary page will load the canonical copy from Supabase
+            // using the real UUID, so the localStorage copy is no longer needed.
+            localStorage.removeItem('generatedItinerary');
+            localStorage.removeItem('generatedTripMeta');
           }
         }
       } catch {
-        // Supabase save failed — localStorage fallback already set, continue
+        // Supabase save failed — localStorage fallback stays intact so the
+        // itinerary page can still load the trip in this session.
       }
 
       setGenerationStatus('Your itinerary is ready ✦');

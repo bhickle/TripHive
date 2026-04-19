@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -46,6 +47,9 @@ ${emailText}
 Return ONLY the JSON object. Start with { and end with }.`;
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { emailText } = body;

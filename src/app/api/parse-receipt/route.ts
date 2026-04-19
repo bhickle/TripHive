@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -30,6 +31,9 @@ If a field is not present on the receipt, omit it (except merchant, total, curre
 lineItems should list every individual item/charge on the receipt.`;
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
       // Return plausible mock data when no API key is configured
