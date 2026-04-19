@@ -89,8 +89,16 @@ Rules:
 
     return NextResponse.json({ items });
   } catch (err) {
+    // Log full error details — Anthropic SDK errors carry .status and .name
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[generate-discover] error:', message);
-    return NextResponse.json({ error: 'Failed to generate recommendations', detail: message }, { status: 500 });
+    const errName = (err as Record<string, unknown>)?.constructor?.name ?? 'UnknownError';
+    const errStatus = (err as Record<string, unknown>)?.status;
+    const hasKey = !!process.env.ANTHROPIC_API_KEY;
+    console.error('[generate-discover] FULL_ERROR:', JSON.stringify({ type: errName, status: errStatus, message, hasKey }));
+    return NextResponse.json({
+      error: 'Failed to generate recommendations',
+      detail: `${errName}: ${message}`,
+      hasKey,
+    }, { status: 500 });
   }
 }

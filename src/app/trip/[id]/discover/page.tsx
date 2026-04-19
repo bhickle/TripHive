@@ -327,6 +327,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   // before the async fetch even begins
   const [aiLoading, setAiLoading] = useState(!isMockTrip);
   const [aiError, setAiError] = useState(false);
+  const [aiErrorDetail, setAiErrorDetail] = useState<string>('');
   const [aiDestination, setAiDestination] = useState<string>('');
 
   useEffect(() => {
@@ -386,9 +387,12 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           const { items } = await res.json();
           setAiItems(items);
         } else {
+          const body = await res.json().catch(() => ({}));
+          setAiErrorDetail(body.detail ?? `HTTP ${res.status}`);
           setAiError(true);
         }
-      } catch {
+      } catch (e) {
+        setAiErrorDetail(e instanceof Error ? e.message : 'Network error');
         setAiError(true);
       }
 
@@ -618,17 +622,26 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                   ? 'Something went wrong generating AI picks. Try again below.'
                   : 'Try navigating back to your itinerary and returning here.'}
               </p>
+              {aiErrorDetail && (
+                <p className="mt-2 text-xs text-zinc-400 font-mono bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 max-w-md mx-auto break-all">{aiErrorDetail}</p>
+              )}
               {aiError && aiDestination && (
                 <button
                   onClick={() => {
                     setAiError(false);
+                    setAiErrorDetail('');
                     setAiLoading(true);
                     fetch('/api/generate-discover', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ destination: aiDestination }),
                     })
-                      .then(r => r.ok ? r.json() : Promise.reject())
+                      .then(async r => {
+                        if (r.ok) return r.json();
+                        const body = await r.json().catch(() => ({}));
+                        setAiErrorDetail(body.detail ?? `HTTP ${r.status}`);
+                        return Promise.reject();
+                      })
                       .then(({ items }) => setAiItems(items))
                       .catch(() => setAiError(true))
                       .finally(() => setAiLoading(false));
