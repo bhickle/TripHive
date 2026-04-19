@@ -80,8 +80,10 @@ Rules:
       ],
     });
 
-    let raw = '{' + (response.content[0] as { type: string; text: string }).text;
-    raw = raw.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/,\s*([}\]])/g, '$1');
+    let raw = (response.content[0] as { type: string; text: string }).text
+      .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '')
+      .replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/,\s*([}\]])/g, '$1')
+      .trim();
     const start = raw.indexOf('{');
     const end = raw.lastIndexOf('}');
     if (start === -1 || end === -1) throw new Error('No JSON found');

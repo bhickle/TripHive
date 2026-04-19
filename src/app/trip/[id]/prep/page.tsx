@@ -282,35 +282,42 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     setPhrasesLoading(true);
     setPhrasesError(null);
     try {
-      const destinations = parseDestinations(tripDestination);
+      const dests = parseDestinations(tripDestination);
+      const isMulti = dests.length > 1;
 
-      // Fetch a phrasebook for each destination in parallel, then deduplicate by language code
-      const results = await Promise.all(
-        destinations.map(dest =>
-          fetch('/api/generate-phrases', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ destination: dest }),
-          }).then(r => r.json())
-        )
-      );
+      // Single request — API handles multi-country natively
+      const res = await fetch('/api/generate-phrases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: dests[0],
+          destinations: isMulti ? dests : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.message || data.error);
 
-      // Deduplicate: keep only one phrasebook per unique languageCode
-      const seen = new Set<string>();
-      const unique: PhrasebookData[] = [];
-      for (const data of results) {
-        if (data.error) continue;
-        const code = (data.languageCode || data.language || '').toLowerCase();
-        if (!seen.has(code)) {
-          seen.add(code);
-          unique.push(data);
-        }
+      // API returns { languages: [...] } for multi-country, or single PhrasebookData
+      let phrasebookList: PhrasebookData[] = [];
+      if (Array.isArray(data.languages)) {
+        phrasebookList = data.languages;
+      } else if (data.language && data.categories) {
+        phrasebookList = [data];
       }
+
+      // Deduplicate by languageCode in case of overlap
+      const seen = new Set<string>();
+      const unique = phrasebookList.filter(pb => {
+        const code = (pb.languageCode || pb.language || '').toLowerCase();
+        if (seen.has(code)) return false;
+        seen.add(code);
+        return true;
+      });
 
       if (unique.length === 0) throw new Error('No phrasebooks generated');
       setPhrasebooks(unique);
       setActivePhrasebook(0);
-      if (unique[0].categories.length > 0) {
+      if (unique[0].categories?.length > 0) {
         setExpandedPhraseCategories(new Set([unique[0].categories[0].id]));
       }
     } catch (err) {

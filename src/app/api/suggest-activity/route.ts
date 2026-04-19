@@ -183,7 +183,7 @@ Return ONLY a JSON object (no markdown, no explanation):
 IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — hallucinated links cause errors for users.${realPlacesBlock}`;
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       messages: [
         { role: 'user', content: prompt },
@@ -191,19 +191,17 @@ IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — halluci
     });
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
-    const raw = '{' + responseText;
 
-    // Extract the JSON object
-    const objStart = raw.indexOf('{');
-    const objEnd = raw.lastIndexOf('}');
+    // Strip markdown fences and extract the JSON object
+    let cleaned = responseText
+      .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '')
+      .replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'")
+      .replace(/,(\s*[}\]])/g, '$1')
+      .trim();
+    const objStart = cleaned.indexOf('{');
+    const objEnd = cleaned.lastIndexOf('}');
     if (objStart === -1 || objEnd === -1) throw new Error('No JSON object in response');
-
-    let cleaned = raw.slice(objStart, objEnd + 1);
-    // Fix smart quotes and trailing commas
-    cleaned = cleaned
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/,(\s*[}\]])/g, '$1');
+    cleaned = cleaned.slice(objStart, objEnd + 1);
 
     const activity = JSON.parse(cleaned);
 

@@ -319,6 +319,10 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [bookedItems, setBookedItems] = useState<Set<string>>(new Set());
   const [showDayPicker, setShowDayPicker] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [tripDays, setTripDays] = useState<any[]>([]);
+  const [addingToDay, setAddingToDay] = useState<string | null>(null); // itemId being saved
+  const [addToastItem, setAddToastItem] = useState<string | null>(null); // itemId that just succeeded
 
   // For non-mock trips: fetch AI-generated destination recommendations
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
@@ -343,8 +347,10 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         try {
           const res = await fetch(`/api/trips/${params.id}`);
           if (res.ok) {
-            const { trip } = await res.json();
+            const { trip, itinerary } = await res.json();
             destination = trip.destination || '';
+            // Store days so "We're doing this" can actually save to the itinerary
+            if (Array.isArray(itinerary?.days)) setTripDays(itinerary.days);
           }
         } catch { /* fall through */ }
       }
@@ -448,6 +454,87 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
 
     return items;
   }, [activeCategory, searchQuery, sortBy, bookableOnly, sourceItems]);
+
+  // Save a discover item to the itinerary for the chosen day
+  const addToItinerary = async (item: DiscoverItem, dayNumber: number) => {
+    if (isMockTrip) {
+      // Demo trip — just mark as added locally with a toast
+      setAddedItems(prev => { const s = new Set(prev); s.add(item.id); return s; });
+      setShowDayPicker(null);
+      setAddToastItem(item.id);
+      setTimeout(() => setAddToastItem(null), 2500);
+      return;
+    }
+
+    setAddingToDay(item.id);
+    try {
+      // Get fresh days in case another edit occurred
+      let days = tripDays;
+      if (!days.length) {
+        const res = await fetch(`/api/trips/${params.id}`);
+        if (res.ok) {
+          const { itinerary } = await res.json();
+          days = itinerary?.days ?? [];
+          setTripDays(days);
+        }
+      }
+
+      const dayIndex = days.findIndex((d: { day?: number }) => d.day === dayNumber);
+      if (dayIndex === -1) throw new Error(`Day ${dayNumber} not found`);
+
+      // Build a new activity from the discover item
+      const newActivity = {
+        id: `disc_${item.id}_${Date.now()}`,
+        dayNumber,
+        timeSlot: item.category === 'dining' ? '19:00–21:00' : '14:00–16:00',
+        name: item.name,
+        title: item.name,
+        address: item.location,
+        website: null,
+        isRestaurant: item.category === 'dining',
+        mealType: item.category === 'dining' ? 'dinner' : null,
+        track: 'shared',
+        priceLevel: 2,
+        description: item.description,
+        costEstimate: null,
+        confidence: 0.8,
+        verified: false,
+        packingTips: [],
+        transportToNext: null,
+        fromDiscover: true,
+      };
+
+      // Append to the correct day's shared track
+      const updatedDays = days.map((d: { day?: number; tracks?: { shared?: unknown[] } }, i: number) => {
+        if (i !== dayIndex) return d;
+        return {
+          ...d,
+          tracks: {
+            ...d.tracks,
+            shared: [...(d.tracks?.shared ?? []), newActivity],
+          },
+        };
+      });
+
+      const patchRes = await fetch(`/api/trips/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: updatedDays }),
+      });
+
+      if (!patchRes.ok) throw new Error('Save failed');
+
+      setTripDays(updatedDays);
+      setAddedItems(prev => { const s = new Set(prev); s.add(item.id); return s; });
+      setShowDayPicker(null);
+      setAddToastItem(item.id);
+      setTimeout(() => setAddToastItem(null), 2500);
+    } catch (err) {
+      console.error('[addToItinerary]', err);
+    } finally {
+      setAddingToDay(null);
+    }
+  };
 
   const toggleSavedItem = (id: string) => {
     const newSaved = new Set(savedItems);
@@ -776,16 +863,14 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                         <div className="p-3 bg-parchment border-t border-zinc-200 mt-3 rounded-lg">
                           <p className="text-xs font-semibold text-zinc-700 mb-2">Add to which day?</p>
                           <div className="flex flex-wrap gap-2">
-                            {[1, 2, 3, 4, 5].map((day) => (
+                            {(tripDays.length > 0 ? tripDays : Array.from({ length: 7 }, (_, i) => ({ day: i + 1 }))).map((d: { day?: number }) => (
                               <button
-                                key={day}
-                                onClick={() => {
-                                  setAddedItems(prev => { const s = new Set(prev); s.add(item.id); return s; });
-                                  setShowDayPicker(null);
-                                }}
-                                className="px-3 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-sm font-medium transition-colors"
+                                key={d.day}
+                                disabled={addingToDay === item.id}
+                                onClick={() => addToItinerary(item, d.day ?? 1)}
+                                className="px-3 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                               >
-                                Day {day}
+                                {addingToDay === item.id ? '…' : `Day ${d.day}`}
                               </button>
                             ))}
                           </div>
@@ -844,21 +929,14 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
 
                         <div className="flex gap-2">
                           <button
-                            onClick={() => {
-                              setAddedItems(prev => {
-                                const newSet = new Set(prev);
-                                if (newSet.has(item.id)) newSet.delete(item.id);
-                                else newSet.add(item.id);
-                                return newSet;
-                              });
-                            }}
+                            onClick={() => setShowDayPicker(showDayPicker === item.id ? null : item.id)}
                             className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
                               addedItems.has(item.id)
                                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                 : 'bg-sky-800 hover:bg-sky-900 text-white'
                             }`}
                           >
-                            <span>{addedItems.has(item.id) ? "✓ We're Doing This" : "We're Doing This"}</span>
+                            <span>{addedItems.has(item.id) ? "✓ Added to Plan" : "We're Doing This"}</span>
                             <Plus className="w-4 h-4" />
                           </button>
                           <button
@@ -892,6 +970,14 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </div>
+
+      {/* Success toast — "Added to Day X" */}
+      {addToastItem && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-emerald-700 text-white text-sm font-semibold px-5 py-3 rounded-full shadow-lg animate-fade-in">
+          <Check className="w-4 h-4" />
+          Added to your itinerary!
+        </div>
+      )}
     </div>
   );
 }

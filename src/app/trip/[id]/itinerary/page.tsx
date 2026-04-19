@@ -1530,12 +1530,12 @@ function ItineraryPageContent() {
                   {currentDayData.photoSpots.map((spot, i) => (
                     <div key={i} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-semibold text-violet-900 leading-snug">{spot.name}</p>
+                        <p className="text-sm font-semibold text-violet-900 leading-snug min-w-0 break-words">{spot.name}</p>
                         <span className="flex-shrink-0 text-[10px] font-semibold text-violet-500 bg-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                           {spot.timeOfDay}
                         </span>
                       </div>
-                      <p className="text-xs text-violet-700 leading-relaxed">{spot.tip}</p>
+                      <p className="text-xs text-violet-700 leading-relaxed break-words">{spot.tip}</p>
                     </div>
                   ))}
                 </div>

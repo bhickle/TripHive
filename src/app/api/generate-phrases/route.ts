@@ -9,34 +9,39 @@ const SYSTEM_PROMPT = `You are a multilingual travel assistant who creates pract
 Return ONLY valid JSON — no markdown, no explanation, no code fences.
 Focus on phrases that are genuinely useful and phonetically accurate for a first-time visitor.`;
 
-function buildUserPrompt(destination: string, language?: string): string {
-  return `Generate a practical travel phrasebook for a trip to ${destination}.
-${language ? `The local language is ${language}.` : 'Detect the primary local language automatically.'}
+function buildUserPrompt(destination: string, language?: string, destinations?: string[]): string {
+  // Multi-city: generate phrasebook per country, grouped clearly
+  const isMultiCountry = destinations && destinations.length > 1;
+  const destLine = isMultiCountry
+    ? `This is a multi-country trip visiting: ${destinations.join(', ')}.`
+    : `Generate a practical travel phrasebook for a trip to ${destination}.`;
 
-Return JSON with this exact shape:
+  return `${destLine}
+${language ? `The local language is ${language}.` : isMultiCountry ? `For each destination, detect the primary local language automatically and generate a separate phrasebook section.` : 'Detect the primary local language automatically.'}
+
+${isMultiCountry ? `Return JSON with this exact shape — one entry in the top-level array per country/language:
+[
+  {
+    "language": "German",
+    "languageCode": "de",
+    "destination": "Austria",
+    "categories": [ ... same 6 categories as below ... ]
+  },
+  {
+    "language": "Hungarian",
+    "languageCode": "hu",
+    "destination": "Hungary",
+    "categories": [ ... ]
+  }
+]` : `Return JSON with this exact shape:
 {
   "language": "Icelandic",
   "languageCode": "is",
-  "destination": "Iceland",
-  "categories": [
-    {
-      "id": "greetings",
-      "label": "Greetings & Basics",
-      "icon": "👋",
-      "phrases": [
-        {
-          "id": "g1",
-          "english": "Hello",
-          "local": "Halló",
-          "phonetic": "hah-loh",
-          "tip": "Used casually at any time of day"
-        }
-      ]
-    }
-  ]
-}
+  "destination": "${destination}",
+  "categories": [ ... ]
+}`}
 
-Include exactly these 6 categories in order:
+For EACH language section, include exactly these 6 categories in order:
 1. id: "greetings", label: "Greetings & Basics", icon: "👋" — hello, goodbye, please, thank you, sorry, yes, no, you're welcome
 2. id: "dining", label: "Dining & Food", icon: "🍽️" — ordering food, dietary restrictions, the check, recommendations, allergies
 3. id: "transport", label: "Transport & Directions", icon: "🗺️" — taxi, bus, train, directions, left/right/straight, how far, where is
@@ -44,9 +49,11 @@ Include exactly these 6 categories in order:
 5. id: "hotel", label: "Hotel & Accommodation", icon: "🏨" — check in/out, room issues, wifi, wake up call, luggage
 6. id: "emergency", label: "Emergency & Health", icon: "🆘" — help, doctor, hospital, police, I'm lost, I need assistance, call ambulance
 
+Each phrase object: { "id": "g1", "english": "Hello", "local": "...", "phonetic": "...", "tip": "optional" }
 Each category must have 6-8 phrases.
 Phonetics should be simple, readable English approximations that a tourist can pronounce without training.
-Tips should be brief and practical (1 sentence max). Include a tip only when genuinely useful.`;
+Tips should be brief and practical (1 sentence max). Include a tip only when genuinely useful.
+${isMultiCountry ? 'IMPORTANT: When multiple countries share a language (e.g. Austria and Switzerland both use German), generate ONE entry per distinct language, not per country. Label the destination as the primary country for that language.' : ''}`;
 }
 
 // ─── Mock fallback ────────────────────────────────────────────────────────────
@@ -166,7 +173,11 @@ export async function POST(request: NextRequest) {
     } catch { /* ignore auth errors — don't block demo users */ }
 
     const body = await request.json();
-    const { destination = 'Iceland', language } = body;
+    const { destination = 'Iceland', language, destinations } = body as {
+      destination?: string;
+      language?: string;
+      destinations?: string[];
+    };
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({
@@ -175,25 +186,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const userPrompt = buildUserPrompt(destination, language);
+    const userPrompt = buildUserPrompt(destination, language, destinations);
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 4096,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: userPrompt },
       ],
     });
 
-    const raw = '{' + (message.content[0] as { text: string }).text;
+    let raw = (message.content[0] as { text: string }).text
+      .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '')
+      .replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"')
+      .replace(/,\s*([}\]])/g, '$1')
+      .trim();
 
-    const cleaned = raw
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/,\s*([}\]])/g, '$1');
+    // Multi-language response is a JSON array; single-language is an object
+    const isArray = raw.trimStart().startsWith('[');
+    const start = raw.indexOf(isArray ? '[' : '{');
+    const end = raw.lastIndexOf(isArray ? ']' : '}');
+    if (start === -1 || end === -1) throw new Error('No JSON found in response');
+    raw = raw.slice(start, end + 1);
 
-    const parsed = JSON.parse(cleaned);
+    const parsed = JSON.parse(raw);
+
+    // Normalise: always return { language, languageCode, destination, categories }
+    // For multi-language, wrap in { languages: [...] } so the frontend can handle it
+    if (Array.isArray(parsed)) {
+      return NextResponse.json({ languages: parsed, destination });
+    }
     return NextResponse.json(parsed);
 
   } catch (err) {

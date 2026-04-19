@@ -11,6 +11,8 @@ You create detailed, realistic, and genuinely useful day-by-day itineraries.
 You always recommend REAL venues with accurate names and addresses.
 You balance popular highlights with authentic off-the-beaten-path experiences.
 You adapt itineraries based on group composition, budget, and interests.
+Use American English spelling and phrasing throughout (e.g. "neighborhood" not "neighbourhood", "center" not "centre", "organize" not "organise").
+Photo spot tips must be ONE concise sentence only — no more than 20 words. Never write multiple sentences for a photo spot tip.
 Return ONLY valid JSON — no markdown, no explanation, no code fences.`;
 
 interface BookedFlight {
@@ -164,6 +166,7 @@ function buildPrompt(params: {
   bookedHotels?: BookedHotel[];        // preferred: array of hotels for multi-hotel trips
   mustHaves?: string[];                // user's non-negotiable places/experiences
   destinations?: string[];             // ordered city list for multi-city trips
+  daysPerDestination?: Record<string, number>; // optional day allocation per city
   additionalContext?: string;          // free-text notes from the user ("anything else?")
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
 }) {
@@ -176,6 +179,7 @@ function buildPrompt(params: {
   } = params;
   const mustHaves = params.mustHaves ?? [];
   const destinations = params.destinations ?? [];
+  const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
@@ -243,9 +247,16 @@ function buildPrompt(params: {
       if (unique.length >= 2) cities = unique;
     }
     if (cities.length < 2) return '';
+
+    // Build day allocation string if user provided it
+    const allocatedCities = cities.filter(c => (daysPerDestination[c] ?? 0) > 0);
+    const dayAllocationText = allocatedCities.length > 0
+      ? `\nDAY ALLOCATION (user-specified — follow exactly): ${allocatedCities.map(c => `${c}: ${daysPerDestination[c]} night${daysPerDestination[c] === 1 ? '' : 's'}`).join(', ')}. Unallocated cities share the remaining days evenly.`
+      : '';
+
     return `
 MULTI-CITY TRIP — CRITICAL ROUTING RULES:
-This trip visits multiple cities in this order: ${cities.join(' → ')}.
+This trip visits multiple cities in this order: ${cities.join(' → ')}.${dayAllocationText}
 You MUST follow ALL of these rules:
 
 1. VISIT ORDER: Travel through the cities exactly in the order listed above. Never skip ahead and double back.
@@ -705,6 +716,7 @@ export async function POST(request: NextRequest) {
     bookedHotels: body.bookedHotels as BookedHotel[],      // preferred
     mustHaves: (body.mustHaves as string[] | undefined) ?? [],
     destinations: (body.destinations as string[] | undefined) ?? [],
+    daysPerDestination: (body.daysPerDestination as Record<string, number> | undefined) ?? {},
     additionalContext: (body.additionalContext as string | undefined) ?? '',
     realPlaces,
   });

@@ -92,6 +92,8 @@ interface TripWizardState {
   mustHaves: string[];
   /** Ordered city list for multi-city trips (Explorer/Nomad, no-hotel path) */
   destinations: string[];
+  /** Optional day allocation per city, keyed by city name */
+  daysPerDestination: Record<string, number>;
   /** Free-text notes for the AI — "anything else we should know?" */
   additionalContext: string;
 }
@@ -380,6 +382,7 @@ function TripBuilderPage() {
     isOpenJaw: false,
     mustHaves: [],
     destinations: [],
+    daysPerDestination: {},
     additionalContext: '',
   });
 
@@ -561,6 +564,7 @@ function TripBuilderPage() {
             if (state.destinations.length > 1) return state.destinations;
             return [];
           })(),
+          daysPerDestination: state.daysPerDestination,
           localMode: state.localMode,
           curiosityLevel: state.curiosityLevel,
           modality: state.modality.join(', '),
@@ -1200,6 +1204,41 @@ function TripBuilderPage() {
                     )}
                   </div>
 
+                  {/* ── Multi-destination detection banner ── */}
+                  {state.destination.includes(',') && (
+                    <div className="flex items-center justify-between px-4 py-3 bg-sky-50 border border-sky-200 rounded-xl">
+                      <div className="flex items-start gap-2">
+                        <span className="text-sky-600 mt-0.5">🗺️</span>
+                        <div>
+                          <p className="text-sm font-semibold text-sky-900">Visiting multiple cities?</p>
+                          <p className="text-xs text-sky-700">We detected a list — split them into individual stops for a better itinerary.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const parts = state.destination
+                            .split(/[,&/]/)
+                            .map(s => s.replace(/\band\b/gi, '').trim())
+                            .filter(Boolean);
+                          if (parts.length > 1) {
+                            // Use first city as primary destination, rest as multi-city
+                            setState(prev => ({
+                              ...prev,
+                              destination: parts[0],
+                              destinations: parts,
+                            }));
+                          }
+                          setDestQuery('');
+                          setShowDestinationSuggestions(false);
+                        }}
+                        className="ml-4 px-3 py-1.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-lg whitespace-nowrap transition-colors"
+                      >
+                        Split →
+                      </button>
+                    </div>
+                  )}
+
                   {/* ── Guided destination browser — visible when search is empty ── */}
                   {(!state.destination || state.destination.length < 2) && !showDestinationSuggestions && (
                     <div className="mt-2 pt-4 border-t border-slate-100">
@@ -1318,24 +1357,87 @@ function TripBuilderPage() {
                         </button>
                       </div>
                       {state.destinations.length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap p-3 bg-white border border-sky-200 rounded-xl">
-                          {state.destinations.map((city, i) => (
-                            <React.Fragment key={city}>
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
-                                {city}
-                                <button
-                                  type="button"
-                                  onClick={() => setState(prev => ({ ...prev, destinations: prev.destinations.filter(d => d !== city) }))}
-                                  className="text-sky-400 hover:text-sky-700"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </span>
-                              {i < state.destinations.length - 1 && (
-                                <span className="text-slate-300 text-sm font-light">→</span>
-                              )}
-                            </React.Fragment>
-                          ))}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 flex-wrap p-3 bg-white border border-sky-200 rounded-xl">
+                            {state.destinations.map((city, i) => (
+                              <React.Fragment key={city}>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
+                                  {city}
+                                  <button
+                                    type="button"
+                                    onClick={() => setState(prev => {
+                                      const { [city]: _, ...rest } = prev.daysPerDestination;
+                                      return { ...prev, destinations: prev.destinations.filter(d => d !== city), daysPerDestination: rest };
+                                    })}
+                                    className="text-sky-400 hover:text-sky-700"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                                {i < state.destinations.length - 1 && (
+                                  <span className="text-slate-300 text-sm font-light">→</span>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                          {/* Days per city allocation */}
+                          <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl space-y-2">
+                            <p className="text-xs font-semibold text-sky-800 mb-2">How many nights per city? <span className="font-normal text-sky-600">(optional — helps balance the itinerary)</span></p>
+                            {state.destinations.map((city) => {
+                              const days = state.daysPerDestination[city] ?? 0;
+                              return (
+                                <div key={city} className="flex items-center justify-between">
+                                  <span className="text-sm text-sky-900 font-medium">{city}</span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setState(prev => ({
+                                        ...prev,
+                                        daysPerDestination: {
+                                          ...prev.daysPerDestination,
+                                          [city]: Math.max(0, (prev.daysPerDestination[city] ?? 0) - 1),
+                                        },
+                                      }))}
+                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
+                                      disabled={days <= 0}
+                                    >
+                                      −
+                                    </button>
+                                    <span className="w-8 text-center text-sm font-semibold text-sky-900">
+                                      {days > 0 ? `${days}` : '—'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setState(prev => ({
+                                        ...prev,
+                                        daysPerDestination: {
+                                          ...prev.daysPerDestination,
+                                          [city]: (prev.daysPerDestination[city] ?? 0) + 1,
+                                        },
+                                      }))}
+                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {(() => {
+                              const totalAllocated = Object.values(state.daysPerDestination).reduce((a, b) => a + b, 0);
+                              if (totalAllocated > 0 && totalAllocated !== state.tripLength) {
+                                return (
+                                  <p className="text-xs text-amber-700 mt-1">
+                                    {totalAllocated} nights allocated · {state.tripLength} total — {totalAllocated < state.tripLength ? `${state.tripLength - totalAllocated} unassigned` : `${totalAllocated - state.tripLength} over`}
+                                  </p>
+                                );
+                              }
+                              if (totalAllocated > 0 && totalAllocated === state.tripLength) {
+                                return <p className="text-xs text-green-700 mt-1">✓ All {state.tripLength} nights allocated</p>;
+                              }
+                              return null;
+                            })()}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2427,6 +2529,40 @@ function TripBuilderPage() {
                           ) : null;
                         })}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Must-haves & Notes */}
+                  {(state.mustHaves.length > 0 || state.additionalContext.trim()) && (
+                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-amber-900">
+                          Must-haves & Notes
+                        </p>
+                        <button
+                          onClick={() => setCurrentStep(5)}
+                          className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2"
+                        >
+                          Edit (Step 5 →)
+                        </button>
+                      </div>
+                      {state.mustHaves.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {state.mustHaves.map((item) => (
+                            <span
+                              key={item}
+                              className="inline-flex items-center px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full text-sm font-medium"
+                            >
+                              ✓ {item}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {state.additionalContext.trim() && (
+                        <p className="text-sm text-amber-800 mt-2 italic">
+                          "{state.additionalContext.trim()}"
+                        </p>
+                      )}
                     </div>
                   )}
 
