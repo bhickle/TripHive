@@ -215,6 +215,12 @@ function buildPrompt(params: {
     ? `\n- SPORTS PRIORITY: Include visits to or near major stadiums, arenas, and sports venues in ${destination}. Check if any league matches, sporting events, or competitions are scheduled during ${startDate}–${endDate} and mention them in descriptions. Include sports bars and fan zones for game-day atmosphere.`
     : '';
 
+  // Food priority — generate a separate foodieTips block of off-the-beaten-path spots on day 1
+  const hasFoodPriority = priorities.includes('food');
+  const foodText = hasFoodPriority
+    ? `\n- FOOD PRIORITY: This group has food as a top priority. In addition to the standard meals in the itinerary, generate a "foodieTips" array on day 1 (see OUTPUT FORMAT) with 4-6 unique, off-the-beaten-path food experiences — food trucks, local markets, hole-in-the-wall joints, street food stalls, specialty shops, food halls, or unique culinary experiences that most tourists miss. These are NOT the standard breakfast/lunch/dinner spots in the itinerary tracks — they are bonus exploratory stops and ambient discoveries for adventurous eaters.`
+    : '';
+
   // Photography guidance — iconic spots always included; extra depth when photography is a priority
   const photoText = priorities.includes('photography')
     ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour timing, interesting angles, and any access restrictions. Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, murals, reflections, etc. Include at least one spot that most tourists miss.`
@@ -355,7 +361,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${mustHaveText}${preBookingText}${multiCityText}
+- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${mustHaveText}${preBookingText}${multiCityText}
 
 ${(() => {
     if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
@@ -409,7 +415,20 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
         "bookingUrl": "https://www.booking.com/searchresults.html?ss=HOTEL+NAME+CITY&checkin=${startDate}&checkout=${endDate}"
       }
     ]
-    Choose hotels that are: (1) real and accurately named, (2) well-located for the day's activities — ideally central or near transport hubs, (3) highly regarded for their category. Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value. The bookingUrl should be a Booking.com search URL pre-filled with the hotel name and destination city and the trip dates.` : ''}
+    Choose hotels that are: (1) real and accurately named, (2) well-located for the day's activities — ideally central or near transport hubs, (3) highly regarded for their category. Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value. The bookingUrl should be a Booking.com search URL pre-filled with the hotel name and destination city and the trip dates.` : ''}${hasFoodPriority ? `
+  "foodieTips" — since food is a top priority, include an array of 4-6 off-the-beaten-path food finds (day 1 only):
+    [
+      {
+        "name": "Place or market name",
+        "type": "food truck | street stall | market | local joint | specialty shop | food hall",
+        "neighborhood": "District or area",
+        "why": "One sentence on what makes it special and why locals love it — NOT a tourist attraction",
+        "bestFor": "2-3 specific dishes, items, or experiences",
+        "timeOfDay": "morning | afternoon | evening | any",
+        "tip": "Practical insider tip (e.g. 'cash only', 'arrive before noon', 'skip the front stalls')"
+      }
+    ]
+    Rules: (1) These must be DIFFERENT from the breakfast/lunch/dinner spots in the daily itinerary. (2) Prioritize places tourists rarely find — local markets, neighbourhood street food, food trucks, hole-in-the-wall joints. (3) Must be real, specific, and accurately named. (4) Vary the time of day and type so there's something for every mood.` : ''}
     {
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
@@ -422,7 +441,8 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
 [
   {
     "title": "Evocative trip name here (day 1 only)",
-    "practicalNotes": { ... (day 1 only) },
+    "practicalNotes": { ... (day 1 only) },${hasFoodPriority ? `
+    "foodieTips": [ ... (day 1 only, food priority trips) ],` : ''}
     "day": 1,
     "date": "${startDate}",
     "theme": "Evocative 3-5 word theme for the day",
@@ -740,10 +760,12 @@ export async function POST(request: NextRequest) {
                       title: dayObj.title ?? null,
                       practicalNotes: dayObj.practicalNotes ?? null,
                       hotelSuggestions: dayObj.hotelSuggestions ?? null,
+                      foodieTips: dayObj.foodieTips ?? null,
                     });
                     delete dayObj.title;
                     delete dayObj.practicalNotes;
                     delete dayObj.hotelSuggestions;
+                    delete dayObj.foodieTips;
                   }
 
                   send({ type: 'day', index: dayIndex, data: dayObj });

@@ -400,6 +400,11 @@ function ItineraryPageContent() {
     practicalNotes?: {
       currency?: string; tipping?: string; customs?: string; entryRequirements?: string;
     };
+    preferences?: { priorities?: string[] };
+    foodieTips?: Array<{
+      name: string; type?: string; neighborhood?: string;
+      why?: string; bestFor?: string; timeOfDay?: string; tip?: string;
+    }>;
   } | null>(null);
   const [showAiBanner, setShowAiBanner] = useState(false);
 
@@ -1485,75 +1490,65 @@ function ItineraryPageContent() {
               </div>
             )}
 
-            {/* Today's Food Trail — shows when there are restaurant activities on the day */}
-            {(() => {
-              const foodStops = sortedActivities.filter(a => a.isRestaurant);
-              if (foodStops.length === 0) return null;
-              const mealLabel = (type?: string | null) => {
-                if (type === 'breakfast') return { label: 'Breakfast', color: 'bg-amber-100 text-amber-700' };
-                if (type === 'lunch')     return { label: 'Lunch',     color: 'bg-sky-100 text-sky-700'   };
-                if (type === 'dinner')    return { label: 'Dinner',    color: 'bg-violet-100 text-violet-700' };
-                return { label: 'Food stop', color: 'bg-zinc-100 text-zinc-600' };
-              };
-              const diningTip = aiMeta?.practicalNotes?.tipping
-                ? `Tipping: ${aiMeta.practicalNotes.tipping}`
-                : aiMeta?.practicalNotes?.customs
-                ? aiMeta.practicalNotes.customs.slice(0, 90) + (aiMeta.practicalNotes.customs.length > 90 ? '…' : '')
-                : null;
-              const destination = (aiMeta?.destination || trip.destination).split(',')[0];
-              return (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-base">🍽</span>
-                    <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Today&apos;s Food Trail</p>
-                  </div>
-                  <p className="text-[11px] text-zinc-400 mb-4">{destination} · {foodStops.length} stop{foodStops.length !== 1 ? 's' : ''}</p>
-
-                  <div className="relative">
-                    {foodStops.map((stop, idx) => {
-                      const ml = mealLabel((stop as Activity & { mealType?: string }).mealType);
-                      const startTime = stop.timeSlot?.split(/–|—/)[0]?.trim() ?? '';
-                      const actName = stop.name || stop.title || '';
-                      const isLast = idx === foodStops.length - 1;
-                      return (
-                        <div key={stop.id} className="flex gap-3 mb-3">
-                          {/* Number + line */}
-                          <div className="flex flex-col items-center flex-shrink-0">
-                            <div className="w-6 h-6 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center flex-shrink-0">
-                              <span className="text-[10px] font-bold text-orange-700">{idx + 1}</span>
-                            </div>
-                            {!isLast && <div className="w-px flex-1 bg-orange-100 mt-1 min-h-[1.5rem]" />}
-                          </div>
-                          {/* Content */}
-                          <div className="flex-1 pb-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-semibold text-zinc-900 leading-snug">{actName}</p>
-                              <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ml.color}`}>
-                                {ml.label}
-                              </span>
-                            </div>
-                            {startTime && (
-                              <p className="text-[11px] text-zinc-400 mt-0.5">{startTime}</p>
-                            )}
-                            {stop.address && (
-                              <p className="text-[11px] text-zinc-400 truncate mt-0.5">{stop.address}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Dining tip from practical notes */}
-                  {diningTip && (
-                    <div className="mt-3 pt-3 border-t border-zinc-100 flex items-start gap-2">
-                      <span className="text-sm flex-shrink-0">💡</span>
-                      <p className="text-[11px] text-zinc-500 leading-relaxed">{diningTip}</p>
-                    </div>
-                  )}
+            {/* Foodie Finds — shown only when Food is a top priority AND foodieTips are present */}
+            {aiMeta?.preferences?.priorities?.includes('food') && aiMeta?.foodieTips && aiMeta.foodieTips.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🍜</span>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Foodie Finds</p>
                 </div>
-              );
-            })()}
+                <p className="text-[11px] text-zinc-400 mb-4">Off the beaten path · Locals only</p>
+
+                <div className="space-y-3">
+                  {aiMeta.foodieTips.map((tip, idx) => {
+                    const timeColor =
+                      tip.timeOfDay === 'morning'   ? 'bg-amber-50  text-amber-700  border-amber-100'  :
+                      tip.timeOfDay === 'afternoon' ? 'bg-sky-50    text-sky-700    border-sky-100'    :
+                      tip.timeOfDay === 'evening'   ? 'bg-violet-50 text-violet-700 border-violet-100' :
+                                                      'bg-zinc-50   text-zinc-600   border-zinc-100';
+                    return (
+                      <div key={idx} className="p-3 bg-orange-50 rounded-xl border border-orange-100">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="text-sm font-semibold text-orange-900 leading-snug">{tip.name}</p>
+                          {tip.timeOfDay && tip.timeOfDay !== 'any' && (
+                            <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${timeColor}`}>
+                              {tip.timeOfDay}
+                            </span>
+                          )}
+                        </div>
+                        {tip.type && (
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-orange-400 mb-1">{tip.type}</p>
+                        )}
+                        {tip.neighborhood && (
+                          <p className="text-[11px] text-orange-600 mb-1">{tip.neighborhood}</p>
+                        )}
+                        {tip.why && (
+                          <p className="text-xs text-orange-800 leading-relaxed mb-1">{tip.why}</p>
+                        )}
+                        {tip.bestFor && (
+                          <p className="text-[11px] text-orange-700 font-medium mb-1">
+                            <span className="text-orange-400 mr-1">Best for:</span>{tip.bestFor}
+                          </p>
+                        )}
+                        {tip.tip && (
+                          <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-orange-100">
+                            <span className="text-xs flex-shrink-0">💡</span>
+                            <p className="text-[11px] text-orange-700 leading-relaxed italic">{tip.tip}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {aiMeta.practicalNotes?.tipping && (
+                  <div className="mt-3 pt-3 border-t border-zinc-100 flex items-start gap-2">
+                    <span className="text-xs flex-shrink-0 mt-0.5">💸</span>
+                    <p className="text-[11px] text-zinc-500 leading-relaxed">{aiMeta.practicalNotes.tipping}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Where to Stay Card — pre-booked hotels */}
             {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0 && (

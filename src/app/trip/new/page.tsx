@@ -585,7 +585,7 @@ function TripBuilderPage() {
       let sseBuffer = '';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const collectedDays: any[] = [];
-      let tripMeta: { title?: string; practicalNotes?: unknown; hotelSuggestions?: unknown } = {};
+      let tripMeta: { title?: string; practicalNotes?: unknown; hotelSuggestions?: unknown; foodieTips?: unknown } = {};
       const totalDays = state.tripLength || 7;
 
       outer: while (true) {
@@ -610,6 +610,7 @@ function TripBuilderPage() {
                   title: parsed.title as string | undefined,
                   practicalNotes: parsed.practicalNotes,
                   hotelSuggestions: parsed.hotelSuggestions,
+                  foodieTips: parsed.foodieTips ?? null,
                 };
                 break;
 
@@ -657,6 +658,7 @@ function TripBuilderPage() {
         title: tripMeta.title || null,
         practicalNotes: tripMeta.practicalNotes || null,
         hotelSuggestions: tripMeta.hotelSuggestions || null,
+        foodieTips: tripMeta.foodieTips || null,
       };
 
       // Write to localStorage as an immediate fallback while we attempt the Supabase save
