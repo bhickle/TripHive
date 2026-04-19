@@ -164,6 +164,7 @@ function buildPrompt(params: {
   bookedHotels?: BookedHotel[];        // preferred: array of hotels for multi-hotel trips
   mustHaves?: string[];                // user's non-negotiable places/experiences
   destinations?: string[];             // ordered city list for multi-city trips
+  additionalContext?: string;          // free-text notes from the user ("anything else?")
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
 }) {
   const {
@@ -175,6 +176,7 @@ function buildPrompt(params: {
   } = params;
   const mustHaves = params.mustHaves ?? [];
   const destinations = params.destinations ?? [];
+  const additionalContext = (params.additionalContext ?? '').trim();
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
   const bookedHotels: BookedHotel[] = params.bookedHotels?.length
@@ -254,12 +256,13 @@ You MUST follow ALL of these rules:
 3. NO SAME-DAY IMPOSSIBLE HOPS: If travel between two cities takes more than 3 hours, that travel must occupy most of a day — do not schedule full activity blocks on both ends.
 4. TRANSITION DAYS: On any day the group moves cities, plan: light morning activity near the departing city → inter-city transport leg → 1–2 arrival activities near the new city only.
 5. CITY-NIGHT ALIGNMENT: Each day's activities must be in the city where the group sleeps that night. Never schedule activities in City B when the group's hotel that night is in City A.
-6. LOGICAL DAY ASSIGNMENT: Use the hotel check-in/check-out dates (if provided) to determine which city covers which dates. If no hotels provided, divide the trip length proportionally across cities.`;
+6. LOGICAL DAY ASSIGNMENT: Use the hotel check-in/check-out dates (if provided) to determine which city covers which dates. If no hotels provided, divide the trip length proportionally across cities.
+7. GEOGRAPHIC INTEGRITY — RESTAURANTS AND ACTIVITIES: Every restaurant and activity must ONLY appear on days when the group is physically in that city. Once the group has departed City A, ZERO restaurants or activities from City A may appear in the itinerary. If the group is in Budapest on Days 1–3 and Vienna on Days 4–6, then ALL restaurants on Days 4–6 must be in Vienna — not Budapest. This rule has no exceptions, even if a Budapest restaurant is excellent. The city sequence is ${cities.join(' → ')} — enforce it strictly for every single activity and restaurant slot.`;
   })();
 
   // Must-haves: hard-requirement text injected if user specified any
   const mustHaveText = mustHaves.length > 0
-    ? `\n- MUST-HAVES (non-negotiable — each item below MUST appear as a named activity somewhere in the itinerary. Do not omit or replace any of them):\n${mustHaves.map(m => `    • ${m}`).join('\n')}`
+    ? `\n- MUST-HAVES (non-negotiable — each item below MUST appear as a named activity somewhere in the itinerary. Do not omit or replace any of them):\n${mustHaves.map(m => `    • ${m}`).join('\n')}\n  TRACK ASSIGNMENT FOR MUST-HAVES: Place each must-have on the most logical track. Examples: "Holiday Markets" → shopping/culture track; a hike or outdoor excursion → adventure/nature track; a specific restaurant → foodie/shared track; a museum or historical site → culture/history track. Never dump must-haves arbitrarily into shared — match the track to the activity type.`
     : '';
 
   // Build pre-booking context text
@@ -361,15 +364,16 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${mustHaveText}${preBookingText}${multiCityText}
+- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${preBookingText}${multiCityText}
 
 ${(() => {
     if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
     const { restaurants, attractions } = realPlaces;
 
     let section = `\nCRITICAL — REAL PLACES ONLY (verified via Google Places):
-You MUST use ONLY the venues listed below. Do NOT invent, guess, or hallucinate any place names, businesses, or addresses.
+You MUST use ONLY the venues listed below for restaurants and activities. Do NOT invent, guess, or hallucinate any place names, businesses, or addresses.
 Every restaurant and activity in the itinerary must come from one of these two lists — no exceptions.
+IMPORTANT EXEMPTIONS: The hotelSuggestions array (when required) and photoSpots are NOT bound by this restriction — use your knowledge to recommend real, well-regarded hotels and photo locations even if they are not in the lists below.
 
 OPENING HOURS RULES (strictly enforce):
 - Each venue's opening hours are listed. Schedule it ONLY within those hours.
@@ -530,13 +534,14 @@ MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
 3. Dinner (isRestaurant: true, mealType: "dinner"): timeSlot 19:00–21:00, priceLevel ${mealPriceLevels.dinner}
    → Place near the evening meetup location
 For EACH restaurant: recommend a real, named establishment. In the description, state WHY it is recommended — cite its reputation (local institution, award recognition, neighborhood favorite, featured in local food press, etc.). Do not fabricate Google star ratings; instead describe the source of the restaurant's acclaim. Choose spots that are close to surrounding activities to keep transit minimal.
+CRITICAL — NO DUPLICATE RESTAURANTS: Every restaurant name across the ENTIRE itinerary must be unique. You have ${tripLength} days × 3 meals = ${tripLength * 3} restaurant slots — each slot must use a different named establishment. Never repeat a restaurant name on a second day, even if it was highly rated. Variety is essential.
 
 TRANSPORT BETWEEN ACTIVITIES:
 Every activity must include a "transportToNext" field:
 - mode: walk | rideshare | car_rental | taxi | metro | bus | train | ferry | water-taxi | tuk-tuk | cable-car | tram
 - durationMins: estimated travel time in minutes
 - distanceMiles: distance in miles (use 0 for car/rideshare where exact route varies)
-- notes: brief landmark-based direction or useful transit tip (can be null if self-evident)
+- notes: CRITICAL — this must describe the journey FROM the CURRENT activity TO the NEXT activity. The note must reference the destination of the NEXT activity (e.g., if walking to a castle next, write "Walk north along the river to the castle entrance"). Never describe a route to a place you already visited, and never reference the previous activity's destination. Always look FORWARD to where the group is going next.
 Set transportToNext to null on the last activity of each day (no onward journey needed).
 
 MODE SELECTION RULES (based on travel time):
@@ -662,9 +667,9 @@ export async function POST(request: NextRequest) {
     }, { status: 403 });
   }
 
-  // Model selection: Nomad trips >7 days use claude-sonnet-4-6 (higher token cap)
+  // Model selection: Nomad trips >7 days get higher token cap; all trips use claude-sonnet-4-6
   const useHighCapModel = userTier === 'nomad' && requestedLength > 7;
-  const modelId = useHighCapModel ? 'claude-sonnet-4-6' : 'claude-sonnet-4-5';
+  const modelId = 'claude-sonnet-4-6';
   const maxTokens = useHighCapModel ? 32000 : 16000;
 
   // Pre-fetch real places (before the stream opens — this is fast, ~1s)
@@ -700,6 +705,7 @@ export async function POST(request: NextRequest) {
     bookedHotels: body.bookedHotels as BookedHotel[],      // preferred
     mustHaves: (body.mustHaves as string[] | undefined) ?? [],
     destinations: (body.destinations as string[] | undefined) ?? [],
+    additionalContext: (body.additionalContext as string | undefined) ?? '',
     realPlaces,
   });
 

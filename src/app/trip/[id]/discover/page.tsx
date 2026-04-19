@@ -430,10 +430,17 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       } else if (sortBy === 'rating') {
         return b.rating - a.rating;
       } else {
-        const priceOrder = { '$': 0, '$$': 1, '$$$': 2 };
-        const getPrice = (range: string) => {
-          if (range.includes('Free')) return -1;
-          return priceOrder[range.charAt(0) as '$' | '$$' | '$$$'] || 999;
+        const getPrice = (range: string): number => {
+          if (!range || range.toLowerCase().includes('free')) return -1;
+          const stripped = range.trim();
+          // Pure dollar-sign notation: "$" → 25, "$$" → 50, "$$$" → 75
+          if (/^\$+$/.test(stripped)) return stripped.length * 25;
+          // Numeric ranges like "$25-$50", "$50–$100" — use the lower bound
+          const numMatch = stripped.match(/\d+/);
+          if (numMatch) return parseInt(numMatch[0], 10);
+          // Fallback: count leading $ signs
+          const dollarMatch = stripped.match(/^\$+/);
+          return dollarMatch ? dollarMatch[0].length * 25 : 999;
         };
         return getPrice(a.priceRange) - getPrice(b.priceRange);
       }

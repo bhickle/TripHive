@@ -92,6 +92,8 @@ interface TripWizardState {
   mustHaves: string[];
   /** Ordered city list for multi-city trips (Explorer/Nomad, no-hotel path) */
   destinations: string[];
+  /** Free-text notes for the AI — "anything else we should know?" */
+  additionalContext: string;
 }
 
 const priorityOptions = [
@@ -344,7 +346,7 @@ function TripBuilderPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [daysReceived, setDaysReceived] = useState(0);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const { canAffordAction, getUpgradePrompt, maxTripDays, tier } = useEntitlements();
+  const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady } = useEntitlements();
   const [budgetInput, setBudgetInput] = useState('5000');
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [state, setState] = useState<TripWizardState>({
@@ -378,6 +380,7 @@ function TripBuilderPage() {
     isOpenJaw: false,
     mustHaves: [],
     destinations: [],
+    additionalContext: '',
   });
 
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
@@ -547,6 +550,7 @@ function TripBuilderPage() {
           ageRanges: state.ageRanges,
           accessibilityNeeds: state.accessibilityNeeds,
           mustHaves: state.mustHaves,
+          additionalContext: state.additionalContext,
           // Derive ordered city list: hotel cities take priority, then explicit destinations
           destinations: (() => {
             const hotelCities = state.hasPreBookedHotel
@@ -1268,7 +1272,8 @@ function TripBuilderPage() {
                   )}
 
                   {/* Multi-city section — Explorer/Nomad, for users planning without hotels */}
-                  {(tier === 'explorer' || tier === 'nomad') && (
+                  {/* Also shown while entitlements are loading to prevent field disappearing for paid users */}
+                  {(!entitlementsReady || tier === 'explorer' || tier === 'nomad') && (
                     <div className="mt-6 pt-6 border-t border-slate-100">
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-sm font-semibold text-slate-900">
@@ -2063,6 +2068,23 @@ function TripBuilderPage() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                {/* Anything else? */}
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <label className="block text-sm font-semibold text-slate-900 mb-1">
+                    Anything else we should know? 💬
+                  </label>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Dietary restrictions, physical limitations, things to avoid, special occasions, travel style quirks — anything that would help us plan the perfect trip.
+                  </p>
+                  <textarea
+                    value={state.additionalContext}
+                    onChange={(e) => setState(prev => ({ ...prev, additionalContext: e.target.value }))}
+                    placeholder="e.g. Two people in our group are vegetarian. We prefer walkable days over lots of driving. One person has a fear of heights. It's our anniversary — a special dinner would be amazing…"
+                    rows={3}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 resize-none"
+                  />
                 </div>
               </div>
             )}
