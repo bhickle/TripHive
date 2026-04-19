@@ -209,6 +209,9 @@ export interface Activity {
    * and marked in the data model so it's ready when auth is wired up.
    */
   isPrivate?: boolean;
+  /** Persisted vote tallies — updated whenever a traveler casts a Yay/Nay */
+  upVotes?: number;
+  downVotes?: number;
 }
 
 export type TransportType = 'car_rental' | 'bus' | 'train' | 'excursion';

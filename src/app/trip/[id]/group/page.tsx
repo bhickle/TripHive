@@ -99,6 +99,32 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.title) {
           setTripName(tripRes.value.trip.title);
         }
+        if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
+          setTripDestination(tripRes.value.trip.destination);
+        }
+        if (tripRes.status === 'fulfilled' && tripRes.value?.itinerary?.days) {
+          const days = tripRes.value.itinerary.days;
+          setItineraryDaysData(days);
+          // Find all activities where downVotes > upVotes
+          const nays: NayActivity[] = [];
+          for (const day of days) {
+            for (const track of ['shared', 'track_a', 'track_b']) {
+              for (const act of (day.tracks?.[track] ?? [])) {
+                if ((act.downVotes ?? 0) > 0 && (act.downVotes ?? 0) > (act.upVotes ?? 0)) {
+                  nays.push({
+                    id: act.id,
+                    name: act.name || act.title || 'Activity',
+                    dayNumber: day.day,
+                    timeSlot: act.timeSlot ?? '',
+                    upVotes: act.upVotes ?? 0,
+                    downVotes: act.downVotes ?? 0,
+                  });
+                }
+              }
+            }
+          }
+          setNayActivities(nays);
+        }
         if (membersRes.status === 'fulfilled' && membersRes.value?.members) {
           setGroupMembers(membersRes.value.members);
         }
@@ -141,6 +167,64 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       }
     } catch { /* ignore */ } finally {
       setRoleUpdating(null);
+    }
+  };
+
+  // Nay Watch — activities where downVotes > upVotes, loaded from itinerary
+  type NayActivity = { id: string; name: string; dayNumber: number; timeSlot: string; upVotes: number; downVotes: number; };
+  const [nayActivities, setNayActivities] = useState<NayActivity[]>([]);
+  const [replacingActivityId, setReplacingActivityId] = useState<string | null>(null);
+  const [replacedActivityIds, setReplacedActivityIds] = useState<Set<string>>(new Set());
+  const [tripDestination, setTripDestination] = useState<string>('');
+  const [itineraryDaysData, setItineraryDaysData] = useState<any[]>([]);
+
+  // Replace a majority-Nay activity with an AI suggestion
+  const handleReplaceNayActivity = async (nay: NayActivity) => {
+    setReplacingActivityId(nay.id);
+    try {
+      const res = await fetch('/api/suggest-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: tripDestination,
+          dayNumber: nay.dayNumber,
+          date: itineraryDaysData.find((d: any) => d.day === nay.dayNumber)?.date ?? '',
+          existingActivityName: nay.name,
+          timeSlot: nay.timeSlot,
+          track: 'shared',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.activity) throw new Error('No suggestion');
+
+      // Patch the replacement into the itinerary
+      const updatedDays = itineraryDaysData.map((day: any) => {
+        if (day.day !== nay.dayNumber) return day;
+        const replaceInTrack = (arr: any[]) =>
+          arr.map(a => a.id === nay.id ? { ...data.activity, id: nay.id, track: a.track, upVotes: 0, downVotes: 0 } : a);
+        return {
+          ...day,
+          tracks: {
+            shared:  replaceInTrack(day.tracks?.shared  ?? []),
+            track_a: replaceInTrack(day.tracks?.track_a ?? []),
+            track_b: replaceInTrack(day.tracks?.track_b ?? []),
+          },
+        };
+      });
+
+      await fetch(`/api/trips/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: updatedDays }),
+      });
+
+      setItineraryDaysData(updatedDays);
+      setReplacedActivityIds(prev => new Set(Array.from(prev).concat(nay.id)));
+      setNayActivities(prev => prev.filter(a => a.id !== nay.id));
+    } catch (err) {
+      console.error('Replace activity error:', err);
+    } finally {
+      setReplacingActivityId(null);
     }
   };
 
@@ -669,6 +753,64 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               </div>
               <p className="text-xs text-zinc-500 mt-3">Trip budget utilization</p>
             </div>
+
+            {/* Nay Watch — only shown for real trips with majority-Nay activities */}
+            {!isMockTrip && (nayActivities.length > 0 || replacedActivityIds.size > 0) && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">😬</span>
+                  </div>
+                  <div>
+                    <h2 className="font-script italic text-xl font-semibold text-zinc-900">Nay Watch</h2>
+                    <p className="text-xs text-zinc-400">Activities with more Nays than Yays — click to swap with an AI pick</p>
+                  </div>
+                </div>
+
+                {replacedActivityIds.size > 0 && (
+                  <div className="mb-4 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="text-xs font-semibold text-emerald-700">
+                      ✓ {replacedActivityIds.size} activit{replacedActivityIds.size === 1 ? 'y' : 'ies'} replaced this session
+                    </p>
+                  </div>
+                )}
+
+                {nayActivities.length === 0 ? (
+                  <p className="text-sm text-zinc-400 text-center py-2">All clear — no majority Nays remaining 🎉</p>
+                ) : (
+                  <div className="space-y-3">
+                    {nayActivities.map(nay => (
+                      <div key={nay.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-zinc-900 leading-snug truncate">{nay.name}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            Day {nay.dayNumber} · {nay.timeSlot.split(/–|—/)[0]?.trim() ?? ''}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
+                              👍 {nay.upVotes}
+                            </span>
+                            <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded-full">
+                              👎 {nay.downVotes}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleReplaceNayActivity(nay)}
+                          disabled={replacingActivityId === nay.id}
+                          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-full disabled:opacity-50 transition-all"
+                        >
+                          {replacingActivityId === nay.id
+                            ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Finding…</>
+                            : <>✦ AI Replace</>
+                          }
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quick Stats */}
             <div className="grid grid-cols-3 gap-4">

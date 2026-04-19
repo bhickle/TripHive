@@ -305,31 +305,84 @@ function ItineraryPageContent() {
   // Voting: { [activityId]: { up: number, down: number, myVote: 'up'|'down'|null } }
   const [votes, setVotes] = useState<Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }>>({});
 
-  const handleVote = (activityId: string, direction: 'up' | 'down') => {
+  const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     setVotes(prev => {
       const current = prev[activityId] ?? { up: 0, down: 0, myVote: null };
-      // Toggle off if same vote
+      let next: { up: number; down: number; myVote: 'up' | 'down' | null };
+
       if (current.myVote === direction) {
-        return {
-          ...prev,
-          [activityId]: {
-            up: direction === 'up' ? current.up - 1 : current.up,
-            down: direction === 'down' ? current.down - 1 : current.down,
-            myVote: null,
-          },
+        // Toggle off
+        next = {
+          up: direction === 'up' ? current.up - 1 : current.up,
+          down: direction === 'down' ? current.down - 1 : current.down,
+          myVote: null,
         };
-      }
-      // Switch vote
-      return {
-        ...prev,
-        [activityId]: {
+      } else {
+        // Switch or fresh vote
+        next = {
           up: direction === 'up' ? current.up + 1 : (current.myVote === 'up' ? current.up - 1 : current.up),
           down: direction === 'down' ? current.down + 1 : (current.myVote === 'down' ? current.down - 1 : current.down),
           myVote: direction,
-        },
-      };
+        };
+      }
+
+      // Persist vote counts back into the activity object so they survive page reload
+      // (fire-and-forget — don't wait for it during the state update)
+      setTimeout(() => {
+        setAiDays(days => {
+          if (!days) return days;
+          const updated = days.map(day => ({
+            ...day,
+            tracks: {
+              shared:  (day.tracks.shared as Activity[]).map(a =>
+                a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
+              ),
+              track_a: (day.tracks.track_a as Activity[]).map(a =>
+                a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
+              ),
+              track_b: (day.tracks.track_b as Activity[]).map(a =>
+                a.id === activityId ? { ...a, upVotes: next.up, downVotes: next.down } : a
+              ),
+            },
+          }));
+          // Persist to Supabase + localStorage
+          const tripId = params.id;
+          if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
+            fetch(`/api/trips/${tripId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ days: updated }),
+            }).catch(() => {});
+          }
+          try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
+          return updated;
+        });
+      }, 0);
+
+      return { ...prev, [activityId]: next };
     });
-  };
+  }, [params.id]);
+
+  // Seed votes from activity upVotes/downVotes when itinerary loads
+  const seedVotesFromActivities = useCallback((days: typeof itineraryDays) => {
+    const seeded: Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }> = {};
+    for (const day of days) {
+      for (const track of ['shared', 'track_a', 'track_b'] as const) {
+        for (const act of (day.tracks[track] as Activity[])) {
+          if ((act.upVotes ?? 0) > 0 || (act.downVotes ?? 0) > 0) {
+            seeded[act.id] = {
+              up: act.upVotes ?? 0,
+              down: act.downVotes ?? 0,
+              myVote: null, // current session vote unknown — don't re-apply
+            };
+          }
+        }
+      }
+    }
+    if (Object.keys(seeded).length > 0) {
+      setVotes(prev => ({ ...seeded, ...prev })); // don't overwrite current session votes
+    }
+  }, []);
 
   // AI-generated itinerary (loaded from localStorage if available)
   const [aiDays, setAiDays] = useState<typeof itineraryDays | null>(null);
@@ -363,6 +416,7 @@ function ItineraryPageContent() {
               setAiDays(itinerary.days);
               setShowAiBanner(true);
               if (itinerary.meta) setAiMeta(itinerary.meta);
+              seedVotesFromActivities(itinerary.days);
               return;
             }
           }
@@ -389,6 +443,7 @@ function ItineraryPageContent() {
             setAiDays(parsed);
             setShowAiBanner(true);
             if (meta) setAiMeta(JSON.parse(meta));
+            seedVotesFromActivities(parsed);
           }
         }
       } catch {
@@ -396,7 +451,7 @@ function ItineraryPageContent() {
       }
     };
     load();
-  }, [tripPageId]);
+  }, [tripPageId, seedVotesFromActivities]);
 
   const clearAiItinerary = useCallback(() => {
     localStorage.removeItem('generatedItinerary');
@@ -1248,50 +1303,70 @@ function ItineraryPageContent() {
                             {(() => {
                               const v = votes[activity.id] ?? { up: 0, down: 0, myVote: null };
                               const isSuggesting = suggestingActivityId === activity.id;
+                              const isMajorityNay = v.down > 0 && v.down > v.up;
                               return (
-                                <div className="flex items-center gap-2 pt-2 border-t border-zinc-50 flex-wrap">
-                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-300 mr-1">Yay/Nay</span>
-                                  <button
-                                    onClick={() => handleVote(activity.id, 'up')}
-                                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                                      v.myVote === 'up'
-                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                        : 'bg-zinc-50 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 border border-zinc-100'
-                                    }`}
-                                  >
-                                    <ThumbsUp className="w-3 h-3" />
-                                    <span>Yay{v.up > 0 ? ` ${v.up}` : ''}</span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleVote(activity.id, 'down')}
-                                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                                      v.myVote === 'down'
-                                        ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                                        : 'bg-zinc-50 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 border border-zinc-100'
-                                    }`}
-                                  >
-                                    <ThumbsDown className="w-3 h-3" />
-                                    <span>Nay{v.down > 0 ? ` ${v.down}` : ''}</span>
-                                  </button>
-                                  {v.myVote && (
-                                    <span className="text-[10px] text-zinc-300 ml-1">
-                                      {v.myVote === 'up' ? "You're in ✓" : 'Not feeling it'}
-                                    </span>
+                                <>
+                                  {/* Majority-Nay nudge banner */}
+                                  {isMajorityNay && (
+                                    <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+                                      <span className="text-sm">😬</span>
+                                      <p className="text-xs font-semibold text-amber-800 flex-1">Not the crowd favourite — want AI to find something better?</p>
+                                      <button
+                                        onClick={() => handleSuggestAnother(activity)}
+                                        disabled={isSuggesting}
+                                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-50 transition-all"
+                                      >
+                                        {isSuggesting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                        {isSuggesting ? 'Finding…' : 'Replace'}
+                                      </button>
+                                    </div>
                                   )}
-                                  {/* Suggest another — pushes to the right */}
-                                  <button
-                                    onClick={() => handleSuggestAnother(activity)}
-                                    disabled={isSuggesting}
-                                    title="Ask AI for a different suggestion"
-                                    className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all bg-zinc-50 text-zinc-400 hover:bg-violet-50 hover:text-violet-600 border border-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {isSuggesting
-                                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                                      : <RefreshCw className="w-3 h-3" />
-                                    }
-                                    <span>{isSuggesting ? 'Finding…' : 'Suggest another'}</span>
-                                  </button>
-                                </div>
+                                  <div className="flex items-center gap-2 pt-2 border-t border-zinc-50 flex-wrap">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-300 mr-1">Yay/Nay</span>
+                                    <button
+                                      onClick={() => handleVote(activity.id, 'up')}
+                                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                                        v.myVote === 'up'
+                                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                          : 'bg-zinc-50 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 border border-zinc-100'
+                                      }`}
+                                    >
+                                      <ThumbsUp className="w-3 h-3" />
+                                      <span>Yay{v.up > 0 ? ` ${v.up}` : ''}</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleVote(activity.id, 'down')}
+                                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                                        v.myVote === 'down'
+                                          ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                                          : 'bg-zinc-50 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 border border-zinc-100'
+                                      }`}
+                                    >
+                                      <ThumbsDown className="w-3 h-3" />
+                                      <span>Nay{v.down > 0 ? ` ${v.down}` : ''}</span>
+                                    </button>
+                                    {v.myVote && (
+                                      <span className="text-[10px] text-zinc-300 ml-1">
+                                        {v.myVote === 'up' ? "You're in ✓" : 'Not feeling it'}
+                                      </span>
+                                    )}
+                                    {/* Suggest another — pushes to the right (hidden when majority-Nay banner is showing) */}
+                                    {!isMajorityNay && (
+                                      <button
+                                        onClick={() => handleSuggestAnother(activity)}
+                                        disabled={isSuggesting}
+                                        title="Ask AI for a different suggestion"
+                                        className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all bg-zinc-50 text-zinc-400 hover:bg-violet-50 hover:text-violet-600 border border-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        {isSuggesting
+                                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                                          : <RefreshCw className="w-3 h-3" />
+                                        }
+                                        <span>{isSuggesting ? 'Finding…' : 'Suggest another'}</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
                               );
                             })()}
                           </div>
@@ -1409,6 +1484,76 @@ function ItineraryPageContent() {
                 </div>
               </div>
             )}
+
+            {/* Today's Food Trail — shows when there are restaurant activities on the day */}
+            {(() => {
+              const foodStops = sortedActivities.filter(a => a.isRestaurant);
+              if (foodStops.length === 0) return null;
+              const mealLabel = (type?: string | null) => {
+                if (type === 'breakfast') return { label: 'Breakfast', color: 'bg-amber-100 text-amber-700' };
+                if (type === 'lunch')     return { label: 'Lunch',     color: 'bg-sky-100 text-sky-700'   };
+                if (type === 'dinner')    return { label: 'Dinner',    color: 'bg-violet-100 text-violet-700' };
+                return { label: 'Food stop', color: 'bg-zinc-100 text-zinc-600' };
+              };
+              const diningTip = aiMeta?.practicalNotes?.tipping
+                ? `Tipping: ${aiMeta.practicalNotes.tipping}`
+                : aiMeta?.practicalNotes?.customs
+                ? aiMeta.practicalNotes.customs.slice(0, 90) + (aiMeta.practicalNotes.customs.length > 90 ? '…' : '')
+                : null;
+              const destination = (aiMeta?.destination || trip.destination).split(',')[0];
+              return (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-base">🍽</span>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Today&apos;s Food Trail</p>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mb-4">{destination} · {foodStops.length} stop{foodStops.length !== 1 ? 's' : ''}</p>
+
+                  <div className="relative">
+                    {foodStops.map((stop, idx) => {
+                      const ml = mealLabel((stop as Activity & { mealType?: string }).mealType);
+                      const startTime = stop.timeSlot?.split(/–|—/)[0]?.trim() ?? '';
+                      const actName = stop.name || stop.title || '';
+                      const isLast = idx === foodStops.length - 1;
+                      return (
+                        <div key={stop.id} className="flex gap-3 mb-3">
+                          {/* Number + line */}
+                          <div className="flex flex-col items-center flex-shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center flex-shrink-0">
+                              <span className="text-[10px] font-bold text-orange-700">{idx + 1}</span>
+                            </div>
+                            {!isLast && <div className="w-px flex-1 bg-orange-100 mt-1 min-h-[1.5rem]" />}
+                          </div>
+                          {/* Content */}
+                          <div className="flex-1 pb-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-zinc-900 leading-snug">{actName}</p>
+                              <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ml.color}`}>
+                                {ml.label}
+                              </span>
+                            </div>
+                            {startTime && (
+                              <p className="text-[11px] text-zinc-400 mt-0.5">{startTime}</p>
+                            )}
+                            {stop.address && (
+                              <p className="text-[11px] text-zinc-400 truncate mt-0.5">{stop.address}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Dining tip from practical notes */}
+                  {diningTip && (
+                    <div className="mt-3 pt-3 border-t border-zinc-100 flex items-start gap-2">
+                      <span className="text-sm flex-shrink-0">💡</span>
+                      <p className="text-[11px] text-zinc-500 leading-relaxed">{diningTip}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Where to Stay Card — pre-booked hotels */}
             {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0 && (
