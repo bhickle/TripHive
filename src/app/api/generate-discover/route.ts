@@ -57,7 +57,6 @@ Rules:
       max_tokens: 2000,
       messages: [
         { role: 'user', content: prompt },
-        { role: 'assistant', content: '[' },
       ],
     });
 

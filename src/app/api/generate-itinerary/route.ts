@@ -695,8 +695,6 @@ export async function POST(request: NextRequest) {
           system: SYSTEM_PROMPT,
           messages: [
             { role: 'user', content: prompt },
-            // Prefill forces Claude to start output directly with the JSON array
-            { role: 'assistant', content: '[' },
           ],
         });
 

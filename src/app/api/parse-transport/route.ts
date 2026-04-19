@@ -70,8 +70,6 @@ export async function POST(request: NextRequest) {
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: USER_PROMPT(emailText) },
-        // Prefill to force direct JSON output
-        { role: 'assistant', content: '{' },
       ],
     });
 

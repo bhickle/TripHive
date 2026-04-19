@@ -129,7 +129,6 @@ export async function POST(request: NextRequest) {
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: userPrompt },
-        { role: 'assistant', content: '{' },
       ],
     });
 

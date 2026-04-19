@@ -183,7 +183,6 @@ IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — halluci
       max_tokens: 1024,
       messages: [
         { role: 'user', content: prompt },
-        { role: 'assistant', content: '{' },
       ],
     });
 

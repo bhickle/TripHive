@@ -80,8 +80,6 @@ export async function POST(request: NextRequest) {
             },
           ],
         },
-        // Prefill to force clean JSON
-        { role: 'assistant', content: '{' },
       ],
     });
 
