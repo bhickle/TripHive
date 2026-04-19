@@ -1013,28 +1013,38 @@ function TripBuilderPage() {
                     {/* Suggestions Dropdown — world cities typeahead */}
                     {showDestinationSuggestions && state.destination.trim().length >= 2 && (
                       <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-72 overflow-y-auto">
-                        {destSuggestions.map((s) => (
-                          <button
-                            key={s.placeId}
-                            type="button"
-                            onClick={() => {
-                              setState((prev) => ({ ...prev, destination: s.name }));
-                              setDestQuery('');
-                              setShowDestinationSuggestions(false);
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-start gap-3"
-                          >
-                            <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="font-medium text-slate-900 text-sm">{s.name}</p>
-                              <p className="text-xs text-slate-500">{s.address}</p>
-                            </div>
-                          </button>
-                        ))}
+                        {destSuggestions.map((s) => {
+                          // Build the full destination string: "Prague, Czech Republic"
+                          // This gives the AI better context AND makes the selection
+                          // visually obvious in the input (vs. just the city name).
+                          const fullDest = s.address ? `${s.name}, ${s.address}` : s.name;
+                          return (
+                            <button
+                              key={s.placeId}
+                              type="button"
+                              // onMouseDown preventDefault stops the input from losing focus
+                              // before the click fires — fixes the "click doesn't register" bug
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setState((prev) => ({ ...prev, destination: fullDest }));
+                                setDestQuery('');
+                                setShowDestinationSuggestions(false);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-start gap-3"
+                            >
+                              <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-medium text-slate-900 text-sm">{s.name}</p>
+                                <p className="text-xs text-slate-500">{s.address}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
                         {/* Always allow free-typing any destination */}
                         {!destSuggestions.some(s => s.name.toLowerCase() === state.destination.trim().toLowerCase()) && (
                           <button
                             type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
                               setState((prev) => ({ ...prev, destination: state.destination.trim() }));
                               setDestQuery('');
