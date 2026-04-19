@@ -283,6 +283,13 @@ function ItineraryPageContent() {
   const addMenuRef = useRef<HTMLDivElement>(null);
   const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | null>(null);
 
+  // Edit destination / dates modal
+  const [showEditTripModal, setShowEditTripModal] = useState(false);
+  const [editDest, setEditDest] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [savingTripEdit, setSavingTripEdit] = useState(false);
+
   const { hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements();
 
   // Extra transport legs added live via the parser (keyed by day number)
@@ -676,6 +683,79 @@ function ItineraryPageContent() {
     }
   }, [activeDays, selectedDay, currentDayData, trip, aiMeta, persistDays]);
 
+  // ─── Edit trip destination / dates ───────────────────────────────────────────
+  const handleOpenEditTrip = useCallback(() => {
+    setEditDest(aiMeta?.destination ?? trip.destination);
+    setEditStartDate(aiMeta?.startDate ?? '');
+    setEditEndDate(aiMeta?.endDate ?? '');
+    setShowEditTripModal(true);
+  }, [aiMeta, trip.destination]);
+
+  const handleSaveTripEdit = useCallback(async () => {
+    if (!editDest.trim()) return;
+    setSavingTripEdit(true);
+    try {
+      const city = editDest.split(',')[0].trim();
+      const newTitle = `${city} Adventure`;
+
+      // Shift day dates if the start date changed
+      let updatedDays: typeof itineraryDays | null = null;
+      if (editStartDate && aiMeta?.startDate && editStartDate !== aiMeta.startDate) {
+        const oldStart = new Date(aiMeta.startDate);
+        const newStart = new Date(editStartDate);
+        const diffDays = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
+        updatedDays = (activeDays as typeof itineraryDays).map(day => {
+          const d = new Date(day.date);
+          d.setDate(d.getDate() + diffDays);
+          return { ...day, date: d.toISOString().split('T')[0] };
+        });
+      }
+
+      const tripId = params.id;
+      const isUuid = tripId && /^[0-9a-f-]{36}$/i.test(tripId);
+      if (isUuid) {
+        await fetch(`/api/trips/${tripId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tripPatch: {
+              destination: editDest.trim(),
+              title: newTitle,
+              ...(editStartDate ? { start_date: editStartDate } : {}),
+              ...(editEndDate   ? { end_date:   editEndDate   } : {}),
+            },
+            metaPatch: {
+              destination: editDest.trim(),
+              ...(editStartDate ? { startDate: editStartDate } : {}),
+              ...(editEndDate   ? { endDate:   editEndDate   } : {}),
+            },
+            ...(updatedDays ? { days: updatedDays } : {}),
+          }),
+        });
+      }
+
+      // Update local state immediately
+      setAiMeta(prev => prev ? {
+        ...prev,
+        destination: editDest.trim(),
+        ...(editStartDate ? { startDate: editStartDate } : {}),
+        ...(editEndDate   ? { endDate:   editEndDate   } : {}),
+      } : {
+        destination: editDest.trim(),
+        startDate: editStartDate || undefined,
+        endDate: editEndDate || undefined,
+      });
+
+      if (updatedDays) persistDays(updatedDays as typeof itineraryDays);
+
+      setShowEditTripModal(false);
+    } catch (err) {
+      console.error('Failed to save trip edit:', err);
+    } finally {
+      setSavingTripEdit(false);
+    }
+  }, [editDest, editStartDate, editEndDate, aiMeta, activeDays, params.id, persistDays]);
+
   // activeDays / trip / currentDayData declared earlier (above persistDays) so callbacks can use them
 
   const weatherData: Record<number, { icon: React.ReactNode; temp: number; condition: string }> = {
@@ -797,9 +877,20 @@ function ItineraryPageContent() {
         {/* Day Header */}
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
-              {trip.destination}
-            </p>
+            <div className="flex items-center gap-2 mb-1 group/dest">
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                {aiMeta?.destination || trip.destination}
+              </p>
+              {aiDays && (
+                <button
+                  onClick={handleOpenEditTrip}
+                  title="Edit destination & dates"
+                  className="opacity-0 group-hover/dest:opacity-100 transition-opacity p-0.5 rounded hover:bg-zinc-100 text-zinc-300 hover:text-zinc-500"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
+            </div>
             <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
               {new Date(currentDayData.date).toLocaleDateString('en-US', {
                 weekday: 'long', month: 'long', day: 'numeric',
@@ -1678,6 +1769,102 @@ function ItineraryPageContent() {
           trip={trip}
           onClose={() => setShowStoryModal(false)}
         />
+      )}
+
+      {/* ─── Edit Trip Modal ─── */}
+      {showEditTripModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowEditTripModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex items-center justify-between">
+              <div>
+                <h2 className="font-script italic text-lg font-semibold text-zinc-900">Edit Trip Details</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">Update destination or travel dates</p>
+              </div>
+              <button
+                onClick={() => setShowEditTripModal(false)}
+                className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors"
+              >
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {/* Destination */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
+                  Destination
+                </label>
+                <input
+                  type="text"
+                  value={editDest}
+                  onChange={e => setEditDest(e.target.value)}
+                  placeholder="e.g., Paris, France"
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
+                />
+              </div>
+
+              {/* Start Date */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={editStartDate}
+                  onChange={e => setEditStartDate(e.target.value)}
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
+                />
+              </div>
+
+              {/* End Date */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={editEndDate}
+                  onChange={e => setEditEndDate(e.target.value)}
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
+                />
+              </div>
+
+              {/* Hint: dates will shift */}
+              {editStartDate && aiMeta?.startDate && editStartDate !== aiMeta.startDate && (
+                <p className="flex items-center gap-1.5 text-xs text-sky-600 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  Day dates will shift to match the new start date.
+                </p>
+              )}
+            </div>
+
+            <div className="px-6 pb-6 pt-4 border-t border-zinc-100 flex gap-3">
+              <button
+                onClick={() => setShowEditTripModal(false)}
+                className="flex-1 py-2.5 border border-zinc-200 rounded-full text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveTripEdit}
+                disabled={!editDest.trim() || savingTripEdit}
+                className="flex-1 bg-sky-800 hover:bg-sky-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-full inline-flex items-center justify-center gap-2 transition-all"
+              >
+                {savingTripEdit
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Pencil className="w-4 h-4" />
+                }
+                {savingTripEdit ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Parse Transport Modal */}

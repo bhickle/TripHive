@@ -54,10 +54,14 @@ export async function PATCH(
   try {
     const body = await request.json();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { days, metaPatch } = body as { days?: any[]; metaPatch?: Record<string, any> };
+    const { days, metaPatch, tripPatch } = body as {
+      days?: any[];
+      metaPatch?: Record<string, any>;
+      tripPatch?: { destination?: string; title?: string; start_date?: string; end_date?: string };
+    };
 
-    if (!Array.isArray(days) && !metaPatch) {
-      return NextResponse.json({ error: 'days (array) or metaPatch (object) required' }, { status: 400 });
+    if (!Array.isArray(days) && !metaPatch && !tripPatch) {
+      return NextResponse.json({ error: 'days (array), metaPatch (object), or tripPatch (object) required' }, { status: 400 });
     }
 
     // ── Auth check: verify caller owns this trip ───────────────────────────────
@@ -89,6 +93,19 @@ export async function PATCH(
 
     if (tripRow.organizer_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // ── Update trips table fields (destination, title, dates) ─────────────────
+    if (tripPatch && Object.keys(tripPatch).length > 0) {
+      const { error } = await supabase
+        .from('trips')
+        .update(tripPatch)
+        .eq('id', params.id);
+
+      if (error) {
+        console.error('Trip fields update error:', JSON.stringify(error));
+        return NextResponse.json({ error: 'Failed to update trip fields' }, { status: 500 });
+      }
     }
 
     // ── Update itinerary days ──────────────────────────────────────────────────
