@@ -41,6 +41,8 @@ import {
   Pencil,
   Trash2,
   RefreshCw,
+  PersonStanding,
+  Ship,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { TripStoryModal } from '@/components/TripStoryModal';
@@ -89,6 +91,46 @@ const transportConfig: Record<
     borderColor: 'border-rose-200',
   },
 };
+
+// ─── transportToNext helpers ──────────────────────────────────────────────────
+
+const TRANSPORT_NEXT_CONFIG: Record<string, {
+  icon: React.ReactNode;
+  label: string;
+  bg: string;
+  border: string;
+  text: string;
+  mapsMode: string;
+}> = {
+  walk:        { icon: <PersonStanding className="w-3.5 h-3.5" />, label: 'Walk',        bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-700', mapsMode: 'walking'  },
+  rideshare:   { icon: <Car className="w-3.5 h-3.5" />,            label: 'Rideshare',   bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-700',   mapsMode: 'driving'  },
+  taxi:        { icon: <Car className="w-3.5 h-3.5" />,            label: 'Taxi',        bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-700',   mapsMode: 'driving'  },
+  metro:       { icon: <TrainFront className="w-3.5 h-3.5" />,     label: 'Metro',       bg: 'bg-sky-50',     border: 'border-sky-100',     text: 'text-sky-700',     mapsMode: 'transit'  },
+  bus:         { icon: <Bus className="w-3.5 h-3.5" />,            label: 'Bus',         bg: 'bg-sky-50',     border: 'border-sky-100',     text: 'text-sky-700',     mapsMode: 'transit'  },
+  train:       { icon: <TrainFront className="w-3.5 h-3.5" />,     label: 'Train',       bg: 'bg-sky-50',     border: 'border-sky-100',     text: 'text-sky-700',     mapsMode: 'transit'  },
+  tram:        { icon: <TrainFront className="w-3.5 h-3.5" />,     label: 'Tram',        bg: 'bg-sky-50',     border: 'border-sky-100',     text: 'text-sky-700',     mapsMode: 'transit'  },
+  ferry:       { icon: <Ship className="w-3.5 h-3.5" />,           label: 'Ferry',       bg: 'bg-cyan-50',    border: 'border-cyan-100',    text: 'text-cyan-700',    mapsMode: 'transit'  },
+  'water-taxi':{ icon: <Ship className="w-3.5 h-3.5" />,           label: 'Water Taxi',  bg: 'bg-cyan-50',    border: 'border-cyan-100',    text: 'text-cyan-700',    mapsMode: 'transit'  },
+  'tuk-tuk':   { icon: <Car className="w-3.5 h-3.5" />,            label: 'Tuk-tuk',     bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-700',   mapsMode: 'driving'  },
+  'cable-car': { icon: <Compass className="w-3.5 h-3.5" />,        label: 'Cable Car',   bg: 'bg-violet-50',  border: 'border-violet-100',  text: 'text-violet-700',  mapsMode: 'transit'  },
+};
+
+function buildMapsUrl(mode: string, from?: string, to?: string): string {
+  const cfg = TRANSPORT_NEXT_CONFIG[mode];
+  const travelmode = cfg?.mapsMode ?? 'driving';
+  const base = 'https://www.google.com/maps/dir/?api=1';
+  const p = new URLSearchParams({ travelmode });
+  if (from) p.set('origin', from);
+  if (to)   p.set('destination', to);
+  return `${base}&${p.toString()}`;
+}
+
+function formatDuration(mins: number): string {
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
 
 function TransportCard({ leg }: { leg: TransportLeg }) {
   const [expanded, setExpanded] = useState(false);
@@ -929,8 +971,13 @@ function ItineraryPageContent() {
                     const actName = activity.name || activity.title || '';
                     const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(actName + (activity.address ? ' ' + activity.address : ' ' + trip.destination))}`;
 
+                    // Look ahead for the next activity's address (for Maps deep links)
+                    const nextActItem = timelineItems.slice(index + 1).find(i => i.kind === 'activity');
+                    const nextActAddress = (nextActItem?.data as Activity | undefined)?.address;
+
                     return (
-                      <div key={activity.id} className="flex gap-4">
+                      <React.Fragment key={activity.id}>
+                      <div className="flex gap-4">
                         {/* Time Column */}
                         <div className="w-20 flex-shrink-0 text-right pt-4">
                           <p className="text-xs font-semibold text-zinc-400">{startTime}</p>
@@ -1111,6 +1158,73 @@ function ItineraryPageContent() {
                           </div>
                         </div>
                       </div>
+
+                      {/* transportToNext connector — shown between consecutive AI activities */}
+                      {!isLast && activity.transportToNext?.mode && (() => {
+                        const t = activity.transportToNext!;
+                        const cfg = TRANSPORT_NEXT_CONFIG[t.mode] ?? TRANSPORT_NEXT_CONFIG['rideshare'];
+                        const mapsUrl = buildMapsUrl(t.mode, activity.address, nextActAddress);
+                        const isRideshare = t.mode === 'rideshare' || t.mode === 'taxi' || t.mode === 'tuk-tuk';
+                        const uberUrl = nextActAddress
+                          ? `https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(nextActAddress)}`
+                          : null;
+                        return (
+                          <div className="flex gap-4 -mt-1 mb-1">
+                            {/* Spacer aligns with time column */}
+                            <div className="w-20 flex-shrink-0" />
+                            {/* Dashed continuation line */}
+                            <div className="flex flex-col items-center">
+                              <div className="w-px flex-1 bg-zinc-100" style={{ backgroundImage: 'repeating-linear-gradient(to bottom, #e4e4e7 0, #e4e4e7 4px, transparent 4px, transparent 8px)' }} />
+                            </div>
+                            {/* Connector pill */}
+                            <div className="flex-1 py-1">
+                              <div className={`flex items-center gap-2 flex-wrap px-3 py-2 rounded-xl border ${cfg.border} ${cfg.bg}`}>
+                                <span className={`flex items-center gap-1.5 text-xs font-semibold ${cfg.text}`}>
+                                  {cfg.icon}
+                                  {cfg.label}
+                                </span>
+                                <span className="text-zinc-300 text-xs">·</span>
+                                <span className="text-xs text-zinc-500 font-medium">{formatDuration(t.durationMins)}</span>
+                                {t.distanceMiles > 0 && (
+                                  <>
+                                    <span className="text-zinc-300 text-xs">·</span>
+                                    <span className="text-xs text-zinc-500">{t.distanceMiles.toFixed(1)} mi</span>
+                                  </>
+                                )}
+                                {t.notes && (
+                                  <span className="text-xs text-zinc-400 italic w-full">{t.notes}</span>
+                                )}
+                                {/* Deep links */}
+                                <div className="ml-auto flex items-center gap-3">
+                                  <a
+                                    href={mapsUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`text-[10px] font-semibold ${cfg.text} hover:underline flex items-center gap-1`}
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                    Google Maps
+                                  </a>
+                                  {isRideshare && uberUrl && (
+                                    <a
+                                      href={uberUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] font-semibold text-zinc-600 hover:underline flex items-center gap-1"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                      Uber
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      </React.Fragment>
                     );
                   })}
                 </div>
