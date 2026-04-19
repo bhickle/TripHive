@@ -323,7 +323,10 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   // For non-mock trips: fetch AI-generated destination recommendations
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
   const [aiItems, setAiItems] = useState<DiscoverItem[] | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  // Start in loading state for real trips so we don't flash "No recommendations loaded yet"
+  // before the async fetch even begins
+  const [aiLoading, setAiLoading] = useState(!isMockTrip);
+  const [aiError, setAiError] = useState(false);
   const [aiDestination, setAiDestination] = useState<string>('');
 
   useEffect(() => {
@@ -365,9 +368,13 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         } catch { /* ignore */ }
       }
 
-      if (!destination) return;
+      if (!destination) {
+        setAiLoading(false);
+        return;
+      }
       setAiDestination(destination);
       setAiLoading(true);
+      setAiError(false);
 
       try {
         const res = await fetch('/api/generate-discover', {
@@ -378,8 +385,12 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         if (res.ok) {
           const { items } = await res.json();
           setAiItems(items);
+        } else {
+          setAiError(true);
         }
-      } catch { /* show empty state */ }
+      } catch {
+        setAiError(true);
+      }
 
       setAiLoading(false);
     };
@@ -598,9 +609,35 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           )}
           {!isMockTrip && !aiLoading && aiItems === null && (
             <div className="text-center py-16">
-              <p className="text-3xl mb-3">🗺️</p>
-              <p className="text-zinc-700 font-semibold">No recommendations loaded yet.</p>
-              <p className="text-sm text-zinc-400 mt-1">Try navigating back to your itinerary and returning here.</p>
+              <p className="text-3xl mb-3">{aiError ? '⚠️' : '🗺️'}</p>
+              <p className="text-zinc-700 font-semibold">
+                {aiError ? 'Couldn\'t load recommendations' : 'No recommendations loaded yet.'}
+              </p>
+              <p className="text-sm text-zinc-400 mt-1">
+                {aiError
+                  ? 'Something went wrong generating AI picks. Try again below.'
+                  : 'Try navigating back to your itinerary and returning here.'}
+              </p>
+              {aiError && aiDestination && (
+                <button
+                  onClick={() => {
+                    setAiError(false);
+                    setAiLoading(true);
+                    fetch('/api/generate-discover', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ destination: aiDestination }),
+                    })
+                      .then(r => r.ok ? r.json() : Promise.reject())
+                      .then(({ items }) => setAiItems(items))
+                      .catch(() => setAiError(true))
+                      .finally(() => setAiLoading(false));
+                  }}
+                  className="mt-4 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors"
+                >
+                  Try Again
+                </button>
+              )}
             </div>
           )}
           {(isMockTrip || (!aiLoading && aiItems !== null)) && (filteredItems.length === 0 ? (

@@ -104,6 +104,7 @@ const TRANSPORT_NEXT_CONFIG: Record<string, {
 }> = {
   walk:        { icon: <PersonStanding className="w-3.5 h-3.5" />, label: 'Walk',        bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-700', mapsMode: 'walking'  },
   rideshare:   { icon: <Car className="w-3.5 h-3.5" />,            label: 'Rideshare',   bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-700',   mapsMode: 'driving'  },
+  car_rental:  { icon: <Car className="w-3.5 h-3.5" />,            label: 'Car Rental',  bg: 'bg-sky-50',     border: 'border-sky-100',     text: 'text-sky-700',     mapsMode: 'driving'  },
   taxi:        { icon: <Car className="w-3.5 h-3.5" />,            label: 'Taxi',        bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-700',   mapsMode: 'driving'  },
   metro:       { icon: <TrainFront className="w-3.5 h-3.5" />,     label: 'Metro',       bg: 'bg-sky-50',     border: 'border-sky-100',     text: 'text-sky-700',     mapsMode: 'transit'  },
   bus:         { icon: <Bus className="w-3.5 h-3.5" />,            label: 'Bus',         bg: 'bg-sky-50',     border: 'border-sky-100',     text: 'text-sky-700',     mapsMode: 'transit'  },
@@ -875,12 +876,26 @@ function ItineraryPageContent() {
     return h * 60 + (m || 0);
   };
 
+  // Detect a "Group Meetup" activity embedded inline in tracks (older generated trips that
+  // set it as an activity instead of meetupTime/meetupLocation). Extract it so we can render
+  // it in the dedicated meetup block and exclude it from the normal timeline.
+  const inlineMeetupActivity = !currentDayData.meetupTime
+    ? sortedActivities.find(a => /group\s*meetup|morning\s*meetup/i.test(a.title ?? ''))
+    : null;
+
+  // Effective meetup fields — prefer structured data, fall back to inline activity
+  const effectiveMeetupTime = currentDayData.meetupTime ?? inlineMeetupActivity?.timeSlot?.split(/–|—/)[0]?.trim();
+  const effectiveMeetupLocation = currentDayData.meetupLocation ?? inlineMeetupActivity?.address ?? inlineMeetupActivity?.description?.split('.')[0] ?? inlineMeetupActivity?.title;
+
   const timelineItems: TimelineItem[] = [
-    ...sortedActivities.map(a => ({
-      kind: 'activity' as const,
-      data: a,
-      sortTime: parseTime(a.timeSlot?.split(/–|—/)[0]?.trim() ?? '00:00'),
-    })),
+    ...sortedActivities
+      // Exclude the inline meetup activity — it's shown in the dedicated meetup block
+      .filter(a => !inlineMeetupActivity || a.id !== inlineMeetupActivity.id)
+      .map(a => ({
+        kind: 'activity' as const,
+        data: a,
+        sortTime: parseTime(a.timeSlot?.split(/–|—/)[0]?.trim() ?? '00:00'),
+      })),
     ...[...(currentDayData.transportLegs ?? []), ...(addedTransport[selectedDay] ?? [])].map((leg: TransportLeg) => ({
       kind: 'transport' as const,
       data: leg,
@@ -1086,7 +1101,7 @@ function ItineraryPageContent() {
               </div>
             ) : (
               <div>
-                {/* Track legend — always visible on AI days so users understand the color coding */}
+                {/* Track legend + trip priorities — always visible on AI days */}
                 {aiDays && (
                   <div className="mb-6 pb-4 border-b border-zinc-100">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Today&apos;s tracks</p>
@@ -1102,16 +1117,40 @@ function ItineraryPageContent() {
                         </div>
                       ))}
                     </div>
+                    {/* Trip priorities from the Builder */}
+                    {aiMeta?.preferences?.priorities && aiMeta.preferences.priorities.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Trip priorities</p>
+                        <div className="flex flex-wrap gap-2">
+                          {aiMeta.preferences.priorities.map((p: string) => {
+                            const PRIORITY_LABELS: Record<string, string> = {
+                              food: '🍽️ Food', hiking: '🥾 Hiking', photography: '📷 Photography',
+                              adventure: '⚡ Adventure', culture: '🏛️ Culture', nightlife: '🎶 Nightlife',
+                              relaxation: '🧘 Relaxation', shopping: '🛍️ Shopping', history: '📜 History',
+                              nature: '🌿 Nature', beaches: '🏖️ Beaches', sports: '⛹️ Sports',
+                              art: '🎨 Art', music: '🎵 Music', wellness: '💆 Wellness',
+                              family: '👨‍👩‍👧 Family', romance: '❤️ Romance', budget: '💰 Budget-friendly',
+                            };
+                            const label = PRIORITY_LABELS[p.toLowerCase()] ?? `✦ ${p.charAt(0).toUpperCase() + p.slice(1)}`;
+                            return (
+                              <span key={p} className="inline-flex items-center px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs font-semibold">
+                                {label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className="space-y-4">
-                  {/* Meetup time — only relevant for group trips, not solo/couple */}
-                  {currentDayData.meetupTime && currentDayData.meetupLocation &&
+                  {/* Meetup — shown for group trips; handles both structured meetupTime and legacy inline "Group Meetup" activities */}
+                  {effectiveMeetupTime && effectiveMeetupLocation &&
                    aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple' && (
                     <div className="flex gap-4">
                       <div className="w-20 flex-shrink-0 text-right pt-3.5">
-                        <p className="text-xs font-semibold text-sky-600">{currentDayData.meetupTime}</p>
+                        <p className="text-xs font-semibold text-sky-600">{effectiveMeetupTime}</p>
                       </div>
                       <div className="relative flex flex-col items-center pt-3.5">
                         <Flag className="w-3 h-3 text-sky-500 flex-shrink-0" />
@@ -1121,7 +1160,7 @@ function ItineraryPageContent() {
                         <div className="bg-sky-50 border border-sky-100 rounded-2xl px-4 py-3 flex items-center gap-3">
                           <div>
                             <p className="text-[10px] font-bold uppercase tracking-wide text-sky-500 mb-0.5">Group Meetup</p>
-                            <p className="text-sm font-semibold text-sky-900">{currentDayData.meetupLocation}</p>
+                            <p className="text-sm font-semibold text-sky-900">{effectiveMeetupLocation}</p>
                           </div>
                         </div>
                       </div>
@@ -1384,7 +1423,8 @@ function ItineraryPageContent() {
                         const cfg = TRANSPORT_NEXT_CONFIG[t.mode] ?? TRANSPORT_NEXT_CONFIG['rideshare'];
                         const mapsUrl = buildMapsUrl(t.mode, activity.address, nextActAddress);
                         const isRideshare = t.mode === 'rideshare' || t.mode === 'taxi' || t.mode === 'tuk-tuk';
-                        const uberUrl = nextActAddress
+                        const isCarRental = t.mode === 'car_rental';
+                        const uberUrl = isRideshare && nextActAddress
                           ? `https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(nextActAddress)}`
                           : null;
                         return (
@@ -1435,6 +1475,18 @@ function ItineraryPageContent() {
                                     >
                                       <ExternalLink className="w-2.5 h-2.5" />
                                       Uber
+                                    </a>
+                                  )}
+                                  {isCarRental && (
+                                    <a
+                                      href="https://www.kayak.com/cars"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] font-semibold text-sky-700 hover:underline flex items-center gap-1"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                      Find Rental
                                     </a>
                                   )}
                                 </div>

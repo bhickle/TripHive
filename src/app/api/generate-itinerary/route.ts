@@ -533,11 +533,19 @@ For EACH restaurant: recommend a real, named establishment. In the description, 
 
 TRANSPORT BETWEEN ACTIVITIES:
 Every activity must include a "transportToNext" field:
-- mode: walk | rideshare | taxi | metro | bus | train | ferry | water-taxi | tuk-tuk | cable-car | tram
+- mode: walk | rideshare | car_rental | taxi | metro | bus | train | ferry | water-taxi | tuk-tuk | cable-car | tram
 - durationMins: estimated travel time in minutes
-- distanceMiles: distance in miles (use 0 for rideshare/taxi where exact distance varies by route)
+- distanceMiles: distance in miles (use 0 for car/rideshare where exact route varies)
 - notes: brief landmark-based direction or useful transit tip (can be null if self-evident)
 Set transportToNext to null on the last activity of each day (no onward journey needed).
+
+MODE SELECTION RULES (based on travel time):
+- Under 15 min: walk (if terrain allows) or rideshare
+- 15–30 min: rideshare or taxi (quick local hop)
+- 30–60 min: rideshare OR car_rental (either works — use car_rental if a rental is already part of the trip)
+- Over 60 min: car_rental (a shared rideshare for 1+ hour is unreasonably expensive; a rental is the right call)
+- In cities with excellent transit (Paris, London, Tokyo, NYC, Amsterdam, Berlin, Barcelona, Rome, etc.): prefer metro/tram/bus over rideshare for any leg up to 60 min
+- For destinations without reliable rideshare apps (rural areas, many parts of Southeast Asia, Africa, etc.): use taxi or local transit instead of rideshare
 ${walkingRuleText}
 
 GEOGRAPHIC CLUSTERING RULE: When a transport leg (car, bus, train, or excursion) moves the group to a new town or region, ALL activities scheduled after that transport leg — until the next transport leg — must cluster within 0.5 miles of each other around a central point in that town. Restaurants must always be within walking distance of the immediately preceding activity — never require a separate drive just for a meal. If two activities in the same town are more than 0.5 miles apart, insert a transport leg between them.
@@ -557,7 +565,7 @@ RULES:
 7. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
 8. Vary the pace — not every day should be packed. Include slower, wandering time.
 9. The first and last days should account for travel/arrival/departure logistics
-10. meetupTime and meetupLocation are the MORNING departure point — the place where the whole group gathers at the start of the day before heading out. meetupLocation must ALWAYS be the hotel lobby (e.g. "Hotel lobby" or "[Hotel Name] lobby") and meetupTime should be between 08:30 and 10:00. Do NOT use the evening reconvene point, a restaurant, or a landmark for meetupLocation — it is always the hotel lobby. For solo or couple trips (groupType "solo" or "couple"), set meetupTime and meetupLocation to null on every day — group meetup points are irrelevant for individual travelers.
+10. meetupTime and meetupLocation are the MORNING departure point — the place where the whole group gathers at the start of the day before heading out. meetupLocation must ALWAYS be the hotel lobby (e.g. "Hotel lobby" or "[Hotel Name] lobby"). meetupTime must equal the timeSlot start of the very FIRST activity of that day (e.g. if the day's first activity starts at "09:00", meetupTime is "09:00"). Never set meetupTime to a time after the first activity starts — the group meets first, then heads out. Do NOT generate a "Group Meetup" activity in the tracks array; use meetupTime/meetupLocation exclusively. For solo or couple trips (groupType "solo" or "couple"), set meetupTime and meetupLocation to null on every day — group meetup points are irrelevant for individual travelers.
 11. photoSpots: REQUIRED on every itinerary, every day — include 1-3 per day regardless of whether photography is a selected priority. Always include the destination's iconic must-photograph landmarks (e.g. Trevi Fountain in Rome, Eiffel Tower in Paris, Hagia Sophia in Istanbul) as the primary spot on the relevant day. These are the shots every visitor wants and they must not be omitted. Pair each with a specific time of day (sunrise/golden hour/blue hour/midday) and one actionable shooting tip (best angle, where to stand, what to frame). Additional spots can be local or lesser-known but the famous landmark always anchors the list.
 12. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
 13. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
