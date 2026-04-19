@@ -218,7 +218,7 @@ const VIBE_SUGGESTIONS: { label: string; emoji: string; destinations: string[] }
   { label: 'City Break', emoji: '🏙️', destinations: ['Tokyo, Japan', 'Paris, France', 'New York City, USA', 'Singapore', 'Barcelona, Spain'] },
   { label: 'History', emoji: '🏛️', destinations: ['Rome, Italy', 'Athens, Greece', 'Kyoto, Japan', 'Cairo, Egypt', 'Cusco, Peru'] },
   { label: 'Adventure', emoji: '⛰️', destinations: ['Queenstown, New Zealand', 'Cusco, Peru', 'Reykjavik, Iceland', 'Chiang Mai, Thailand'] },
-  { label: 'Food Lover', emoji: '🍜', destinations: ['Bangkok, Thailand', 'Bologna, Italy', 'Tokyo, Japan', 'Oaxaca, Mexico', 'Hanoi, Vietnam'] },
+  { label: 'Food Lover', emoji: '🍜', destinations: ['Bangkok, Thailand', 'Florence, Italy', 'Tokyo, Japan', 'Oaxaca, Mexico', 'Hanoi, Vietnam'] },
   { label: 'Romantic', emoji: '💕', destinations: ['Paris, France', 'Santorini, Greece', 'Florence, Italy', 'Porto, Portugal', 'Cartagena, Colombia'] },
 ];
 

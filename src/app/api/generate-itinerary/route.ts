@@ -513,7 +513,7 @@ For EACH restaurant: recommend a real, named establishment. In the description, 
 
 TRANSPORT BETWEEN ACTIVITIES:
 Every activity must include a "transportToNext" field:
-- mode: walk | rideshare | taxi | metro | bus | ferry | water-taxi | tuk-tuk | cable-car | tram
+- mode: walk | rideshare | taxi | metro | bus | train | ferry | water-taxi | tuk-tuk | cable-car | tram
 - durationMins: estimated travel time in minutes
 - distanceMiles: distance in miles (use 0 for rideshare/taxi where exact distance varies by route)
 - notes: brief landmark-based direction or useful transit tip (can be null if self-evident)
