@@ -52,6 +52,7 @@ interface BookedFlight {
 
 interface BookedHotel {
   name: string;
+  city: string;   // city this hotel is in — drives multi-city route logic
   address: string;
   checkIn: string;
   checkOut: string;
@@ -89,6 +90,8 @@ interface TripWizardState {
   isOpenJaw: boolean;
   /** Places or experiences the user absolutely must have in the itinerary */
   mustHaves: string[];
+  /** Ordered city list for multi-city trips (Explorer/Nomad, no-hotel path) */
+  destinations: string[];
 }
 
 const priorityOptions = [
@@ -267,12 +270,14 @@ function TripBuilderPage() {
     hasPreBookedHotel: false,
     isOpenJaw: false,
     mustHaves: [],
+    destinations: [],
   });
 
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
     useState(false);
   const [budgetAutoFilled, setBudgetAutoFilled] = useState(false);
   const [mustHaveInput, setMustHaveInput] = useState('');
+  const [destinationCityInput, setDestinationCityInput] = useState('');
 
   // Destination typeahead — powered by world cities dataset
   const {
@@ -434,6 +439,16 @@ function TripBuilderPage() {
           ageRanges: state.ageRanges,
           accessibilityNeeds: state.accessibilityNeeds,
           mustHaves: state.mustHaves,
+          // Derive ordered city list: hotel cities take priority, then explicit destinations
+          destinations: (() => {
+            const hotelCities = state.hasPreBookedHotel
+              ? state.bookedHotels.filter(h => h.city.trim()).map(h => h.city.trim())
+              : [];
+            const uniqueHotelCities = Array.from(new Set(hotelCities));
+            if (uniqueHotelCities.length > 1) return uniqueHotelCities;
+            if (state.destinations.length > 1) return state.destinations;
+            return [];
+          })(),
           localMode: state.localMode,
           curiosityLevel: state.curiosityLevel,
           modality: state.modality.join(', '),
@@ -1076,6 +1091,75 @@ function TripBuilderPage() {
                     </button>
                   </div>
                   */}
+
+                  {/* Multi-city section — Explorer/Nomad, for users planning without hotels */}
+                  {(tier === 'explorer' || tier === 'nomad') && (
+                    <div className="mt-6 pt-6 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-sm font-semibold text-slate-900">
+                          Visiting multiple cities? 🗺️
+                        </label>
+                        <span className="text-xs text-slate-400">optional</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-4">
+                        Add cities in the order you plan to visit them. If you enter hotels in Step 4, their cities will be used automatically — this is for trips without pre-booked hotels.
+                      </p>
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          value={destinationCityInput}
+                          onChange={e => setDestinationCityInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && destinationCityInput.trim()) {
+                              e.preventDefault();
+                              const val = destinationCityInput.trim();
+                              if (!state.destinations.includes(val)) {
+                                setState(prev => ({ ...prev, destinations: [...prev.destinations, val] }));
+                              }
+                              setDestinationCityInput('');
+                            }
+                          }}
+                          placeholder="e.g. Vienna"
+                          className="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const val = destinationCityInput.trim();
+                            if (val && !state.destinations.includes(val)) {
+                              setState(prev => ({ ...prev, destinations: [...prev.destinations, val] }));
+                            }
+                            setDestinationCityInput('');
+                          }}
+                          disabled={!destinationCityInput.trim()}
+                          className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {state.destinations.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap p-3 bg-white border border-sky-200 rounded-xl">
+                          {state.destinations.map((city, i) => (
+                            <React.Fragment key={city}>
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
+                                {city}
+                                <button
+                                  type="button"
+                                  onClick={() => setState(prev => ({ ...prev, destinations: prev.destinations.filter(d => d !== city) }))}
+                                  className="text-sky-400 hover:text-sky-700"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                              {i < state.destinations.length - 1 && (
+                                <span className="text-slate-300 text-sm font-light">→</span>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1427,7 +1511,7 @@ function TripBuilderPage() {
                           ...prev,
                           hasPreBookedHotel: !prev.hasPreBookedHotel,
                           bookedHotels: !prev.hasPreBookedHotel
-                            ? [{ name: '', address: '', checkIn: '', checkOut: '' }]
+                            ? [{ name: '', city: '', address: '', checkIn: '', checkOut: '' }]
                             : [],
                         }))}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -1472,6 +1556,26 @@ function TripBuilderPage() {
                                 ...prev,
                                 bookedHotels: prev.bookedHotels.map((h, i) =>
                                   i === idx ? { ...h, name: e.target.value } : h
+                                ),
+                              }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                              City
+                              {state.bookedHotels.length > 1 && (
+                                <span className="ml-1 text-sky-600 font-normal">(used to build your route)</span>
+                              )}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Vienna"
+                              value={hotel.city}
+                              onChange={e => setState(prev => ({
+                                ...prev,
+                                bookedHotels: prev.bookedHotels.map((h, i) =>
+                                  i === idx ? { ...h, city: e.target.value } : h
                                 ),
                               }))}
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
@@ -1537,7 +1641,7 @@ function TripBuilderPage() {
                           <button
                             onClick={() => setState(prev => ({
                               ...prev,
-                              bookedHotels: [...prev.bookedHotels, { name: '', address: '', checkIn: '', checkOut: '' }],
+                              bookedHotels: [...prev.bookedHotels, { name: '', city: '', address: '', checkIn: '', checkOut: '' }],
                             }))}
                             className="flex items-center gap-2 text-sm text-sky-700 hover:text-sky-900 font-medium transition-colors py-1"
                           >
@@ -1558,11 +1662,36 @@ function TripBuilderPage() {
                         </p>
                       )}
 
-                      {state.bookedHotels.length > 1 && (
-                        <p className="text-xs text-slate-500 italic">
-                          Your itinerary will use the correct hotel as home base for each night based on check-in/out dates.
-                        </p>
-                      )}
+                      {/* Multi-city route preview */}
+                      {(() => {
+                        const cities = state.bookedHotels
+                          .filter(h => h.city.trim())
+                          .map(h => h.city.trim());
+                        const uniqueCities = Array.from(new Set(cities));
+                        if (uniqueCities.length < 2) return (
+                          state.bookedHotels.length > 1
+                            ? <p className="text-xs text-slate-500 italic">Add a city to each hotel above to see your route.</p>
+                            : null
+                        );
+                        return (
+                          <div className="p-4 bg-white border border-sky-200 rounded-xl">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-sky-500 mb-2">Your Route</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {uniqueCities.map((city, i) => (
+                                <React.Fragment key={city}>
+                                  <span className="text-sm font-semibold text-slate-800">{city}</span>
+                                  {i < uniqueCities.length - 1 && (
+                                    <span className="text-slate-300 text-sm">→</span>
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2">
+                              The AI will route between these cities in order, respecting travel times and check-in/out dates.
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -2019,11 +2148,33 @@ function TripBuilderPage() {
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
                       <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide mb-2">
-                        Destination
+                        {(() => {
+                          const hotelCities = state.hasPreBookedHotel
+                            ? Array.from(new Set(state.bookedHotels.filter(h => h.city.trim()).map(h => h.city.trim())))
+                            : [];
+                          const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
+                          return routeCities.length > 1 ? 'Route' : 'Destination';
+                        })()}
                       </p>
-                      <p className="text-lg font-semibold text-slate-900">
-                        {state.destination || 'Not selected'}
-                      </p>
+                      {(() => {
+                        const hotelCities = state.hasPreBookedHotel
+                          ? Array.from(new Set(state.bookedHotels.filter(h => h.city.trim()).map(h => h.city.trim())))
+                          : [];
+                        const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
+                        if (routeCities.length > 1) {
+                          return (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {routeCities.map((city, i) => (
+                                <React.Fragment key={city}>
+                                  <span className="text-base font-semibold text-slate-900">{city}</span>
+                                  {i < routeCities.length - 1 && <span className="text-sky-400 font-light">→</span>}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return <p className="text-lg font-semibold text-slate-900">{state.destination || 'Not selected'}</p>;
+                      })()}
                     </div>
                     <div className="p-4 bg-parchment rounded-lg border border-stone-200">
                       <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">

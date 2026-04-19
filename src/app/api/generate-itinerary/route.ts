@@ -163,6 +163,7 @@ function buildPrompt(params: {
   bookedHotel?: BookedHotel | null;    // legacy single-hotel (kept for backward compat)
   bookedHotels?: BookedHotel[];        // preferred: array of hotels for multi-hotel trips
   mustHaves?: string[];                // user's non-negotiable places/experiences
+  destinations?: string[];             // ordered city list for multi-city trips
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
 }) {
   const {
@@ -173,6 +174,7 @@ function buildPrompt(params: {
     bookedFlight, realPlaces,
   } = params;
   const mustHaves = params.mustHaves ?? [];
+  const destinations = params.destinations ?? [];
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
   const bookedHotels: BookedHotel[] = params.bookedHotels?.length
@@ -218,28 +220,35 @@ function buildPrompt(params: {
     ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour timing, interesting angles, and any access restrictions. Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, murals, reflections, etc. Include at least one spot that most tourists miss.`
     : '';
 
-  // Multi-city routing rules — injected when multiple hotels span different cities
+  // Multi-city routing rules — injected when destinations array has 2+ cities
+  // Priority: explicit destinations list > hotel city fields > skip
   const multiCityText = (() => {
-    if (bookedHotels.length < 2) return '';
-    // Extract distinct city names from hotel addresses / names
-    const cities = bookedHotels
-      .map(h => (h.address || h.name || '').split(',')[0].trim())
-      .filter(Boolean);
-    const uniqueCities = Array.from(new Set(cities));
-    if (uniqueCities.length < 2) return '';
+    let cities: string[] = [];
+    if (destinations.length >= 2) {
+      cities = destinations;
+    } else if (bookedHotels.length >= 2) {
+      // Fall back to hotel city fields (new field added to BookedHotel)
+      const hotelCities = bookedHotels
+        .map((h: BookedHotel & { city?: string }) => (h.city || '').trim())
+        .filter(Boolean);
+      const unique = Array.from(new Set(hotelCities));
+      if (unique.length >= 2) cities = unique;
+    }
+    if (cities.length < 2) return '';
     return `
 MULTI-CITY TRIP — CRITICAL ROUTING RULES:
-This trip visits multiple cities: ${uniqueCities.join(' → ')} (in check-in date order).
+This trip visits multiple cities in this order: ${cities.join(' → ')}.
 You MUST follow ALL of these rules:
 
-1. GEOGRAPHIC ORDER: Route cities in a logical geographic sequence that minimises backtracking. Never route from City A to City C and back to City B — always move in one direction.
-2. REALISTIC TRAVEL TIMES: Before scheduling any inter-city travel leg, estimate the actual travel time. Apply these minimums:
-   - Same-country rail or bus: 1.5 hours minimum, often 3–5 hours for 200–400 km
-   - International flights (even short-haul): minimum 4 hours door-to-door (check-in + flight + arrival)
-   - Driving between cities: calculate at realistic road speed; 300 km = ~3.5 hrs, 500 km = ~5.5 hrs
-3. NO SAME-DAY IMPOSSIBLE HOPS: If travel between two cities takes more than 3 hours, that travel must occupy most of a day. Do not schedule full activity blocks on both ends of a long travel day.
-4. TRANSITION DAYS: On any day where the group moves between hotels in different cities, treat it as a travel day: light activity in the morning near the departing hotel, the travel leg mid-day, and only 1–2 activities upon arrival near the new hotel.
-5. ASSIGN DATES TO CITIES: Each day's activities must be in the city whose hotel covers that night. Do not schedule activities in City B on a night the group sleeps in City A.`;
+1. VISIT ORDER: Travel through the cities exactly in the order listed above. Never skip ahead and double back.
+2. REALISTIC TRAVEL TIMES — apply these minimums before scheduling any inter-city leg:
+   - Same-country rail or bus: 1.5 hrs minimum; 200–400 km routes often take 3–5 hrs
+   - International flights (even short-haul): minimum 4 hrs door-to-door (check-in + flight + immigration + ground transport)
+   - Driving between cities: 300 km ≈ 3.5 hrs, 500 km ≈ 5.5 hrs at realistic road speeds
+3. NO SAME-DAY IMPOSSIBLE HOPS: If travel between two cities takes more than 3 hours, that travel must occupy most of a day — do not schedule full activity blocks on both ends.
+4. TRANSITION DAYS: On any day the group moves cities, plan: light morning activity near the departing city → inter-city transport leg → 1–2 arrival activities near the new city only.
+5. CITY-NIGHT ALIGNMENT: Each day's activities must be in the city where the group sleeps that night. Never schedule activities in City B when the group's hotel that night is in City A.
+6. LOGICAL DAY ASSIGNMENT: Use the hotel check-in/check-out dates (if provided) to determine which city covers which dates. If no hotels provided, divide the trip length proportionally across cities.`;
   })();
 
   // Must-haves: hard-requirement text injected if user specified any
@@ -334,7 +343,7 @@ You MUST follow ALL of these rules:
   return `Generate a ${tripLength}-day travel itinerary for the following trip:
 
 TRIP DETAILS:
-- Destination: ${destination}
+- Destination: ${destinations.length >= 2 ? `Multi-city — ${destinations.join(' → ')}` : destination}
 - Dates: ${startDate} to ${endDate} (${tripLength} days)
 - Group type: ${groupType || 'friends'}
 - Budget: $${budget.toLocaleString()} total
@@ -634,7 +643,9 @@ export async function POST(request: NextRequest) {
   let realPlaces = null;
   if (process.env.GOOGLE_MAPS_KEY) {
     try {
-      realPlaces = await fetchDestinationPlaces(body.destination as string, process.env.GOOGLE_MAPS_KEY);
+      // For multi-city trips, fetch places for the first city as the primary context
+      const placesQuery = ((body.destinations as string[] | undefined)?.[0]) || (body.destination as string);
+      realPlaces = await fetchDestinationPlaces(placesQuery, process.env.GOOGLE_MAPS_KEY);
       console.log(`[generate-itinerary] Real places for "${body.destination}": ${(realPlaces as {restaurants: unknown[]}).restaurants.length} restaurants, ${(realPlaces as {attractions: unknown[]}).attractions.length} attractions`);
     } catch (err) {
       console.warn('[generate-itinerary] Could not fetch real places:', err);
@@ -660,6 +671,7 @@ export async function POST(request: NextRequest) {
     bookedHotel: body.bookedHotel as BookedHotel | null,   // legacy
     bookedHotels: body.bookedHotels as BookedHotel[],      // preferred
     mustHaves: (body.mustHaves as string[] | undefined) ?? [],
+    destinations: (body.destinations as string[] | undefined) ?? [],
     realPlaces,
   });
 
