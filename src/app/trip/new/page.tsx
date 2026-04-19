@@ -87,6 +87,8 @@ interface TripWizardState {
   hasPreBookedHotel: boolean;
   /** Nomad only: return flight departs from a different airport */
   isOpenJaw: boolean;
+  /** Places or experiences the user absolutely must have in the itinerary */
+  mustHaves: string[];
 }
 
 const priorityOptions = [
@@ -264,11 +266,13 @@ function TripBuilderPage() {
     hasPreBookedFlight: false,
     hasPreBookedHotel: false,
     isOpenJaw: false,
+    mustHaves: [],
   });
 
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
     useState(false);
   const [budgetAutoFilled, setBudgetAutoFilled] = useState(false);
+  const [mustHaveInput, setMustHaveInput] = useState('');
 
   // Destination typeahead — powered by world cities dataset
   const {
@@ -429,6 +433,7 @@ function TripBuilderPage() {
           budgetBreakdown: state.budgetBreakdown,
           ageRanges: state.ageRanges,
           accessibilityNeeds: state.accessibilityNeeds,
+          mustHaves: state.mustHaves,
           localMode: state.localMode,
           curiosityLevel: state.curiosityLevel,
           modality: state.modality.join(', '),
@@ -1693,6 +1698,68 @@ function TripBuilderPage() {
                     </p>
                   </div>
                 )}
+
+                {/* Must-haves */}
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <label className="block text-sm font-semibold text-slate-900 mb-1">
+                    Must-haves 📍
+                  </label>
+                  <p className="text-xs text-slate-500 mb-4">
+                    Specific places, restaurants, or experiences you absolutely don&apos;t want to miss — we&apos;ll make sure they&apos;re in your itinerary.
+                  </p>
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={mustHaveInput}
+                      onChange={(e) => setMustHaveInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && mustHaveInput.trim()) {
+                          e.preventDefault();
+                          const val = mustHaveInput.trim();
+                          if (!state.mustHaves.includes(val)) {
+                            setState(prev => ({ ...prev, mustHaves: [...prev.mustHaves, val] }));
+                          }
+                          setMustHaveInput('');
+                        }
+                      }}
+                      placeholder="e.g. Eiffel Tower, sushi omakase, sunrise hike…"
+                      className="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = mustHaveInput.trim();
+                        if (val && !state.mustHaves.includes(val)) {
+                          setState(prev => ({ ...prev, mustHaves: [...prev.mustHaves, val] }));
+                        }
+                        setMustHaveInput('');
+                      }}
+                      disabled={!mustHaveInput.trim()}
+                      className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {state.mustHaves.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {state.mustHaves.map((item) => (
+                        <span
+                          key={item}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium rounded-full"
+                        >
+                          📍 {item}
+                          <button
+                            type="button"
+                            onClick={() => setState(prev => ({ ...prev, mustHaves: prev.mustHaves.filter(m => m !== item) }))}
+                            className="text-amber-500 hover:text-amber-700 ml-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

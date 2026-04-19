@@ -162,6 +162,7 @@ function buildPrompt(params: {
   bookedFlight?: BookedFlight | null;
   bookedHotel?: BookedHotel | null;    // legacy single-hotel (kept for backward compat)
   bookedHotels?: BookedHotel[];        // preferred: array of hotels for multi-hotel trips
+  mustHaves?: string[];                // user's non-negotiable places/experiences
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
 }) {
   const {
@@ -171,6 +172,7 @@ function buildPrompt(params: {
     localMode, curiosityLevel, modality, accommodationType,
     bookedFlight, realPlaces,
   } = params;
+  const mustHaves = params.mustHaves ?? [];
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
   const bookedHotels: BookedHotel[] = params.bookedHotels?.length
@@ -214,6 +216,11 @@ function buildPrompt(params: {
   // Photography guidance — iconic spots always included; extra depth when photography is a priority
   const photoText = priorities.includes('photography')
     ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour timing, interesting angles, and any access restrictions. Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, murals, reflections, etc. Include at least one spot that most tourists miss.`
+    : '';
+
+  // Must-haves: hard-requirement text injected if user specified any
+  const mustHaveText = mustHaves.length > 0
+    ? `\n- MUST-HAVES (non-negotiable — each item below MUST appear as a named activity somewhere in the itinerary. Do not omit or replace any of them):\n${mustHaves.map(m => `    • ${m}`).join('\n')}`
     : '';
 
   // Build pre-booking context text
@@ -315,7 +322,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${preBookingText}
+- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${mustHaveText}${preBookingText}
 
 ${(() => {
     if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
@@ -628,6 +635,7 @@ export async function POST(request: NextRequest) {
     bookedFlight: body.bookedFlight as BookedFlight | null,
     bookedHotel: body.bookedHotel as BookedHotel | null,   // legacy
     bookedHotels: body.bookedHotels as BookedHotel[],      // preferred
+    mustHaves: (body.mustHaves as string[] | undefined) ?? [],
     realPlaces,
   });
 
