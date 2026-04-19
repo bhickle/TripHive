@@ -144,7 +144,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
             </div>
             <div className="flex items-center gap-1.5 text-xs text-zinc-500">
               <Users className="w-3 h-3" />
-              <span>{trip.memberCount + trip.guestCount} travelers</span>
+              <span>{trip.memberCount + trip.guestCount} {(trip.memberCount + trip.guestCount) === 1 ? 'traveler' : 'travelers'}</span>
             </div>
           </div>
 

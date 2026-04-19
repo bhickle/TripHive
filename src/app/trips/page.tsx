@@ -27,10 +27,13 @@ export default function TripsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
+  // Start in loading state so we never flash "No trips here yet" before fetch resolves
+  const [tripsLoading, setTripsLoading] = useState(true);
 
   useEffect(() => {
     if (currentUser.isLoading) return;
     if (!currentUser.isDemo && currentUser.id) {
+      setTripsLoading(true);
       fetch('/api/trips')
         .then(r => r.ok ? r.json() : { trips: [] })
         .then(({ trips: supaTrips }) => {
@@ -53,12 +56,14 @@ export default function TripsPage() {
             })));
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setTripsLoading(false));
     } else {
       try {
         const stored = localStorage.getItem('tripcoord_user_trips');
         if (stored) setUserTrips(JSON.parse(stored));
       } catch { /* ignore */ }
+      setTripsLoading(false);
     }
   }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
 
@@ -169,7 +174,7 @@ export default function TripsPage() {
         </div>
 
         {/* No results */}
-        {filteredTrips.length === 0 && (
+        {filteredTrips.length === 0 && !tripsLoading && (
           <div className="text-center py-20">
             <MapPin className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
             <h3 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">No trips here yet</h3>

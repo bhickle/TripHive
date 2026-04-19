@@ -65,23 +65,26 @@ Rules:
     });
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
-    const raw = '[' + text;
 
     // Strip markdown fences, fix smart quotes and trailing commas
-    const cleaned = raw
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
+    const cleaned = text
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/,(\s*[}\]])/g, '$1')
       .trim();
 
+    // Ensure the response is wrapped in an array — add brackets only if the model omitted them
+    const raw = cleaned.startsWith('[') ? cleaned : '[' + cleaned + ']';
+
     // Find the outermost JSON array
-    const arrStart = cleaned.indexOf('[');
-    const arrEnd = cleaned.lastIndexOf(']');
+    const arrStart = raw.indexOf('[');
+    const arrEnd = raw.lastIndexOf(']');
     if (arrStart === -1 || arrEnd === -1) throw new Error('No JSON array in response');
 
-    const items = JSON.parse(cleaned.slice(arrStart, arrEnd + 1));
+    const items = JSON.parse(raw.slice(arrStart, arrEnd + 1));
     if (!Array.isArray(items)) throw new Error('Expected array');
 
     return NextResponse.json({ items });

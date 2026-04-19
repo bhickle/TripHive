@@ -107,29 +107,36 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       }
       setPackingLoaded(true);
       if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
-        // store destination for the phrasebook feature
+        const dest = tripRes.value.trip.destination;
+        // Update state so all destination-dependent UI uses the correct trip destination
+        setTripDestination(dest);
+        // Also store for the phrasebook and discover features
         try {
+          localStorage.setItem('currentTripId', params.id);
           const existing = JSON.parse(localStorage.getItem('generatedTripMeta') || '{}');
-          if (!existing.destination) {
-            localStorage.setItem('generatedTripMeta', JSON.stringify({
-              ...existing,
-              destination: tripRes.value.trip.destination,
-            }));
-          }
+          localStorage.setItem('generatedTripMeta', JSON.stringify({
+            ...existing,
+            destination: dest,
+          }));
         } catch { /* ignore */ }
       }
     });
   }, [isMockTrip, params.id]);
 
-  // Read trip destination from localStorage for real trips; fall back to mock for demo
-  const tripDestination = (() => {
+  // Trip destination as state (not a one-time IIFE) so it updates when the API returns data.
+  // For real trips the initial value reads from localStorage only when the stored trip ID matches
+  // (same guard the discover page uses), preventing bleed-over from a previously-generated trip.
+  const [tripDestination, setTripDestination] = useState<string>(() => {
     if (isMockTrip) return trips[0]?.destination ?? 'Iceland';
     try {
+      const storedId = localStorage.getItem('currentTripId');
       const stored = localStorage.getItem('generatedTripMeta');
-      if (stored) return JSON.parse(stored).destination || 'your destination';
+      if (stored && (storedId === params.id || params.id.startsWith('upload_'))) {
+        return JSON.parse(stored).destination || 'your destination';
+      }
     } catch { /* ignore */ }
     return 'your destination';
-  })();
+  });
 
   // For multi-country trips (cruises, road trips), extract individual port/country names
   // so we can generate a phrasebook per distinct language region

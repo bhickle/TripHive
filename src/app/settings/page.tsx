@@ -480,8 +480,10 @@ export default function SettingsPage() {
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Your Profile</h2>
 
-                  {/* Loading skeleton */}
-                  {authLoading ? (
+                  {/* Loading skeleton — only shown while auth is resolving AND we have no
+                      user name yet. Falls through immediately if currentUser already has data
+                      (e.g. name from session metadata or mock fallback), so it can never hang. */}
+                  {authLoading && !currentUser.name ? (
                     <div className="animate-pulse flex items-center gap-6 pb-6 border-b border-slate-200">
                       <div className="w-16 h-16 rounded-full bg-slate-200" />
                       <div className="space-y-2">

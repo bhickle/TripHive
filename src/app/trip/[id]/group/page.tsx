@@ -102,6 +102,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
           setTripDestination(tripRes.value.trip.destination);
         }
+        if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.budget_total) {
+          setTripBudgetTotal(tripRes.value.trip.budget_total);
+        }
         if (tripRes.status === 'fulfilled' && tripRes.value?.itinerary?.days) {
           const days = tripRes.value.itinerary.days;
           setItineraryDaysData(days);
@@ -177,6 +180,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [replacedActivityIds, setReplacedActivityIds] = useState<Set<string>>(new Set());
   const [tripDestination, setTripDestination] = useState<string>('');
   const [itineraryDaysData, setItineraryDaysData] = useState<any[]>([]);
+  // Trip budget_total from Supabase — used to calculate the utilization bar
+  const [tripBudgetTotal, setTripBudgetTotal] = useState<number>(0);
 
   // Replace a majority-Nay activity with an AI suggestion
   const handleReplaceNayActivity = async (nay: NayActivity) => {
@@ -607,7 +612,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           {tripName}
         </h1>
         <p className="text-lg text-zinc-600">
-          {groupMembers.length} people on this trip
+          {groupMembers.length} {groupMembers.length === 1 ? 'person' : 'people'} on this trip
         </p>
       </div>
 
@@ -748,10 +753,24 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   <p className="text-3xl font-bold text-zinc-900">TBD</p>
                 </div>
               </div>
-              <div className="mt-6 w-full bg-zinc-200 rounded-full h-2">
-                <div className="bg-sky-800 h-2 rounded-full" style={{ width: '65%' }}></div>
-              </div>
-              <p className="text-xs text-zinc-500 mt-3">Trip budget utilization</p>
+              {(() => {
+                const budget = isMockTrip ? 5200 : tripBudgetTotal;
+                const pct = budget > 0
+                  ? Math.min(100, Math.round((expenseData.totalSpent / budget) * 100))
+                  : 0;
+                return (
+                  <>
+                    <div className="mt-6 w-full bg-zinc-200 rounded-full h-2">
+                      <div className="bg-sky-800 h-2 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-3">
+                      {budget > 0
+                        ? `${pct}% of $${budget.toLocaleString()} budget used`
+                        : 'Trip budget utilization — set a budget in trip settings to track'}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Nay Watch — only shown for real trips with majority-Nay activities */}
