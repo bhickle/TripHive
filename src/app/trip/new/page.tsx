@@ -31,6 +31,8 @@ import {
   X,
   Plus,
   Lock,
+  Info,
+  Crown,
 } from 'lucide-react';
 
 interface BookedFlight {
@@ -42,6 +44,10 @@ interface BookedFlight {
   arrivalTime: string;
   returnDepartureTime: string;
   returnArrivalTime: string;
+  /** Nomad open-jaw: airport the return flight departs from (if different from arrivalAirport) */
+  returnDepartureAirport?: string;
+  /** Nomad open-jaw: airport the return flight arrives at (usually home airport) */
+  returnArrivalAirport?: string;
 }
 
 interface BookedHotel {
@@ -79,6 +85,8 @@ interface TripWizardState {
   bookedHotels: BookedHotel[];
   hasPreBookedFlight: boolean;
   hasPreBookedHotel: boolean;
+  /** Nomad only: return flight departs from a different airport */
+  isOpenJaw: boolean;
 }
 
 const priorityOptions = [
@@ -255,6 +263,7 @@ function TripBuilderPage() {
     bookedHotels: [],
     hasPreBookedFlight: false,
     hasPreBookedHotel: false,
+    isOpenJaw: false,
   });
 
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
@@ -1246,6 +1255,7 @@ function TripBuilderPage() {
                         onClick={() => setState(prev => ({
                           ...prev,
                           hasPreBookedFlight: !prev.hasPreBookedFlight,
+                          isOpenJaw: false,
                           bookedFlight: !prev.hasPreBookedFlight ? {
                             airline: '', flightNumber: '', departureAirport: '', arrivalAirport: '',
                             departureTime: '', arrivalTime: '', returnDepartureTime: '', returnArrivalTime: '',
@@ -1261,6 +1271,17 @@ function TripBuilderPage() {
                       </button>
                     </label>
                   </div>
+
+                  {/* Same-airport note — always visible once flights are toggled on */}
+                  {state.hasPreBookedFlight && (
+                    <div className="flex items-start gap-2 px-3 py-2.5 bg-sky-50 border border-sky-100 rounded-lg mb-4 text-xs text-sky-700">
+                      <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <span>
+                        We plan your itinerary assuming your return flight departs from the same airport you arrive into.
+                        {tier === 'nomad' && ' Nomad users can override this in the Return section below.'}
+                      </span>
+                    </div>
+                  )}
 
                   {state.hasPreBookedFlight && state.bookedFlight && (
                     <div className="p-5 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
@@ -1311,6 +1332,53 @@ function TripBuilderPage() {
 
                       <div className="border-t border-sky-100 pt-4">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Return (optional)</p>
+
+                        {/* Open-jaw toggle — Nomad only */}
+                        {tier === 'nomad' && (
+                          <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-amber-100 rounded-lg">
+                            <button
+                              onClick={() => setState(prev => ({
+                                ...prev,
+                                isOpenJaw: !prev.isOpenJaw,
+                                bookedFlight: prev.bookedFlight
+                                  ? { ...prev.bookedFlight, returnDepartureAirport: '', returnArrivalAirport: '' }
+                                  : null,
+                              }))}
+                              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${
+                                state.isOpenJaw ? 'bg-amber-500' : 'bg-slate-200'
+                              }`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                                state.isOpenJaw ? 'translate-x-4' : 'translate-x-0.5'
+                              }`} />
+                            </button>
+                            <span className="text-xs text-slate-700 flex items-center gap-1.5">
+                              <Crown className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                              My return flight departs from a different airport
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Open-jaw airport fields — Nomad only, when toggled on */}
+                        {tier === 'nomad' && state.isOpenJaw && (
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Return Departs From</label>
+                              <input type="text" placeholder="e.g. FCO, BCN"
+                                value={state.bookedFlight.returnDepartureAirport ?? ''}
+                                onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnDepartureAirport: e.target.value } }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Return Arrives At (home)</label>
+                              <input type="text" placeholder="e.g. JFK, LAX"
+                                value={state.bookedFlight.returnArrivalAirport ?? ''}
+                                onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnArrivalAirport: e.target.value } }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white" />
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Return Departure</label>
@@ -1362,12 +1430,12 @@ function TripBuilderPage() {
                     <div className="space-y-4">
                       {state.bookedHotels.map((hotel, idx) => (
                         <div key={idx} className="p-5 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
-                          {/* Hotel header with index + remove button */}
-                          {state.bookedHotels.length > 1 && (
-                            <div className="flex items-center justify-between -mb-1">
-                              <span className="text-xs font-semibold text-sky-700 uppercase tracking-wide">
-                                Hotel {idx + 1}
-                              </span>
+                          {/* Hotel header */}
+                          <div className="flex items-center justify-between -mb-1">
+                            <span className="text-xs font-semibold text-sky-700 uppercase tracking-wide">
+                              {state.bookedHotels.length > 1 ? `Hotel ${idx + 1}` : 'Hotel'}
+                            </span>
+                            {idx > 0 && (
                               <button
                                 onClick={() => setState(prev => ({
                                   ...prev,
@@ -1375,11 +1443,10 @@ function TripBuilderPage() {
                                 }))}
                                 className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700 transition-colors"
                               >
-                                <X className="w-3.5 h-3.5" />
-                                Remove
+                                <X className="w-3.5 h-3.5" /> Remove
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                           <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Hotel Name</label>
                             <input
@@ -1443,17 +1510,38 @@ function TripBuilderPage() {
                         </div>
                       ))}
 
-                      {/* Add another hotel */}
-                      <button
-                        onClick={() => setState(prev => ({
-                          ...prev,
-                          bookedHotels: [...prev.bookedHotels, { name: '', address: '', checkIn: '', checkOut: '' }],
-                        }))}
-                        className="flex items-center gap-2 text-sm text-sky-700 hover:text-sky-900 font-medium transition-colors py-1"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add another hotel
-                      </button>
+                      {/* Add another hotel — tier-gated with progressive disclosure */}
+                      {(() => {
+                        const maxHotels = tier === 'nomad' ? 7 : tier === 'explorer' ? 3 : 1;
+                        const lastFilled = state.bookedHotels[state.bookedHotels.length - 1]?.name?.trim() !== '';
+                        // Explorer: progressive — only show when last slot has a name
+                        // Nomad: always show when under cap
+                        const canAdd = state.bookedHotels.length < maxHotels && (tier === 'nomad' ? true : lastFilled);
+                        if (!canAdd) return null;
+                        return (
+                          <button
+                            onClick={() => setState(prev => ({
+                              ...prev,
+                              bookedHotels: [...prev.bookedHotels, { name: '', address: '', checkIn: '', checkOut: '' }],
+                            }))}
+                            className="flex items-center gap-2 text-sm text-sky-700 hover:text-sky-900 font-medium transition-colors py-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add another hotel
+                            {tier === 'explorer' && state.bookedHotels.length < maxHotels && (
+                              <span className="text-xs text-slate-400 font-normal">({state.bookedHotels.length}/{maxHotels})</span>
+                            )}
+                          </button>
+                        );
+                      })()}
+
+                      {/* Tier cap hint for Free / Trip Pass */}
+                      {(tier === 'free' || tier === 'trip_pass') && state.bookedHotels.length >= 1 && (
+                        <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                          <Lock className="w-3 h-3" />
+                          Multiple hotels require Explorer or Nomad. <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade</Link>
+                        </p>
+                      )}
 
                       {state.bookedHotels.length > 1 && (
                         <p className="text-xs text-slate-500 italic">

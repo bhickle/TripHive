@@ -22,6 +22,8 @@ interface BookedFlight {
   arrivalTime?: string;
   returnDepartureTime?: string;
   returnArrivalTime?: string;
+  returnDepartureAirport?: string; // open-jaw: different return departure airport (Nomad)
+  returnArrivalAirport?: string;   // open-jaw: different return arrival airport (Nomad)
 }
 
 interface BookedHotel {
@@ -223,11 +225,16 @@ function buildPrompt(params: {
     const returnFlight = bookedFlight.returnDepartureTime
       ? `Return: departs ${bookedFlight.returnDepartureTime}${bookedFlight.returnArrivalTime ? `, arrives ${bookedFlight.returnArrivalTime}` : ''}.`
       : '';
+    const isOpenJaw = bookedFlight.returnDepartureAirport &&
+      bookedFlight.returnDepartureAirport.trim() !== '' &&
+      bookedFlight.returnDepartureAirport !== bookedFlight.arrivalAirport;
+
     preBookingText += `\nPRE-BOOKED FLIGHTS (${bookedFlight.airline || ''} ${bookedFlight.flightNumber || ''}):
   ${outbound}
   ${returnFlight}
   → Day 1 must account for arrival time — no activities before the flight lands. Last day must end by departure time.
-  → Flights are already paid; exclude flight cost from budget recommendations.`;
+  → Flights are already paid; exclude flight cost from budget recommendations.${isOpenJaw ? `
+  → OPEN-JAW TRIP: The group's return flight departs from ${bookedFlight.returnDepartureAirport}. The final day must route toward ${bookedFlight.returnDepartureAirport} — do NOT route back to ${bookedFlight.arrivalAirport}. Activities on the last day should be in or near ${bookedFlight.returnDepartureAirport}, or logically along the route to it. Include a transport leg to ${bookedFlight.returnDepartureAirport} airport on the last day.` : ''}`;
   }
 
   if (hasPreBookedHotel) {
@@ -472,6 +479,8 @@ Every activity must include a "transportToNext" field:
 - notes: brief landmark-based direction or useful transit tip (can be null if self-evident)
 Set transportToNext to null on the last activity of each day (no onward journey needed).
 ${walkingRuleText}
+
+GEOGRAPHIC CLUSTERING RULE: When a transport leg (car, bus, train, or excursion) moves the group to a new town or region, ALL activities scheduled after that transport leg — until the next transport leg — must cluster within 0.5 miles of each other around a central point in that town. Restaurants must always be within walking distance of the immediately preceding activity — never require a separate drive just for a meal. If two activities in the same town are more than 0.5 miles apart, insert a transport leg between them.
 
 DAILY BUDGET ENFORCEMENT:
 - Food budget: $${dailyFoodBudget} per person per day — the sum of costEstimate for all 3 restaurant activities must not exceed this amount
