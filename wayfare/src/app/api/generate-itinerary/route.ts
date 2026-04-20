@@ -47,6 +47,34 @@ interface GooglePlace {
   openingHours?: string[]; // weekdayDescriptions e.g. ["Monday: 11:00 AM – 9:00 PM", ...]
 }
 
+function getSuggestedTrackLabels(priorities: string[]): { a: string; b: string } | null {
+  const highEnergy = priorities.filter(p => ['adventure', 'sports', 'nightlife'].includes(p));
+  const hasNature = priorities.includes('nature');
+  const lowEnergy = priorities.filter(p => ['wellness', 'culture', 'history', 'food', 'shopping'].includes(p));
+
+  // Only suggest labels if there's a genuine split
+  if ((highEnergy.length === 0 && !hasNature) || lowEnergy.length === 0) return null;
+
+  let labelA = '';
+  if (highEnergy.includes('adventure') && highEnergy.includes('sports')) labelA = 'Adventure & Sports';
+  else if (highEnergy.includes('adventure') || hasNature) labelA = 'Outdoors & Adventure';
+  else if (highEnergy.includes('sports')) labelA = 'Active & Sporty';
+  else if (highEnergy.includes('nightlife')) labelA = 'Nightlife & Energy';
+  else labelA = 'Active & Outdoors';
+
+  let labelB = '';
+  if (lowEnergy.includes('culture') && lowEnergy.includes('history')) labelB = 'Culture & History';
+  else if (lowEnergy.includes('wellness') && lowEnergy.includes('culture')) labelB = 'Culture & Wellness';
+  else if (lowEnergy.includes('culture') || lowEnergy.includes('history')) labelB = 'Culture & Sightseeing';
+  else if (lowEnergy.includes('wellness')) labelB = 'Rest & Wellness';
+  else if (lowEnergy.includes('food') && lowEnergy.includes('shopping')) labelB = 'Food & Shopping';
+  else if (lowEnergy.includes('food')) labelB = 'Food & Slow Mornings';
+  else if (lowEnergy.includes('shopping')) labelB = 'Shopping & Wandering';
+  else labelB = 'Slow & Scenic';
+
+  return { a: labelA, b: labelB };
+}
+
 interface PlacesApiNewResult {
   id?: string;
   displayName?: { text: string };
@@ -170,6 +198,7 @@ function buildPrompt(params: {
   daysPerDestination?: Record<string, number>; // optional day allocation per city
   additionalContext?: string;          // free-text notes from the user ("anything else?")
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
+  multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
 }) {
   const {
     destination, startDate, endDate, tripLength,
@@ -182,6 +211,7 @@ function buildPrompt(params: {
   const destinations = params.destinations ?? [];
   const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
+  const multiCityPlaces = params.multiCityPlaces ?? null;
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
   const bookedHotels: BookedHotel[] = params.bookedHotels?.length
@@ -194,6 +224,8 @@ function buildPrompt(params: {
   const priorityText = priorities.length > 0
     ? priorities.join(', ')
     : 'balanced mix of culture, food, and sightseeing';
+
+  const suggestedTrackLabels = getSuggestedTrackLabels(priorities);
 
   const accessibilityText = accessibilityNeeds.filter(n => n !== 'No special needs').join(', ') || 'none';
 
@@ -224,6 +256,8 @@ function buildPrompt(params: {
 
   // Food priority — elevated foodie experience throughout the entire itinerary
   const hasFoodPriority = priorities.includes('food');
+  const hasNightlifePriority = priorities.includes('nightlife');
+  const hasShoppingPriority = priorities.includes('shopping');
   const foodText = hasFoodPriority
     ? `\n- FOODIE PRIORITY — ELEVATED STANDARDS FOR EVERY MEAL AND FOOD EXPERIENCE:
   This group is serious about food. Eating is not a logistical checkpoint — it is the highlight of the day. Apply these rules across every single meal slot in the itinerary:
@@ -261,6 +295,11 @@ function buildPrompt(params: {
     ? `\n- NIGHTLIFE PRIORITY: This group wants to experience the local after-dark scene. Include a mix of: live music venues (jazz bars, indie stages, rooftop bars), cocktail lounges, neighborhood gastropubs, and any well-known nightlife districts. Dinner should flow naturally into the evening's nightlife activities. Note cover charges and opening times in descriptions where known. Avoid tourist-trap party strips — favor spots where locals actually go.`
     : '';
 
+  // Shopping priority (Item 13)
+  const shoppingText = priorities.includes('shopping')
+    ? `\n- SHOPPING PRIORITY: This group enjoys discovering local goods and markets. Include: a local artisan market or bazaar, one or two well-curated independent boutiques (not international chains), a food or produce market for local specialties, and any craft or design districts the destination is known for. Descriptions should highlight what makes each spot unique and what to look for — local crafts, fashion, ceramics, textiles, etc.`
+    : '';
+
   // History priority (Item 13)
   const historyText = priorities.includes('history')
     ? `\n- HISTORY PRIORITY: This group is passionate about history and heritage. Beyond the obvious landmarks, include: lesser-known historic districts, guided walking tours of old quarters, significant archaeological or architectural sites, local history museums, and stories behind specific buildings or monuments. Activity descriptions should include historical context — when was it built, what happened here, why does it matter.`
@@ -269,11 +308,6 @@ function buildPrompt(params: {
   // Wellness priority (Item 13)
   const wellnessText = priorities.includes('wellness')
     ? `\n- WELLNESS PRIORITY: This group values rest and rejuvenation alongside exploration. Include: a spa or hammam visit, a morning yoga class or meditation session, a scenic slow walk or gentle nature activity, and a healthy or mindful dining experience. Pace the days with breathing room — don't pack every hour. At least one activity per day should be low-intensity or explicitly restorative.`
-    : '';
-
-  // Shopping priority (Item 13)
-  const shoppingText = priorities.includes('shopping')
-    ? `\n- SHOPPING PRIORITY: This group enjoys discovering local goods and markets. Include: a local artisan market or bazaar, one or two well-curated independent boutiques (not international chains), a food or produce market for local specialties, and any craft or design districts the destination is known for. Descriptions should highlight what makes each spot unique and what to look for — local crafts, fashion, ceramics, textiles, etc.`
     : '';
 
   // Adventure priority (Item 13)
@@ -432,6 +466,23 @@ TRIP DETAILS:
 - Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${preBookingText}${multiCityText}
 
 ${(() => {
+    // Multi-city: inject per-city place sections
+    if (multiCityPlaces && Object.keys(multiCityPlaces).length >= 2) {
+      const sections: string[] = [];
+      for (const [city, places] of Object.entries(multiCityPlaces)) {
+        if (!places || (places.restaurants.length === 0 && places.attractions.length === 0)) continue;
+        let section = `\nCRITICAL — REAL PLACES IN ${city.toUpperCase()} ONLY (verified via Google Places):\nOn days when the group is in ${city}, use ONLY these venues. Do NOT invent restaurants or activities for ${city}.\nOPENING HOURS: schedule each venue only within its listed hours. QUALITY & CURATION rules apply as normal.\n`;
+        if (places.restaurants.length > 0) {
+          section += `\nREAL RESTAURANTS IN ${city.toUpperCase()}:\n${places.restaurants.map(r => formatPlaceForPrompt(r)).join('\n')}`;
+        }
+        if (places.attractions.length > 0) {
+          section += `\n\nREAL ATTRACTIONS IN ${city.toUpperCase()}:\n${places.attractions.map(a => formatPlaceForPrompt(a)).join('\n')}`;
+        }
+        sections.push(section);
+      }
+      if (sections.length > 0) return sections.join('\n') + '\n';
+    }
+
     if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
     const { restaurants, attractions } = realPlaces;
 
@@ -499,6 +550,34 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
       }
     ]
     Rules: (1) Every tip must be DIFFERENT from the breakfast/lunch/dinner restaurants in the daily tracks — these are the bonus discoveries, the spontaneous stops, the things only a real food lover would seek out. (2) Vary the type widely — include at least one great coffee, one market or food hall, one late-night or post-dinner snack, and one specialty shop or tasting. (3) Must be real, specifically named establishments — no invented places. (4) Write each "why" like a food writer: opinionated, enthusiastic, and concrete. (5) Spread tips across different times of day so the group can slot them naturally into any day of the trip.` : ''}
+${hasNightlifePriority ? `
+  "nightlifeHighlights" — since nightlife is a top priority, include an array of 5-7 evening venues curated for this destination (day 1 only, covers full trip):
+    [
+      {
+        "name": "Bar, club, or venue name — specific and real",
+        "type": "cocktail bar | rooftop bar | live music | jazz bar | wine bar | craft beer | club | lounge | pub | speakeasy",
+        "neighborhood": "District or area name",
+        "vibe": "The atmosphere in one sentence — packed and loud? intimate and moody? locals-only dive?",
+        "bestNight": "Best night or time to visit — e.g. 'Thursday jazz nights', 'weekends from 11pm', 'any evening'",
+        "openFrom": "Rough opening time and last entry if known — e.g. '8pm until late'",
+        "tip": "One practical tip — reservation required, cover charge, dress code, best seat in the house, etc."
+      }
+    ]
+    Rules: (1) All venues must be real and specifically named — no invented bars. (2) Vary the type: include at least one live music venue, one cocktail bar, and one locals-only spot. (3) Write "vibe" with personality — specific, atmospheric, opinionated. (4) No tourist-trap venues — the list should read like a local's guide.` : ''}
+${hasShoppingPriority ? `
+  "shoppingGuide" — since shopping is a top priority, include an array of 5-7 curated shopping spots (day 1 only, covers full trip):
+    [
+      {
+        "name": "Market, shop, or district name — specific and real",
+        "type": "flea market | artisan market | food market | boutique | vintage | craft | design | neighborhood | specialty shop | department",
+        "neighborhood": "District or area",
+        "what": "What you'll find — name specific goods, products, brands, or specialties. Be vivid.",
+        "bestFor": "Who this is best for — bargain hunters? design lovers? foodies? souvenir seekers?",
+        "openDays": "Days and hours — e.g. 'Saturdays 8am–3pm only' or 'Mon–Sat 10am–7pm'",
+        "tip": "One insider tip — arrive early for best selection, cash preferred, haggling expected, hidden floor, etc."
+      }
+    ]
+    Rules: (1) Prioritize local and independent over international chains. (2) Vary the type — at least one food/produce market, one craft or artisan market, and one neighborhood to browse. (3) Include specific items or products to look for — don't be generic. (4) Be real and accurately named.` : ''}
     {
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
@@ -512,7 +591,9 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
   {
     "title": "Evocative trip name here (day 1 only)",
     "practicalNotes": { ... (day 1 only) },${hasFoodPriority ? `
-    "foodieTips": [ ... (day 1 only, food priority trips) ],` : ''}
+    "foodieTips": [ ... (day 1 only, food priority trips) ],` : ''}${hasNightlifePriority ? `
+    "nightlifeHighlights": [ ... (day 1 only, nightlife priority trips) ],` : ''}${hasShoppingPriority ? `
+    "shoppingGuide": [ ... (day 1 only, shopping priority trips) ],` : ''}
     "day": 1,
     "date": "${startDate}",
     "theme": "Evocative 3-5 word theme for the day",
@@ -589,7 +670,7 @@ SPLIT TRACK DECISION — follow this logic exactly:
 - SPLIT if: the priorities include at least one high-energy option (adventure, sports, nightlife, nature) AND at least one low-energy option (wellness, culture, history, food, shopping). These represent genuinely different paces that can't be served by a single shared schedule.
 - DO NOT SPLIT if: all priorities are in the same energy band, or the group type is "solo" or "couple".
 - When you DO split: apply splits on middle days only (not Day 1 arrival or last day departure). Mornings should always be shared. Splits happen in the afternoon block. Groups reconvene for the evening meetup.
-- trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels, e.g. "Active & Outdoors" / "Culture & Relaxation" or "Nightlife & Energy" / "Slow & Scenic". These display directly in the UI so make them friendly and specific to this trip.
+- trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels. These display directly in the UI.${suggestedTrackLabels ? ` Based on this group's priorities (${priorities.join(', ')}), suggested labels: "${suggestedTrackLabels.a}" / "${suggestedTrackLabels.b}" — use these directly or adapt them to better match the specific activities planned.` : ` Examples: "Active & Outdoors" / "Culture & Relaxation", "Nightlife & Energy" / "Slow & Scenic".`}
 - When NOT splitting: set trackALabel and trackBLabel to null and leave track_a and track_b as empty arrays.
 
 MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
@@ -744,12 +825,29 @@ export async function POST(request: NextRequest) {
 
   // Pre-fetch real places (before the stream opens — this is fast, ~1s)
   let realPlaces = null;
+  let multiCityPlaces: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null = null;
   if (process.env.GOOGLE_MAPS_KEY) {
     try {
-      // For multi-city trips, fetch places for the first city as the primary context
-      const placesQuery = ((body.destinations as string[] | undefined)?.[0]) || (body.destination as string);
-      realPlaces = await fetchDestinationPlaces(placesQuery, process.env.GOOGLE_MAPS_KEY);
-      console.log(`[generate-itinerary] Real places for "${body.destination}": ${(realPlaces as {restaurants: unknown[]}).restaurants.length} restaurants, ${(realPlaces as {attractions: unknown[]}).attractions.length} attractions`);
+      const requestedDestinations = (body.destinations as string[] | undefined) ?? [];
+      if (requestedDestinations.length >= 2) {
+        // Multi-city: fetch for up to 4 cities in parallel
+        const citiesToFetch = requestedDestinations.slice(0, 4);
+        const results = await Promise.allSettled(
+          citiesToFetch.map(city => fetchDestinationPlaces(city, process.env.GOOGLE_MAPS_KEY!))
+        );
+        multiCityPlaces = {};
+        results.forEach((result, idx) => {
+          if (result.status === 'fulfilled') {
+            multiCityPlaces![citiesToFetch[idx]] = result.value;
+            console.log(`[generate-itinerary] Places for "${citiesToFetch[idx]}": ${result.value.restaurants.length} restaurants, ${result.value.attractions.length} attractions`);
+          }
+        });
+        realPlaces = multiCityPlaces[citiesToFetch[0]] ?? null;
+      } else {
+        const placesQuery = requestedDestinations[0] || (body.destination as string);
+        realPlaces = await fetchDestinationPlaces(placesQuery, process.env.GOOGLE_MAPS_KEY);
+        console.log(`[generate-itinerary] Real places for "${body.destination}": ${(realPlaces as {restaurants: unknown[]}).restaurants.length} restaurants, ${(realPlaces as {attractions: unknown[]}).attractions.length} attractions`);
+      }
     } catch (err) {
       console.warn('[generate-itinerary] Could not fetch real places:', err);
     }
@@ -778,6 +876,7 @@ export async function POST(request: NextRequest) {
     daysPerDestination: (body.daysPerDestination as Record<string, number> | undefined) ?? {},
     additionalContext: (body.additionalContext as string | undefined) ?? '',
     realPlaces,
+    multiCityPlaces,
   });
 
   // ── Open SSE stream ──────────────────────────────────────────────────────────
@@ -846,11 +945,15 @@ export async function POST(request: NextRequest) {
                       practicalNotes: dayObj.practicalNotes ?? null,
                       hotelSuggestions: dayObj.hotelSuggestions ?? null,
                       foodieTips: dayObj.foodieTips ?? null,
+                      nightlifeHighlights: dayObj.nightlifeHighlights ?? null,
+                      shoppingGuide: dayObj.shoppingGuide ?? null,
                     });
                     delete dayObj.title;
                     delete dayObj.practicalNotes;
                     delete dayObj.hotelSuggestions;
                     delete dayObj.foodieTips;
+                    delete dayObj.nightlifeHighlights;
+                    delete dayObj.shoppingGuide;
                   }
 
                   send({ type: 'day', index: dayIndex, data: dayObj });
