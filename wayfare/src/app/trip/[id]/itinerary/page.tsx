@@ -43,6 +43,9 @@ import {
   RefreshCw,
   PersonStanding,
   Ship,
+  Navigation,
+  FileDown,
+  Map,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { TripStoryModal } from '@/components/TripStoryModal';
@@ -50,7 +53,6 @@ import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { MapView } from '@/components/MapView';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { Map } from 'lucide-react';
 
 // ─── Transport helpers ────────────────────────────────────────────────────────
 
@@ -315,6 +317,9 @@ function ItineraryPageContent() {
   // Set of activity IDs that were replaced by AI (shows the "AI Replaced" badge)
   const [replacedActivityIds, setReplacedActivityIds] = useState<Set<string>>(new Set());
 
+  // Hotel generation state
+  const [generatingHotels, setGeneratingHotels] = useState(false);
+
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     // Compute new vote counts using the current votes state via functional updater
     // (captures prev synchronously so next is available immediately after)
@@ -368,6 +373,21 @@ function ItineraryPageContent() {
       }).catch(() => {});
     }
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
+
+    // Fire-and-forget vote to dedicated votes table (persists per-user across sessions)
+    if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
+      fetch(`/api/votes/${tripId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activityId, vote: next.myVote }),
+      }).then(async res => {
+        if (res.ok) {
+          // Merge server-fresh counts back in (handles multi-user scenarios)
+          const { up, down } = await res.json();
+          setVotes(prev => ({ ...prev, [activityId]: { ...prev[activityId], up, down } }));
+        }
+      }).catch(() => {});
+    }
   }, [params.id]);
 
   // Seed votes from activity upVotes/downVotes when itinerary loads
@@ -443,6 +463,24 @@ function ItineraryPageContent() {
               setShowAiBanner(true);
               if (itinerary.meta) setAiMeta(itinerary.meta);
               seedVotesFromActivities(itinerary.days);
+
+              // Load per-user votes from dedicated table
+              if (/^[0-9a-f-]{36}$/i.test(tripPageId)) {
+                fetch(`/api/votes/${tripPageId}`)
+                  .then(r => r.ok ? r.json() : null)
+                  .then(data => {
+                    if (!data?.votes) return;
+                    setVotes(prev => {
+                      const merged = { ...prev };
+                      for (const [actId, v] of Object.entries(data.votes as Record<string, 'up' | 'down'>)) {
+                        merged[actId] = { ...(merged[actId] ?? { up: 0, down: 0 }), myVote: v };
+                      }
+                      return merged;
+                    });
+                  })
+                  .catch(() => {});
+              }
+
               return;
             }
           }
@@ -479,6 +517,49 @@ function ItineraryPageContent() {
     load();
   }, [tripPageId, seedVotesFromActivities]);
 
+  // Realtime: subscribe to itinerary updates for live vote sync
+  useEffect(() => {
+    if (!tripPageId || !/^[0-9a-f-]{36}$/i.test(tripPageId)) return;
+
+    // Dynamically import to avoid SSR issues
+    import('@/lib/supabase/client').then(({ createClient: createBrowserClient }) => {
+      const supabase = createBrowserClient();
+
+      const channel = supabase
+        .channel(`itinerary:${tripPageId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'itineraries', filter: `trip_id=eq.${tripPageId}` },
+          (payload) => {
+            const newDays = (payload.new as { days?: typeof itineraryDays }).days;
+            if (!Array.isArray(newDays)) return;
+            // Merge: update vote counts from server but preserve current session's myVote
+            setVotes(prev => {
+              const merged = { ...prev };
+              for (const day of newDays) {
+                for (const track of ['shared', 'track_a', 'track_b'] as const) {
+                  for (const act of (day.tracks[track] as typeof itineraryDays[0]['tracks']['shared'])) {
+                    if ((act as { upVotes?: number; downVotes?: number }).upVotes !== undefined) {
+                      const id = (act as { id: string }).id;
+                      merged[id] = {
+                        up: (act as { upVotes?: number }).upVotes ?? 0,
+                        down: (act as { downVotes?: number }).downVotes ?? 0,
+                        myVote: prev[id]?.myVote ?? null,
+                      };
+                    }
+                  }
+                }
+              }
+              return merged;
+            });
+          }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+    });
+  }, [tripPageId]);
+
   const clearAiItinerary = useCallback(() => {
     localStorage.removeItem('generatedItinerary');
     localStorage.removeItem('generatedTripMeta');
@@ -488,6 +569,33 @@ function ItineraryPageContent() {
     setShowAiBanner(false);
     setSelectedDay(1);
   }, []);
+
+  const handleGenerateHotels = useCallback(async () => {
+    if (!aiMeta?.destination) return;
+    setGeneratingHotels(true);
+    try {
+      const res = await fetch('/api/generate-hotels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: aiMeta.destination,
+          startDate: aiMeta.startDate,
+          endDate: aiMeta.endDate,
+          budget: aiMeta.budget,
+          budgetBreakdown: aiMeta.budgetBreakdown,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const { hotelSuggestions } = await res.json();
+      if (hotelSuggestions?.length) {
+        setAiMeta(prev => prev ? { ...prev, hotelSuggestions } : prev);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setGeneratingHotels(false);
+    }
+  }, [aiMeta]);
 
   // Form state
   const [newActivityName, setNewActivityName] = useState('');
@@ -1093,6 +1201,42 @@ function ItineraryPageContent() {
               <Map className="w-4 h-4" />
               Map
             </button>
+
+            {/* Open day route in Google Maps */}
+            {sortedActivities.length > 0 && (
+              <a
+                href={(() => {
+                  const addrs = sortedActivities
+                    .map(a => a.address)
+                    .filter(Boolean)
+                    .slice(0, 10); // Google Maps supports up to 10 waypoints
+                  if (addrs.length === 0) return '#';
+                  if (addrs.length === 1) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addrs[0]!)}`;
+                  const origin = encodeURIComponent(addrs[0]!);
+                  const dest = encodeURIComponent(addrs[addrs.length - 1]!);
+                  const waypoints = addrs.slice(1, -1).map(a => encodeURIComponent(a!)).join('|');
+                  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints ? `&waypoints=${waypoints}` : ''}`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+              >
+                <Navigation className="w-4 h-4" />
+                <span className="hidden sm:inline">Route</span>
+              </a>
+            )}
+
+            {/* Export PDF */}
+            <a
+              href={`/trip/${params.id}/print`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+            >
+              <FileDown className="w-4 h-4" />
+              <span className="hidden sm:inline">Export</span>
+            </a>
+
             <button
               onClick={() => hasTripStory ? setShowStoryModal(true) : setUpgradePromptKey('feature_locked')}
               className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
@@ -1853,6 +1997,37 @@ function ItineraryPageContent() {
                 <p className="text-[10px] text-zinc-400 mt-3 pt-2 border-t border-zinc-100">
                   AI suggestions · May include affiliate links
                 </p>
+              </div>
+            )}
+
+            {/* Hotel fallback — no pre-booked hotels AND no AI suggestions generated */}
+            {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) &&
+             (!aiMeta?.hotelSuggestions || aiMeta.hotelSuggestions.length === 0) &&
+             aiMeta?.destination && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🏨</span>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-4">No hotel booked yet — search for options</p>
+                <div className="space-y-2">
+                  <a
+                    href={`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(aiMeta.destination)}${aiMeta.startDate ? `&checkin=${aiMeta.startDate}` : ''}${aiMeta.endDate ? `&checkout=${aiMeta.endDate}` : ''}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-xl transition-all"
+                  >
+                    Browse Hotels on Booking.com →
+                  </a>
+                  <button
+                    onClick={handleGenerateHotels}
+                    disabled={generatingHotels}
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+                  >
+                    {generatingHotels ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    {generatingHotels ? 'Finding hotels…' : 'Get AI Suggestions'}
+                  </button>
+                </div>
               </div>
             )}
           </aside>
