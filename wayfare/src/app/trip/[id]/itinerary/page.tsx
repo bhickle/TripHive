@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { itineraryDays, trips } from '@/data/mock';
-import { Activity, TransportLeg } from '@/lib/types';
+import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
 import {
   Plus,
@@ -686,7 +686,7 @@ function ItineraryPageContent() {
         budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown']) ?? trips[0].budgetBreakdown,
         budgetTotal: aiMeta.budget ?? trips[0].budgetTotal }
     : (trips.find(t => t.id === 'trip_1') || trips[0]);
-  const currentDayData = activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0];
+  const currentDayData: ItineraryDay = (activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0]) as ItineraryDay;
 
   // ─── Persist updated days to state + localStorage + Supabase ─────────────────
   const persistDays = useCallback((updated: typeof itineraryDays) => {
