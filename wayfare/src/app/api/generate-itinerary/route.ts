@@ -222,10 +222,28 @@ function buildPrompt(params: {
     ? `\n- SPORTS PRIORITY: This group loves sports. Include visits to major stadiums, arenas, and iconic sports venues in ${destination} — even if no game is scheduled, a stadium tour or visit to a sports hall of fame is worth doing. Include sports bars, fan zones, and local sports memorabilia shops where fans gather. For any venue description, mention the team(s) that play there and note that checking the official team website for match dates is recommended — do NOT invent or speculate on specific fixture dates, as this information can change.`
     : '';
 
-  // Food priority — generate a separate foodieTips block of off-the-beaten-path spots on day 1
+  // Food priority — elevated foodie experience throughout the entire itinerary
   const hasFoodPriority = priorities.includes('food');
   const foodText = hasFoodPriority
-    ? `\n- FOOD PRIORITY: This group has food as a top priority. In addition to the standard meals in the itinerary, generate a "foodieTips" array on day 1 (see OUTPUT FORMAT) with 4-6 unique, off-the-beaten-path food experiences — food trucks, local markets, hole-in-the-wall joints, street food stalls, specialty shops, food halls, or unique culinary experiences that most tourists miss. These are NOT the standard breakfast/lunch/dinner spots in the itinerary tracks — they are bonus exploratory stops and ambient discoveries for adventurous eaters.`
+    ? `\n- FOODIE PRIORITY — ELEVATED STANDARDS FOR EVERY MEAL AND FOOD EXPERIENCE:
+  This group is serious about food. Eating is not a logistical checkpoint — it is the highlight of the day. Apply these rules across every single meal slot in the itinerary:
+
+  RESTAURANT SELECTION:
+  - Every breakfast, lunch, and dinner must be handpicked as if a food editor chose it. No chain restaurants, hotel buffets, or tourist-trap spots.
+  - Prioritize: neighborhood institutions beloved by locals, chefs doing exciting regional or seasonal cuisine, markets with legendary vendors, and spots with a distinctive personality or story.
+  - Mix the experience across the trip: a standing counter one morning, a lively market breakfast another, a chef's tasting lunch, a celebrated local trattoria for dinner — never two similar dining experiences back-to-back.
+  - At least one meal per day should feature a dish that is iconic or unique to this destination — something you genuinely cannot get back home.
+
+  RESTAURANT DESCRIPTIONS:
+  - Each restaurant description MUST include: (1) what to order — name 2-3 specific dishes or items, be concrete and appetizing, (2) why locals love it — the reputation, history, or cult following behind it, (3) the vibe — is it a loud bustling market? an intimate counter? a breezy courtyard?
+  - Write descriptions like a food writer: evocative, specific, and mouthwatering. "A local burger joint" is not acceptable. "A hole-in-the-wall counter that's been frying the city's best smash burgers since 1978 — order the double with pickled jalapeños" is.
+  - Never use generic phrases like "great food" or "nice atmosphere" — always be specific about WHAT and WHY.
+
+  DAY THEMES:
+  - Each day's theme should reflect the food journey, not just the sights — e.g. "Morning Market & Rooftop Dinner", "Street Food Day & Night Market", "Old Quarter Tastings & Chef's Counter".
+
+  BONUS FOODIE TIPS (day 1 output):
+  In addition to the daily meals, generate the "foodieTips" array on day 1 (see OUTPUT FORMAT) with 6-8 bonus food finds spread across the full trip — things that don't fit neatly into a meal slot but are unmissable for a serious foodie. Think: the best coffee in the city, a legendary mid-afternoon snack stop, a specialty food shop worth browsing, a late-night dumpling stall, or a market you should spend an hour in. Label each with the best time to visit so the group can slot them in naturally.`
     : '';
 
   // Photography guidance — iconic spots always included; extra depth when photography is a priority
@@ -467,19 +485,20 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
       }
     ]
     Choose hotels that are: (1) real and accurately named, (2) well-located for the day's activities — ideally central or near transport hubs, (3) highly regarded for their category. Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value. The bookingUrl should be a Booking.com search URL pre-filled with the hotel name and destination city and the trip dates.` : ''}${hasFoodPriority ? `
-  "foodieTips" — since food is a top priority, include an array of 4-6 off-the-beaten-path food finds (day 1 only):
+  "foodieTips" — since food is a top priority, include an array of 6-8 bonus food finds spread across the trip (day 1 only, but tips cover the full trip):
     [
       {
-        "name": "Place or market name",
-        "type": "food truck | street stall | market | local joint | specialty shop | food hall",
-        "neighborhood": "District or area",
-        "why": "One sentence on what makes it special and why locals love it — NOT a tourist attraction",
-        "bestFor": "2-3 specific dishes, items, or experiences",
-        "timeOfDay": "morning | afternoon | evening | any",
-        "tip": "Practical insider tip (e.g. 'cash only', 'arrive before noon', 'skip the front stalls')"
+        "name": "Specific place, stall, or vendor name — be precise, not generic",
+        "type": "coffee bar | street stall | food market | specialty shop | food hall | late-night spot | bakery | bar snack | tasting room | other",
+        "neighborhood": "District or area name",
+        "why": "What makes this place legendary or worth a detour — the story, the reputation, the cult following. Be vivid and specific.",
+        "orderThis": "The 1-3 exact items to order — dish names, flavors, or products. Make it mouthwatering.",
+        "timeOfDay": "morning | midday | afternoon | evening | late-night | any",
+        "priceRange": "$ | $$ | $$$ (rough cost per person for a snack or small purchase)",
+        "tip": "One practical insider tip — when to arrive, what to avoid, cash vs card, secret menu, etc."
       }
     ]
-    Rules: (1) These must be DIFFERENT from the breakfast/lunch/dinner spots in the daily itinerary. (2) Prioritize places tourists rarely find — local markets, neighbourhood street food, food trucks, hole-in-the-wall joints. (3) Must be real, specific, and accurately named. (4) Vary the time of day and type so there's something for every mood.` : ''}
+    Rules: (1) Every tip must be DIFFERENT from the breakfast/lunch/dinner restaurants in the daily tracks — these are the bonus discoveries, the spontaneous stops, the things only a real food lover would seek out. (2) Vary the type widely — include at least one great coffee, one market or food hall, one late-night or post-dinner snack, and one specialty shop or tasting. (3) Must be real, specifically named establishments — no invented places. (4) Write each "why" like a food writer: opinionated, enthusiastic, and concrete. (5) Spread tips across different times of day so the group can slot them naturally into any day of the trip.` : ''}
     {
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
