@@ -14,6 +14,7 @@ You balance popular highlights with authentic off-the-beaten-path experiences.
 You adapt itineraries based on group composition, budget, and interests.
 Use American English spelling and phrasing throughout (e.g. "neighborhood" not "neighbourhood", "center" not "centre", "organize" not "organise").
 Photo spot tips must be ONE concise sentence only — no more than 20 words. Never write multiple sentences for a photo spot tip.
+CRITICAL — NEVER INVENT EVENTS: Never assign a specific scheduled game, concert, show, or live event to a specific date. Sports games, concerts, and live performances have unpredictable schedules. If a venue hosts live events, write that travelers should check the official website or ticketing platform for current dates — never fabricate a fixture date, game time, or show schedule.
 Return ONLY valid JSON — no markdown, no explanation, no code fences.`;
 
 interface BookedFlight {
@@ -73,6 +74,52 @@ function getSuggestedTrackLabels(priorities: string[]): { a: string; b: string }
   else labelB = 'Slow & Scenic';
 
   return { a: labelA, b: labelB };
+}
+
+// ─── Seasonal context ─────────────────────────────────────────────────────────
+// Returns date-aware rules about what sports/events are in or out of season,
+// and seasonal travel context (Christmas markets, cherry blossoms, etc.)
+function getSeasonalContext(startDate: string, destination: string): string {
+  const month = new Date(startDate + 'T12:00:00').getMonth() + 1; // 1–12
+  const dest = destination.toLowerCase();
+  const lines: string[] = ['\nSEASONAL CONTEXT — enforce these rules strictly:'];
+
+  // North American sports seasons
+  const mlbActive   = month >= 4 && month <= 10;
+  const nflActive   = month >= 9 || month <= 1;
+  const nbaActive   = month >= 10 || month <= 6;
+  const nhlActive   = month >= 10 || month <= 6;
+  const mlsActive   = month >= 3 && month <= 10;
+  const collegeFootball = month >= 9 || month === 1;
+
+  if (!mlbActive)  lines.push('- MLB BASEBALL is OUT OF SEASON (runs April–October). Do NOT include baseball games or reference them as schedulable.');
+  else             lines.push('- MLB is in season — stadium visits valid; direct travelers to the official team website for game dates. Never invent a specific game.');
+  if (!nflActive)  lines.push('- NFL FOOTBALL is OUT OF SEASON (runs September–January). Do NOT include football games.');
+  else             lines.push('- NFL is in season — stadium visits valid; direct travelers to the official schedule for game dates. Never invent a specific game.');
+  if (!nbaActive)  lines.push('- NBA BASKETBALL is OUT OF SEASON (runs October–June). Do NOT include basketball games.');
+  else             lines.push('- NBA is in season — arena visits valid; direct travelers to the official schedule. Never invent a specific game.');
+  if (!nhlActive)  lines.push('- NHL HOCKEY is OUT OF SEASON (runs October–June). Do NOT include hockey games.');
+  else             lines.push('- NHL is in season — arena visits valid; direct travelers to the official schedule. Never invent a specific game.');
+  if (!mlsActive)  lines.push('- MLS SOCCER is OUT OF SEASON (runs March–October). Do NOT include soccer matches.');
+  if (!collegeFootball) lines.push('- COLLEGE FOOTBALL is OUT OF SEASON (runs September–January). Do NOT include college games.');
+
+  // Seasonal travel context
+  if (month === 11 || month === 12)
+    lines.push('- CHRISTMAS MARKETS: Open late November through December 24 across Europe. If the destination has a famous market, include at least one visit.');
+  if (month === 3 || month === 4)
+    lines.push('- CHERRY BLOSSOM SEASON (late March–mid April): In Japan, Washington DC, and other blossom destinations, prioritize viewing spots if applicable.');
+  if ((month === 1 || month === 2) && (dest.includes('new orleans') || dest.includes('louisiana')))
+    lines.push('- MARDI GRAS SEASON: If trip dates overlap with Mardi Gras, highlight parade routes, jazz clubs, and king cake stops.');
+  if (month >= 6 && month <= 8)
+    lines.push('- SUMMER: Long daylight hours — evening activities can run later. Outdoor venues at their best. Note heat and crowd peaks at popular sites.');
+  if (month === 12 || month === 1 || month === 2)
+    lines.push('- WINTER: Shorter daylight hours — plan activity blocks accordingly. Ski resorts are at peak season where applicable.');
+  if (month >= 6 && month <= 11 && (dest.includes('caribbean') || dest.includes('gulf coast') || dest.includes('florida') || dest.includes('bahamas')))
+    lines.push('- HURRICANE SEASON (June–November): Note this in practicalNotes. Travel insurance is strongly recommended.');
+  if (month >= 5 && month <= 10 && (dest.includes('southeast asia') || dest.includes('thailand') || dest.includes('vietnam') || dest.includes('bali') || dest.includes('india')))
+    lines.push('- MONSOON SEASON: Note wet season conditions in practicalNotes. Pack accordingly.');
+
+  return lines.join('\n');
 }
 
 interface PlacesApiNewResult {
@@ -411,11 +458,13 @@ You MUST follow ALL of these rules:
       });
       preBookingText += `  → For each day, look at the date and use whichever hotel's check-in/check-out window covers that night as the home base.
   → Home-base rules (apply per hotel for the nights it covers):
-    - Breakfast should be near that night's hotel
-    - Day activities should cluster around areas accessible from that hotel
+    - Breakfast is near the hotel the group WOKE UP IN (the departing hotel on transition days, NOT the arriving hotel). The group has not yet traveled — they are still at the morning hotel. Never place breakfast at a hotel they have not checked into yet.
+    - Lunch on transition days should be somewhere practical along the travel route between the two cities.
+    - Dinner and all evening activities should be near the ARRIVING hotel's neighborhood — the group has checked in by this point.
+    - Day activities should cluster around areas accessible from that day's home base
     - Each day should end with the group able to return to the night's hotel
-    - On transition days (checking out of one hotel and into another): plan a late-morning checkout, then route activities toward the new hotel's neighborhood; include a luggage-storage or direct transfer note
-    - meetupLocation each day should reference the active hotel lobby or nearest landmark
+    - On transition days (checking out of one hotel and into another): plan a late-morning checkout, schedule the inter-city transport leg in the itinerary as a visible activity (e.g. "Train to [Next City]" in the shared track), then route afternoon/evening activities toward the new hotel's neighborhood; include a luggage-storage note if check-in is not until late afternoon
+    - meetupLocation each day should reference the active morning hotel lobby or nearest landmark
   → All hotel costs are already paid; exclude hotel from budget recommendations.`;
     }
   }
@@ -604,8 +653,10 @@ ${hasShoppingPriority ? `
         "tip": "One-sentence tip on what to capture and how"
       }
     ],
+    "destinationTip": "One punchy, specific insider sentence about something this city or region is distinctly known for — a food, drink, tradition, or quirk tied to the day's location. E.g. 'Bavaria is famous for its weisswurst — order it before noon, never after, at any traditional beer hall.' Rotate the topic across days (food one day, drink another, local tradition another).",
     "trackALabel": null,
     "trackBLabel": null,
+    "dinnerMeetupLocation": null,
     "tracks": {
       "shared": [
         {
@@ -670,8 +721,10 @@ SPLIT TRACK DECISION — follow this logic exactly:
 - SPLIT if: the priorities include at least one high-energy option (adventure, sports, nightlife, nature) AND at least one low-energy option (wellness, culture, history, food, shopping). These represent genuinely different paces that can't be served by a single shared schedule.
 - DO NOT SPLIT if: all priorities are in the same energy band, or the group type is "solo" or "couple".
 - When you DO split: apply splits on middle days only (not Day 1 arrival or last day departure). Mornings should always be shared. Splits happen in the afternoon block. Groups reconvene for the evening meetup.
-- trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels. These display directly in the UI.${suggestedTrackLabels ? ` Based on this group's priorities (${priorities.join(', ')}), suggested labels: "${suggestedTrackLabels.a}" / "${suggestedTrackLabels.b}" — use these directly or adapt them to better match the specific activities planned.` : ` Examples: "Active & Outdoors" / "Culture & Relaxation", "Nightlife & Energy" / "Slow & Scenic".`}
+- trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels. These display directly in the UI.${suggestedTrackLabels ? ` Based on this group's priorities (${priorities.join(', ')}), use EXACTLY these labels: "${suggestedTrackLabels.a}" / "${suggestedTrackLabels.b}". Do not vary the wording — copy them verbatim on every day that splits. The same label pair must appear on every split day throughout the entire itinerary. Never rename a track mid-trip.` : ` Examples: "Active & Outdoors" / "Culture & Relaxation", "Nightlife & Energy" / "Slow & Scenic". Pick one pair and use it IDENTICALLY on every split day — never rename tracks between days.`}
 - When NOT splitting: set trackALabel and trackBLabel to null and leave track_a and track_b as empty arrays.
+- NEVER duplicate an activity across both track_a and track_b. If an activity suits both tracks equally, place it in shared. The purpose of split tracks is diverging options — different experiences, not the same experience labeled twice.
+- dinnerMeetupLocation: on days with a split (track_a and track_b populated), set this to the dinner restaurant name and address so both groups know where to reconvene in the evening. On non-split days, set to null.
 
 MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
 1. Breakfast (isRestaurant: true, mealType: "breakfast"): timeSlot 07:30–09:00, priceLevel ${mealPriceLevels.breakfast}
@@ -681,7 +734,8 @@ MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
 3. Dinner (isRestaurant: true, mealType: "dinner"): timeSlot 19:00–21:00, priceLevel ${mealPriceLevels.dinner}
    → Place near the evening meetup location
 For EACH restaurant: recommend a real, named establishment. In the description, state WHY it is recommended — cite its reputation (local institution, award recognition, neighborhood favorite, featured in local food press, etc.). Do not fabricate Google star ratings; instead describe the source of the restaurant's acclaim. Choose spots that are close to surrounding activities to keep transit minimal.
-CRITICAL — NO DUPLICATE RESTAURANTS: Every restaurant name across the ENTIRE itinerary must be unique. You have ${tripLength} days × 3 meals = ${tripLength * 3} restaurant slots — each slot must use a different named establishment. Never repeat a restaurant name on a second day, even if it was highly rated. Variety is essential.
+RESTAURANTS ALWAYS IN SHARED TRACK: All restaurant activities (isRestaurant: true) must ALWAYS be placed in the "shared" track — never in track_a or track_b. Meals are a shared group experience. The only exception is a trip explicitly themed around diverging dining preferences, which is rare. In all standard itineraries, restaurants go in shared.
+CRITICAL — NO DUPLICATE VENUES: Every venue name across the ENTIRE itinerary must be unique — this applies to BOTH restaurants AND non-restaurant activities. You have ${tripLength} days × 3 meals = ${tripLength * 3} restaurant slots and multiple activity slots — each slot must use a different named establishment. Never repeat any venue name on a second day or across tracks, even if it was highly rated. Variety is essential.
 
 TRANSPORT BETWEEN ACTIVITIES:
 Every activity must include a "transportToNext" field:
@@ -690,6 +744,7 @@ Every activity must include a "transportToNext" field:
 - distanceMiles: distance in miles (use 0 for car/rideshare where exact route varies)
 - notes: CRITICAL — this must describe the journey FROM the CURRENT activity TO the NEXT activity. The note must reference the destination of the NEXT activity (e.g., if walking to a castle next, write "Walk north along the river to the castle entrance"). Never describe a route to a place you already visited, and never reference the previous activity's destination. Always look FORWARD to where the group is going next.
 Set transportToNext to null on the last activity of each day (no onward journey needed).
+DAY-TRIP / EXCURSION RETURN RULE: On any day where the group travels outside their home city or base hotel (e.g., Versailles from Paris, Salzburg from Munich, a coastal day trip), the last activity of that excursion MUST include a transportToNext leg explicitly routing the group back to the home city or hotel. Never leave the group stranded at the excursion site with no return journey shown. The return leg must be realistic: same mode they used to get there (train back, rideshare back, etc.) with accurate duration.
 
 MODE SELECTION RULES (based on travel time):
 - Under 15 min: walk (if terrain allows) or rideshare
@@ -723,6 +778,10 @@ RULES:
 13. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
 14. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
 15. "title" and "practicalNotes" fields appear ONLY on day 1. All other day objects must not include these fields.
+16. NEVER INVENT SCHEDULED EVENTS: Do not assign a specific scheduled game, concert, festival, or live performance to a specific date unless it is a recurring, date-independent, permanent offering (e.g. a weekly farmers market, a permanent museum exhibit). For any live event venue, describe it and direct travelers to the official website or a ticketing platform (Ticketmaster, AXS, SeatGeek) to check current dates. This rule overrides any priority or must-have instruction.
+17. destinationTip: include on EVERY day object — one punchy, specific insider fact about the destination for that day's city. Rotate the topic across days (food, drink, tradition, cultural quirk, etc.). Never repeat the same topic two days in a row.
+18. trackALabel and trackBLabel must be IDENTICAL strings on every day that has a split. Decide the label pair once for the whole trip and repeat it exactly on every split day — never rename or rephrase a track label between days.
+${getSeasonalContext(startDate, destination)}
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
 }

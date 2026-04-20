@@ -309,6 +309,12 @@ function ItineraryPageContent() {
   // Voting: { [activityId]: { up: number, down: number, myVote: 'up'|'down'|null } }
   const [votes, setVotes] = useState<Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }>>({});
 
+  // Replacement history: stores the previous activity before AI replacement, keyed by activity id
+  // Used for the Undo button. Entries auto-expire after 60s.
+  const [replacementHistory, setReplacementHistory] = useState<Record<string, Activity>>({});
+  // Set of activity IDs that were replaced by AI (shows the "AI Replaced" badge)
+  const [replacedActivityIds, setReplacedActivityIds] = useState<Set<string>>(new Set());
+
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     // Compute new vote counts using the current votes state via functional updater
     // (captures prev synchronously so next is available immediately after)
@@ -738,7 +744,25 @@ function ItineraryPageContent() {
       const data = await res.json();
       if (!res.ok || !data.activity) throw new Error(data.message || 'No suggestion returned');
 
-      const replacement: Activity = { ...data.activity, id: activity.id, track: activity.track };
+      const replacement: Activity = { ...data.activity, id: activity.id, track: activity.track, wasReplaced: true };
+
+      // Save previous activity to history for undo
+      setReplacementHistory(prev => ({ ...prev, [activity.id]: activity }));
+      // Mark as replaced (shows badge)
+      setReplacedActivityIds(prev => new Set(Array.from(prev).concat(activity.id)));
+      // Clear votes for this slot — new suggestion starts fresh
+      setVotes(prev => {
+        const { [activity.id]: _dropped, ...rest } = prev;
+        return rest;
+      });
+      // Auto-expire undo after 60 seconds
+      setTimeout(() => {
+        setReplacementHistory(prev => {
+          const { [activity.id]: _expired, ...rest } = prev;
+          return rest;
+        });
+      }, 60000);
+
       const updatedDays = (activeDays as typeof itineraryDays).map(day => {
         if (day.day !== selectedDay) return day;
         return {
@@ -758,6 +782,31 @@ function ItineraryPageContent() {
       setSuggestingActivityId(null);
     }
   }, [activeDays, selectedDay, currentDayData, trip, aiMeta, persistDays]);
+
+  // ─── Undo AI replacement ──────────────────────────────────────────────────────
+  const handleUndoReplacement = useCallback((activityId: string) => {
+    const original = replacementHistory[activityId];
+    if (!original) return;
+    const restoredDays = (activeDays as typeof itineraryDays).map(day => {
+      if (day.day !== selectedDay) return day;
+      return {
+        ...day,
+        tracks: {
+          shared:  day.tracks.shared.map((a: Activity)  => a.id === activityId ? original : a),
+          track_a: day.tracks.track_a.map((a: Activity) => a.id === activityId ? original : a),
+          track_b: day.tracks.track_b.map((a: Activity) => a.id === activityId ? original : a),
+        },
+      };
+    });
+    persistDays(restoredDays as typeof itineraryDays);
+    // Clear history + badge for this activity
+    setReplacementHistory(prev => { const { [activityId]: _, ...rest } = prev; return rest; });
+    setReplacedActivityIds(prev => { const next = new Set(prev); next.delete(activityId); return next; });
+    // Restore old votes if any were persisted on the original
+    if ((original.upVotes ?? 0) > 0 || (original.downVotes ?? 0) > 0) {
+      setVotes(prev => ({ ...prev, [activityId]: { up: original.upVotes ?? 0, down: original.downVotes ?? 0, myVote: null } }));
+    }
+  }, [activeDays, selectedDay, replacementHistory, persistDays]);
 
   // ─── Edit trip destination / dates ───────────────────────────────────────────
   const handleOpenEditTrip = useCallback(() => {
@@ -1160,6 +1209,14 @@ function ItineraryPageContent() {
                 )}
 
                 <div className="space-y-4">
+                  {/* Destination Tip — insider fact about this city/day */}
+                  {currentDayData.destinationTip && (
+                    <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                      <span className="text-base flex-shrink-0 mt-0.5">💡</span>
+                      <p className="text-xs text-amber-800 font-medium leading-relaxed">{currentDayData.destinationTip}</p>
+                    </div>
+                  )}
+
                   {/* Meetup — shown for group trips; handles both structured meetupTime and legacy inline "Group Meetup" activities */}
                   {effectiveMeetupTime && effectiveMeetupLocation &&
                    aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple' && (
@@ -1266,6 +1323,23 @@ function ItineraryPageContent() {
                                 )}
                               </h3>
                               <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* AI Replaced badge */}
+                                {replacedActivityIds.has(activity.id) && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    AI Pick
+                                  </span>
+                                )}
+                                {/* Undo replacement button (shown for 60s after replace) */}
+                                {replacementHistory[activity.id] && (
+                                  <button
+                                    onClick={() => handleUndoReplacement(activity.id)}
+                                    title="Undo — restore original"
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-all whitespace-nowrap"
+                                  >
+                                    ← Undo
+                                  </button>
+                                )}
                                 {/* Edit button */}
                                 <button
                                   onClick={() => handleEditActivity(activity)}
@@ -1517,6 +1591,16 @@ function ItineraryPageContent() {
               </div>
             )}
 
+            {/* Dinner meetup location — shown on split-track days so both groups know where to reconvene */}
+            {currentDayData.dinnerMeetupLocation && (
+              <div className="flex items-start gap-2.5 px-4 py-3 bg-rose-50 border border-rose-100 rounded-2xl mt-2">
+                <Utensils className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-rose-400 mb-0.5">Evening Meetup</p>
+                  <p className="text-xs text-rose-800 font-medium leading-relaxed">Both tracks reconvene for dinner at <span className="font-semibold">{currentDayData.dinnerMeetupLocation}</span></p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
