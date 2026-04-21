@@ -130,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="md:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl text-white shadow-lg"
-        style={{ background: '#2c2826' }}
+        style={{ background: '#4a3f39' }}
       >
         {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
@@ -140,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
       )}
 
       <aside
-        style={{ background: '#2c2826', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ background: '#4a3f39', borderRight: '1px solid rgba(255,255,255,0.06)' }}
         className={`fixed top-0 left-0 w-64 h-screen z-40 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex-shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
