@@ -212,6 +212,8 @@ export interface Activity {
   /** Persisted vote tallies — updated whenever a traveler casts a Yay/Nay */
   upVotes?: number;
   downVotes?: number;
+  /** Set to true when this activity was AI-replaced via "Suggest another" */
+  wasReplaced?: boolean;
 }
 
 export type TransportType = 'car_rental' | 'bus' | 'train' | 'excursion';
@@ -269,6 +271,10 @@ export interface ItineraryDay {
   meetupLocation?: string;
   /** AI-curated photo opportunities for the day */
   photoSpots?: PhotoSpot[];
+  /** Punchy insider fact about the destination for this day */
+  destinationTip?: string;
+  /** For split-track days: restaurant name + address where both tracks reconvene for dinner */
+  dinnerMeetupLocation?: string | null;
 }
 
 export interface GroupMember {
