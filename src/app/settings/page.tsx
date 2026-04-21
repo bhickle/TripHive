@@ -133,6 +133,7 @@ export default function SettingsPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
@@ -225,6 +226,7 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setAvatarUploading(true);
+    setAvatarError(null);
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -236,7 +238,10 @@ export default function SettingsPage() {
         const { error: uploadError } = await supabase.storage
           .from('avatars')
           .upload(path, file, { upsert: true });
-        if (!uploadError) {
+        if (uploadError) {
+          console.error('Avatar upload error:', uploadError);
+          setAvatarError('Upload failed — please try again.');
+        } else {
           const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
           if (urlData?.publicUrl) {
             // Append cache-buster so the browser re-fetches after re-upload
@@ -255,7 +260,9 @@ export default function SettingsPage() {
         reader.onload = ev => setProfile(prev => ({ ...prev, avatarUrl: ev.target?.result as string }));
         reader.readAsDataURL(file);
       }
-    } catch { /* ignore */ } finally {
+    } catch {
+      setAvatarError('Something went wrong — please try again.');
+    } finally {
       setAvatarUploading(false);
       e.target.value = '';
     }
@@ -601,14 +608,19 @@ export default function SettingsPage() {
                             className="hidden"
                             onChange={handleAvatarUpload}
                           />
-                          <button
-                            onClick={() => avatarInputRef.current?.click()}
-                            disabled={avatarUploading}
-                            className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium disabled:opacity-50"
-                          >
-                            <Upload className="w-4 h-4 inline mr-2" />
-                            {avatarUploading ? 'Uploading…' : 'Upload Photo'}
-                          </button>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => avatarInputRef.current?.click()}
+                              disabled={avatarUploading}
+                              className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium disabled:opacity-50"
+                            >
+                              <Upload className="w-4 h-4 inline mr-2" />
+                              {avatarUploading ? 'Uploading…' : 'Upload Photo'}
+                            </button>
+                            {avatarError && (
+                              <p className="text-xs text-red-600">{avatarError}</p>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div>

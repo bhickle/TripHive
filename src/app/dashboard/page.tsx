@@ -87,10 +87,11 @@ export default function DashboardPage() {
             tripLength: t.trip_length,
             status: t.status ?? 'planning',
             groupType: t.group_type,
-            groupSize: t.group_size ?? 1,
+            groupSize: Math.max(1, t.group_size ?? 1),
             coverImage: t.cover_image ?? null,
             budgetTotal: t.budget_total ?? 0,
-            memberCount: 1,
+            // Use group_size from the trip builder as the traveler count
+            memberCount: Math.max(1, t.group_size ?? 1),
             guestCount: 0,
           })));
         }
@@ -206,12 +207,20 @@ export default function DashboardPage() {
 
   const allTrips = [...userTrips, ...baseTripData];
   const totalTrips = allTrips.length;
-  const countriesVisited = new Set(allTrips.map((t) => t.destination.split(',')[1]?.trim() || '')).size;
-  const totalDays = allTrips.reduce((sum, trip) => {
-    const start = new Date(trip.startDate);
-    const end = new Date(trip.endDate);
-    return sum + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  }, 0);
+  // Filter out empty strings (single-word destinations have no comma → [1] is undefined)
+  const countriesVisited = new Set(
+    allTrips.map((t) => t.destination.split(',')[1]?.trim()).filter(Boolean)
+  ).size;
+  // Only count days from trips you've actually completed — not planning/future trips
+  const totalDays = allTrips
+    .filter(t => t.status === 'completed')
+    .reduce((sum, trip) => {
+      if (!trip.startDate || !trip.endDate) return sum;
+      const start = new Date(trip.startDate);
+      const end = new Date(trip.endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return sum;
+      return sum + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    }, 0);
 
   const today = new Date();
   const dateString = today.toLocaleDateString('en-US', {

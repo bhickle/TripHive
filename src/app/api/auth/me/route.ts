@@ -53,12 +53,28 @@ export async function PATCH(request: Request) {
       updates.name = name.trim();
     }
     if (typeof avatar_url === 'string') {
+      // Validate: must be a non-empty http(s) URL within 2048 chars
+      if (avatar_url.length > 2048) {
+        return NextResponse.json({ error: 'avatar_url too long' }, { status: 400 });
+      }
+      if (avatar_url.length > 0 && !avatar_url.startsWith('http')) {
+        return NextResponse.json({ error: 'Invalid avatar_url' }, { status: 400 });
+      }
       updates.avatar_url = avatar_url;
     }
     if (notification_preferences && typeof notification_preferences === 'object') {
       updates.notification_preferences = notification_preferences;
     }
-    if (travel_persona && typeof travel_persona === 'object') {
+    if (travel_persona !== undefined && travel_persona !== null) {
+      // Validate expected shape: { vibes: string[], groupType: string, priorities: string[] }
+      if (
+        typeof travel_persona !== 'object' ||
+        !Array.isArray(travel_persona.vibes) ||
+        typeof travel_persona.groupType !== 'string' ||
+        !Array.isArray(travel_persona.priorities)
+      ) {
+        return NextResponse.json({ error: 'Invalid travel_persona structure' }, { status: 400 });
+      }
       updates.travel_persona = travel_persona;
     }
 

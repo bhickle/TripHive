@@ -183,13 +183,14 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value="https://tripcoord.app/album/trip_1/iceland-2026"
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/trip/${params.id}/memories`}
                   readOnly
                   className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm text-slate-900"
                 />
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText('https://tripcoord.app/album/trip_1/iceland-2026');
+                    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                    navigator.clipboard.writeText(`${origin}/trip/${params.id}/memories`);
                     setLinkCopied(true);
                     setTimeout(() => setLinkCopied(false), 2000);
                   }}
@@ -202,6 +203,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   {linkCopied ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
+              <p className="text-xs text-slate-500 mt-2">The album is only visible to group members who are signed in.</p>
             </div>
           </div>
         )}
@@ -316,13 +318,30 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
             const fileArray = Array.from(files);
 
-            // Show local preview immediately so the user sees their photos right away
-            const localPreviews = fileArray.map(file => ({
-              url: URL.createObjectURL(file),
+            // Create blob URLs once per file and reuse across both state slices
+            const blobEntries = fileArray.map((file, i) => ({
+              id: `local_${Date.now()}_${i}`,
+              blobUrl: URL.createObjectURL(file),
               name: file.name,
+              activity: file.name.replace(/\.[^.]+$/, ''),
             }));
+
+            // Show local preview immediately so the user sees their photos right away
+            const localPreviews = blobEntries.map(e => ({ url: e.blobUrl, name: e.name }));
             setUploadedPhotos(prev => [...prev, ...localPreviews]);
             setUploadedCount(prev => prev + fileArray.length);
+
+            // Also push into tripPhotos so totalPhotos and uniqueUploaders recompute immediately
+            const newPhotoEntries = blobEntries.map(e => ({
+              id: e.id,
+              url: e.blobUrl,
+              activity: e.activity,
+              uploadedBy: 'You',
+              day: 1,
+              timestamp: new Date().toISOString(),
+            }));
+            setTripPhotos(prev => [...prev, ...newPhotoEntries]);
+
             setUploadProgress(50);
 
             // Try Supabase upload in background (non-mock trips only)
@@ -342,13 +361,22 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                     if (!uploadError && data) {
                       const { data: urlData } = supabase.storage.from('trip-photos').getPublicUrl(path);
                       if (urlData?.publicUrl) {
-                        // Swap local preview URL with the Supabase URL
+                        // Swap local preview URL with the Supabase URL and revoke the blob URL
                         setUploadedPhotos(prev => {
                           const updated = [...prev];
                           const localIdx = updated.findIndex(p => p.name === file.name && p.url.startsWith('blob:'));
-                          if (localIdx >= 0) updated[localIdx] = { url: urlData.publicUrl, name: file.name };
+                          if (localIdx >= 0) {
+                            URL.revokeObjectURL(updated[localIdx].url);
+                            updated[localIdx] = { url: urlData.publicUrl, name: file.name };
+                          }
                           return updated;
                         });
+                        // Also swap in tripPhotos state
+                        setTripPhotos(prev => prev.map(p =>
+                          p.url.startsWith('blob:') && p.activity === file.name.replace(/\.[^.]+$/, '')
+                            ? { ...p, url: urlData.publicUrl }
+                            : p
+                        ));
                         // Record in trip_photos table
                         await supabase.from('trip_photos').insert({
                           trip_id: params.id,
