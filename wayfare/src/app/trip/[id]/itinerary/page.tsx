@@ -286,7 +286,7 @@ function ItineraryPageContent() {
   const addMenuRef = useRef<HTMLDivElement>(null);
   // Keep a ref to the latest aiDays so the vote handler can read current state
   // without causing stale-closure issues or side effects inside state updaters
-  const aiDaysRef = useRef<typeof itineraryDays | null>(null);
+  const aiDaysRef = useRef<ItineraryDay[] | null>(null);
   const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | null>(null);
 
   // Edit destination / dates modal
@@ -391,7 +391,7 @@ function ItineraryPageContent() {
   }, [params.id]);
 
   // Seed votes from activity upVotes/downVotes when itinerary loads
-  const seedVotesFromActivities = useCallback((days: typeof itineraryDays) => {
+  const seedVotesFromActivities = useCallback((days: ItineraryDay[]) => {
     const seeded: Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }> = {};
     for (const day of days) {
       for (const track of ['shared', 'track_a', 'track_b'] as const) {
@@ -412,9 +412,9 @@ function ItineraryPageContent() {
   }, []);
 
   // AI-generated itinerary (loaded from localStorage if available)
-  const [aiDays, setAiDays] = useState<typeof itineraryDays | null>(null);
+  const [aiDays, setAiDays] = useState<ItineraryDay[] | null>(null);
   // Keep ref in sync so vote handler can read latest value without stale closures
-  const syncAiDays = (days: typeof itineraryDays | null) => {
+  const syncAiDays = (days: ItineraryDay[] | null) => {
     aiDaysRef.current = days;
     setAiDays(days);
   };
@@ -531,14 +531,14 @@ function ItineraryPageContent() {
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'itineraries', filter: `trip_id=eq.${tripPageId}` },
           (payload) => {
-            const newDays = (payload.new as { days?: typeof itineraryDays }).days;
+            const newDays = (payload.new as { days?: ItineraryDay[] }).days;
             if (!Array.isArray(newDays)) return;
             // Merge: update vote counts from server but preserve current session's myVote
             setVotes(prev => {
               const merged = { ...prev };
               for (const day of newDays) {
                 for (const track of ['shared', 'track_a', 'track_b'] as const) {
-                  for (const act of (day.tracks[track] as typeof itineraryDays[0]['tracks']['shared'])) {
+                  for (const act of (day.tracks[track] as Activity[])) {
                     if ((act as { upVotes?: number; downVotes?: number }).upVotes !== undefined) {
                       const id = (act as { id: string }).id;
                       merged[id] = {
@@ -689,7 +689,7 @@ function ItineraryPageContent() {
   const currentDayData: ItineraryDay = (activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0]) as ItineraryDay;
 
   // ─── Persist updated days to state + localStorage + Supabase ─────────────────
-  const persistDays = useCallback((updated: typeof itineraryDays) => {
+  const persistDays = useCallback((updated: ItineraryDay[]) => {
     syncAiDays(updated);
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
 
@@ -747,7 +747,7 @@ function ItineraryPageContent() {
 
     const isMoving = editingActivity && editingActivity.dayNumber !== targetDay;
 
-    const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+    const updatedDays = (activeDays as ItineraryDay[]).map(day => {
       if (editingActivity && !isMoving && day.day === targetDay) {
         // Same-day edit: replace in place
         return {
@@ -783,7 +783,7 @@ function ItineraryPageContent() {
       return day;
     });
 
-    persistDays(updatedDays as typeof itineraryDays);
+    persistDays(updatedDays as ItineraryDay[]);
     setShowAddActivityModal(false);
     setEditingActivity(null);
     setActivityAdded(true);
@@ -809,7 +809,7 @@ function ItineraryPageContent() {
 
   // ─── Delete activity ──────────────────────────────────────────────────────────
   const handleDeleteActivity = useCallback((activityId: string) => {
-    const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+    const updatedDays = (activeDays as ItineraryDay[]).map(day => {
       if (day.day !== selectedDay) return day;
       return {
         ...day,
@@ -820,7 +820,7 @@ function ItineraryPageContent() {
         },
       };
     });
-    persistDays(updatedDays as typeof itineraryDays);
+    persistDays(updatedDays as ItineraryDay[]);
     setActivityDeleted(true);
     setTimeout(() => setActivityDeleted(false), 2500);
   }, [activeDays, selectedDay, persistDays]);
@@ -871,7 +871,7 @@ function ItineraryPageContent() {
         });
       }, 60000);
 
-      const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+      const updatedDays = (activeDays as ItineraryDay[]).map(day => {
         if (day.day !== selectedDay) return day;
         return {
           ...day,
@@ -882,7 +882,7 @@ function ItineraryPageContent() {
           },
         };
       });
-      persistDays(updatedDays as typeof itineraryDays);
+      persistDays(updatedDays as ItineraryDay[]);
     } catch (err) {
       setSuggestError(err instanceof Error ? err.message : 'Could not get suggestion');
       setTimeout(() => setSuggestError(null), 3000);
@@ -895,7 +895,7 @@ function ItineraryPageContent() {
   const handleUndoReplacement = useCallback((activityId: string) => {
     const original = replacementHistory[activityId];
     if (!original) return;
-    const restoredDays = (activeDays as typeof itineraryDays).map(day => {
+    const restoredDays = (activeDays as ItineraryDay[]).map(day => {
       if (day.day !== selectedDay) return day;
       return {
         ...day,
@@ -906,7 +906,7 @@ function ItineraryPageContent() {
         },
       };
     });
-    persistDays(restoredDays as typeof itineraryDays);
+    persistDays(restoredDays as ItineraryDay[]);
     // Clear history + badge for this activity
     setReplacementHistory(prev => { const { [activityId]: _, ...rest } = prev; return rest; });
     setReplacedActivityIds(prev => { const next = new Set(prev); next.delete(activityId); return next; });
@@ -932,12 +932,12 @@ function ItineraryPageContent() {
       const newTitle = `${city} Adventure`;
 
       // Shift day dates if the start date changed
-      let updatedDays: typeof itineraryDays | null = null;
+      let updatedDays: ItineraryDay[] | null = null;
       if (editStartDate && aiMeta?.startDate && editStartDate !== aiMeta.startDate) {
         const oldStart = new Date(aiMeta.startDate);
         const newStart = new Date(editStartDate);
         const diffDays = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
-        updatedDays = (activeDays as typeof itineraryDays).map(day => {
+        updatedDays = (activeDays as ItineraryDay[]).map(day => {
           const d = new Date(day.date);
           d.setDate(d.getDate() + diffDays);
           return { ...day, date: d.toISOString().split('T')[0] };
@@ -979,7 +979,7 @@ function ItineraryPageContent() {
         endDate: editEndDate || undefined,
       });
 
-      if (updatedDays) persistDays(updatedDays as typeof itineraryDays);
+      if (updatedDays) persistDays(updatedDays as ItineraryDay[]);
 
       setShowEditTripModal(false);
     } catch (err) {
