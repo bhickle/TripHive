@@ -100,16 +100,16 @@ interface TripWizardState {
 }
 
 const priorityOptions = [
-  { id: 'nature', label: 'Nature' },
-  { id: 'food', label: 'Food' },
-  { id: 'nightlife', label: 'Nightlife' },
-  { id: 'history', label: 'History' },
-  { id: 'sports', label: 'Sports' },
-  { id: 'photography', label: 'Photography' },
-  { id: 'wellness', label: 'Wellness' },
-  { id: 'shopping', label: 'Shopping' },
-  { id: 'adventure', label: 'Adventure' },
-  { id: 'culture', label: 'Culture' },
+  { id: 'nature',       label: 'Nature',       icon: '🌿' },
+  { id: 'food',         label: 'Food',          icon: '🍽️' },
+  { id: 'nightlife',    label: 'Nightlife',     icon: '🎶' },
+  { id: 'history',      label: 'History',       icon: '📜' },
+  { id: 'sports',       label: 'Sports',        icon: '⛹️' },
+  { id: 'photography',  label: 'Photography',   icon: '📷' },
+  { id: 'wellness',     label: 'Wellness',      icon: '💆' },
+  { id: 'shopping',     label: 'Shopping',      icon: '🛍️' },
+  { id: 'adventure',    label: 'Adventure',     icon: '⚡' },
+  { id: 'culture',      label: 'Culture',       icon: '🏛️' },
 ];
 
 const mockDestinations = [
@@ -582,6 +582,42 @@ function TripBuilderPage() {
   const [generationStatus, setGenerationStatus] = useState('');
   const [generationError, setGenerationError] = useState('');
 
+  // ── Places pre-warm cache ──────────────────────────────────────────────────
+  // Kick off the Google Places fetch as soon as the user reaches Step 8 (Review)
+  // so by the time they hit Generate the data is already in hand — saves ~10-15s.
+  const [placesCache, setPlacesCache] = useState<{
+    realPlaces: unknown;
+    multiCityPlaces: unknown;
+  } | null>(null);
+  const placesCacheRef = React.useRef(placesCache);
+  placesCacheRef.current = placesCache;
+
+  useEffect(() => {
+    if (currentStep !== 8) return;
+    if (placesCacheRef.current) return; // already fetched
+    const dest = canonicalDestinationFor(state);
+    const dests = state.destinations.length >= 2 ? state.destinations : [];
+    fetch('/api/places/warm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destination: dest, destinations: dests }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPlacesCache(data); })
+      .catch(() => { /* silent — generate route will fall back */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  // Rotating city index for multi-city loading screen
+  const [rotatingCityIdx, setRotatingCityIdx] = useState(0);
+  useEffect(() => {
+    if (!isGenerating) { setRotatingCityIdx(0); return; }
+    const cities = state.destinations.length >= 2 ? state.destinations : [];
+    if (cities.length < 2) return;
+    const id = setInterval(() => setRotatingCityIdx(i => (i + 1) % cities.length), 2000);
+    return () => clearInterval(id);
+  }, [isGenerating, state.destinations]);
+
   const LOADING_MESSAGES = [
     `Researching the best spots in ${state.destination || 'your destination'}…`,
     'Crafting the perfect daily rhythm…',
@@ -593,6 +629,17 @@ function TripBuilderPage() {
     'Adding the finishing touches…',
   ];
 
+  // Helper: derive the canonical single-destination string from current state.
+  // Used both in the pre-warm useEffect and in the generate payload.
+  function canonicalDestinationFor(s: TripWizardState): string {
+    const hotelCities = s.hasPreBookedHotel
+      ? s.bookedHotels.filter(h => h.city?.trim()).map(h => h.city!.trim())
+      : [];
+    if (hotelCities.length > 0) return hotelCities[0];
+    if (s.destinations.length >= 1) return s.destinations[0];
+    return s.destination;
+  }
+
   const handleGenerateItinerary = async () => {
     setIsGenerating(true);
     setGenerationError('');
@@ -600,11 +647,15 @@ function TripBuilderPage() {
     setGenerationStatus('Crafting your itinerary…');
 
     try {
+      // For multi-city trips, the canonical "destination" should be the first actual city
+      // in the route, not whatever the user typed in the search field before switching to multi-city.
+      const canonicalDestination = canonicalDestinationFor(state);
+
       const res = await fetch('/api/generate-itinerary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination: state.destination,
+          destination: canonicalDestination,
           startDate: state.startDate || '2026-09-15',
           endDate: state.endDate || '2026-09-21',
           tripLength: state.tripLength || 7,
@@ -634,6 +685,11 @@ function TripBuilderPage() {
           accommodationType: state.accommodationType.join(', '),
           bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
           bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+          // Pass pre-fetched places if available — backend will skip its own fetch
+          ...(placesCache ? {
+            preFetchedRealPlaces: placesCache.realPlaces,
+            preFetchedMultiCityPlaces: placesCache.multiCityPlaces,
+          } : {}),
         }),
       });
 
@@ -710,7 +766,7 @@ function TripBuilderPage() {
       setGenerationStatus('Saving your trip…');
 
       const tripMetaFull = {
-        destination: state.destination,
+        destination: canonicalDestination,
         startDate: state.startDate,
         endDate: state.endDate,
         groupType: state.groupType,
@@ -917,9 +973,24 @@ function TripBuilderPage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-orange-600 mb-3">
             AI Itinerary Generator
           </p>
-          <h2 className="text-4xl font-script italic font-semibold text-zinc-900 mb-3 leading-tight">
-            {state.destination || 'Your Trip'}
-          </h2>
+          {(() => {
+            const multiCities = state.destinations.length >= 2 ? state.destinations : null;
+            const displayCity = multiCities
+              ? multiCities[rotatingCityIdx % multiCities.length]
+              : (state.destination || 'Your Trip');
+            return (
+              <>
+                <h2 className="text-4xl font-script italic font-semibold text-zinc-900 mb-1 leading-tight transition-all duration-700">
+                  {displayCity}
+                </h2>
+                {multiCities && (
+                  <p className="text-xs text-zinc-400 mb-2">
+                    {multiCities.join(' · ')}
+                  </p>
+                )}
+              </>
+            );
+          })()}
           <p className="text-zinc-500 text-sm mb-10">
             {state.startDate && state.endDate
               ? `${new Date(state.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(state.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
@@ -1282,6 +1353,15 @@ function TripBuilderPage() {
                         if (!e.target.checked) {
                           setState(prev => ({ ...prev, destinations: [], daysPerDestination: {} }));
                           setDestinationCityInput('');
+                        } else {
+                          // Auto-seed the first city from the Search Destination field if it's filled
+                          // and the destinations list is still empty — saves the user from re-typing it
+                          setState(prev => {
+                            if (prev.destination.trim() && prev.destinations.length === 0) {
+                              return { ...prev, destinations: [prev.destination.trim()] };
+                            }
+                            return prev;
+                          });
                         }
                       }}
                       className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700 flex-shrink-0"
@@ -1586,17 +1666,44 @@ function TripBuilderPage() {
                           />
                         </div>
                       </div>
-                      {/* Trip length display when dates are locked */}
+                      {/* Trip length confirmation — prominent summary when both dates are set */}
                       {state.startDate && state.endDate && (
-                        <p className="text-xs text-slate-500 mt-2">
-                          That's <span className="font-semibold text-slate-800">{state.tripLength} days</span>
-                          {state.tripLength > maxTripDays && (
-                            <span className="text-rose-600 ml-1">
-                              — your {tier} plan supports up to {maxTripDays} days.{' '}
-                              <Link href="/pricing" className="underline">Upgrade</Link> to unlock longer trips.
-                            </span>
+                        <div className={`mt-3 px-4 py-3 rounded-xl border ${
+                          state.tripLength < 2
+                            ? 'bg-amber-50 border-amber-200'
+                            : state.tripLength > maxTripDays
+                            ? 'bg-rose-50 border-rose-200'
+                            : 'bg-green-50 border-green-200'
+                        }`}>
+                          <p className={`text-sm font-semibold ${
+                            state.tripLength < 2
+                              ? 'text-amber-800'
+                              : state.tripLength > maxTripDays
+                              ? 'text-rose-800'
+                              : 'text-green-800'
+                          }`}>
+                            {state.tripLength < 2
+                              ? `⚠️ Only ${state.tripLength} day${state.tripLength === 1 ? '' : 's'} — check your dates`
+                              : state.tripLength > maxTripDays
+                              ? `🔒 ${state.tripLength} days exceeds your ${tier} plan limit (${maxTripDays} days)`
+                              : `✓ ${state.tripLength}-day trip`}
+                          </p>
+                          {state.tripLength >= 2 && state.tripLength <= maxTripDays && (
+                            <p className="text-xs text-green-700 mt-0.5">
+                              {new Date(state.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {new Date(state.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
                           )}
-                        </p>
+                          {state.tripLength > maxTripDays && (
+                            <p className="text-xs text-rose-700 mt-0.5">
+                              <Link href="/pricing" className="underline font-medium">Upgrade to {maxTripDays <= 7 ? 'Explorer' : 'Nomad'}</Link> to unlock longer trips.
+                            </p>
+                          )}
+                          {state.tripLength < 2 && (
+                            <p className="text-xs text-amber-700 mt-0.5">
+                              End date must be on or after start date. Adjust your dates above.
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -2248,16 +2355,17 @@ function TripBuilderPage() {
                         <button
                           key={priority.id}
                           onClick={() => !isDisabled && togglePriority(priority.id)}
-                          className={`py-3 px-4 rounded-lg border-2 transition-all text-center flex items-center justify-center gap-2 ${
+                          className={`py-3 px-4 rounded-lg border-2 transition-all text-center flex flex-col items-center justify-center gap-1 ${
                             isSelected
-                              ? 'border-green-700 bg-green-50'
+                              ? 'border-sky-600 bg-sky-50'
                               : isDisabled
                               ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
-                              : 'border-slate-200 hover:border-sky-300'
+                              : 'border-slate-200 hover:border-sky-300 hover:bg-slate-50'
                           }`}
                         >
-                          {isSelected && <div className="w-4 h-4 bg-green-800 rounded-full flex-shrink-0" />}
-                          <p className="font-semibold text-slate-900 text-sm">{priority.label}</p>
+                          <span className="text-xl leading-none">{priority.icon}</span>
+                          <p className={`font-semibold text-sm ${isSelected ? 'text-sky-800' : 'text-slate-700'}`}>{priority.label}</p>
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-sky-600 mt-0.5" />}
                         </button>
                       );
                     })}
@@ -2266,16 +2374,15 @@ function TripBuilderPage() {
 
                 {/* Summary */}
                 {state.priorities.length > 0 && (
-                  <div className="p-4 bg-slate-100 rounded-lg border border-slate-300">
-                    <p className="text-sm font-medium text-slate-900">
-                      Selected ({state.priorities.length}):{' '}
-                      {state.priorities
-                        .map(
-                          (id) =>
-                            priorityOptions.find((p) => p.id === id)?.label
-                        )
-                        .join(', ')}
-                    </p>
+                  <div className="p-4 bg-sky-50 rounded-lg border border-sky-200 flex flex-wrap gap-2">
+                    {state.priorities.map((id) => {
+                      const p = priorityOptions.find((o) => o.id === id);
+                      return p ? (
+                        <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-sky-200 rounded-full text-xs font-semibold text-sky-800 shadow-sm">
+                          <span>{p.icon}</span>{p.label}
+                        </span>
+                      ) : null;
+                    })}
                   </div>
                 )}
 
@@ -2714,8 +2821,8 @@ function TripBuilderPage() {
                         {state.priorities.map((id) => {
                           const priority = priorityOptions.find((p) => p.id === id);
                           return priority ? (
-                            <span key={id} className="px-3 py-1.5 bg-sky-100 text-sky-800 rounded-full text-sm font-medium">
-                              {priority.label}
+                            <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-100 text-sky-800 rounded-full text-sm font-medium">
+                              <span>{priority.icon}</span>{priority.label}
                             </span>
                           ) : null;
                         })}

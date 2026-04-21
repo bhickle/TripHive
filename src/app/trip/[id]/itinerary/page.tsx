@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { itineraryDays, trips } from '@/data/mock';
-import { Activity, TransportLeg } from '@/lib/types';
+import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
 import {
   Plus,
@@ -43,6 +43,9 @@ import {
   RefreshCw,
   PersonStanding,
   Ship,
+  Navigation,
+  FileDown,
+  Map,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { TripStoryModal } from '@/components/TripStoryModal';
@@ -50,7 +53,6 @@ import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { MapView } from '@/components/MapView';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { Map } from 'lucide-react';
 
 // ─── Transport helpers ────────────────────────────────────────────────────────
 
@@ -284,7 +286,7 @@ function ItineraryPageContent() {
   const addMenuRef = useRef<HTMLDivElement>(null);
   // Keep a ref to the latest aiDays so the vote handler can read current state
   // without causing stale-closure issues or side effects inside state updaters
-  const aiDaysRef = useRef<typeof itineraryDays | null>(null);
+  const aiDaysRef = useRef<ItineraryDay[] | null>(null);
   const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | null>(null);
 
   // Edit destination / dates modal
@@ -308,6 +310,15 @@ function ItineraryPageContent() {
 
   // Voting: { [activityId]: { up: number, down: number, myVote: 'up'|'down'|null } }
   const [votes, setVotes] = useState<Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }>>({});
+
+  // Replacement history: stores the previous activity before AI replacement, keyed by activity id
+  // Used for the Undo button. Entries auto-expire after 60s.
+  const [replacementHistory, setReplacementHistory] = useState<Record<string, Activity>>({});
+  // Set of activity IDs that were replaced by AI (shows the "AI Replaced" badge)
+  const [replacedActivityIds, setReplacedActivityIds] = useState<Set<string>>(new Set());
+
+  // Hotel generation state
+  const [generatingHotels, setGeneratingHotels] = useState(false);
 
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     // Compute new vote counts using the current votes state via functional updater
@@ -362,10 +373,25 @@ function ItineraryPageContent() {
       }).catch(() => {});
     }
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
+
+    // Fire-and-forget vote to dedicated votes table (persists per-user across sessions)
+    if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
+      fetch(`/api/votes/${tripId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activityId, vote: next.myVote }),
+      }).then(async res => {
+        if (res.ok) {
+          // Merge server-fresh counts back in (handles multi-user scenarios)
+          const { up, down } = await res.json();
+          setVotes(prev => ({ ...prev, [activityId]: { ...prev[activityId], up, down } }));
+        }
+      }).catch(() => {});
+    }
   }, [params.id]);
 
   // Seed votes from activity upVotes/downVotes when itinerary loads
-  const seedVotesFromActivities = useCallback((days: typeof itineraryDays) => {
+  const seedVotesFromActivities = useCallback((days: ItineraryDay[]) => {
     const seeded: Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }> = {};
     for (const day of days) {
       for (const track of ['shared', 'track_a', 'track_b'] as const) {
@@ -386,9 +412,9 @@ function ItineraryPageContent() {
   }, []);
 
   // AI-generated itinerary (loaded from localStorage if available)
-  const [aiDays, setAiDays] = useState<typeof itineraryDays | null>(null);
+  const [aiDays, setAiDays] = useState<ItineraryDay[] | null>(null);
   // Keep ref in sync so vote handler can read latest value without stale closures
-  const syncAiDays = (days: typeof itineraryDays | null) => {
+  const syncAiDays = (days: ItineraryDay[] | null) => {
     aiDaysRef.current = days;
     setAiDays(days);
   };
@@ -409,7 +435,16 @@ function ItineraryPageContent() {
     preferences?: { priorities?: string[] };
     foodieTips?: Array<{
       name: string; type?: string; neighborhood?: string;
-      why?: string; bestFor?: string; timeOfDay?: string; tip?: string;
+      why?: string; bestFor?: string; orderThis?: string; priceRange?: string;
+      timeOfDay?: string; tip?: string;
+    }>;
+    nightlifeHighlights?: Array<{
+      name: string; type?: string; neighborhood?: string;
+      vibe?: string; bestNight?: string; openFrom?: string; tip?: string;
+    }>;
+    shoppingGuide?: Array<{
+      name: string; type?: string; neighborhood?: string;
+      what?: string; bestFor?: string; openDays?: string; tip?: string;
     }>;
   } | null>(null);
   const [showAiBanner, setShowAiBanner] = useState(false);
@@ -428,6 +463,24 @@ function ItineraryPageContent() {
               setShowAiBanner(true);
               if (itinerary.meta) setAiMeta(itinerary.meta);
               seedVotesFromActivities(itinerary.days);
+
+              // Load per-user votes from dedicated table
+              if (/^[0-9a-f-]{36}$/i.test(tripPageId)) {
+                fetch(`/api/votes/${tripPageId}`)
+                  .then(r => r.ok ? r.json() : null)
+                  .then(data => {
+                    if (!data?.votes) return;
+                    setVotes(prev => {
+                      const merged = { ...prev };
+                      for (const [actId, v] of Object.entries(data.votes as Record<string, 'up' | 'down'>)) {
+                        merged[actId] = { ...(merged[actId] ?? { up: 0, down: 0 }), myVote: v };
+                      }
+                      return merged;
+                    });
+                  })
+                  .catch(() => {});
+              }
+
               return;
             }
           }
@@ -464,6 +517,49 @@ function ItineraryPageContent() {
     load();
   }, [tripPageId, seedVotesFromActivities]);
 
+  // Realtime: subscribe to itinerary updates for live vote sync
+  useEffect(() => {
+    if (!tripPageId || !/^[0-9a-f-]{36}$/i.test(tripPageId)) return;
+
+    // Dynamically import to avoid SSR issues
+    import('@/lib/supabase/client').then(({ createClient: createBrowserClient }) => {
+      const supabase = createBrowserClient();
+
+      const channel = supabase
+        .channel(`itinerary:${tripPageId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'itineraries', filter: `trip_id=eq.${tripPageId}` },
+          (payload) => {
+            const newDays = (payload.new as { days?: ItineraryDay[] }).days;
+            if (!Array.isArray(newDays)) return;
+            // Merge: update vote counts from server but preserve current session's myVote
+            setVotes(prev => {
+              const merged = { ...prev };
+              for (const day of newDays) {
+                for (const track of ['shared', 'track_a', 'track_b'] as const) {
+                  for (const act of (day.tracks[track] as Activity[])) {
+                    if ((act as { upVotes?: number; downVotes?: number }).upVotes !== undefined) {
+                      const id = (act as { id: string }).id;
+                      merged[id] = {
+                        up: (act as { upVotes?: number }).upVotes ?? 0,
+                        down: (act as { downVotes?: number }).downVotes ?? 0,
+                        myVote: prev[id]?.myVote ?? null,
+                      };
+                    }
+                  }
+                }
+              }
+              return merged;
+            });
+          }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+    });
+  }, [tripPageId]);
+
   const clearAiItinerary = useCallback(() => {
     localStorage.removeItem('generatedItinerary');
     localStorage.removeItem('generatedTripMeta');
@@ -473,6 +569,33 @@ function ItineraryPageContent() {
     setShowAiBanner(false);
     setSelectedDay(1);
   }, []);
+
+  const handleGenerateHotels = useCallback(async () => {
+    if (!aiMeta?.destination) return;
+    setGeneratingHotels(true);
+    try {
+      const res = await fetch('/api/generate-hotels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: aiMeta.destination,
+          startDate: aiMeta.startDate,
+          endDate: aiMeta.endDate,
+          budget: aiMeta.budget,
+          budgetBreakdown: aiMeta.budgetBreakdown,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const { hotelSuggestions } = await res.json();
+      if (hotelSuggestions?.length) {
+        setAiMeta(prev => prev ? { ...prev, hotelSuggestions } : prev);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setGeneratingHotels(false);
+    }
+  }, [aiMeta]);
 
   // Form state
   const [newActivityName, setNewActivityName] = useState('');
@@ -563,10 +686,10 @@ function ItineraryPageContent() {
         budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown']) ?? trips[0].budgetBreakdown,
         budgetTotal: aiMeta.budget ?? trips[0].budgetTotal }
     : (trips.find(t => t.id === 'trip_1') || trips[0]);
-  const currentDayData = activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0];
+  const currentDayData: ItineraryDay = (activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0]) as ItineraryDay;
 
   // ─── Persist updated days to state + localStorage + Supabase ─────────────────
-  const persistDays = useCallback((updated: typeof itineraryDays) => {
+  const persistDays = useCallback((updated: ItineraryDay[]) => {
     syncAiDays(updated);
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
 
@@ -624,7 +747,7 @@ function ItineraryPageContent() {
 
     const isMoving = editingActivity && editingActivity.dayNumber !== targetDay;
 
-    const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+    const updatedDays = (activeDays as ItineraryDay[]).map(day => {
       if (editingActivity && !isMoving && day.day === targetDay) {
         // Same-day edit: replace in place
         return {
@@ -660,7 +783,7 @@ function ItineraryPageContent() {
       return day;
     });
 
-    persistDays(updatedDays as typeof itineraryDays);
+    persistDays(updatedDays as ItineraryDay[]);
     setShowAddActivityModal(false);
     setEditingActivity(null);
     setActivityAdded(true);
@@ -686,7 +809,7 @@ function ItineraryPageContent() {
 
   // ─── Delete activity ──────────────────────────────────────────────────────────
   const handleDeleteActivity = useCallback((activityId: string) => {
-    const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+    const updatedDays = (activeDays as ItineraryDay[]).map(day => {
       if (day.day !== selectedDay) return day;
       return {
         ...day,
@@ -697,7 +820,7 @@ function ItineraryPageContent() {
         },
       };
     });
-    persistDays(updatedDays as typeof itineraryDays);
+    persistDays(updatedDays as ItineraryDay[]);
     setActivityDeleted(true);
     setTimeout(() => setActivityDeleted(false), 2500);
   }, [activeDays, selectedDay, persistDays]);
@@ -719,6 +842,7 @@ function ItineraryPageContent() {
           existingActivityName: activity.name || activity.title,
           timeSlot: activity.timeSlot,
           track: activity.track,
+          priorities: aiMeta?.preferences?.priorities ?? [],
           budget: aiMeta?.budget,
           budgetBreakdown: aiMeta?.budgetBreakdown,
           isCruise: aiMeta?.isCruise ?? false,
@@ -728,8 +852,26 @@ function ItineraryPageContent() {
       const data = await res.json();
       if (!res.ok || !data.activity) throw new Error(data.message || 'No suggestion returned');
 
-      const replacement: Activity = { ...data.activity, id: activity.id, track: activity.track };
-      const updatedDays = (activeDays as typeof itineraryDays).map(day => {
+      const replacement: Activity = { ...data.activity, id: activity.id, track: activity.track, wasReplaced: true };
+
+      // Save previous activity to history for undo
+      setReplacementHistory(prev => ({ ...prev, [activity.id]: activity }));
+      // Mark as replaced (shows badge)
+      setReplacedActivityIds(prev => new Set(Array.from(prev).concat(activity.id)));
+      // Clear votes for this slot — new suggestion starts fresh
+      setVotes(prev => {
+        const { [activity.id]: _dropped, ...rest } = prev;
+        return rest;
+      });
+      // Auto-expire undo after 60 seconds
+      setTimeout(() => {
+        setReplacementHistory(prev => {
+          const { [activity.id]: _expired, ...rest } = prev;
+          return rest;
+        });
+      }, 60000);
+
+      const updatedDays = (activeDays as ItineraryDay[]).map(day => {
         if (day.day !== selectedDay) return day;
         return {
           ...day,
@@ -740,7 +882,7 @@ function ItineraryPageContent() {
           },
         };
       });
-      persistDays(updatedDays as typeof itineraryDays);
+      persistDays(updatedDays as ItineraryDay[]);
     } catch (err) {
       setSuggestError(err instanceof Error ? err.message : 'Could not get suggestion');
       setTimeout(() => setSuggestError(null), 3000);
@@ -748,6 +890,31 @@ function ItineraryPageContent() {
       setSuggestingActivityId(null);
     }
   }, [activeDays, selectedDay, currentDayData, trip, aiMeta, persistDays]);
+
+  // ─── Undo AI replacement ──────────────────────────────────────────────────────
+  const handleUndoReplacement = useCallback((activityId: string) => {
+    const original = replacementHistory[activityId];
+    if (!original) return;
+    const restoredDays = (activeDays as ItineraryDay[]).map(day => {
+      if (day.day !== selectedDay) return day;
+      return {
+        ...day,
+        tracks: {
+          shared:  day.tracks.shared.map((a: Activity)  => a.id === activityId ? original : a),
+          track_a: day.tracks.track_a.map((a: Activity) => a.id === activityId ? original : a),
+          track_b: day.tracks.track_b.map((a: Activity) => a.id === activityId ? original : a),
+        },
+      };
+    });
+    persistDays(restoredDays as ItineraryDay[]);
+    // Clear history + badge for this activity
+    setReplacementHistory(prev => { const { [activityId]: _, ...rest } = prev; return rest; });
+    setReplacedActivityIds(prev => { const next = new Set(prev); next.delete(activityId); return next; });
+    // Restore old votes if any were persisted on the original
+    if ((original.upVotes ?? 0) > 0 || (original.downVotes ?? 0) > 0) {
+      setVotes(prev => ({ ...prev, [activityId]: { up: original.upVotes ?? 0, down: original.downVotes ?? 0, myVote: null } }));
+    }
+  }, [activeDays, selectedDay, replacementHistory, persistDays]);
 
   // ─── Edit trip destination / dates ───────────────────────────────────────────
   const handleOpenEditTrip = useCallback(() => {
@@ -765,12 +932,12 @@ function ItineraryPageContent() {
       const newTitle = `${city} Adventure`;
 
       // Shift day dates if the start date changed
-      let updatedDays: typeof itineraryDays | null = null;
+      let updatedDays: ItineraryDay[] | null = null;
       if (editStartDate && aiMeta?.startDate && editStartDate !== aiMeta.startDate) {
         const oldStart = new Date(aiMeta.startDate);
         const newStart = new Date(editStartDate);
         const diffDays = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
-        updatedDays = (activeDays as typeof itineraryDays).map(day => {
+        updatedDays = (activeDays as ItineraryDay[]).map(day => {
           const d = new Date(day.date);
           d.setDate(d.getDate() + diffDays);
           return { ...day, date: d.toISOString().split('T')[0] };
@@ -812,7 +979,7 @@ function ItineraryPageContent() {
         endDate: editEndDate || undefined,
       });
 
-      if (updatedDays) persistDays(updatedDays as typeof itineraryDays);
+      if (updatedDays) persistDays(updatedDays as ItineraryDay[]);
 
       setShowEditTripModal(false);
     } catch (err) {
@@ -1034,6 +1201,42 @@ function ItineraryPageContent() {
               <Map className="w-4 h-4" />
               Map
             </button>
+
+            {/* Open day route in Google Maps */}
+            {sortedActivities.length > 0 && (
+              <a
+                href={(() => {
+                  const addrs = sortedActivities
+                    .map(a => a.address)
+                    .filter(Boolean)
+                    .slice(0, 10); // Google Maps supports up to 10 waypoints
+                  if (addrs.length === 0) return '#';
+                  if (addrs.length === 1) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addrs[0]!)}`;
+                  const origin = encodeURIComponent(addrs[0]!);
+                  const dest = encodeURIComponent(addrs[addrs.length - 1]!);
+                  const waypoints = addrs.slice(1, -1).map(a => encodeURIComponent(a!)).join('|');
+                  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints ? `&waypoints=${waypoints}` : ''}`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+              >
+                <Navigation className="w-4 h-4" />
+                <span className="hidden sm:inline">Route</span>
+              </a>
+            )}
+
+            {/* Export PDF */}
+            <a
+              href={`/trip/${params.id}/print`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+            >
+              <FileDown className="w-4 h-4" />
+              <span className="hidden sm:inline">Export</span>
+            </a>
+
             <button
               onClick={() => hasTripStory ? setShowStoryModal(true) : setUpgradePromptKey('feature_locked')}
               className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
@@ -1128,18 +1331,30 @@ function ItineraryPageContent() {
                         <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Trip priorities</p>
                         <div className="flex flex-wrap gap-2">
                           {aiMeta.preferences.priorities.map((p: string) => {
-                            const PRIORITY_LABELS: Record<string, string> = {
-                              food: '🍽️ Food', hiking: '🥾 Hiking', photography: '📷 Photography',
-                              adventure: '⚡ Adventure', culture: '🏛️ Culture', nightlife: '🎶 Nightlife',
-                              relaxation: '🧘 Relaxation', shopping: '🛍️ Shopping', history: '📜 History',
-                              nature: '🌿 Nature', beaches: '🏖️ Beaches', sports: '⛹️ Sports',
-                              art: '🎨 Art', music: '🎵 Music', wellness: '💆 Wellness',
-                              family: '👨‍👩‍👧 Family', romance: '❤️ Romance', budget: '💰 Budget-friendly',
+                            const PRIORITY_MAP: Record<string, { icon: string; label: string }> = {
+                              food:        { icon: '🍽️', label: 'Food' },
+                              hiking:      { icon: '🥾', label: 'Hiking' },
+                              photography: { icon: '📷', label: 'Photography' },
+                              adventure:   { icon: '⚡', label: 'Adventure' },
+                              culture:     { icon: '🏛️', label: 'Culture' },
+                              nightlife:   { icon: '🎶', label: 'Nightlife' },
+                              relaxation:  { icon: '🧘', label: 'Relaxation' },
+                              shopping:    { icon: '🛍️', label: 'Shopping' },
+                              history:     { icon: '📜', label: 'History' },
+                              nature:      { icon: '🌿', label: 'Nature' },
+                              beaches:     { icon: '🏖️', label: 'Beaches' },
+                              sports:      { icon: '⛹️', label: 'Sports' },
+                              art:         { icon: '🎨', label: 'Art' },
+                              music:       { icon: '🎵', label: 'Music' },
+                              wellness:    { icon: '💆', label: 'Wellness' },
+                              family:      { icon: '👨‍👩‍👧', label: 'Family' },
+                              romance:     { icon: '❤️', label: 'Romance' },
+                              budget:      { icon: '💰', label: 'Budget-friendly' },
                             };
-                            const label = PRIORITY_LABELS[p.toLowerCase()] ?? `✦ ${p.charAt(0).toUpperCase() + p.slice(1)}`;
+                            const entry = PRIORITY_MAP[p.toLowerCase()];
                             return (
-                              <span key={p} className="inline-flex items-center px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs font-semibold">
-                                {label}
+                              <span key={p} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs font-semibold">
+                                {entry ? <><span>{entry.icon}</span>{entry.label}</> : `✦ ${p.charAt(0).toUpperCase() + p.slice(1)}`}
                               </span>
                             );
                           })}
@@ -1150,6 +1365,14 @@ function ItineraryPageContent() {
                 )}
 
                 <div className="space-y-4">
+                  {/* Destination Tip — insider fact about this city/day */}
+                  {currentDayData.destinationTip && (
+                    <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                      <span className="text-base flex-shrink-0 mt-0.5">💡</span>
+                      <p className="text-xs text-amber-800 font-medium leading-relaxed">{currentDayData.destinationTip}</p>
+                    </div>
+                  )}
+
                   {/* Meetup — shown for group trips; handles both structured meetupTime and legacy inline "Group Meetup" activities */}
                   {effectiveMeetupTime && effectiveMeetupLocation &&
                    aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple' && (
@@ -1256,6 +1479,23 @@ function ItineraryPageContent() {
                                 )}
                               </h3>
                               <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* AI Replaced badge */}
+                                {replacedActivityIds.has(activity.id) && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    AI Pick
+                                  </span>
+                                )}
+                                {/* Undo replacement button (shown for 60s after replace) */}
+                                {replacementHistory[activity.id] && (
+                                  <button
+                                    onClick={() => handleUndoReplacement(activity.id)}
+                                    title="Undo — restore original"
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-all whitespace-nowrap"
+                                  >
+                                    ← Undo
+                                  </button>
+                                )}
                                 {/* Edit button */}
                                 <button
                                   onClick={() => handleEditActivity(activity)}
@@ -1507,6 +1747,16 @@ function ItineraryPageContent() {
               </div>
             )}
 
+            {/* Dinner meetup location — shown on split-track days so both groups know where to reconvene */}
+            {currentDayData.dinnerMeetupLocation && (
+              <div className="flex items-start gap-2.5 px-4 py-3 bg-rose-50 border border-rose-100 rounded-2xl mt-2">
+                <Utensils className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-rose-400 mb-0.5">Evening Meetup</p>
+                  <p className="text-xs text-rose-800 font-medium leading-relaxed">Both tracks reconvene for dinner at <span className="font-semibold">{currentDayData.dinnerMeetupLocation}</span></p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -1567,7 +1817,12 @@ function ItineraryPageContent() {
                       <div key={idx} className="p-3 bg-orange-50 rounded-xl border border-orange-100">
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <p className="text-sm font-semibold text-orange-900 leading-snug">{tip.name}</p>
-                          {tip.timeOfDay && tip.timeOfDay !== 'any' && (
+                          {tip.priceRange && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-orange-100 text-orange-600 border-orange-200">
+                            {tip.priceRange}
+                          </span>
+                        )}
+                        {tip.timeOfDay && tip.timeOfDay !== 'any' && (
                             <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${timeColor}`}>
                               {tip.timeOfDay}
                             </span>
@@ -1582,9 +1837,10 @@ function ItineraryPageContent() {
                         {tip.why && (
                           <p className="text-xs text-orange-800 leading-relaxed mb-1">{tip.why}</p>
                         )}
-                        {tip.bestFor && (
+                        {(tip.orderThis || tip.bestFor) && (
                           <p className="text-[11px] text-orange-700 font-medium mb-1">
-                            <span className="text-orange-400 mr-1">Best for:</span>{tip.bestFor}
+                            <span className="text-orange-400 mr-1">{tip.orderThis ? 'Order:' : 'Best for:'}</span>
+                            {tip.orderThis ?? tip.bestFor}
                           </p>
                         )}
                         {tip.tip && (
@@ -1604,6 +1860,84 @@ function ItineraryPageContent() {
                     <p className="text-[11px] text-zinc-500 leading-relaxed">{aiMeta.practicalNotes.tipping}</p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Nightlife Highlights — shown when nightlife is a priority */}
+            {aiMeta?.preferences?.priorities?.includes('nightlife') && aiMeta?.nightlifeHighlights && aiMeta.nightlifeHighlights.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🎶</span>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Nightlife Guide</p>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-4">Local spots · After dark</p>
+                <div className="space-y-3">
+                  {aiMeta.nightlifeHighlights.map((spot, idx) => (
+                    <div key={idx} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-violet-900 leading-snug">{spot.name}</p>
+                        {spot.openFrom && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-violet-100 text-violet-600 border-violet-200 whitespace-nowrap">
+                            {spot.openFrom}
+                          </span>
+                        )}
+                      </div>
+                      {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-violet-400 mb-1">{spot.type}</p>}
+                      {spot.neighborhood && <p className="text-[11px] text-violet-600 mb-1">{spot.neighborhood}</p>}
+                      {spot.vibe && <p className="text-xs text-violet-800 leading-relaxed mb-1">{spot.vibe}</p>}
+                      {spot.bestNight && (
+                        <p className="text-[11px] text-violet-700 font-medium mb-1">
+                          <span className="text-violet-400 mr-1">Best:</span>{spot.bestNight}
+                        </p>
+                      )}
+                      {spot.tip && (
+                        <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-violet-100">
+                          <span className="text-xs flex-shrink-0">💡</span>
+                          <p className="text-[11px] text-violet-700 leading-relaxed italic">{spot.tip}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Shopping Guide — shown when shopping is a priority */}
+            {aiMeta?.preferences?.priorities?.includes('shopping') && aiMeta?.shoppingGuide && aiMeta.shoppingGuide.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🛍️</span>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Shopping Guide</p>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-4">Markets · Boutiques · Local finds</p>
+                <div className="space-y-3">
+                  {aiMeta.shoppingGuide.map((spot, idx) => (
+                    <div key={idx} className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-emerald-900 leading-snug">{spot.name}</p>
+                        {spot.openDays && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-600 border-emerald-200 whitespace-nowrap">
+                            {spot.openDays}
+                          </span>
+                        )}
+                      </div>
+                      {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400 mb-1">{spot.type}</p>}
+                      {spot.neighborhood && <p className="text-[11px] text-emerald-600 mb-1">{spot.neighborhood}</p>}
+                      {spot.what && <p className="text-xs text-emerald-800 leading-relaxed mb-1">{spot.what}</p>}
+                      {spot.bestFor && (
+                        <p className="text-[11px] text-emerald-700 font-medium mb-1">
+                          <span className="text-emerald-400 mr-1">Best for:</span>{spot.bestFor}
+                        </p>
+                      )}
+                      {spot.tip && (
+                        <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-emerald-100">
+                          <span className="text-xs flex-shrink-0">💡</span>
+                          <p className="text-[11px] text-emerald-700 leading-relaxed italic">{spot.tip}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1675,6 +2009,37 @@ function ItineraryPageContent() {
                 <p className="text-[10px] text-zinc-400 mt-3 pt-2 border-t border-zinc-100">
                   AI suggestions · May include affiliate links
                 </p>
+              </div>
+            )}
+
+            {/* Hotel fallback — no pre-booked hotels AND no AI suggestions generated */}
+            {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) &&
+             (!aiMeta?.hotelSuggestions || aiMeta.hotelSuggestions.length === 0) &&
+             aiMeta?.destination && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🏨</span>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-4">No hotel booked yet — search for options</p>
+                <div className="space-y-2">
+                  <a
+                    href={`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(aiMeta.destination)}${aiMeta.startDate ? `&checkin=${aiMeta.startDate}` : ''}${aiMeta.endDate ? `&checkout=${aiMeta.endDate}` : ''}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-xl transition-all"
+                  >
+                    Browse Hotels on Booking.com →
+                  </a>
+                  <button
+                    onClick={handleGenerateHotels}
+                    disabled={generatingHotels}
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+                  >
+                    {generatingHotels ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    {generatingHotels ? 'Finding hotels…' : 'Get AI Suggestions'}
+                  </button>
+                </div>
               </div>
             )}
           </aside>

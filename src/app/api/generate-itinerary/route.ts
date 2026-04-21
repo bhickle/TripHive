@@ -889,10 +889,16 @@ export async function POST(request: NextRequest) {
   const modelId = 'claude-sonnet-4-6';
   const maxTokens = useHighCapModel ? 32000 : 16000;
 
-  // Pre-fetch real places (before the stream opens — this is fast, ~1s)
-  let realPlaces = null;
-  let multiCityPlaces: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null = null;
-  if (process.env.GOOGLE_MAPS_KEY) {
+  // Use pre-fetched places from client if available (they were fetched on Step 8 / Review),
+  // otherwise fall back to fetching here. This removes the ~10-15s wait before streaming starts.
+  let realPlaces: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null =
+    (body.preFetchedRealPlaces as { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null) ?? null;
+  let multiCityPlaces: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null =
+    (body.preFetchedMultiCityPlaces as Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null) ?? null;
+
+  const hasPreFetched = realPlaces !== null || multiCityPlaces !== null;
+
+  if (!hasPreFetched && process.env.GOOGLE_MAPS_KEY) {
     try {
       const requestedDestinations = (body.destinations as string[] | undefined) ?? [];
       if (requestedDestinations.length >= 2) {
@@ -917,6 +923,8 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.warn('[generate-itinerary] Could not fetch real places:', err);
     }
+  } else if (hasPreFetched) {
+    console.log('[generate-itinerary] Using pre-fetched places from client — skipping Google Places fetch');
   }
 
   const prompt = buildPrompt({
