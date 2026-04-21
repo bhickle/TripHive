@@ -146,11 +146,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     });
   }, [isMockTrip, params.id]);
 
-  // Schengen detection — recalculated whenever tripDestination updates
-  const isSchengenDest = SCHENGEN_KEYWORDS.some(kw =>
-    tripDestination.toLowerCase().includes(kw)
-  );
-
   // Trip destination as state (not a one-time IIFE) so it updates when the API returns data.
   // For real trips the initial value reads from localStorage only when the stored trip ID matches
   // (same guard the discover page uses), preventing bleed-over from a previously-generated trip.
@@ -165,6 +160,11 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     } catch { /* ignore */ }
     return 'your destination';
   });
+
+  // Schengen detection — recalculated whenever tripDestination updates
+  const isSchengenDest = SCHENGEN_KEYWORDS.some(kw =>
+    tripDestination.toLowerCase().includes(kw)
+  );
 
   // For multi-country trips (cruises, road trips), extract individual port/country names
   // so we can generate a phrasebook per distinct language region
