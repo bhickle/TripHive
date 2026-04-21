@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -11,6 +11,7 @@ import {
   ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap,
 } from 'lucide-react';
 import Image from 'next/image';
+import { createBrowserClient } from '@supabase/ssr';
 
 type ActiveSection = 'profile' | 'persona' | 'subscription' | 'notifications' | 'apps' | 'privacy' | 'downloads';
 
@@ -131,6 +132,8 @@ export default function SettingsPage() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
 
@@ -164,7 +167,7 @@ export default function SettingsPage() {
     } catch { /* ignore */ }
   }, []);
 
-  // ── Persona — load from localStorage (same store as onboarding + trip builder) ──
+  // ── Persona — load from Supabase for real users, localStorage for guests ──
   const [persona, setPersona] = useState({
     vibes:      [] as string[],
     groupType:  'friends',
@@ -172,18 +175,91 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
+    if (authLoading) return;
+    if (user) {
+      // Real user — fetch from Supabase
+      fetch('/api/auth/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.travelPersona) {
+            const p = data.travelPersona;
+            setPersona({
+              vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
+              groupType:  p.groupType  ?? 'friends',
+              priorities: Array.isArray(p.priorities) ? p.priorities : [],
+            });
+          } else {
+            // Fall back to localStorage if Supabase has nothing yet
+            try {
+              const stored = localStorage.getItem('tripcoord_profile');
+              if (stored) {
+                const p = JSON.parse(stored);
+                setPersona({
+                  vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
+                  groupType:  p.groupType  ?? 'friends',
+                  priorities: Array.isArray(p.priorities) ? p.priorities : [],
+                });
+              }
+            } catch { /* ignore */ }
+          }
+        })
+        .catch(() => { /* keep defaults */ });
+    } else {
+      // Guest / demo — use localStorage
+      try {
+        const stored = localStorage.getItem('tripcoord_profile');
+        if (stored) {
+          const p = JSON.parse(stored);
+          setPersona({
+            vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
+            groupType:  p.groupType  ?? 'friends',
+            priorities: Array.isArray(p.priorities) ? p.priorities : [],
+          });
+        }
+      } catch { /* ignore */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
     try {
-      const stored = localStorage.getItem('tripcoord_profile');
-      if (stored) {
-        const p = JSON.parse(stored);
-        setPersona({
-          vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
-          groupType:  p.groupType  ?? 'friends',
-          priorities: Array.isArray(p.priorities) ? p.priorities : [],
-        });
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (supabaseUrl && supabaseKey && user) {
+        // Upload to Supabase Storage avatars bucket
+        const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+        const ext = file.name.split('.').pop() ?? 'jpg';
+        const path = `${user.id}/avatar.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(path, file, { upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+          if (urlData?.publicUrl) {
+            // Append cache-buster so the browser re-fetches after re-upload
+            const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+            setProfile(prev => ({ ...prev, avatarUrl: publicUrl }));
+            await fetch('/api/auth/me', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ avatar_url: publicUrl }),
+            });
+          }
+        }
+      } else {
+        // Guest / no Supabase — show local preview only
+        const reader = new FileReader();
+        reader.onload = ev => setProfile(prev => ({ ...prev, avatarUrl: ev.target?.result as string }));
+        reader.readAsDataURL(file);
       }
-    } catch { /* ignore */ }
-  }, []);
+    } catch { /* ignore */ } finally {
+      setAvatarUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const saveProfile = async () => {
     setProfileSaving(true);
@@ -202,7 +278,8 @@ export default function SettingsPage() {
     setTimeout(() => setProfileSaved(false), 2000);
   };
 
-  const savePersona = () => {
+  const savePersona = async () => {
+    // Always write to localStorage so trip builder / onboarding stay in sync
     try {
       const existing = JSON.parse(localStorage.getItem('tripcoord_profile') || '{}');
       localStorage.setItem('tripcoord_profile', JSON.stringify({
@@ -212,6 +289,24 @@ export default function SettingsPage() {
         priorities: persona.priorities,
       }));
     } catch { /* ignore */ }
+
+    // For real logged-in users, also persist to Supabase so it survives across devices/logins
+    if (user) {
+      try {
+        await fetch('/api/auth/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            travel_persona: {
+              vibes:      persona.vibes,
+              groupType:  persona.groupType,
+              priorities: persona.priorities,
+            },
+          }),
+        });
+      } catch { /* ignore network errors */ }
+    }
+
     setEditingPersona(false);
     setPersonaSaved(true);
     setTimeout(() => setPersonaSaved(false), 2000);
@@ -498,8 +593,21 @@ export default function SettingsPage() {
                         <label className="block text-sm font-semibold text-slate-900 mb-3">Profile Picture</label>
                         <div className="flex items-end space-x-6">
                           <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
-                          <button className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
-                            <Upload className="w-4 h-4 inline mr-2" />Upload Photo
+                          {/* Hidden file input — triggered by the button below */}
+                          <input
+                            ref={avatarInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleAvatarUpload}
+                          />
+                          <button
+                            onClick={() => avatarInputRef.current?.click()}
+                            disabled={avatarUploading}
+                            className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium disabled:opacity-50"
+                          >
+                            <Upload className="w-4 h-4 inline mr-2" />
+                            {avatarUploading ? 'Uploading…' : 'Upload Photo'}
                           </button>
                         </div>
                       </div>
@@ -517,9 +625,10 @@ export default function SettingsPage() {
                         <input
                           type="email"
                           value={profile.email}
-                          onChange={e => setProfile({ ...profile, email: e.target.value })}
-                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                          readOnly
+                          className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed"
                         />
+                        <p className="text-xs text-slate-400 mt-1">Email is your login credential and can't be changed here.</p>
                       </div>
                       <div className="flex space-x-3 pt-4">
                         <button

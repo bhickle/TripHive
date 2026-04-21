@@ -35,7 +35,7 @@ export async function DELETE() {
 /**
  * PATCH /api/auth/me
  * Updates mutable profile fields for the authenticated user.
- * Supports: name (string), notification_preferences (JSONB)
+ * Supports: name (string), avatar_url (string), notification_preferences (JSONB), travel_persona (JSONB)
  * Note: email changes require Supabase re-auth and are handled separately.
  */
 export async function PATCH(request: Request) {
@@ -45,15 +45,21 @@ export async function PATCH(request: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { name, notification_preferences } = body;
+    const { name, avatar_url, notification_preferences, travel_persona } = body;
 
     // Build the update payload — only include fields that were sent
     const updates: TablesUpdate<'profiles'> = {};
     if (typeof name === 'string' && name.trim().length > 0) {
       updates.name = name.trim();
     }
+    if (typeof avatar_url === 'string') {
+      updates.avatar_url = avatar_url;
+    }
     if (notification_preferences && typeof notification_preferences === 'object') {
       updates.notification_preferences = notification_preferences;
+    }
+    if (travel_persona && typeof travel_persona === 'object') {
+      updates.travel_persona = travel_persona;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -91,7 +97,7 @@ export async function GET() {
     const supabase = createAdminClient();
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, name, email, avatar_url, subscription_tier, notification_preferences')
+      .select('id, name, email, avatar_url, subscription_tier, notification_preferences, travel_persona')
       .eq('id', user.id)
       .single();
 
@@ -104,6 +110,7 @@ export async function GET() {
       avatarUrl: profile?.avatar_url ?? null,
       subscriptionTier: profile?.subscription_tier ?? 'free',
       notificationPreferences: profile?.notification_preferences ?? null,
+      travelPersona: profile?.travel_persona ?? null,
     });
   } catch {
     return NextResponse.json({ user: null }, { status: 401 });
