@@ -248,7 +248,8 @@ export default function OnboardingPage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('tripcoord_profile', JSON.stringify(profileData));
     }
-    // Also persist name to Supabase profile so greeting uses real name
+    // Persist name + full travel persona to Supabase for logged-in users
+    // so the data is available on any device, not just this browser's localStorage
     try {
       const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -256,10 +257,19 @@ export default function OnboardingPage() {
       );
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase
-          .from('profiles')
-          .update({ name: state.yourName })
-          .eq('id', user.id);
+        // Use the /api/auth/me PATCH endpoint so validation + admin client are consistent
+        await fetch('/api/auth/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: state.yourName,
+            travel_persona: {
+              vibes: state.vibes,
+              groupType: state.groupType,
+              priorities: [], // priorities are set in Settings after onboarding
+            },
+          }),
+        });
       }
     } catch {
       // Supabase save failed — localStorage fallback already set, continue

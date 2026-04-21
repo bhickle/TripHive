@@ -99,16 +99,16 @@ interface TripWizardState {
 }
 
 const priorityOptions = [
-  { id: 'nature', label: 'Nature', icon: '🌿' },
-  { id: 'food', label: 'Food', icon: '🍽️' },
-  { id: 'nightlife', label: 'Nightlife', icon: '🎉' },
-  { id: 'history', label: 'History', icon: '🏛️' },
-  { id: 'sports', label: 'Sports', icon: '⚽' },
-  { id: 'photography', label: 'Photography', icon: '📸' },
-  { id: 'wellness', label: 'Wellness', icon: '🧘' },
-  { id: 'shopping', label: 'Shopping', icon: '🛍️' },
-  { id: 'adventure', label: 'Adventure', icon: '🪂' },
-  { id: 'culture', label: 'Culture', icon: '🎨' },
+  { id: 'nature', label: 'Nature' },
+  { id: 'food', label: 'Food' },
+  { id: 'nightlife', label: 'Nightlife' },
+  { id: 'history', label: 'History' },
+  { id: 'sports', label: 'Sports' },
+  { id: 'photography', label: 'Photography' },
+  { id: 'wellness', label: 'Wellness' },
+  { id: 'shopping', label: 'Shopping' },
+  { id: 'adventure', label: 'Adventure' },
+  { id: 'culture', label: 'Culture' },
 ];
 
 const mockDestinations = [
@@ -395,6 +395,10 @@ function TripBuilderPage() {
   );
   const [selectedRegion, setSelectedRegion] = useState<string>('featured');
 
+  // Multi-destination mode gate (Item 9)
+  const [showMultiCity, setShowMultiCity] = useState(false);
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
+
   // Destination typeahead — powered by world cities dataset
   const {
     suggestions: destSuggestions,
@@ -402,19 +406,65 @@ function TripBuilderPage() {
     setQuery: setDestQuery,
   } = usePlacesSearch(150, '/api/destinations/search');
 
-  // Load profile from onboarding if coming from first-trip flow
+  // Multi-city city add typeahead (Item 4)
+  const {
+    suggestions: citySuggestions,
+    loading: cityLoading,
+    setQuery: setCityQuery,
+  } = usePlacesSearch(150, '/api/destinations/search');
+
+  // Load profile: for first-trip flow read from localStorage (just populated by onboarding).
+  // For returning real users, fetch travel_persona from Supabase so persona is available
+  // on any device even if localStorage is empty.
   useEffect(() => {
-    if (!isFirstTrip) return;
-    try {
-      const raw = localStorage.getItem('tripcoord_profile');
-      if (!raw) return;
-      const profile = JSON.parse(raw);
-      if (profile.name) setWelcomeName(profile.name);
-      if (profile.groupType) setState(prev => ({ ...prev, groupType: profile.groupType }));
-    } catch {
-      // ignore
+    if (isFirstTrip) {
+      // Coming straight from onboarding — localStorage was just written, use it
+      try {
+        const raw = localStorage.getItem('tripcoord_profile');
+        if (!raw) return;
+        const profile = JSON.parse(raw);
+        if (profile.name) setWelcomeName(profile.name);
+        if (profile.groupType) setState(prev => ({ ...prev, groupType: profile.groupType }));
+      } catch { /* ignore */ }
+      return;
     }
-  }, [isFirstTrip]);
+
+    // For returning logged-in users: try Supabase first, fall back to localStorage
+    if (!currentUser.isDemo && currentUser.id) {
+      fetch('/api/auth/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.travelPersona) {
+            const p = data.travelPersona;
+            setState(prev => ({
+              ...prev,
+              ...(p.groupType ? { groupType: p.groupType } : {}),
+              ...(Array.isArray(p.priorities) && p.priorities.length > 0
+                ? { priorities: p.priorities }
+                : {}),
+            }));
+          } else {
+            // No Supabase persona yet — fall back to localStorage
+            try {
+              const raw = localStorage.getItem('tripcoord_profile');
+              if (!raw) return;
+              const profile = JSON.parse(raw);
+              if (profile.groupType) setState(prev => ({ ...prev, groupType: profile.groupType }));
+            } catch { /* ignore */ }
+          }
+        })
+        .catch(() => {
+          // Network error — fall back to localStorage
+          try {
+            const raw = localStorage.getItem('tripcoord_profile');
+            if (!raw) return;
+            const profile = JSON.parse(raw);
+            if (profile.groupType) setState(prev => ({ ...prev, groupType: profile.groupType }));
+          } catch { /* ignore */ }
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirstTrip, currentUser.isDemo, currentUser.id]);
 
   // Pre-fill destination (and optionally trip length) from wishlist "Plan This Trip"
   useEffect(() => {
@@ -590,7 +640,7 @@ function TripBuilderPage() {
       let sseBuffer = '';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const collectedDays: any[] = [];
-      let tripMeta: { title?: string; practicalNotes?: unknown; hotelSuggestions?: unknown; foodieTips?: unknown } = {};
+      let tripMeta: { title?: string; practicalNotes?: unknown; hotelSuggestions?: unknown; foodieTips?: unknown; nightlifeHighlights?: unknown; shoppingGuide?: unknown } = {};
       const totalDays = state.tripLength || 7;
 
       outer: while (true) {
@@ -616,6 +666,8 @@ function TripBuilderPage() {
                   practicalNotes: parsed.practicalNotes,
                   hotelSuggestions: parsed.hotelSuggestions,
                   foodieTips: parsed.foodieTips ?? null,
+                  nightlifeHighlights: parsed.nightlifeHighlights ?? null,
+                  shoppingGuide: parsed.shoppingGuide ?? null,
                 };
                 break;
 
@@ -664,6 +716,8 @@ function TripBuilderPage() {
         practicalNotes: tripMeta.practicalNotes || null,
         hotelSuggestions: tripMeta.hotelSuggestions || null,
         foodieTips: tripMeta.foodieTips || null,
+        nightlifeHighlights: tripMeta.nightlifeHighlights || null,
+        shoppingGuide: tripMeta.shoppingGuide || null,
       };
 
       // Write to localStorage as an immediate fallback while we attempt the Supabase save
@@ -1201,40 +1255,25 @@ function TripBuilderPage() {
                     )}
                   </div>
 
-                  {/* ── Multi-destination detection banner ── */}
-                  {state.destination.includes(',') && (
-                    <div className="flex items-center justify-between px-4 py-3 bg-sky-50 border border-sky-200 rounded-xl">
-                      <div className="flex items-start gap-2">
-                        <span className="text-sky-600 mt-0.5">🗺️</span>
-                        <div>
-                          <p className="text-sm font-semibold text-sky-900">Visiting multiple cities?</p>
-                          <p className="text-xs text-sky-700">We detected a list — split them into individual stops for a better itinerary.</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const parts = state.destination
-                            .split(/[,&/]/)
-                            .map(s => s.replace(/\band\b/gi, '').trim())
-                            .filter(Boolean);
-                          if (parts.length > 1) {
-                            // Use first city as primary destination, rest as multi-city
-                            setState(prev => ({
-                              ...prev,
-                              destination: parts[0],
-                              destinations: parts,
-                            }));
-                          }
-                          setDestQuery('');
-                          setShowDestinationSuggestions(false);
-                        }}
-                        className="ml-4 px-3 py-1.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-lg whitespace-nowrap transition-colors"
-                      >
-                        Split →
-                      </button>
-                    </div>
-                  )}
+                  {/* ── Multi-destination toggle (Item 9) ── */}
+                  <div className="flex items-center space-x-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <input
+                      type="checkbox"
+                      id="multiCityToggle"
+                      checked={showMultiCity}
+                      onChange={(e) => {
+                        setShowMultiCity(e.target.checked);
+                        if (!e.target.checked) {
+                          setState(prev => ({ ...prev, destinations: [], daysPerDestination: {} }));
+                          setDestinationCityInput('');
+                        }
+                      }}
+                      className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700 flex-shrink-0"
+                    />
+                    <label htmlFor="multiCityToggle" className="text-sm font-medium text-slate-900 cursor-pointer">
+                      I plan on visiting multiple destinations on this trip
+                    </label>
+                  </div>
 
                   {/* ── Guided destination browser — visible when search is empty ── */}
                   {(!state.destination || state.destination.length < 2) && !showDestinationSuggestions && (
@@ -1307,135 +1346,120 @@ function TripBuilderPage() {
                     </div>
                   )}
 
-                  {/* Multi-city section — Explorer/Nomad, for users planning without hotels */}
-                  {/* Also shown while entitlements are loading to prevent field disappearing for paid users */}
-                  {(!entitlementsReady || tier === 'explorer' || tier === 'nomad') && (
-                    <div className="mt-6 pt-6 border-t border-slate-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-sm font-semibold text-slate-900">
-                          Visiting multiple cities? 🗺️
-                        </label>
-                        <span className="text-xs text-slate-400">optional</span>
-                      </div>
-                      <p className="text-xs text-slate-500 mb-4">
-                        Add cities in the order you plan to visit them. If you enter hotels in Step 4, their cities will be used automatically — this is for trips without pre-booked hotels.
+                  {/* ── Multi-city city list — revealed when checkbox is checked (Item 9) ── */}
+                  {showMultiCity && (
+                    <div className="mt-2 p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-4">
+                      <p className="text-xs text-sky-800">
+                        Add cities in the order you plan to visit. If you enter hotel bookings in Step 4, their cities will build your route automatically — this is for trips planned without pre-booked hotels.
                       </p>
-                      <div className="flex gap-2 mb-3">
-                        <input
-                          type="text"
-                          value={destinationCityInput}
-                          onChange={e => setDestinationCityInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && destinationCityInput.trim()) {
-                              e.preventDefault();
+                      {/* City input with typeahead (Item 4) */}
+                      <div className="relative">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              value={destinationCityInput}
+                              onChange={e => {
+                                setDestinationCityInput(e.target.value);
+                                setCityQuery(e.target.value);
+                                setShowCitySuggestions(e.target.value.length >= 2);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && destinationCityInput.trim()) {
+                                  e.preventDefault();
+                                  const val = destinationCityInput.trim();
+                                  if (!state.destinations.includes(val)) {
+                                    setState(prev => ({ ...prev, destinations: [...prev.destinations, val] }));
+                                  }
+                                  setDestinationCityInput('');
+                                  setCityQuery('');
+                                  setShowCitySuggestions(false);
+                                }
+                              }}
+                              onBlur={() => setTimeout(() => setShowCitySuggestions(false), 150)}
+                              placeholder="e.g. Vienna, Lisbon, Kyoto…"
+                              className="w-full px-3 py-2.5 border border-sky-300 rounded-lg text-sm bg-white focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                            />
+                            {cityLoading && (
+                              <Loader2 className="absolute right-3 top-3 w-4 h-4 text-slate-400 animate-spin" />
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
                               const val = destinationCityInput.trim();
-                              if (!state.destinations.includes(val)) {
+                              if (val && !state.destinations.includes(val)) {
                                 setState(prev => ({ ...prev, destinations: [...prev.destinations, val] }));
                               }
                               setDestinationCityInput('');
-                            }
-                          }}
-                          placeholder="e.g. Vienna"
-                          className="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const val = destinationCityInput.trim();
-                            if (val && !state.destinations.includes(val)) {
-                              setState(prev => ({ ...prev, destinations: [...prev.destinations, val] }));
-                            }
-                            setDestinationCityInput('');
-                          }}
-                          disabled={!destinationCityInput.trim()}
-                          className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {state.destinations.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-1.5 flex-wrap p-3 bg-white border border-sky-200 rounded-xl">
-                            {state.destinations.map((city, i) => (
-                              <React.Fragment key={city}>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
-                                  {city}
-                                  <button
-                                    type="button"
-                                    onClick={() => setState(prev => {
-                                      const { [city]: _, ...rest } = prev.daysPerDestination;
-                                      return { ...prev, destinations: prev.destinations.filter(d => d !== city), daysPerDestination: rest };
-                                    })}
-                                    className="text-sky-400 hover:text-sky-700"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </span>
-                                {i < state.destinations.length - 1 && (
-                                  <span className="text-slate-300 text-sm font-light">→</span>
-                                )}
-                              </React.Fragment>
-                            ))}
-                          </div>
-                          {/* Days per city allocation */}
-                          <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl space-y-2">
-                            <p className="text-xs font-semibold text-sky-800 mb-2">How many nights per city? <span className="font-normal text-sky-600">(optional — helps balance the itinerary)</span></p>
-                            {state.destinations.map((city) => {
-                              const days = state.daysPerDestination[city] ?? 0;
+                              setCityQuery('');
+                              setShowCitySuggestions(false);
+                            }}
+                            disabled={!destinationCityInput.trim()}
+                            className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {/* Typeahead dropdown */}
+                        {showCitySuggestions && citySuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-10 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-56 overflow-y-auto">
+                            {citySuggestions.map(s => {
+                              const fullCity = s.address ? `${s.name}, ${s.address}` : s.name;
                               return (
-                                <div key={city} className="flex items-center justify-between">
-                                  <span className="text-sm text-sky-900 font-medium">{city}</span>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setState(prev => ({
-                                        ...prev,
-                                        daysPerDestination: {
-                                          ...prev.daysPerDestination,
-                                          [city]: Math.max(0, (prev.daysPerDestination[city] ?? 0) - 1),
-                                        },
-                                      }))}
-                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
-                                      disabled={days <= 0}
-                                    >
-                                      −
-                                    </button>
-                                    <span className="w-8 text-center text-sm font-semibold text-sky-900">
-                                      {days > 0 ? `${days}` : '—'}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setState(prev => ({
-                                        ...prev,
-                                        daysPerDestination: {
-                                          ...prev.daysPerDestination,
-                                          [city]: (prev.daysPerDestination[city] ?? 0) + 1,
-                                        },
-                                      }))}
-                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
+                                <button
+                                  key={s.placeId}
+                                  type="button"
+                                  onMouseDown={e => e.preventDefault()}
+                                  onClick={() => {
+                                    if (!state.destinations.includes(fullCity)) {
+                                      setState(prev => ({ ...prev, destinations: [...prev.destinations, fullCity] }));
+                                    }
+                                    setDestinationCityInput('');
+                                    setCityQuery('');
+                                    setShowCitySuggestions(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-center gap-2"
+                                >
+                                  <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                  <span className="text-sm text-slate-900">{s.name}</span>
+                                  {s.address && <span className="text-xs text-slate-400">{s.address}</span>}
+                                </button>
                               );
                             })}
-                            {(() => {
-                              const totalAllocated = Object.values(state.daysPerDestination).reduce((a, b) => a + b, 0);
-                              if (totalAllocated > 0 && totalAllocated !== state.tripLength) {
-                                return (
-                                  <p className="text-xs text-amber-700 mt-1">
-                                    {totalAllocated} nights allocated · {state.tripLength} total — {totalAllocated < state.tripLength ? `${state.tripLength - totalAllocated} unassigned` : `${totalAllocated - state.tripLength} over`}
-                                  </p>
-                                );
-                              }
-                              if (totalAllocated > 0 && totalAllocated === state.tripLength) {
-                                return <p className="text-xs text-green-700 mt-1">✓ All {state.tripLength} nights allocated</p>;
-                              }
-                              return null;
-                            })()}
                           </div>
+                        )}
+                      </div>
+
+                      {/* City chips */}
+                      {state.destinations.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap p-3 bg-white border border-sky-200 rounded-xl">
+                          {state.destinations.map((city, i) => (
+                            <React.Fragment key={city}>
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
+                                {city}
+                                <button
+                                  type="button"
+                                  onClick={() => setState(prev => {
+                                    const { [city]: _, ...rest } = prev.daysPerDestination;
+                                    return { ...prev, destinations: prev.destinations.filter(d => d !== city), daysPerDestination: rest };
+                                  })}
+                                  className="text-sky-400 hover:text-sky-700"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                              {i < state.destinations.length - 1 && (
+                                <span className="text-slate-300 text-sm font-light">→</span>
+                              )}
+                            </React.Fragment>
+                          ))}
                         </div>
+                      )}
+                      {state.destinations.length >= 2 && (
+                        <p className="text-xs text-sky-700">
+                          Nights per city can be set in Step 3 after you choose your trip length.
+                        </p>
                       )}
                     </div>
                   )}
@@ -1450,52 +1474,7 @@ function TripBuilderPage() {
                   When are you going? 📅
                 </h2>
                 <div className="space-y-6">
-                  {/* Trip Length — quick-select first */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1">
-                      Trip Length
-                    </label>
-                    <p className="text-xs text-slate-400 mb-3">Quick-pick or set exact dates below — selecting dates auto-calculates length</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {[3, 5, 7, 10, 14].map((days) => {
-                        const isLocked = days > maxTripDays;
-                        const upgradeTo = maxTripDays <= 7 ? 'Explorer' : 'Nomad';
-                        return (
-                          <div key={days} className="relative group">
-                            <button
-                              onClick={() => {
-                                if (!isLocked) handleTripLengthClick(days);
-                              }}
-                              disabled={isLocked}
-                              title={isLocked ? `${days}-day trips require ${upgradeTo} or higher` : undefined}
-                              className={`w-full p-3 rounded-lg border-2 font-semibold transition-all ${
-                                isLocked
-                                  ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
-                                  : state.tripLength === days
-                                    ? 'border-green-700 bg-green-50 text-green-800'
-                                    : 'border-slate-200 text-slate-700 hover:border-sky-300'
-                              }`}
-                            >
-                              {days}d
-                              {isLocked && (
-                                <Lock className="w-3 h-3 inline-block ml-1 mb-0.5 text-slate-300" />
-                              )}
-                            </button>
-                            {isLocked && (
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-40 bg-slate-800 text-white text-xs rounded-lg px-3 py-2 text-center shadow-lg pointer-events-none">
-                                Requires {upgradeTo}+
-                                <Link href="/pricing" className="block mt-1 text-sky-300 underline pointer-events-auto">
-                                  Upgrade
-                                </Link>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Flexible dates toggle */}
+                  {/* Flexible dates toggle — at top so quick-select is context-aware */}
                   <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                     <input
                       type="checkbox"
@@ -1516,35 +1495,93 @@ function TripBuilderPage() {
                     </label>
                   </div>
 
+                  {/* Trip Length — quick-select only for flexible dates (Item 6) */}
+                  {state.flexibleDates && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-900 mb-1">
+                        Trip Length
+                      </label>
+                      <p className="text-xs text-slate-400 mb-3">How many days are you thinking?</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {[3, 5, 7, 10, 14].map((days) => {
+                          const isLocked = days > maxTripDays;
+                          const upgradeTo = maxTripDays <= 7 ? 'Explorer' : 'Nomad';
+                          return (
+                            <div key={days} className="relative group">
+                              <button
+                                onClick={() => { if (!isLocked) handleTripLengthClick(days); }}
+                                disabled={isLocked}
+                                title={isLocked ? `${days}-day trips require ${upgradeTo} or higher` : undefined}
+                                className={`w-full p-3 rounded-lg border-2 font-semibold transition-all ${
+                                  isLocked
+                                    ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
+                                    : state.tripLength === days
+                                      ? 'border-green-700 bg-green-50 text-green-800'
+                                      : 'border-slate-200 text-slate-700 hover:border-sky-300'
+                                }`}
+                              >
+                                {days}d
+                                {isLocked && <Lock className="w-3 h-3 inline-block ml-1 mb-0.5 text-slate-300" />}
+                              </button>
+                              {isLocked && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-40 bg-slate-800 text-white text-xs rounded-lg px-3 py-2 text-center shadow-lg pointer-events-none">
+                                  Requires {upgradeTo}+
+                                  <Link href="/pricing" className="block mt-1 text-sky-300 underline pointer-events-auto">Upgrade</Link>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Tier disclaimer for locked days (Item 6) */}
+                      {maxTripDays < 14 && (
+                        <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          Your {tier} plan supports up to {maxTripDays}-day trips.{' '}
+                          <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade for longer adventures.</Link>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Exact date pickers (non-flexible) */}
                   {!state.flexibleDates && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-3">
-                          Start Date
-                        </label>
-                        <input
-                          type="date"
-                          value={state.startDate}
-                          onChange={(e) =>
-                            handleDateChange('startDate', e.target.value)
-                          }
-                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
-                        />
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-900 mb-3">
+                        Travel Dates
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1.5">Start Date</label>
+                          <input
+                            type="date"
+                            value={state.startDate}
+                            onChange={(e) => handleDateChange('startDate', e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1.5">End Date</label>
+                          <input
+                            type="date"
+                            value={state.endDate}
+                            onChange={(e) => handleDateChange('endDate', e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-900 mb-3">
-                          End Date
-                        </label>
-                        <input
-                          type="date"
-                          value={state.endDate}
-                          onChange={(e) =>
-                            handleDateChange('endDate', e.target.value)
-                          }
-                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
-                        />
-                      </div>
+                      {/* Trip length display when dates are locked */}
+                      {state.startDate && state.endDate && (
+                        <p className="text-xs text-slate-500 mt-2">
+                          That's <span className="font-semibold text-slate-800">{state.tripLength} days</span>
+                          {state.tripLength > maxTripDays && (
+                            <span className="text-rose-600 ml-1">
+                              — your {tier} plan supports up to {maxTripDays} days.{' '}
+                              <Link href="/pricing" className="underline">Upgrade</Link> to unlock longer trips.
+                            </span>
+                          )}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1581,7 +1618,6 @@ function TripBuilderPage() {
                             value={state.endDate ? state.endDate.slice(0, 7) : ''}
                             onChange={(e) => {
                               if (e.target.value) {
-                                // Set to last day of that month
                                 const [y, m] = e.target.value.split('-').map(Number);
                                 const lastDay = new Date(y, m, 0).getDate();
                                 setState(prev => ({ ...prev, endDate: `${e.target.value}-${String(lastDay).padStart(2, '0')}` }));
@@ -1601,9 +1637,91 @@ function TripBuilderPage() {
                           </select>
                         </div>
                       </div>
+                      {/* Chronological validation (Item 11) */}
+                      {state.startDate && state.endDate && state.startDate > state.endDate && (
+                        <div className="flex items-center justify-between p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                          <p className="text-xs text-rose-700 font-medium">
+                            Oops — your &ldquo;latest&rdquo; month is earlier than your &ldquo;earliest.&rdquo; Swap them?
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setState(prev => ({ ...prev, startDate: prev.endDate, endDate: prev.startDate }))}
+                            className="ml-3 flex items-center gap-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg whitespace-nowrap transition-colors"
+                          >
+                            <Shuffle className="w-3 h-3" /> Swap
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-sky-700">
-                        💡 AI will suggest the best travel windows in this range based on weather, crowds, and pricing.
+                        AI will suggest the best travel windows in this range based on weather, crowds, and pricing.
                       </p>
+                    </div>
+                  )}
+
+                  {/* Days-per-city allocation — moved here from Step 2 (Item 1) */}
+                  {(state.destinations.length >= 2 || (state.hasPreBookedHotel && (() => {
+                    const cities = Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())));
+                    return cities.length >= 2;
+                  })())) && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-900 mb-1">
+                        Nights per City
+                      </label>
+                      <p className="text-xs text-slate-400 mb-3">Optional — helps the AI balance time across your stops. Leave blank for even distribution.</p>
+                      {(() => {
+                        const cities = state.destinations.length >= 2
+                          ? state.destinations
+                          : Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city!.trim())));
+                        return (
+                          <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl space-y-2">
+                            {cities.map((city) => {
+                              const days = state.daysPerDestination[city] ?? 0;
+                              return (
+                                <div key={city} className="flex items-center justify-between">
+                                  <span className="text-sm text-sky-900 font-medium">{city}</span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setState(prev => ({
+                                        ...prev,
+                                        daysPerDestination: { ...prev.daysPerDestination, [city]: Math.max(0, (prev.daysPerDestination[city] ?? 0) - 1) },
+                                      }))}
+                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
+                                      disabled={days <= 0}
+                                    >−</button>
+                                    <span className="w-8 text-center text-sm font-semibold text-sky-900">{days > 0 ? `${days}` : '—'}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setState(prev => ({
+                                        ...prev,
+                                        daysPerDestination: { ...prev.daysPerDestination, [city]: (prev.daysPerDestination[city] ?? 0) + 1 },
+                                      }))}
+                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold"
+                                    >+</button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {(() => {
+                              const total = Object.values(state.daysPerDestination).reduce((a, b) => a + b, 0);
+                              if (total > 0 && total !== state.tripLength) {
+                                const diff = total - state.tripLength;
+                                return (
+                                  <p className={`text-xs mt-1 ${diff > 0 ? 'text-rose-600' : 'text-amber-700'}`}>
+                                    {diff > 0
+                                      ? `That's ${diff} night${diff === 1 ? '' : 's'} over your ${state.tripLength}-day trip — trim a city or extend your trip.`
+                                      : `${state.tripLength - total} night${state.tripLength - total === 1 ? '' : 's'} still unassigned — they'll be divided evenly.`}
+                                  </p>
+                                );
+                              }
+                              if (total > 0 && total === state.tripLength) {
+                                return <p className="text-xs text-green-700 mt-1">All {state.tripLength} nights accounted for.</p>;
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -1941,6 +2059,27 @@ function TripBuilderPage() {
                         </p>
                       )}
 
+                      {/* Hotel date validation (Item 5) */}
+                      {state.startDate && state.endDate && (() => {
+                        const warnings = state.bookedHotels.flatMap((h, i) => {
+                          const msgs: string[] = [];
+                          if (h.checkIn && h.checkIn < state.startDate) msgs.push(`Hotel ${i + 1} checks in before your trip starts`);
+                          if (h.checkOut && h.checkOut > state.endDate) msgs.push(`Hotel ${i + 1} checks out after your trip ends`);
+                          if (h.checkIn && h.checkOut && h.checkIn >= h.checkOut) msgs.push(`Hotel ${i + 1} check-out must be after check-in`);
+                          return msgs;
+                        });
+                        if (warnings.length === 0) return null;
+                        return (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                            {warnings.map((w, i) => (
+                              <p key={i} className="text-xs text-amber-800 flex items-center gap-1.5">
+                                <span className="flex-shrink-0">⚠</span> {w}
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
                       {/* Multi-city route preview */}
                       {(() => {
                         const cities = state.bookedHotels
@@ -2093,7 +2232,7 @@ function TripBuilderPage() {
                         <button
                           key={priority.id}
                           onClick={() => !isDisabled && togglePriority(priority.id)}
-                          className={`p-4 rounded-lg border-2 transition-all text-center ${
+                          className={`py-3 px-4 rounded-lg border-2 transition-all text-center flex items-center justify-center gap-2 ${
                             isSelected
                               ? 'border-green-700 bg-green-50'
                               : isDisabled
@@ -2101,13 +2240,8 @@ function TripBuilderPage() {
                               : 'border-slate-200 hover:border-sky-300'
                           }`}
                         >
-                          <span className="text-3xl mb-2 block">{priority.icon}</span>
+                          {isSelected && <div className="w-4 h-4 bg-green-800 rounded-full flex-shrink-0" />}
                           <p className="font-semibold text-slate-900 text-sm">{priority.label}</p>
-                          {isSelected && (
-                            <div className="mt-2">
-                              <div className="w-4 h-4 bg-green-800 rounded-full mx-auto" />
-                            </div>
-                          )}
                         </button>
                       );
                     })}
@@ -2454,30 +2588,30 @@ function TripBuilderPage() {
                 </h2>
 
                 <div className="space-y-6">
-                  {/* Summary Cards */}
+                  {/* Summary Cards — all with Edit links (Item 8) */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
-                      <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide mb-2">
-                        Group Type
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Group Type</p>
+                        <button onClick={() => setCurrentStep(1)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
                       <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.groupType}
+                        {state.groupType || <span className="text-slate-400">Not set</span>}
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
-                      <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide mb-2">
-                        {(() => {
-                          const hotelCities = state.hasPreBookedHotel
-                            ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())))
-                            : [];
-                          const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
-                          return routeCities.length > 1 ? 'Route' : 'Destination';
-                        })()}
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">
+                          {(() => {
+                            const hotelCities = state.hasPreBookedHotel ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim()))) : [];
+                            const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
+                            return routeCities.length > 1 ? 'Route' : 'Destination';
+                          })()}
+                        </p>
+                        <button onClick={() => setCurrentStep(2)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
                       {(() => {
-                        const hotelCities = state.hasPreBookedHotel
-                          ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())))
-                          : [];
+                        const hotelCities = state.hasPreBookedHotel ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim()))) : [];
                         const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
                         if (routeCities.length > 1) {
                           return (
@@ -2491,59 +2625,58 @@ function TripBuilderPage() {
                             </div>
                           );
                         }
-                        return <p className="text-lg font-semibold text-slate-900">{state.destination || 'Not selected'}</p>;
+                        return <p className="text-lg font-semibold text-slate-900">{state.destination || <span className="text-slate-400">Not selected</span>}</p>;
                       })()}
                     </div>
                     <div className="p-4 bg-parchment rounded-lg border border-stone-200">
-                      <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
-                        Trip Length
-                      </p>
-                      <p className="text-lg font-semibold text-slate-900">
-                        {state.tripLength} days
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Trip Length</p>
+                        <button onClick={() => setCurrentStep(3)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      <p className="text-lg font-semibold text-slate-900">{state.tripLength} days</p>
                     </div>
                     <div className="p-4 bg-parchment rounded-lg border border-stone-200">
-                      <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
-                        Budget (per person)
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Budget (per person)</p>
+                        <button onClick={() => setCurrentStep(7)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
+                      </div>
                       <p className="text-lg font-semibold text-slate-900">
                         ${state.budget.toLocaleString()} <span className="text-sm text-slate-500">× {state.groupSize} = ${(state.budget * state.groupSize).toLocaleString()}</span>
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
-                      <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide mb-2">
-                        Local Transport
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Local Transport</p>
+                        <button onClick={() => setCurrentStep(6)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
                       <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.modality.length > 0 ? state.modality.join(', ') : 'Not set'}
+                        {state.modality.length > 0 ? state.modality.join(', ') : <span className="text-slate-400">Not set</span>}
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
-                      <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide mb-2">
-                        Accommodation
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Accommodation</p>
+                        <button onClick={() => setCurrentStep(6)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
                       <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.accommodationType.length > 0 ? state.accommodationType.join(', ') : 'Not set'}
+                        {state.accommodationType.length > 0 ? state.accommodationType.join(', ') : <span className="text-slate-400">Not set</span>}
                       </p>
                     </div>
                   </div>
 
-                  {/* Priorities Summary */}
+                  {/* Priorities Summary — no emoji (Items 3 & 8) */}
                   {state.priorities.length > 0 && (
                     <div className="p-4 bg-slate-100 rounded-lg border border-slate-300">
-                      <p className="text-sm font-semibold text-slate-900 mb-3">
-                        Priorities
-                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-slate-900">Priorities</p>
+                        <button onClick={() => setCurrentStep(5)} className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2">Edit →</button>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {state.priorities.map((id) => {
                           const priority = priorityOptions.find((p) => p.id === id);
                           return priority ? (
-                            <span
-                              key={id}
-                              className="inline-flex items-center space-x-1 px-3 py-1.5 bg-sky-100 text-sky-800 rounded-full text-sm font-medium"
-                            >
-                              <span>{priority.icon}</span>
-                              <span>{priority.label}</span>
+                            <span key={id} className="px-3 py-1.5 bg-sky-100 text-sky-800 rounded-full text-sm font-medium">
+                              {priority.label}
                             </span>
                           ) : null;
                         })}
