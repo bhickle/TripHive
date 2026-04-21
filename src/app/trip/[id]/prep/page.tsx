@@ -1,9 +1,24 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
+
+// ─── Schengen Detection ───────────────────────────────────────────────────────
+const SCHENGEN_KEYWORDS = [
+  'austria', 'belgium', 'czech', 'denmark', 'estonia', 'finland', 'france',
+  'germany', 'greece', 'hungary', 'iceland', 'italy', 'latvia', 'liechtenstein',
+  'lithuania', 'luxembourg', 'malta', 'netherlands', 'norway', 'poland',
+  'portugal', 'slovakia', 'slovenia', 'spain', 'sweden', 'switzerland',
+  // Common cities that strongly imply Schengen
+  'paris', 'rome', 'barcelona', 'amsterdam', 'berlin', 'madrid', 'lisbon',
+  'vienna', 'prague', 'budapest', 'zurich', 'brussels', 'stockholm', 'oslo',
+  'copenhagen', 'helsinki', 'reykjavik', 'athens', 'venice', 'florence',
+  'milan', 'munich', 'hamburg', 'frankfurt', 'zurich', 'geneva', 'bern',
+  'luxembourg city', 'valletta', 'riga', 'tallinn', 'vilnius', 'warsaw',
+  'krakow', 'bratislava', 'ljubljana',
+];
 import { useEntitlements } from '@/hooks/useEntitlements';
 import Link from 'next/link';
 
@@ -130,6 +145,11 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       }
     });
   }, [isMockTrip, params.id]);
+
+  // Schengen detection — recalculated whenever tripDestination updates
+  const isSchengenDest = SCHENGEN_KEYWORDS.some(kw =>
+    tripDestination.toLowerCase().includes(kw)
+  );
 
   // Trip destination as state (not a one-time IIFE) so it updates when the API returns data.
   // For real trips the initial value reads from localStorage only when the stored trip ID matches
@@ -409,16 +429,48 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             </div>
           </>
         ) : (
-          <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
-            <div className="flex gap-3">
-              <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-sky-900 mb-1">Visa & Entry Requirements</h3>
-                <p className="text-sm text-sky-800">Check visa requirements for <strong>{tripDestination}</strong> based on your passport. Visit <a href="https://travel.state.gov" target="_blank" rel="noopener noreferrer" className="underline">travel.state.gov</a> for US citizens or your country&apos;s foreign affairs website.</p>
+          <>
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
+              <div className="flex gap-3">
+                <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-sky-900 mb-1">Visa & Entry Requirements</h3>
+                  <p className="text-sm text-sky-800">Check visa requirements for <strong>{tripDestination}</strong> based on your passport. Visit <a href="https://travel.state.gov" target="_blank" rel="noopener noreferrer" className="underline">travel.state.gov</a> for US citizens or your country&apos;s foreign affairs website.</p>
+                </div>
               </div>
             </div>
-          </div>
+            {isSchengenDest && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                <div className="flex gap-3">
+                  <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-amber-900 mb-1">EU Entry/Exit System (EES) — Schengen Area</h3>
+                    <p className="text-sm text-amber-800 mb-2">
+                      The EU&apos;s new <strong>Entry/Exit System (EES)</strong> is being rolled out for non-EU visitors to the Schengen Area. First-time visitors must register biometric data (fingerprints + facial photo) at the border. This replaces manual passport stamping.
+                    </p>
+                    <ul className="text-sm text-amber-800 space-y-1">
+                      <li>⏱ <strong>Allow extra time at border control</strong> — registration can add 15–30 min on your first Schengen entry.</li>
+                      <li>📋 Check <a href="https://travel.ec.europa.eu/travel-safety/entry-exit-system-ees_en" target="_blank" rel="noopener noreferrer" className="underline font-medium">the official EES page</a> for the latest rollout status before you travel.</li>
+                      <li>🔁 Applies to non-EU/Schengen passport holders (including US, UK, Australian citizens).</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
+
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+          <div className="flex gap-2">
+            <input type="text" placeholder="Add a document or note..." value={newDocItem} onChange={(e) => setNewDocItem(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addDocTask(newDocItem); }}
+              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
+            <button onClick={() => addDocTask(newDocItem)}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
 
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           {documentTasks.map((task: PrepTask, index: number) => (
@@ -442,18 +494,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">Custom</span>
             </div>
           ))}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
-          <div className="flex gap-2">
-            <input type="text" placeholder="Add Document task..." value={newDocItem} onChange={(e) => setNewDocItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addDocTask(newDocItem); }}
-              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => addDocTask(newDocItem)}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -648,6 +688,18 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+          <div className="flex gap-2">
+            <input type="text" placeholder="Add a note or task..." value={newLogItem} onChange={(e) => setNewLogItem(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addLogTask(newLogItem); }}
+              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
+            <button onClick={() => addLogTask(newLogItem)}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           {logisticsTasks.map((task: PrepTask, index: number) => (
             <div key={task.id} className={`flex items-center gap-4 px-6 py-4 ${index !== logisticsTasks.length - 1 ? 'border-b border-zinc-100' : ''} ${completedTasks.has(task.id) ? 'bg-zinc-50' : ''}`}>
@@ -670,18 +722,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">Custom</span>
             </div>
           ))}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
-          <div className="flex gap-2">
-            <input type="text" placeholder="Add something to handle..." value={newLogItem} onChange={(e) => setNewLogItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addLogTask(newLogItem); }}
-              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => addLogTask(newLogItem)}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
         </div>
 
         {isMockTrip ? (

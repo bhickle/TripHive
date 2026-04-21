@@ -71,6 +71,7 @@ interface TripWizardState {
   accommodationType: string[];
   curiosityLevel: number;
   localMode: boolean;
+  dateNight: boolean;
   budget: number;
   budgetBreakdown: {
     flights: number;
@@ -117,6 +118,19 @@ const mockDestinations = [
   { name: 'Bali, Indonesia', match: 88 },
   { name: 'Venice, Italy', match: 85 },
   { name: 'Bangkok, Thailand', match: 82 },
+  { name: 'Lisbon, Portugal', match: 90 },
+  { name: 'Tokyo, Japan', match: 93 },
+  { name: 'Marrakech, Morocco', match: 87 },
+  { name: 'Santorini, Greece', match: 89 },
+  { name: 'Mexico City, Mexico', match: 86 },
+  { name: 'Cape Town, South Africa', match: 84 },
+  { name: 'Amsterdam, Netherlands', match: 88 },
+  { name: 'Buenos Aires, Argentina', match: 83 },
+  { name: 'Reykjavik, Iceland', match: 85 },
+  { name: 'Istanbul, Turkey', match: 87 },
+  { name: 'Queenstown, New Zealand', match: 86 },
+  { name: 'Prague, Czech Republic', match: 84 },
+  { name: 'Chiang Mai, Thailand', match: 82 },
 ];
 
 // ─── Guided Destination Browser ───────────────────────────────────────────────
@@ -363,6 +377,7 @@ function TripBuilderPage() {
     accommodationType: ['hotel'],
     curiosityLevel: 50,
     localMode: false,
+    dateNight: false,
     budget: 5000,
     budgetBreakdown: {
       flights: 800,
@@ -613,6 +628,7 @@ function TripBuilderPage() {
           })(),
           daysPerDestination: state.daysPerDestination,
           localMode: state.localMode,
+          dateNight: state.dateNight,
           curiosityLevel: state.curiosityLevel,
           modality: state.modality.join(', '),
           accommodationType: state.accommodationType.join(', '),
@@ -2434,6 +2450,29 @@ function TripBuilderPage() {
                     <label className="text-sm font-medium text-slate-900">
                       Local insider mode (off-the-beaten-path experiences)
                     </label>
+                  </div>
+
+                  {/* Date Night Toggle */}
+                  <div className="flex items-center space-x-3 p-4 bg-pink-50 rounded-lg border border-pink-200">
+                    <input
+                      type="checkbox"
+                      checked={state.dateNight}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          dateNight: e.target.checked,
+                        }))
+                      }
+                      className="w-5 h-5 rounded border-pink-300 text-pink-600 focus:ring-pink-500"
+                    />
+                    <div>
+                      <label className="text-sm font-medium text-slate-900">
+                        ✨ Date night included
+                      </label>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        One evening will be reserved for a romantic dinner or special experience for two.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

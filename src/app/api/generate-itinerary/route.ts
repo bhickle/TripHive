@@ -14,6 +14,7 @@ You balance popular highlights with authentic off-the-beaten-path experiences.
 You adapt itineraries based on group composition, budget, and interests.
 Use American English spelling and phrasing throughout (e.g. "neighborhood" not "neighbourhood", "center" not "centre", "organize" not "organise").
 Photo spot tips must be ONE concise sentence only — no more than 20 words. Never write multiple sentences for a photo spot tip.
+CRITICAL — NEVER INVENT EVENTS: Never assign a specific scheduled game, concert, show, or live event to a specific date. Sports games, concerts, and live performances have unpredictable schedules. If a venue hosts live events, write that travelers should check the official website or ticketing platform for current dates — never fabricate a fixture date, game time, or show schedule.
 Return ONLY valid JSON — no markdown, no explanation, no code fences.`;
 
 interface BookedFlight {
@@ -45,6 +46,80 @@ interface GooglePlace {
   priceLevel?: string;
   types?: string[];
   openingHours?: string[]; // weekdayDescriptions e.g. ["Monday: 11:00 AM – 9:00 PM", ...]
+}
+
+function getSuggestedTrackLabels(priorities: string[]): { a: string; b: string } | null {
+  const highEnergy = priorities.filter(p => ['adventure', 'sports', 'nightlife'].includes(p));
+  const hasNature = priorities.includes('nature');
+  const lowEnergy = priorities.filter(p => ['wellness', 'culture', 'history', 'food', 'shopping'].includes(p));
+
+  // Only suggest labels if there's a genuine split
+  if ((highEnergy.length === 0 && !hasNature) || lowEnergy.length === 0) return null;
+
+  let labelA = '';
+  if (highEnergy.includes('adventure') && highEnergy.includes('sports')) labelA = 'Adventure & Sports';
+  else if (highEnergy.includes('adventure') || hasNature) labelA = 'Outdoors & Adventure';
+  else if (highEnergy.includes('sports')) labelA = 'Active & Sporty';
+  else if (highEnergy.includes('nightlife')) labelA = 'Nightlife & Energy';
+  else labelA = 'Active & Outdoors';
+
+  let labelB = '';
+  if (lowEnergy.includes('culture') && lowEnergy.includes('history')) labelB = 'Culture & History';
+  else if (lowEnergy.includes('wellness') && lowEnergy.includes('culture')) labelB = 'Culture & Wellness';
+  else if (lowEnergy.includes('culture') || lowEnergy.includes('history')) labelB = 'Culture & Sightseeing';
+  else if (lowEnergy.includes('wellness')) labelB = 'Rest & Wellness';
+  else if (lowEnergy.includes('food') && lowEnergy.includes('shopping')) labelB = 'Food & Shopping';
+  else if (lowEnergy.includes('food')) labelB = 'Food & Slow Mornings';
+  else if (lowEnergy.includes('shopping')) labelB = 'Shopping & Wandering';
+  else labelB = 'Slow & Scenic';
+
+  return { a: labelA, b: labelB };
+}
+
+// ─── Seasonal context ─────────────────────────────────────────────────────────
+// Returns date-aware rules about what sports/events are in or out of season,
+// and seasonal travel context (Christmas markets, cherry blossoms, etc.)
+function getSeasonalContext(startDate: string, destination: string): string {
+  const month = new Date(startDate + 'T12:00:00').getMonth() + 1; // 1–12
+  const dest = destination.toLowerCase();
+  const lines: string[] = ['\nSEASONAL CONTEXT — enforce these rules strictly:'];
+
+  // North American sports seasons
+  const mlbActive   = month >= 4 && month <= 10;
+  const nflActive   = month >= 9 || month <= 1;
+  const nbaActive   = month >= 10 || month <= 6;
+  const nhlActive   = month >= 10 || month <= 6;
+  const mlsActive   = month >= 3 && month <= 10;
+  const collegeFootball = month >= 9 || month === 1;
+
+  if (!mlbActive)  lines.push('- MLB BASEBALL is OUT OF SEASON (runs April–October). Do NOT include baseball games or reference them as schedulable.');
+  else             lines.push('- MLB is in season — stadium visits valid; direct travelers to the official team website for game dates. Never invent a specific game.');
+  if (!nflActive)  lines.push('- NFL FOOTBALL is OUT OF SEASON (runs September–January). Do NOT include football games.');
+  else             lines.push('- NFL is in season — stadium visits valid; direct travelers to the official schedule for game dates. Never invent a specific game.');
+  if (!nbaActive)  lines.push('- NBA BASKETBALL is OUT OF SEASON (runs October–June). Do NOT include basketball games.');
+  else             lines.push('- NBA is in season — arena visits valid; direct travelers to the official schedule. Never invent a specific game.');
+  if (!nhlActive)  lines.push('- NHL HOCKEY is OUT OF SEASON (runs October–June). Do NOT include hockey games.');
+  else             lines.push('- NHL is in season — arena visits valid; direct travelers to the official schedule. Never invent a specific game.');
+  if (!mlsActive)  lines.push('- MLS SOCCER is OUT OF SEASON (runs March–October). Do NOT include soccer matches.');
+  if (!collegeFootball) lines.push('- COLLEGE FOOTBALL is OUT OF SEASON (runs September–January). Do NOT include college games.');
+
+  // Seasonal travel context
+  if (month === 11 || month === 12)
+    lines.push('- CHRISTMAS MARKETS: Open late November through December 24 across Europe. If the destination has a famous market, include at least one visit.');
+  if (month === 3 || month === 4)
+    lines.push('- CHERRY BLOSSOM SEASON (late March–mid April): In Japan, Washington DC, and other blossom destinations, prioritize viewing spots if applicable.');
+  if ((month === 1 || month === 2) && (dest.includes('new orleans') || dest.includes('louisiana')))
+    lines.push('- MARDI GRAS SEASON: If trip dates overlap with Mardi Gras, highlight parade routes, jazz clubs, and king cake stops.');
+  if (month >= 6 && month <= 8)
+    lines.push('- SUMMER: Long daylight hours — evening activities can run later. Outdoor venues at their best. Note heat and crowd peaks at popular sites.');
+  if (month === 12 || month === 1 || month === 2)
+    lines.push('- WINTER: Shorter daylight hours — plan activity blocks accordingly. Ski resorts are at peak season where applicable.');
+  if (month >= 6 && month <= 11 && (dest.includes('caribbean') || dest.includes('gulf coast') || dest.includes('florida') || dest.includes('bahamas')))
+    lines.push('- HURRICANE SEASON (June–November): Note this in practicalNotes. Travel insurance is strongly recommended.');
+  if (month >= 5 && month <= 10 && (dest.includes('southeast asia') || dest.includes('thailand') || dest.includes('vietnam') || dest.includes('bali') || dest.includes('india')))
+    lines.push('- MONSOON SEASON: Note wet season conditions in practicalNotes. Pack accordingly.');
+
+  return lines.join('\n');
 }
 
 interface PlacesApiNewResult {
@@ -159,6 +234,7 @@ function buildPrompt(params: {
   ageRanges: string[];
   accessibilityNeeds: string[];
   localMode?: boolean;
+  dateNight?: boolean;
   curiosityLevel?: number;
   modality?: string;
   accommodationType?: string;
@@ -170,18 +246,20 @@ function buildPrompt(params: {
   daysPerDestination?: Record<string, number>; // optional day allocation per city
   additionalContext?: string;          // free-text notes from the user ("anything else?")
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
+  multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
 }) {
   const {
     destination, startDate, endDate, tripLength,
     groupType, priorities, budget, budgetBreakdown,
     ageRanges, accessibilityNeeds,
-    localMode, curiosityLevel, modality, accommodationType,
+    localMode, dateNight, curiosityLevel, modality, accommodationType,
     bookedFlight, realPlaces,
   } = params;
   const mustHaves = params.mustHaves ?? [];
   const destinations = params.destinations ?? [];
   const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
+  const multiCityPlaces = params.multiCityPlaces ?? null;
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
   const bookedHotels: BookedHotel[] = params.bookedHotels?.length
@@ -194,6 +272,8 @@ function buildPrompt(params: {
   const priorityText = priorities.length > 0
     ? priorities.join(', ')
     : 'balanced mix of culture, food, and sightseeing';
+
+  const suggestedTrackLabels = getSuggestedTrackLabels(priorities);
 
   const accessibilityText = accessibilityNeeds.filter(n => n !== 'No special needs').join(', ') || 'none';
 
@@ -209,6 +289,10 @@ function buildPrompt(params: {
     ? '\n- LOCAL INSIDER MODE: For every day, include the iconic tourist highlight AND a local alternative nearby — a neighborhood cafe instead of the tourist-facing one, a local market instead of the souvenir shop. Both options appear side by side so the group can choose. Never skip the famous landmark entirely — just pair it with a genuine local counterpart.'
     : '';
 
+  const dateNightText = dateNight
+    ? '\n- DATE NIGHT: On the most fitting evening of the trip (typically mid-trip, not the first or last night), reserve the dinner slot for a romantic, special experience — a candlelit restaurant, a scenic rooftop, a private tasting, or something the destination is known for that feels intimate and memorable. Label the dinner on that day as "Date Night 🌙" and write the description in a warm, romantic tone. All other evenings should be planned normally.'
+    : '';
+
   const modalityText = modality && modality !== 'mix'
     ? `\n- Primary transport: ${modality} — build routes and day plans around this mode`
     : '';
@@ -217,20 +301,75 @@ function buildPrompt(params: {
     ? `\n- Staying in: ${accommodationType} — factor this into meeting points and daily logistics`
     : '';
 
-  // Sports-specific guidance
+  // Sports-specific guidance (Item 12: no speculative event schedules)
   const sportsText = priorities.includes('sports')
-    ? `\n- SPORTS PRIORITY: Include visits to or near major stadiums, arenas, and sports venues in ${destination}. Check if any league matches, sporting events, or competitions are scheduled during ${startDate}–${endDate} and mention them in descriptions. Include sports bars and fan zones for game-day atmosphere.`
+    ? `\n- SPORTS PRIORITY: This group loves sports. Include visits to major stadiums, arenas, and iconic sports venues in ${destination} — even if no game is scheduled, a stadium tour or visit to a sports hall of fame is worth doing. Include sports bars, fan zones, and local sports memorabilia shops where fans gather. For any venue description, mention the team(s) that play there and note that checking the official team website for match dates is recommended — do NOT invent or speculate on specific fixture dates, as this information can change.`
     : '';
 
-  // Food priority — generate a separate foodieTips block of off-the-beaten-path spots on day 1
+  // Food priority — elevated foodie experience throughout the entire itinerary
   const hasFoodPriority = priorities.includes('food');
+  const hasNightlifePriority = priorities.includes('nightlife');
+  const hasShoppingPriority = priorities.includes('shopping');
   const foodText = hasFoodPriority
-    ? `\n- FOOD PRIORITY: This group has food as a top priority. In addition to the standard meals in the itinerary, generate a "foodieTips" array on day 1 (see OUTPUT FORMAT) with 4-6 unique, off-the-beaten-path food experiences — food trucks, local markets, hole-in-the-wall joints, street food stalls, specialty shops, food halls, or unique culinary experiences that most tourists miss. These are NOT the standard breakfast/lunch/dinner spots in the itinerary tracks — they are bonus exploratory stops and ambient discoveries for adventurous eaters.`
+    ? `\n- FOODIE PRIORITY — ELEVATED STANDARDS FOR EVERY MEAL AND FOOD EXPERIENCE:
+  This group is serious about food. Eating is not a logistical checkpoint — it is the highlight of the day. Apply these rules across every single meal slot in the itinerary:
+
+  RESTAURANT SELECTION:
+  - Every breakfast, lunch, and dinner must be handpicked as if a food editor chose it. No chain restaurants, hotel buffets, or tourist-trap spots.
+  - Prioritize: neighborhood institutions beloved by locals, chefs doing exciting regional or seasonal cuisine, markets with legendary vendors, and spots with a distinctive personality or story.
+  - Mix the experience across the trip: a standing counter one morning, a lively market breakfast another, a chef's tasting lunch, a celebrated local trattoria for dinner — never two similar dining experiences back-to-back.
+  - At least one meal per day should feature a dish that is iconic or unique to this destination — something you genuinely cannot get back home.
+
+  RESTAURANT DESCRIPTIONS:
+  - Each restaurant description MUST include: (1) what to order — name 2-3 specific dishes or items, be concrete and appetizing, (2) why locals love it — the reputation, history, or cult following behind it, (3) the vibe — is it a loud bustling market? an intimate counter? a breezy courtyard?
+  - Write descriptions like a food writer: evocative, specific, and mouthwatering. "A local burger joint" is not acceptable. "A hole-in-the-wall counter that's been frying the city's best smash burgers since 1978 — order the double with pickled jalapeños" is.
+  - Never use generic phrases like "great food" or "nice atmosphere" — always be specific about WHAT and WHY.
+
+  DAY THEMES:
+  - Each day's theme should reflect the food journey, not just the sights — e.g. "Morning Market & Rooftop Dinner", "Street Food Day & Night Market", "Old Quarter Tastings & Chef's Counter".
+
+  BONUS FOODIE TIPS (day 1 output):
+  In addition to the daily meals, generate the "foodieTips" array on day 1 (see OUTPUT FORMAT) with 6-8 bonus food finds spread across the full trip — things that don't fit neatly into a meal slot but are unmissable for a serious foodie. Think: the best coffee in the city, a legendary mid-afternoon snack stop, a specialty food shop worth browsing, a late-night dumpling stall, or a market you should spend an hour in. Label each with the best time to visit so the group can slot them in naturally.`
     : '';
 
   // Photography guidance — iconic spots always included; extra depth when photography is a priority
   const photoText = priorities.includes('photography')
     ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour timing, interesting angles, and any access restrictions. Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, murals, reflections, etc. Include at least one spot that most tourists miss.`
+    : '';
+
+  // Nature priority (Item 13)
+  const natureText = priorities.includes('nature')
+    ? `\n- NATURE PRIORITY: This group prioritizes time outdoors. Anchor at least one activity per day in a natural setting — national parks, botanical gardens, scenic coastal walks, riverside paths, viewpoints, forests, or wildlife areas. For hiking or walking activities, specify trail name and approximate difficulty. Mix in quieter natural escapes alongside any urban sightseeing.`
+    : '';
+
+  // Nightlife priority (Item 13)
+  const nightlifeText = priorities.includes('nightlife')
+    ? `\n- NIGHTLIFE PRIORITY: This group wants to experience the local after-dark scene. Include a mix of: live music venues (jazz bars, indie stages, rooftop bars), cocktail lounges, neighborhood gastropubs, and any well-known nightlife districts. Dinner should flow naturally into the evening's nightlife activities. Note cover charges and opening times in descriptions where known. Avoid tourist-trap party strips — favor spots where locals actually go.`
+    : '';
+
+  // Shopping priority (Item 13)
+  const shoppingText = priorities.includes('shopping')
+    ? `\n- SHOPPING PRIORITY: This group enjoys discovering local goods and markets. Include: a local artisan market or bazaar, one or two well-curated independent boutiques (not international chains), a food or produce market for local specialties, and any craft or design districts the destination is known for. Descriptions should highlight what makes each spot unique and what to look for — local crafts, fashion, ceramics, textiles, etc.`
+    : '';
+
+  // History priority (Item 13)
+  const historyText = priorities.includes('history')
+    ? `\n- HISTORY PRIORITY: This group is passionate about history and heritage. Beyond the obvious landmarks, include: lesser-known historic districts, guided walking tours of old quarters, significant archaeological or architectural sites, local history museums, and stories behind specific buildings or monuments. Activity descriptions should include historical context — when was it built, what happened here, why does it matter.`
+    : '';
+
+  // Wellness priority (Item 13)
+  const wellnessText = priorities.includes('wellness')
+    ? `\n- WELLNESS PRIORITY: This group values rest and rejuvenation alongside exploration. Include: a spa or hammam visit, a morning yoga class or meditation session, a scenic slow walk or gentle nature activity, and a healthy or mindful dining experience. Pace the days with breathing room — don't pack every hour. At least one activity per day should be low-intensity or explicitly restorative.`
+    : '';
+
+  // Adventure priority (Item 13)
+  const adventureText = priorities.includes('adventure')
+    ? `\n- ADVENTURE PRIORITY: This group craves active, high-energy experiences. Include at least one adrenaline or physically demanding activity per day — hiking, cycling tours, water sports, ziplining, kayaking, rock climbing, surfing, or similar. For each adventure activity: include operator name if known, approximate duration, difficulty level, and any gear or booking requirements. Add packingTips for all adventure activities.`
+    : '';
+
+  // Culture priority (Item 13)
+  const cultureText = priorities.includes('culture')
+    ? `\n- CULTURE PRIORITY: This group is drawn to the arts, local traditions, and creative scene. Include: contemporary and classical art galleries, a live performance (theater, dance, music, or local festival if in season), a visit to a culturally significant neighborhood, and a cultural experience unique to this destination (local ceremony, artisan workshop, cooking class, community event). Descriptions should convey what makes each experience culturally meaningful.`
     : '';
 
   // Multi-city routing rules — injected when destinations array has 2+ cities
@@ -324,11 +463,13 @@ You MUST follow ALL of these rules:
       });
       preBookingText += `  → For each day, look at the date and use whichever hotel's check-in/check-out window covers that night as the home base.
   → Home-base rules (apply per hotel for the nights it covers):
-    - Breakfast should be near that night's hotel
-    - Day activities should cluster around areas accessible from that hotel
+    - Breakfast is near the hotel the group WOKE UP IN (the departing hotel on transition days, NOT the arriving hotel). The group has not yet traveled — they are still at the morning hotel. Never place breakfast at a hotel they have not checked into yet.
+    - Lunch on transition days should be somewhere practical along the travel route between the two cities.
+    - Dinner and all evening activities should be near the ARRIVING hotel's neighborhood — the group has checked in by this point.
+    - Day activities should cluster around areas accessible from that day's home base
     - Each day should end with the group able to return to the night's hotel
-    - On transition days (checking out of one hotel and into another): plan a late-morning checkout, then route activities toward the new hotel's neighborhood; include a luggage-storage or direct transfer note
-    - meetupLocation each day should reference the active hotel lobby or nearest landmark
+    - On transition days (checking out of one hotel and into another): plan a late-morning checkout, schedule the inter-city transport leg in the itinerary as a visible activity (e.g. "Train to [Next City]" in the shared track), then route afternoon/evening activities toward the new hotel's neighborhood; include a luggage-storage note if check-in is not until late afternoon
+    - meetupLocation each day should reference the active morning hotel lobby or nearest landmark
   → All hotel costs are already paid; exclude hotel from budget recommendations.`;
     }
   }
@@ -376,9 +517,26 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${preBookingText}${multiCityText}
+- Travel style: ${travelStyleText}${localModeText}${dateNightText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${preBookingText}${multiCityText}
 
 ${(() => {
+    // Multi-city: inject per-city place sections
+    if (multiCityPlaces && Object.keys(multiCityPlaces).length >= 2) {
+      const sections: string[] = [];
+      for (const [city, places] of Object.entries(multiCityPlaces)) {
+        if (!places || (places.restaurants.length === 0 && places.attractions.length === 0)) continue;
+        let section = `\nCRITICAL — REAL PLACES IN ${city.toUpperCase()} ONLY (verified via Google Places):\nOn days when the group is in ${city}, use ONLY these venues. Do NOT invent restaurants or activities for ${city}.\nOPENING HOURS: schedule each venue only within its listed hours. QUALITY & CURATION rules apply as normal.\n`;
+        if (places.restaurants.length > 0) {
+          section += `\nREAL RESTAURANTS IN ${city.toUpperCase()}:\n${places.restaurants.map(r => formatPlaceForPrompt(r)).join('\n')}`;
+        }
+        if (places.attractions.length > 0) {
+          section += `\n\nREAL ATTRACTIONS IN ${city.toUpperCase()}:\n${places.attractions.map(a => formatPlaceForPrompt(a)).join('\n')}`;
+        }
+        sections.push(section);
+      }
+      if (sections.length > 0) return sections.join('\n') + '\n';
+    }
+
     if (!realPlaces || (realPlaces.restaurants.length === 0 && realPlaces.attractions.length === 0)) return '';
     const { restaurants, attractions } = realPlaces;
 
@@ -419,9 +577,11 @@ OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects.
 IMPORTANT: The FIRST day object (day 1) must include these additional top-level fields before "day":
   "title" — a concise, evocative 3-6 word trip name incorporating the destination and top priority (e.g. "Venice Food & History Adventure", "Bangkok Nights & Street Food", "Kyoto Temples & Quiet Gardens"). This will display as the trip name throughout the app.
   "practicalNotes" — a one-time block of essential destination knowledge (only on day 1, omit from all other days):${needsHotelSuggestions ? `
-  "hotelSuggestions" — since no hotel has been pre-booked, include an array of exactly 3 recommended hotels matching the ${hotelPriceTier} tier (only on day 1, omit from all other days):
+  "hotelSuggestions" — since no hotel has been pre-booked, include hotel suggestions matching the ${hotelPriceTier} tier (only on day 1, omit from all other days):${destinations.length >= 2 ? `
+    For this multi-city trip (${destinations.join(' → ')}), include 1-2 hotels per city so the group knows where to stay in each location. Structure the array with a "city" field on each hotel so the app can group them:` : ''}
     [
       {
+        ${destinations.length >= 2 ? '"city": "City name this hotel is in",' : ''}
         "name": "Hotel name",
         "neighborhood": "Area/district name",
         "address": "Full address",
@@ -431,20 +591,49 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
         "bookingUrl": "https://www.booking.com/searchresults.html?ss=HOTEL+NAME+CITY&checkin=${startDate}&checkout=${endDate}"
       }
     ]
-    Choose hotels that are: (1) real and accurately named, (2) well-located for the day's activities — ideally central or near transport hubs, (3) highly regarded for their category. Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value. The bookingUrl should be a Booking.com search URL pre-filled with the hotel name and destination city and the trip dates.` : ''}${hasFoodPriority ? `
-  "foodieTips" — since food is a top priority, include an array of 4-6 off-the-beaten-path food finds (day 1 only):
+    Choose hotels that are: (1) real and accurately named, (2) well-located — ideally central or near transport hubs, (3) highly regarded for their category.${destinations.length >= 2 ? ` For each city in the multi-city route, include 1-2 options — this helps the group plan where to base themselves in each leg of the trip.` : ' Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value.'} The bookingUrl should be a Booking.com search URL pre-filled with the hotel name and city.` : ''}${hasFoodPriority ? `
+  "foodieTips" — since food is a top priority, include an array of 6-8 bonus food finds spread across the trip (day 1 only, but tips cover the full trip):
     [
       {
-        "name": "Place or market name",
-        "type": "food truck | street stall | market | local joint | specialty shop | food hall",
-        "neighborhood": "District or area",
-        "why": "One sentence on what makes it special and why locals love it — NOT a tourist attraction",
-        "bestFor": "2-3 specific dishes, items, or experiences",
-        "timeOfDay": "morning | afternoon | evening | any",
-        "tip": "Practical insider tip (e.g. 'cash only', 'arrive before noon', 'skip the front stalls')"
+        "name": "Specific place, stall, or vendor name — be precise, not generic",
+        "type": "coffee bar | street stall | food market | specialty shop | food hall | late-night spot | bakery | bar snack | tasting room | other",
+        "neighborhood": "District or area name",
+        "why": "What makes this place legendary or worth a detour — the story, the reputation, the cult following. Be vivid and specific.",
+        "orderThis": "The 1-3 exact items to order — dish names, flavors, or products. Make it mouthwatering.",
+        "timeOfDay": "morning | midday | afternoon | evening | late-night | any",
+        "priceRange": "$ | $$ | $$$ (rough cost per person for a snack or small purchase)",
+        "tip": "One practical insider tip — when to arrive, what to avoid, cash vs card, secret menu, etc."
       }
     ]
-    Rules: (1) These must be DIFFERENT from the breakfast/lunch/dinner spots in the daily itinerary. (2) Prioritize places tourists rarely find — local markets, neighbourhood street food, food trucks, hole-in-the-wall joints. (3) Must be real, specific, and accurately named. (4) Vary the time of day and type so there's something for every mood.` : ''}
+    Rules: (1) Every tip must be DIFFERENT from the breakfast/lunch/dinner restaurants in the daily tracks — these are the bonus discoveries, the spontaneous stops, the things only a real food lover would seek out. (2) Vary the type widely — include at least one great coffee, one market or food hall, one late-night or post-dinner snack, and one specialty shop or tasting. (3) Must be real, specifically named establishments — no invented places. (4) Write each "why" like a food writer: opinionated, enthusiastic, and concrete. (5) Spread tips across different times of day so the group can slot them naturally into any day of the trip.` : ''}
+${hasNightlifePriority ? `
+  "nightlifeHighlights" — since nightlife is a top priority, include an array of 5-7 evening venues curated for this destination (day 1 only, covers full trip):
+    [
+      {
+        "name": "Bar, club, or venue name — specific and real",
+        "type": "cocktail bar | rooftop bar | live music | jazz bar | wine bar | craft beer | club | lounge | pub | speakeasy",
+        "neighborhood": "District or area name",
+        "vibe": "The atmosphere in one sentence — packed and loud? intimate and moody? locals-only dive?",
+        "bestNight": "Best night or time to visit — e.g. 'Thursday jazz nights', 'weekends from 11pm', 'any evening'",
+        "openFrom": "Rough opening time and last entry if known — e.g. '8pm until late'",
+        "tip": "One practical tip — reservation required, cover charge, dress code, best seat in the house, etc."
+      }
+    ]
+    Rules: (1) All venues must be real and specifically named — no invented bars. (2) Vary the type: include at least one live music venue, one cocktail bar, and one locals-only spot. (3) Write "vibe" with personality — specific, atmospheric, opinionated. (4) No tourist-trap venues — the list should read like a local's guide.` : ''}
+${hasShoppingPriority ? `
+  "shoppingGuide" — since shopping is a top priority, include an array of 5-7 curated shopping spots (day 1 only, covers full trip):
+    [
+      {
+        "name": "Market, shop, or district name — specific and real",
+        "type": "flea market | artisan market | food market | boutique | vintage | craft | design | neighborhood | specialty shop | department",
+        "neighborhood": "District or area",
+        "what": "What you'll find — name specific goods, products, brands, or specialties. Be vivid.",
+        "bestFor": "Who this is best for — bargain hunters? design lovers? foodies? souvenir seekers?",
+        "openDays": "Days and hours — e.g. 'Saturdays 8am–3pm only' or 'Mon–Sat 10am–7pm'",
+        "tip": "One insider tip — arrive early for best selection, cash preferred, haggling expected, hidden floor, etc."
+      }
+    ]
+    Rules: (1) Prioritize local and independent over international chains. (2) Vary the type — at least one food/produce market, one craft or artisan market, and one neighborhood to browse. (3) Include specific items or products to look for — don't be generic. (4) Be real and accurately named.` : ''}
     {
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
@@ -458,7 +647,9 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
   {
     "title": "Evocative trip name here (day 1 only)",
     "practicalNotes": { ... (day 1 only) },${hasFoodPriority ? `
-    "foodieTips": [ ... (day 1 only, food priority trips) ],` : ''}
+    "foodieTips": [ ... (day 1 only, food priority trips) ],` : ''}${hasNightlifePriority ? `
+    "nightlifeHighlights": [ ... (day 1 only, nightlife priority trips) ],` : ''}${hasShoppingPriority ? `
+    "shoppingGuide": [ ... (day 1 only, shopping priority trips) ],` : ''}
     "day": 1,
     "date": "${startDate}",
     "theme": "Evocative 3-5 word theme for the day",
@@ -469,8 +660,10 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
         "tip": "One-sentence tip on what to capture and how"
       }
     ],
+    "destinationTip": "One punchy, specific insider sentence about something this city or region is distinctly known for — a food, drink, tradition, or quirk tied to the day's location. E.g. 'Bavaria is famous for its weisswurst — order it before noon, never after, at any traditional beer hall.' Rotate the topic across days (food one day, drink another, local tradition another).",
     "trackALabel": null,
     "trackBLabel": null,
+    "dinnerMeetupLocation": null,
     "tracks": {
       "shared": [
         {
@@ -535,8 +728,10 @@ SPLIT TRACK DECISION — follow this logic exactly:
 - SPLIT if: the priorities include at least one high-energy option (adventure, sports, nightlife, nature) AND at least one low-energy option (wellness, culture, history, food, shopping). These represent genuinely different paces that can't be served by a single shared schedule.
 - DO NOT SPLIT if: all priorities are in the same energy band, or the group type is "solo" or "couple".
 - When you DO split: apply splits on middle days only (not Day 1 arrival or last day departure). Mornings should always be shared. Splits happen in the afternoon block. Groups reconvene for the evening meetup.
-- trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels, e.g. "Active & Outdoors" / "Culture & Relaxation" or "Nightlife & Energy" / "Slow & Scenic". These display directly in the UI so make them friendly and specific to this trip.
+- trackALabel and trackBLabel: when splitting, replace null with short 2-4 word descriptive labels. These display directly in the UI.${suggestedTrackLabels ? ` Based on this group's priorities (${priorities.join(', ')}), use EXACTLY these labels: "${suggestedTrackLabels.a}" / "${suggestedTrackLabels.b}". Do not vary the wording — copy them verbatim on every day that splits. The same label pair must appear on every split day throughout the entire itinerary. Never rename a track mid-trip.` : ` Examples: "Active & Outdoors" / "Culture & Relaxation", "Nightlife & Energy" / "Slow & Scenic". Pick one pair and use it IDENTICALLY on every split day — never rename tracks between days.`}
 - When NOT splitting: set trackALabel and trackBLabel to null and leave track_a and track_b as empty arrays.
+- NEVER duplicate an activity across both track_a and track_b. If an activity suits both tracks equally, place it in shared. The purpose of split tracks is diverging options — different experiences, not the same experience labeled twice.
+- dinnerMeetupLocation: on days with a split (track_a and track_b populated), set this to the dinner restaurant name and address so both groups know where to reconvene in the evening. On non-split days, set to null.
 
 MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
 1. Breakfast (isRestaurant: true, mealType: "breakfast"): timeSlot 07:30–09:00, priceLevel ${mealPriceLevels.breakfast}
@@ -546,7 +741,8 @@ MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
 3. Dinner (isRestaurant: true, mealType: "dinner"): timeSlot 19:00–21:00, priceLevel ${mealPriceLevels.dinner}
    → Place near the evening meetup location
 For EACH restaurant: recommend a real, named establishment. In the description, state WHY it is recommended — cite its reputation (local institution, award recognition, neighborhood favorite, featured in local food press, etc.). Do not fabricate Google star ratings; instead describe the source of the restaurant's acclaim. Choose spots that are close to surrounding activities to keep transit minimal.
-CRITICAL — NO DUPLICATE RESTAURANTS: Every restaurant name across the ENTIRE itinerary must be unique. You have ${tripLength} days × 3 meals = ${tripLength * 3} restaurant slots — each slot must use a different named establishment. Never repeat a restaurant name on a second day, even if it was highly rated. Variety is essential.
+RESTAURANTS ALWAYS IN SHARED TRACK: All restaurant activities (isRestaurant: true) must ALWAYS be placed in the "shared" track — never in track_a or track_b. Meals are a shared group experience. The only exception is a trip explicitly themed around diverging dining preferences, which is rare. In all standard itineraries, restaurants go in shared.
+CRITICAL — NO DUPLICATE VENUES: Every venue name across the ENTIRE itinerary must be unique — this applies to BOTH restaurants AND non-restaurant activities. You have ${tripLength} days × 3 meals = ${tripLength * 3} restaurant slots and multiple activity slots — each slot must use a different named establishment. Never repeat any venue name on a second day or across tracks, even if it was highly rated. Variety is essential.
 
 TRANSPORT BETWEEN ACTIVITIES:
 Every activity must include a "transportToNext" field:
@@ -555,6 +751,7 @@ Every activity must include a "transportToNext" field:
 - distanceMiles: distance in miles (use 0 for car/rideshare where exact route varies)
 - notes: CRITICAL — this must describe the journey FROM the CURRENT activity TO the NEXT activity. The note must reference the destination of the NEXT activity (e.g., if walking to a castle next, write "Walk north along the river to the castle entrance"). Never describe a route to a place you already visited, and never reference the previous activity's destination. Always look FORWARD to where the group is going next.
 Set transportToNext to null on the last activity of each day (no onward journey needed).
+DAY-TRIP / EXCURSION RETURN RULE: On any day where the group travels outside their home city or base hotel (e.g., Versailles from Paris, Salzburg from Munich, a coastal day trip), the last activity of that excursion MUST include a transportToNext leg explicitly routing the group back to the home city or hotel. Never leave the group stranded at the excursion site with no return journey shown. The return leg must be realistic: same mode they used to get there (train back, rideshare back, etc.) with accurate duration.
 
 MODE SELECTION RULES (based on travel time):
 - Under 15 min: walk (if terrain allows) or rideshare
@@ -588,6 +785,10 @@ RULES:
 13. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
 14. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
 15. "title" and "practicalNotes" fields appear ONLY on day 1. All other day objects must not include these fields.
+16. NEVER INVENT SCHEDULED EVENTS: Do not assign a specific scheduled game, concert, festival, or live performance to a specific date unless it is a recurring, date-independent, permanent offering (e.g. a weekly farmers market, a permanent museum exhibit). For any live event venue, describe it and direct travelers to the official website or a ticketing platform (Ticketmaster, AXS, SeatGeek) to check current dates. This rule overrides any priority or must-have instruction.
+17. destinationTip: include on EVERY day object — one punchy, specific insider fact about the destination for that day's city. Rotate the topic across days (food, drink, tradition, cultural quirk, etc.). Never repeat the same topic two days in a row.
+18. trackALabel and trackBLabel must be IDENTICAL strings on every day that has a split. Decide the label pair once for the whole trip and repeat it exactly on every split day — never rename or rephrase a track label between days.
+${getSeasonalContext(startDate, destination)}
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
 }
@@ -690,12 +891,29 @@ export async function POST(request: NextRequest) {
 
   // Pre-fetch real places (before the stream opens — this is fast, ~1s)
   let realPlaces = null;
+  let multiCityPlaces: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null = null;
   if (process.env.GOOGLE_MAPS_KEY) {
     try {
-      // For multi-city trips, fetch places for the first city as the primary context
-      const placesQuery = ((body.destinations as string[] | undefined)?.[0]) || (body.destination as string);
-      realPlaces = await fetchDestinationPlaces(placesQuery, process.env.GOOGLE_MAPS_KEY);
-      console.log(`[generate-itinerary] Real places for "${body.destination}": ${(realPlaces as {restaurants: unknown[]}).restaurants.length} restaurants, ${(realPlaces as {attractions: unknown[]}).attractions.length} attractions`);
+      const requestedDestinations = (body.destinations as string[] | undefined) ?? [];
+      if (requestedDestinations.length >= 2) {
+        // Multi-city: fetch for up to 4 cities in parallel
+        const citiesToFetch = requestedDestinations.slice(0, 4);
+        const results = await Promise.allSettled(
+          citiesToFetch.map(city => fetchDestinationPlaces(city, process.env.GOOGLE_MAPS_KEY!))
+        );
+        multiCityPlaces = {};
+        results.forEach((result, idx) => {
+          if (result.status === 'fulfilled') {
+            multiCityPlaces![citiesToFetch[idx]] = result.value;
+            console.log(`[generate-itinerary] Places for "${citiesToFetch[idx]}": ${result.value.restaurants.length} restaurants, ${result.value.attractions.length} attractions`);
+          }
+        });
+        realPlaces = multiCityPlaces[citiesToFetch[0]] ?? null;
+      } else {
+        const placesQuery = requestedDestinations[0] || (body.destination as string);
+        realPlaces = await fetchDestinationPlaces(placesQuery, process.env.GOOGLE_MAPS_KEY);
+        console.log(`[generate-itinerary] Real places for "${body.destination}": ${(realPlaces as {restaurants: unknown[]}).restaurants.length} restaurants, ${(realPlaces as {attractions: unknown[]}).attractions.length} attractions`);
+      }
     } catch (err) {
       console.warn('[generate-itinerary] Could not fetch real places:', err);
     }
@@ -713,6 +931,7 @@ export async function POST(request: NextRequest) {
     ageRanges: body.ageRanges as string[],
     accessibilityNeeds: body.accessibilityNeeds as string[],
     localMode: body.localMode as boolean,
+    dateNight: body.dateNight as boolean,
     curiosityLevel: body.curiosityLevel as number,
     modality: body.modality as string,
     accommodationType: body.accommodationType as string,
@@ -724,6 +943,7 @@ export async function POST(request: NextRequest) {
     daysPerDestination: (body.daysPerDestination as Record<string, number> | undefined) ?? {},
     additionalContext: (body.additionalContext as string | undefined) ?? '',
     realPlaces,
+    multiCityPlaces,
   });
 
   // ── Open SSE stream ──────────────────────────────────────────────────────────
@@ -792,11 +1012,15 @@ export async function POST(request: NextRequest) {
                       practicalNotes: dayObj.practicalNotes ?? null,
                       hotelSuggestions: dayObj.hotelSuggestions ?? null,
                       foodieTips: dayObj.foodieTips ?? null,
+                      nightlifeHighlights: dayObj.nightlifeHighlights ?? null,
+                      shoppingGuide: dayObj.shoppingGuide ?? null,
                     });
                     delete dayObj.title;
                     delete dayObj.practicalNotes;
                     delete dayObj.hotelSuggestions;
                     delete dayObj.foodieTips;
+                    delete dayObj.nightlifeHighlights;
+                    delete dayObj.shoppingGuide;
                   }
 
                   send({ type: 'day', index: dayIndex, data: dayObj });
