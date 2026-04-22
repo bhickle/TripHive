@@ -332,14 +332,17 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   // Member profile photo uploads (keyed by member id → data URL)
   const [memberAvatars, setMemberAvatars] = useState<Record<string, string>>({});
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  // Track which member card triggered the file picker
+  const pendingAvatarMemberId = useRef<string>('');
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const memberId = pendingAvatarMemberId.current || (currentUserId ?? 'user_1');
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
-      setMemberAvatars(prev => ({ ...prev, user_1: dataUrl }));
+      setMemberAvatars(prev => ({ ...prev, [memberId]: dataUrl }));
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -347,11 +350,41 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   // Invite Members Modal
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteMethod, setInviteMethod] = useState<'email' | 'text'>('email');
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'text' | 'link'>('email');
   const [inviteContact, setInviteContact] = useState('');
   const [inviteSent, setInviteSent] = useState(false);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  // Track which option current user voted for: voteId → optionId
+  const [userVotes, setUserVotes] = useState<Record<string, string>>({});
+
+  const handleCastVote = async (voteId: string, optionId: string) => {
+    const prevOptionId = userVotes[voteId];
+    if (prevOptionId === optionId) return; // already voted this option
+    setUserVotes(prev => ({ ...prev, [voteId]: optionId }));
+    setVotes(prev => prev.map(v => {
+      if (v.id !== voteId) return v;
+      return {
+        ...v,
+        options: v.options.map(o => {
+          if (o.id === prevOptionId) return { ...o, votes: Math.max(0, o.votes - 1) };
+          if (o.id === optionId) return { ...o, votes: o.votes + 1 };
+          return o;
+        }),
+      };
+    }));
+    if (!isMockTrip) {
+      try {
+        await fetch(`/api/trips/${params.id}/group-votes`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voteId, optionId, prevOptionId: prevOptionId ?? null }),
+        });
+      } catch { /* optimistic already shown */ }
+    }
+  };
 
   // Create Vote Modal
   const [showVoteModal, setShowVoteModal] = useState(false);
@@ -605,6 +638,33 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const openVotes = votes.filter(v => v.status === 'open');
   const closedVotes = votes.filter(v => v.status === 'closed');
 
+  // All itinerary activities that have received any Yay or Nay votes
+  type VotedActivity = { id: string; name: string; dayNumber: number; date: string; timeSlot: string; upVotes: number; downVotes: number; isRestaurant: boolean; };
+  const allVotedActivities: VotedActivity[] = (() => {
+    const result: VotedActivity[] = [];
+    for (const day of itineraryDaysData) {
+      for (const track of ['shared', 'track_a', 'track_b']) {
+        for (const act of (day.tracks?.[track] ?? [])) {
+          const up = act.upVotes ?? 0;
+          const down = act.downVotes ?? 0;
+          if (up > 0 || down > 0) {
+            result.push({
+              id: act.id,
+              name: act.name || act.title || 'Activity',
+              dayNumber: day.day,
+              date: day.date ?? '',
+              timeSlot: act.timeSlot ?? '',
+              upVotes: up,
+              downVotes: down,
+              isRestaurant: act.isRestaurant ?? false,
+            });
+          }
+        }
+      }
+    }
+    return result.sort((a, b) => (b.downVotes + b.upVotes) - (a.downVotes + a.upVotes));
+  })();
+
   return (
     <div className="min-h-screen bg-parchment p-6">
       <div className="mb-8">
@@ -676,14 +736,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   const isCoOrg = member.role === 'co_organizer';
                   const canPromote = hasCoOrganizer && isOrganizer && !isMe && member.role !== 'organizer';
                   return (
-                    <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                      <div className="relative mb-4 group/avatar">
+                    <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 flex flex-col items-center text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                      <div className="relative mb-3 group/avatar">
                         <Avatar src={avatarSrc ?? undefined} name={member.name} size="lg" />
                         <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
                         {/* Upload button — only on own card */}
                         {isMe && (
                           <button
-                            onClick={() => avatarInputRef.current?.click()}
+                            onClick={() => { pendingAvatarMemberId.current = member.id; avatarInputRef.current?.click(); }}
                             className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
                             title="Upload photo"
                           >
@@ -693,7 +753,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       </div>
                       <h3 className="font-bold text-zinc-900 mb-1">{member.name}</h3>
                       <span
-                        className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full mb-3 ${
+                        className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full mb-2 ${
                           member.role === 'organizer'
                             ? 'bg-sky-100 text-sky-900'
                             : isCoOrg
@@ -704,9 +764,19 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         {isCoOrg && <ShieldCheck className="w-3 h-3" />}
                         {member.role === 'co_organizer' ? 'Co-organizer' : member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                       </span>
+                      {/* Top priorities / interests */}
+                      {(member.interests ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 justify-center mb-2">
+                          {(member.interests ?? []).slice(0, 3).map((interest, i) => (
+                            <span key={i} className="text-[10px] font-semibold px-2 py-0.5 bg-sky-50 text-sky-700 rounded-full border border-sky-100">
+                              {interest}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {isMe && (
                         <button
-                          onClick={() => avatarInputRef.current?.click()}
+                          onClick={() => { pendingAvatarMemberId.current = member.id; avatarInputRef.current?.click(); }}
                           className="text-xs text-sky-700 hover:text-sky-900 font-medium transition-colors"
                         >
                           {uploadedAvatar ? 'Change photo' : '+ Add photo'}
@@ -736,110 +806,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               </div>
             </div>
 
-            {/* Budget Summary */}
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8">
-              <h2 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Where the Money's Going</h2>
-              <div className="grid grid-cols-3 gap-6">
-                <div>
-                  <p className="text-sm text-zinc-600 mb-2">Total Spent</p>
-                  <p className="text-3xl font-bold text-sky-700">${expenseData.totalSpent.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-zinc-600 mb-2">Per Person</p>
-                  <p className="text-3xl font-bold text-zinc-900">${(expenseData.totalSpent / groupMembers.length).toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-zinc-600 mb-2">Remaining</p>
-                  <p className="text-3xl font-bold text-zinc-900">TBD</p>
-                </div>
-              </div>
-              {(() => {
-                const budget = isMockTrip ? 5200 : tripBudgetTotal;
-                const pct = budget > 0
-                  ? Math.min(100, Math.round((expenseData.totalSpent / budget) * 100))
-                  : 0;
-                return (
-                  <>
-                    <div className="mt-6 w-full bg-zinc-200 rounded-full h-2">
-                      <div className="bg-sky-800 h-2 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
-                    </div>
-                    <p className="text-xs text-zinc-500 mt-3">
-                      {budget > 0
-                        ? `${pct}% of $${budget.toLocaleString()} budget used`
-                        : 'Trip budget utilization — set a budget in trip settings to track'}
-                    </p>
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* Nay Watch — only shown for real trips with majority-Nay activities */}
-            {!isMockTrip && (nayActivities.length > 0 || replacedActivityIds.size > 0) && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm">😬</span>
-                  </div>
-                  <div>
-                    <h2 className="font-script italic text-xl font-semibold text-zinc-900">Nay Watch</h2>
-                    <p className="text-xs text-zinc-400">Activities with more Nays than Yays — click to swap with an AI pick</p>
-                  </div>
-                </div>
-
-                {replacedActivityIds.size > 0 && (
-                  <div className="mb-4 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <p className="text-xs font-semibold text-emerald-700">
-                      ✓ {replacedActivityIds.size} activit{replacedActivityIds.size === 1 ? 'y' : 'ies'} replaced this session
-                    </p>
-                  </div>
-                )}
-
-                {nayActivities.length === 0 ? (
-                  <p className="text-sm text-zinc-400 text-center py-2">All clear — no majority Nays remaining 🎉</p>
-                ) : (
-                  <div className="space-y-3">
-                    {nayActivities.map(nay => (
-                      <div key={nay.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-zinc-900 leading-snug truncate">{nay.name}</p>
-                          <p className="text-xs text-zinc-400 mt-0.5">
-                            Day {nay.dayNumber} · {nay.timeSlot.split(/–|—/)[0]?.trim() ?? ''}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
-                              👍 {nay.upVotes}
-                            </span>
-                            <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded-full">
-                              👎 {nay.downVotes}
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleReplaceNayActivity(nay)}
-                          disabled={replacingActivityId === nay.id}
-                          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-full disabled:opacity-50 transition-all"
-                        >
-                          {replacingActivityId === nay.id
-                            ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Finding…</>
-                            : <>✦ AI Replace</>
-                          }
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                 <p className="text-zinc-600 text-sm mb-1">Messages Sent</p>
                 <p className="font-script italic text-2xl font-semibold text-zinc-900">{chatMessages.length}</p>
-              </div>
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                <p className="text-zinc-600 text-sm mb-1">Expenses</p>
-                <p className="font-script italic text-2xl font-semibold text-zinc-900">{expenses.length + localExpenses.length}</p>
               </div>
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                 <p className="text-zinc-600 text-sm mb-1">Votes</p>
@@ -1314,107 +1285,237 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         )}
 
         {activeTab === 'votes' && (
-          <div className="space-y-8">
-            <button
-              onClick={() => setShowVoteModal(true)}
-              className="w-full bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-3 rounded-full inline-flex items-center justify-center gap-2 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Start a Vote
-            </button>
+          <div className="space-y-6">
+            {/* Two-column layout: Group Votes (left) + Activity Pulse (right) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-            {openVotes.length > 0 && (
-              <div>
-                <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-4">Still Deciding</h3>
-                <div className="space-y-4">
-                  {openVotes.map((vote) => {
-                    const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
-                    return (
-                      <div key={vote.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                        <h4 className="font-bold text-zinc-900 text-lg mb-1">{vote.title}</h4>
-                        {vote.closesAt && (
-                          <p className="text-xs text-zinc-400 mb-4">Closes {new Date(vote.closesAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
-                        )}
-                        <div className="space-y-3">
-                          {vote.options.map((option) => {
-                            const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
-                            return (
-                              <div key={option.id}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <button className="px-4 py-2 border border-zinc-200 hover:border-sky-400 text-zinc-900 font-medium rounded-xl transition-colors text-sm">
-                                    {option.label}
-                                  </button>
-                                  <span className="text-sm font-semibold text-zinc-500">{option.votes} vote{option.votes !== 1 ? 's' : ''}</span>
+              {/* ── Left: Group Votes ─────────────────────────────────────── */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Group Votes</h3>
+                  <button
+                    onClick={() => setShowVoteModal(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm rounded-full transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Start a Vote
+                  </button>
+                </div>
+
+                {openVotes.length === 0 && closedVotes.length === 0 && (
+                  <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 text-center">
+                    <p className="text-sm text-zinc-400 mb-3">No votes yet — start one to get the crew aligned!</p>
+                  </div>
+                )}
+
+                {openVotes.length > 0 && (
+                  <div className="space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Still Deciding</p>
+                    {openVotes.map((vote) => {
+                      const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
+                      return (
+                        <div key={vote.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                          <h4 className="font-bold text-zinc-900 text-base mb-1">{vote.title}</h4>
+                          {vote.closesAt && (
+                            <p className="text-xs text-zinc-400 mb-4">Closes {new Date(vote.closesAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
+                          )}
+                          <div className="space-y-3">
+                            {vote.options.map((option) => {
+                              const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
+                              const isVoted = userVotes[vote.id] === option.id;
+                              return (
+                                <div key={option.id}>
+                                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                                    <button
+                                      onClick={() => handleCastVote(vote.id, option.id)}
+                                      className={`flex-1 text-left px-4 py-2 border rounded-xl transition-all text-sm font-medium ${
+                                        isVoted
+                                          ? 'bg-sky-800 border-sky-800 text-white'
+                                          : 'border-zinc-200 hover:border-sky-400 text-zinc-900 hover:bg-sky-50'
+                                      }`}
+                                    >
+                                      {isVoted && '✓ '}{option.label}
+                                    </button>
+                                    <span className="text-xs font-semibold text-zinc-400 flex-shrink-0">{option.votes}</span>
+                                  </div>
+                                  <div className="w-full bg-zinc-100 rounded-full h-1.5">
+                                    <div className="bg-sky-800 h-1.5 rounded-full transition-all" style={{ width: `${percentage}%` }} />
+                                  </div>
                                 </div>
-                                <div className="w-full bg-zinc-100 rounded-full h-2">
-                                  <div className="bg-sky-800 h-2 rounded-full transition-all" style={{ width: `${percentage}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
+                          <span className="inline-block text-xs font-semibold px-3 py-1 rounded-full mt-4 bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            Open · tap an option to vote
+                          </span>
                         </div>
-                        <span className="inline-block text-xs font-semibold px-3 py-1 rounded-full mt-4 bg-green-100 text-green-800">
-                          Still Deciding
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+
+                {closedVotes.length > 0 && (
+                  <div className="space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">The Verdict</p>
+                    {closedVotes.map((vote) => {
+                      const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
+                      const maxVotes = Math.max(...vote.options.map(o => o.votes));
+                      return (
+                        <div key={vote.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                          <h4 className="font-bold text-zinc-900 text-base mb-1">{vote.title}</h4>
+                          <p className="text-xs text-zinc-400 mb-4">{totalVotes} total vote{totalVotes !== 1 ? 's' : ''}</p>
+                          <div className="space-y-3">
+                            {vote.options.map((option) => {
+                              const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
+                              const isWinner = option.votes === maxVotes && maxVotes > 0;
+                              return (
+                                <div key={option.id}>
+                                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                                    <span className={`text-sm font-medium flex-1 ${isWinner ? 'text-zinc-900 font-semibold' : 'text-zinc-500'}`}>
+                                      {isWinner && <span className="text-sky-700 mr-1">✦</span>}
+                                      {option.label}
+                                    </span>
+                                    <span className="text-xs font-semibold text-zinc-400 flex-shrink-0">{option.votes}</span>
+                                  </div>
+                                  <div className="w-full bg-zinc-100 rounded-full h-1.5">
+                                    <div className={`h-1.5 rounded-full ${isWinner ? 'bg-sky-800' : 'bg-zinc-300'}`} style={{ width: `${percentage}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="flex items-center gap-3 mt-4 flex-wrap">
+                            <span className="inline-block text-xs font-semibold px-3 py-1 rounded-full bg-zinc-100 text-zinc-600">Decided ✓</span>
+                            {(() => {
+                              const winner = vote.options.find(o => o.votes === Math.max(...vote.options.map(x => x.votes)));
+                              return winner ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <button
+                                    onClick={() => openAddToItinerary(vote.id, winner.label)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors"
+                                  >
+                                    <CalendarDays className="w-3.5 h-3.5" />
+                                    Add &quot;{winner.label}&quot; to itinerary
+                                  </button>
+                                  <p className="text-[10px] text-zinc-400 pl-1">The organizer may need to slot it into the right day.</p>
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Right: Activity Vote Pulse ────────────────────────────── */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Activity Pulse</h3>
+                  <span className="text-xs text-zinc-400 font-medium">{allVotedActivities.length} voted</span>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                  {/* Table header */}
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-2.5 bg-sky-800 text-white text-xs font-bold uppercase tracking-wide">
+                    <span>Activity</span>
+                    <span className="text-center">👍</span>
+                    <span className="text-center">👎</span>
+                  </div>
+
+                  {allVotedActivities.length === 0 ? (
+                    <div className="px-4 py-8 text-center">
+                      <p className="text-sm text-zinc-400">No votes yet — head to the itinerary to Yay or Nay activities!</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-zinc-50">
+                      {allVotedActivities.map((act) => (
+                        <a
+                          key={act.id}
+                          href={`/trip/${params.id}/itinerary?day=${act.dayNumber}`}
+                          className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors items-center group"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-zinc-900 truncate group-hover:text-sky-800 transition-colors">
+                              {act.isRestaurant && <span className="text-xs mr-1">🍽</span>}
+                              {act.name}
+                            </p>
+                            <p className="text-[10px] text-zinc-400 mt-0.5">
+                              Day {act.dayNumber}
+                              {act.timeSlot ? ` · ${act.timeSlot.split(/–|—/)[0]?.trim()}` : ''}
+                            </p>
+                          </div>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full text-center min-w-[2rem] ${act.upVotes > 0 ? 'bg-emerald-50 text-emerald-700' : 'text-zinc-300'}`}>
+                            {act.upVotes}
+                          </span>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full text-center min-w-[2rem] ${act.downVotes > 0 ? 'bg-rose-50 text-rose-600' : 'text-zinc-300'}`}>
+                            {act.downVotes}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
 
-            {closedVotes.length > 0 && (
-              <div>
-                <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-4">The Verdict</h3>
-                <div className="space-y-4">
-                  {closedVotes.map((vote) => {
-                    const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
-                    const maxVotes = Math.max(...vote.options.map(o => o.votes));
-                    return (
-                      <div key={vote.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                        <h4 className="font-bold text-zinc-900 text-lg mb-1">{vote.title}</h4>
-                        <p className="text-xs text-zinc-400 mb-4">{totalVotes} total vote{totalVotes !== 1 ? 's' : ''}</p>
-                        <div className="space-y-3">
-                          {vote.options.map((option) => {
-                            const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
-                            const isWinner = option.votes === maxVotes && maxVotes > 0;
-                            return (
-                              <div key={option.id}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <span className={`text-sm font-medium ${isWinner ? 'text-zinc-900 font-semibold' : 'text-zinc-600'}`}>
-                                    {isWinner && <span className="text-sky-700 mr-1">✦</span>}
-                                    {option.label}
-                                  </span>
-                                  <span className="text-sm font-semibold text-zinc-500">{option.votes} vote{option.votes !== 1 ? 's' : ''}</span>
-                                </div>
-                                <div className="w-full bg-zinc-100 rounded-full h-2">
-                                  <div className={`h-2 rounded-full ${isWinner ? 'bg-sky-800' : 'bg-zinc-300'}`} style={{ width: `${percentage}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="flex items-center gap-3 mt-4 flex-wrap">
-                          <span className="inline-block text-xs font-semibold px-3 py-1 rounded-full bg-zinc-100 text-zinc-600">
-                            Decided ✓
-                          </span>
-                          {(() => {
-                            const winner = vote.options.find(o => o.votes === Math.max(...vote.options.map(x => x.votes)));
-                            return winner ? (
-                              <button
-                                onClick={() => openAddToItinerary(vote.id, winner.label)}
-                                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors"
-                              >
-                                <CalendarDays className="w-3.5 h-3.5" />
-                                Add &quot;{winner.label}&quot; to itinerary
-                              </button>
-                            ) : null;
-                          })()}
-                        </div>
-                      </div>
-                    );
-                  })}
+            </div>{/* end grid */}
+
+            {/* Nay Watch — only shown for real trips with majority-Nay activities */}
+            {!isMockTrip && (nayActivities.length > 0 || replacedActivityIds.size > 0) && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">😬</span>
+                  </div>
+                  <div>
+                    <h2 className="font-script italic text-xl font-semibold text-zinc-900">Nay Watch</h2>
+                    <p className="text-xs text-zinc-400">Activities with more Nays than Yays — click to swap with an AI pick</p>
+                  </div>
                 </div>
+
+                {replacedActivityIds.size > 0 && (
+                  <div className="mb-4 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="text-xs font-semibold text-emerald-700">
+                      ✓ {replacedActivityIds.size} activit{replacedActivityIds.size === 1 ? 'y' : 'ies'} replaced this session
+                    </p>
+                  </div>
+                )}
+
+                {nayActivities.length === 0 ? (
+                  <p className="text-sm text-zinc-400 text-center py-2">All clear — no majority Nays remaining 🎉</p>
+                ) : (
+                  <div className="space-y-3">
+                    {nayActivities.map(nay => (
+                      <div key={nay.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-zinc-900 leading-snug truncate">{nay.name}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            Day {nay.dayNumber} · {nay.timeSlot.split(/–|—/)[0]?.trim() ?? ''}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
+                              👍 {nay.upVotes}
+                            </span>
+                            <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded-full">
+                              👎 {nay.downVotes}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleReplaceNayActivity(nay)}
+                          disabled={replacingActivityId === nay.id}
+                          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-full disabled:opacity-50 transition-all"
+                        >
+                          {replacingActivityId === nay.id
+                            ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Finding…</>
+                            : <>✦ AI Replace</>
+                          }
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1713,31 +1814,67 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               >
                 Text
               </button>
+              <button
+                onClick={() => setInviteMethod('link')}
+                className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${
+                  inviteMethod === 'link' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                }`}
+              >
+                Copy Link
+              </button>
             </div>
 
-            {/* Input */}
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-zinc-700 mb-2">
-                {inviteMethod === 'email' ? 'Email Address' : 'Phone Number'}
-              </label>
-              <input
-                type={inviteMethod === 'email' ? 'email' : 'tel'}
-                placeholder={inviteMethod === 'email' ? 'friend@example.com' : '+1 (555) 123-4567'}
-                value={inviteContact}
-                onChange={(e) => setInviteContact(e.target.value)}
-                className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
-              />
-            </div>
+            {inviteMethod === 'link' ? (
+              /* Copy Link UI */
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">Invite Link</label>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/join/${params.id}`}
+                    className="flex-1 px-3 py-2.5 border border-zinc-200 rounded-lg text-sm text-zinc-600 bg-zinc-50 focus:outline-none"
+                  />
+                  <button
+                    onClick={async () => {
+                      const url = `${window.location.origin}/join/${params.id}`;
+                      await navigator.clipboard.writeText(url);
+                      setInviteLinkCopied(true);
+                      setTimeout(() => setInviteLinkCopied(false), 2000);
+                    }}
+                    className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-medium text-sm transition-colors whitespace-nowrap"
+                  >
+                    {inviteLinkCopied ? '✓ Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500 mt-2">Anyone with this link can join the trip.</p>
+              </div>
+            ) : (
+              /* Email / Text input */
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                  {inviteMethod === 'email' ? 'Email Address' : 'Phone Number'}
+                </label>
+                <input
+                  type={inviteMethod === 'email' ? 'email' : 'tel'}
+                  placeholder={inviteMethod === 'email' ? 'friend@example.com' : '+1 (555) 123-4567'}
+                  value={inviteContact}
+                  onChange={(e) => setInviteContact(e.target.value)}
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                />
+              </div>
+            )}
 
-            {/* Preview */}
-            <div className="mb-4 p-3 bg-parchment rounded-lg border border-zinc-200">
-              <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1">Preview</p>
-              <p className="text-sm text-zinc-700">
-                {inviteMethod === 'email'
-                  ? `Hey! You're invited to join our ${tripName} trip on tripcoord. Click the link to join the group and start planning together!`
-                  : `You're invited to ${tripName} on tripcoord! Join here: tripcoord.app/join/${params.id}`}
-              </p>
-            </div>
+            {inviteMethod !== 'link' && (
+              /* Preview */
+              <div className="mb-4 p-3 bg-parchment rounded-lg border border-zinc-200">
+                <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1">Preview</p>
+                <p className="text-sm text-zinc-700">
+                  {inviteMethod === 'email'
+                    ? `Hey! You're invited to join our ${tripName} trip on tripcoord. Click the link to join the group and start planning together!`
+                    : `You're invited to ${tripName} on tripcoord! Join here: ${typeof window !== 'undefined' ? window.location.origin : 'tripcoord.app'}/join/${params.id}`}
+                </p>
+              </div>
+            )}
 
             {inviteSent ? (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center mb-4">
@@ -1760,9 +1897,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 onClick={() => setShowInviteModal(false)}
                 className="flex-1 px-4 py-2.5 border border-zinc-200 text-zinc-700 rounded-lg font-medium text-sm hover:bg-zinc-50"
               >
-                Cancel
+                {inviteMethod === 'link' ? 'Done' : 'Cancel'}
               </button>
-              <button
+              {inviteMethod !== 'link' && <button
                 onClick={async () => {
                   if (!inviteContact.trim()) return;
 
@@ -1802,7 +1939,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-sky-600 text-white rounded-lg font-medium text-sm transition-colors"
               >
                 {isSending ? 'Sending...' : 'Send Invite'}
-              </button>
+              </button>}
             </div>
           </div>
         </div>

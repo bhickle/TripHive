@@ -234,10 +234,12 @@ export default function SettingsPage() {
         // Upload to Supabase Storage avatars bucket
         const supabase = createBrowserClient(supabaseUrl, supabaseKey);
         const ext = file.name.split('.').pop() ?? 'jpg';
-        const path = `${user.id}/avatar.${ext}`;
+        // Use a unique timestamped path so each upload is always a new
+        // object — avoids needing an UPDATE storage policy for upsert.
+        const path = `${user.id}/avatar_${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(path, file, { upsert: true });
+          .upload(path, file, { contentType: file.type || 'image/jpeg' });
         if (uploadError) {
           console.error('Avatar upload error:', uploadError);
           setAvatarError('Upload failed — please try again.');

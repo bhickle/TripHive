@@ -64,8 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('id', userId)
           .single();
         setProfile(data ?? null);
-      } catch {
-        setProfile(null);
+      } catch (err) {
+        // Don't wipe profile on transient fetch errors — keep whatever was
+        // previously loaded. Profile is only explicitly nulled on sign-out.
+        console.warn('[AuthContext] fetchProfile error (profile preserved):', err);
       } finally {
         setIsLoading(false);
       }
