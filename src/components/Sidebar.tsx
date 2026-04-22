@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Compass, Map, Radar, Settings, Menu, X, ChevronRight, Globe2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Compass, Map, Radar, Settings, Menu, X, ChevronRight, Globe2, LogOut } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { useAuth } from '@/context/AuthContext';
 
 interface SidebarProps {
   activeTrip?: { id: string; title: string; destination: string; };
@@ -21,6 +23,27 @@ const tierConfig = {
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dashboard', user }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const { signOut } = useAuth();
+  const router = useRouter();
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSignOut = async () => {
+    setShowUserMenu(false);
+    await signOut();
+    router.push('/');
+  };
 
   const navItems = [
     { label: 'Home Base',   href: '/dashboard', icon: Compass, id: 'dashboard' },
@@ -105,12 +128,46 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
 
       {/* User Profile */}
       {user && (
-        <div className="mx-3 mb-4">
+        <div className="mx-3 mb-4" ref={userMenuRef}>
           <div className="mx-1 h-px mb-4" style={{ background: 'rgba(255,255,255,0.08)' }} />
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer"
-            style={{ ['--hover-bg' as string]: 'rgba(245,241,232,0.05)' }}
+
+          {/* Sign-out / Settings popover */}
+          {showUserMenu && (
+            <div
+              className="mb-2 mx-1 rounded-xl overflow-hidden shadow-xl"
+              style={{ background: '#3a3330', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <Link
+                href="/settings"
+                onClick={() => { setShowUserMenu(false); setIsOpen(false); }}
+                className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-all"
+                style={{ color: 'rgba(245,241,232,0.8)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(245,241,232,0.07)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <Settings className="w-4 h-4 flex-shrink-0" />
+                Settings
+              </Link>
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)' }} />
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-all text-left"
+                style={{ color: 'rgba(245,100,100,0.9)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(245,241,232,0.07)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <LogOut className="w-4 h-4 flex-shrink-0" />
+                Sign Out
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowUserMenu(prev => !prev)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left"
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(245,241,232,0.05)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            onMouseLeave={e => (e.currentTarget.style.background = showUserMenu ? 'rgba(245,241,232,0.05)' : 'transparent')}
+            style={{ background: showUserMenu ? 'rgba(245,241,232,0.05)' : 'transparent' }}
           >
             <Avatar src={user.avatarUrl} name={user.name} size="sm" />
             <div className="flex-1 min-w-0">
@@ -119,7 +176,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
                 {tierConfig[user.subscriptionTier].label}
               </span>
             </div>
-          </div>
+            <ChevronRight
+              className="w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200"
+              style={{ color: 'rgba(245,241,232,0.3)', transform: showUserMenu ? 'rotate(90deg)' : 'rotate(0deg)' }}
+            />
+          </button>
         </div>
       )}
     </div>
