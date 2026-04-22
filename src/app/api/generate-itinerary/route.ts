@@ -390,9 +390,21 @@ function buildPrompt(params: {
 
     // Build day allocation string if user provided it
     const allocatedCities = cities.filter(c => (daysPerDestination[c] ?? 0) > 0);
-    const dayAllocationText = allocatedCities.length > 0
-      ? `\nDAY ALLOCATION (user-specified — follow exactly): ${allocatedCities.map(c => `${c}: ${daysPerDestination[c]} night${daysPerDestination[c] === 1 ? '' : 's'}`).join(', ')}. Unallocated cities share the remaining days evenly.`
-      : '';
+    let dayAllocationText = '';
+    if (allocatedCities.length > 0) {
+      // Compute cumulative day ranges so the AI knows exactly which day numbers go in each city
+      let cursor = 1;
+      const ranges = allocatedCities.map(c => {
+        const n = daysPerDestination[c];
+        const range = `Days ${cursor}–${cursor + n - 1}: ${c} (${n} night${n === 1 ? '' : 's'})`;
+        cursor += n;
+        return range;
+      });
+      dayAllocationText = `\nDAY ALLOCATION (user-specified — follow exactly): ${ranges.join('; ')}. Total trip: ${tripLength} days. CRITICAL: You MUST generate ALL ${tripLength} day objects — do not stop after the first city. Every day from Day 1 through Day ${tripLength} must appear in your JSON array.`;
+    } else {
+      // Even without explicit allocation, remind AI to generate all days
+      dayAllocationText = `\nCRITICAL: Generate ALL ${tripLength} days (Day 1 through Day ${tripLength}). Divide days proportionally across cities: ${cities.map(c => `${c}: ~${Math.floor(tripLength / cities.length)} days`).join(', ')}.`;
+    }
 
     return `
 MULTI-CITY TRIP — CRITICAL ROUTING RULES:

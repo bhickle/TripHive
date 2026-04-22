@@ -319,6 +319,7 @@ function ItineraryPageContent() {
 
   // Hotel generation state
   const [generatingHotels, setGeneratingHotels] = useState(false);
+  const [hotelGenError, setHotelGenError] = useState<string | null>(null);
 
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     // Compute new vote counts using the current votes state via functional updater
@@ -573,6 +574,7 @@ function ItineraryPageContent() {
   const handleGenerateHotels = useCallback(async () => {
     if (!aiMeta?.destination) return;
     setGeneratingHotels(true);
+    setHotelGenError(null);
     try {
       const res = await fetch('/api/generate-hotels', {
         method: 'POST',
@@ -585,13 +587,18 @@ function ItineraryPageContent() {
           budgetBreakdown: aiMeta.budgetBreakdown,
         }),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error || `Server error ${res.status}`);
+      }
       const { hotelSuggestions } = await res.json();
       if (hotelSuggestions?.length) {
         setAiMeta(prev => prev ? { ...prev, hotelSuggestions } : prev);
+      } else {
+        setHotelGenError('No hotel suggestions returned. Try again.');
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      setHotelGenError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setGeneratingHotels(false);
     }
@@ -1028,8 +1035,36 @@ function ItineraryPageContent() {
   const totalBudget = budgetCategories.reduce((s, c) => s + c.budget, 0);
   const remainingBudget = totalBudget - totalSpent;
 
+  // If the day has a dinnerMeetupLocation but no dinner restaurant in the shared track,
+  // synthesize a virtual dinner card so the meetup restaurant actually appears on the timeline.
+  const sharedActivities: Activity[] = (currentDayData.tracks?.shared ?? []) as Activity[];
+  const hasDinnerInShared = sharedActivities.some(
+    (a: Activity) => a.isRestaurant && /dinner|evening|night/i.test(a.timeSlot ?? a.title ?? '')
+  );
+  const virtualDinnerActivity: Activity | null =
+    currentDayData.dinnerMeetupLocation && !hasDinnerInShared
+      ? {
+          id: `virtual-dinner-${currentDayData.day}`,
+          title: currentDayData.dinnerMeetupLocation,
+          description: 'Both tracks reconvene here for dinner.',
+          timeSlot: '19:00–21:00',
+          address: '',
+          website: '',
+          isRestaurant: true,
+          mealType: 'dinner' as const,
+          track: 'shared' as const,
+          dayNumber: currentDayData.day,
+          costEstimate: 0,
+          confidence: 1,
+          verified: false,
+          upVotes: 0,
+          downVotes: 0,
+        }
+      : null;
+
   const allActivities: Activity[] = [
-    ...(currentDayData.tracks?.shared ?? []).map((a: Activity) => ({ ...a, track: 'shared' as const })),
+    ...sharedActivities.map((a: Activity) => ({ ...a, track: 'shared' as const })),
+    ...(virtualDinnerActivity ? [virtualDinnerActivity] : []),
     ...(currentDayData.tracks?.track_a ?? []).map((a: Activity) => ({ ...a, track: 'track_a' as const })),
     ...(currentDayData.tracks?.track_b ?? []).map((a: Activity) => ({ ...a, track: 'track_b' as const })),
   ];
@@ -2039,6 +2074,9 @@ function ItineraryPageContent() {
                     {generatingHotels ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                     {generatingHotels ? 'Finding hotels…' : 'Get AI Suggestions'}
                   </button>
+                  {hotelGenError && (
+                    <p className="text-xs text-rose-600 mt-2 text-center">{hotelGenError}</p>
+                  )}
                 </div>
               </div>
             )}

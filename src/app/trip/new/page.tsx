@@ -361,7 +361,8 @@ function TripBuilderPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [daysReceived, setDaysReceived] = useState(0);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady } = useEntitlements();
+  const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
+  const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady, maxTravelersForTrip } = useEntitlements();
   const [budgetInput, setBudgetInput] = useState('5000');
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [state, setState] = useState<TripWizardState>({
@@ -454,9 +455,6 @@ function TripBuilderPage() {
             setState(prev => ({
               ...prev,
               ...(p.groupType ? { groupType: p.groupType } : {}),
-              ...(Array.isArray(p.priorities) && p.priorities.length > 0
-                ? { priorities: p.priorities }
-                : {}),
             }));
           } else {
             // No Supabase persona yet — fall back to localStorage
@@ -1237,24 +1235,45 @@ function TripBuilderPage() {
                 </div>
 
                 {/* Group Size */}
-                <div className="mt-6 flex items-center gap-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-slate-900 mb-0.5">How many people total?</label>
-                    <p className="text-xs text-slate-400">Used to estimate per-person costs</p>
+                <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-semibold text-slate-900 mb-0.5">How many people total?</label>
+                      <p className="text-xs text-slate-400">Used to estimate per-person costs</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setState(prev => ({ ...prev, groupSize: Math.max(1, prev.groupSize - 1) }))}
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                      >−</button>
+                      <span className="w-8 text-center text-lg font-bold text-slate-900">{state.groupSize}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cap = entitlementsReady ? maxTravelersForTrip() : 20;
+                          if (state.groupSize >= cap) {
+                            setUpgradeReason('traveler_limit');
+                            setShowUpgradeModal(true);
+                          } else {
+                            setState(prev => ({ ...prev, groupSize: prev.groupSize + 1 }));
+                          }
+                        }}
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                      >+</button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setState(prev => ({ ...prev, groupSize: Math.max(1, prev.groupSize - 1) }))}
-                      className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
-                    >−</button>
-                    <span className="w-8 text-center text-lg font-bold text-slate-900">{state.groupSize}</span>
-                    <button
-                      type="button"
-                      onClick={() => setState(prev => ({ ...prev, groupSize: Math.min(20, prev.groupSize + 1) }))}
-                      className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
-                    >+</button>
-                  </div>
+                  {entitlementsReady && (
+                    <p className="text-xs text-slate-400 mt-2">
+                      {tier === 'free' && 'Free plan: up to 4 travelers. '}
+                      {tier === 'explorer' && 'Explorer plan: up to 8 travelers. '}
+                      {tier === 'nomad' && 'Nomad plan: up to 15 travelers. '}
+                      {tier === 'trip_pass' && `Trip Pass: up to ${maxTravelersForTrip()} travelers. `}
+                      {state.groupSize >= maxTravelersForTrip() && (
+                        <button type="button" onClick={() => { setUpgradeReason('traveler_limit'); setShowUpgradeModal(true); }} className="text-sky-600 font-semibold hover:underline">Upgrade for larger groups →</button>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1343,33 +1362,39 @@ function TripBuilderPage() {
                   </div>
 
                   {/* ── Multi-destination toggle (Item 9) ── */}
-                  <div className="flex items-center space-x-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <input
-                      type="checkbox"
-                      id="multiCityToggle"
-                      checked={showMultiCity}
-                      onChange={(e) => {
-                        setShowMultiCity(e.target.checked);
-                        if (!e.target.checked) {
+                  {!showMultiCity ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMultiCity(true);
+                        setState(prev => {
+                          if (prev.destination.trim() && prev.destinations.length === 0) {
+                            return { ...prev, destinations: [prev.destination.trim()] };
+                          }
+                          return prev;
+                        });
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-dashed border-slate-300 hover:border-sky-400 hover:bg-sky-50 text-slate-500 hover:text-sky-700 rounded-lg text-sm font-medium transition-colors w-full"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add another destination (multi-city trip)
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-lg">
+                      <span className="text-sm font-medium text-sky-800">Multi-city trip</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMultiCity(false);
                           setState(prev => ({ ...prev, destinations: [], daysPerDestination: {} }));
                           setDestinationCityInput('');
-                        } else {
-                          // Auto-seed the first city from the Search Destination field if it's filled
-                          // and the destinations list is still empty — saves the user from re-typing it
-                          setState(prev => {
-                            if (prev.destination.trim() && prev.destinations.length === 0) {
-                              return { ...prev, destinations: [prev.destination.trim()] };
-                            }
-                            return prev;
-                          });
-                        }
-                      }}
-                      className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700 flex-shrink-0"
-                    />
-                    <label htmlFor="multiCityToggle" className="text-sm font-medium text-slate-900 cursor-pointer">
-                      I plan on visiting multiple destinations on this trip
-                    </label>
-                  </div>
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
 
                   {/* ── Guided destination browser — visible when search is empty ── */}
                   {(!state.destination || state.destination.length < 2) && !showDestinationSuggestions && (
@@ -1661,6 +1686,15 @@ function TripBuilderPage() {
                           <input
                             type="date"
                             value={state.endDate}
+                            min={state.startDate || undefined}
+                            onFocus={(e) => {
+                              // Open picker to start date's month so user doesn't have to navigate
+                              if (state.startDate && !state.endDate) {
+                                e.target.value = state.startDate;
+                                // Reset so no date is pre-selected, just positioned
+                                requestAnimationFrame(() => { e.target.value = ''; });
+                              }
+                            }}
                             onChange={(e) => handleDateChange('endDate', e.target.value)}
                             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
                           />
@@ -1791,6 +1825,11 @@ function TripBuilderPage() {
                         Nights per City
                       </label>
                       <p className="text-xs text-slate-400 mb-3">Optional — helps the AI balance time across your stops. Leave blank for even distribution.</p>
+                      {(!state.startDate || !state.endDate) && (
+                        <p className="text-xs text-amber-600 mb-3 flex items-center gap-1.5">
+                          <span>⚠️</span> Set your trip dates first to see the total nights available.
+                        </p>
+                      )}
                       {(() => {
                         const cities = state.destinations.length >= 2
                           ? state.destinations
@@ -2903,6 +2942,7 @@ function TripBuilderPage() {
                     <button
                       onClick={() => {
                         if (!canAffordAction('itinerary_generate')) {
+                          setUpgradeReason('no_ai');
                           setShowUpgradeModal(true);
                           return;
                         }
@@ -2931,7 +2971,7 @@ function TripBuilderPage() {
                     </button>
                     {showUpgradeModal && (
                       <UpgradeModal
-                        prompt={getUpgradePrompt('no_ai')}
+                        prompt={getUpgradePrompt(upgradeReason)}
                         onClose={() => setShowUpgradeModal(false)}
                       />
                     )}
