@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { PRICING } from '@/hooks/useEntitlements';
 import {
   User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, Settings as SettingsIcon,
-  ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap,
+  ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap, Loader2,
 } from 'lucide-react';
 import Image from 'next/image';
 import { createBrowserClient } from '@supabase/ssr';
@@ -133,6 +133,7 @@ export default function SettingsPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -490,6 +491,23 @@ export default function SettingsPage() {
 
   const toggleNotification = (key: keyof NotificationSettings) =>
     setNotifications({ ...notifications, [key]: !notifications[key] });
+
+  const openBillingPortal = async () => {
+    setBillingLoading(true);
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('Billing portal error:', data.error);
+      }
+    } catch (err) {
+      console.error('Billing portal failed:', err);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
 
   const handleExportData = async () => {
     setExportingData(true);
@@ -870,8 +888,15 @@ export default function SettingsPage() {
                         Upgrade to Explorer or Nomad
                       </a>
                     ) : (
-                      <button className="px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition-all">
-                        Manage Subscription
+                      <button
+                        onClick={openBillingPortal}
+                        disabled={billingLoading}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition-all disabled:opacity-70"
+                      >
+                        {billingLoading
+                          ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening…</>
+                          : <><CreditCard className="w-4 h-4" /> Manage Billing</>
+                        }
                       </button>
                     )}
                   </div>

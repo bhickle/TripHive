@@ -3,12 +3,15 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
   CalendarDays, Map, Camera, Shield, Star, ChevronDown,
-  ChevronUp, Lock, Crown,
+  ChevronUp, Lock, Crown, Loader2,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
+import { STRIPE_PRICES } from '@/lib/stripe-prices';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Feature rows for the comparison table ───────────────────────────────────
 
@@ -115,6 +118,37 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function PricingPage() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
+  const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const { user } = useAuth();
+  const router = useRouter();
+
+  // ── Kick off Stripe checkout ──────────────────────────────────────────────
+  async function startCheckout(priceId: string, mode: 'subscription' | 'payment') {
+    // If not logged in, send to signup first; after auth they'll come back to pricing
+    if (!user) {
+      router.push(`/auth/signup?redirect=/pricing`);
+      return;
+    }
+
+    setCheckingOut(priceId);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId, mode }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('Checkout error:', data.error);
+        setCheckingOut(null);
+      }
+    } catch (err) {
+      console.error('Checkout failed:', err);
+      setCheckingOut(null);
+    }
+  }
 
   const explorerPrice = billing === 'annual' ? (PRICING.explorer.annual / 12).toFixed(2) : PRICING.explorer.monthly.toFixed(2);
   const nomadPrice = billing === 'annual' ? (PRICING.nomad.annual / 12).toFixed(2) : PRICING.nomad.monthly.toFixed(2);
@@ -264,9 +298,19 @@ export default function PricingPage() {
               ? <p className="text-xs text-sky-300 font-medium mb-6">Billed {explorerBilled} · 2 months free</p>
               : <p className="text-xs text-sky-400 mb-6">Billed monthly · cancel anytime</p>
             }
-            <Link href="/auth/signup" className="w-full text-center py-3 bg-white hover:bg-sky-50 text-sky-900 font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
-              Start free trial
-            </Link>
+            <button
+              onClick={() => startCheckout(
+                billing === 'annual' ? STRIPE_PRICES.explorer.annual : STRIPE_PRICES.explorer.monthly,
+                'subscription'
+              )}
+              disabled={!!checkingOut}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-sky-50 text-sky-900 font-bold rounded-full text-sm transition-all mb-7 shadow-sm disabled:opacity-70"
+            >
+              {checkingOut === (billing === 'annual' ? STRIPE_PRICES.explorer.annual : STRIPE_PRICES.explorer.monthly)
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
+                : 'Get Explorer'
+              }
+            </button>
             <ul className="space-y-3 flex-1">
               {[
                 'Plan trips all year long',
@@ -306,9 +350,19 @@ export default function PricingPage() {
               ? <p className="text-xs text-zinc-500 font-medium mb-6">Billed {nomadBilled} · 2 months free</p>
               : <p className="text-xs text-zinc-400 mb-6">Billed monthly · cancel anytime</p>
             }
-            <Link href="/auth/signup" className="w-full text-center py-3 bg-zinc-900 hover:bg-zinc-700 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
-              Start free trial
-            </Link>
+            <button
+              onClick={() => startCheckout(
+                billing === 'annual' ? STRIPE_PRICES.nomad.annual : STRIPE_PRICES.nomad.monthly,
+                'subscription'
+              )}
+              disabled={!!checkingOut}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-zinc-900 hover:bg-zinc-700 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm disabled:opacity-70"
+            >
+              {checkingOut === (billing === 'annual' ? STRIPE_PRICES.nomad.annual : STRIPE_PRICES.nomad.monthly)
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
+                : 'Get Nomad'
+              }
+            </button>
             <ul className="space-y-3 flex-1">
               {[
                 { text: 'Everything in Explorer', highlight: false },
