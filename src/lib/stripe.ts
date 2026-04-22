@@ -11,11 +11,29 @@ import { STRIPE_PRICES } from './stripe-prices';
 // Re-export so server routes only need one import
 export { STRIPE_PRICES };
 
-// ─── Singleton client ─────────────────────────────────────────────────────────
+// ─── Lazy singleton client ────────────────────────────────────────────────────
+// We defer instantiation to request time so Next.js build-time static analysis
+// never tries to construct Stripe with an undefined key.
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-  typescript: true,
+let _stripe: Stripe | null = null;
+
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new Error('STRIPE_SECRET_KEY is not set');
+    _stripe = new Stripe(key, {
+      apiVersion: '2026-03-25.dahlia',
+      typescript: true,
+    });
+  }
+  return _stripe;
+}
+
+// Convenience proxy — existing imports of `stripe` keep working without change.
+export const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    return (getStripe() as unknown as Record<string | symbol, unknown>)[prop];
+  },
 });
 
 // ─── Tier lookup (Stripe price → subscription_tier) ───────────────────────────

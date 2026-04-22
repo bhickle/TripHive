@@ -12,6 +12,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { stripe } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(_req: NextRequest) {
   try {
     // ── Get the logged-in user ──────────────────────────────────────────────

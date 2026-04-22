@@ -16,6 +16,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { stripe, STRIPE_PRICES } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const { priceId, mode, extraPeople = 0, tripId } = await req.json();

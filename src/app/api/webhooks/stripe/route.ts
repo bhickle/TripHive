@@ -20,6 +20,8 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { stripe, PRICE_TO_TIER } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 // Service-role client — bypasses RLS so we can write from a server-only context.
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
