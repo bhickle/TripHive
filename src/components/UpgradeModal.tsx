@@ -34,7 +34,7 @@ export function UpgradeModal({ prompt, onClose }: UpgradeModalProps) {
         </div>
 
         {/* Copy */}
-        <h2 className="text-xl font-bold text-zinc-900 mb-2">{prompt.headline}</h2>
+        <h2 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">{prompt.headline}</h2>
         <p className="text-zinc-500 text-sm leading-relaxed mb-6">{prompt.body}</p>
 
         {/* CTAs */}

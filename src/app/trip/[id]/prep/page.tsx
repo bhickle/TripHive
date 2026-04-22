@@ -392,7 +392,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <FileText className="w-6 h-6 text-sky-700" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-zinc-900">Important Stuff</h3>
+              <h3 className="font-script italic text-lg font-semibold text-zinc-900">Important Stuff</h3>
               <p className="text-sm text-zinc-600 mt-0.5">Passport, visas, travel papers — don't leave without these</p>
             </div>
           </div>
@@ -512,7 +512,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <Backpack className="w-6 h-6 text-sky-700" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-zinc-900">Pack This</h3>
+              <h3 className="font-script italic text-lg font-semibold text-zinc-900">Pack This</h3>
               <p className="text-sm text-zinc-600 mt-0.5">{isMockTrip ? 'AI-curated for Iceland in September' : `Packing list for ${tripDestination}`}</p>
             </div>
           </div>
@@ -673,7 +673,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <Briefcase className="w-6 h-6 text-sky-700" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-zinc-900">Admin</h3>
+              <h3 className="font-script italic text-lg font-semibold text-zinc-900">Admin</h3>
               <p className="text-sm text-zinc-600 mt-0.5">Flights, transport, and the boring-but-necessary stuff</p>
             </div>
           </div>
@@ -843,7 +843,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 <Globe className="w-6 h-6 text-sky-700" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-zinc-900">Phrase Guide</h3>
+                <h3 className="font-script italic text-lg font-semibold text-zinc-900">Phrase Guide</h3>
                 <p className="text-sm text-zinc-600 mt-0.5">
                   AI-generated phrases for {tripDestination}{multi ? ' — one phrasebook per language' : ''}
                 </p>

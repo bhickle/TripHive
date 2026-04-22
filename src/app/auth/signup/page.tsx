@@ -71,10 +71,10 @@ export default function SignupPage() {
 
         {/* Card */}
         <div className="card p-8 sm:p-10">
-          <h1 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">
+          <h1 className="text-3xl font-script italic font-semibold text-zinc-900 mb-2">
             Create your account
           </h1>
-          <p className="text-slate-600 mb-8">Join thousands of travelers planning amazing trips together</p>
+          <p className="text-zinc-600 mb-8">Join thousands of travelers planning amazing trips together</p>
 
           {/* Error message */}
           {error && (
@@ -87,11 +87,11 @@ export default function SignupPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Name */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="name" className="block text-sm font-medium text-zinc-700 mb-2">
                 Full name
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
                   id="name"
                   type="text"
@@ -106,11 +106,11 @@ export default function SignupPage() {
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-2">
                 Email address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
                   id="email"
                   type="email"
@@ -125,11 +125,11 @@ export default function SignupPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-2">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
                   id="password"
                   type="password"
@@ -141,7 +141,7 @@ export default function SignupPage() {
                   minLength={8}
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-2">At least 8 characters recommended</p>
+              <p className="text-xs text-zinc-500 mt-2">At least 8 characters recommended</p>
             </div>
 
             {/* Terms Checkbox */}
@@ -153,7 +153,7 @@ export default function SignupPage() {
                 className="w-5 h-5 rounded border-slate-300 mt-0.5"
                 required
               />
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-zinc-600">
                 I agree to tripcoord&apos;s{' '}
                 <a href="#" className="font-medium text-sky-700 hover:text-sky-800">
                   Terms of Service
@@ -181,7 +181,7 @@ export default function SignupPage() {
               <div className="w-full border-t border-slate-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-500">Or sign up with</span>
+              <span className="px-2 bg-white text-zinc-500">Or sign up with</span>
             </div>
           </div>
 
@@ -206,7 +206,7 @@ export default function SignupPage() {
           </div>
 
           {/* Sign In Link */}
-          <p className="text-center text-slate-600">
+          <p className="text-center text-zinc-600">
             Already have an account?{' '}
             <Link href="/auth/login" className="font-semibold text-sky-700 hover:text-sky-800">
               Log in
@@ -215,8 +215,8 @@ export default function SignupPage() {
         </div>
 
         {/* Footer Link */}
-        <p className="text-center text-slate-600 text-sm mt-8">
-          <Link href="/" className="hover:text-slate-900 font-medium">
+        <p className="text-center text-zinc-600 text-sm mt-8">
+          <Link href="/" className="hover:text-zinc-900 font-medium">
             ← Back to home
           </Link>
         </p>

@@ -1208,7 +1208,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             {/* Settlement Breakdown */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-xl font-bold text-zinc-900">Who Owes Who</h2>
+                <h2 className="font-script italic text-xl font-semibold text-zinc-900">Who Owes Who</h2>
                 <span className="text-xs text-zinc-400 font-medium">{calculateSettlements().length} transaction{calculateSettlements().length !== 1 ? 's' : ''} to settle</span>
               </div>
 

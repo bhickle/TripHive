@@ -53,10 +53,10 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="card p-8 sm:p-10">
-          <h1 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">
+          <h1 className="text-3xl font-script italic font-semibold text-zinc-900 mb-2">
             Welcome back
           </h1>
-          <p className="text-slate-600 mb-8">Sign in to your account to continue planning</p>
+          <p className="text-zinc-600 mb-8">Sign in to your account to continue planning</p>
 
           {/* Error message */}
           {error && (
@@ -69,11 +69,11 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-2">
                 Email address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
                   id="email"
                   type="email"
@@ -88,11 +88,11 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-2">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
                   id="password"
                   type="password"
@@ -109,7 +109,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 rounded border-slate-300" />
-                <span className="text-sm text-slate-600">Remember me</span>
+                <span className="text-sm text-zinc-600">Remember me</span>
               </label>
               <a href="#" className="text-sm font-medium text-sky-700 hover:text-sky-800">
                 Forgot password?
@@ -132,7 +132,7 @@ export default function LoginPage() {
               <div className="w-full border-t border-slate-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-500">Or continue with</span>
+              <span className="px-2 bg-white text-zinc-500">Or continue with</span>
             </div>
           </div>
 
@@ -157,7 +157,7 @@ export default function LoginPage() {
           </div>
 
           {/* Sign Up Link */}
-          <p className="text-center text-slate-600">
+          <p className="text-center text-zinc-600">
             Don&apos;t have an account?{' '}
             <Link href="/auth/signup" className="font-semibold text-sky-700 hover:text-sky-800">
               Sign up
@@ -166,8 +166,8 @@ export default function LoginPage() {
         </div>
 
         {/* Footer Link */}
-        <p className="text-center text-slate-600 text-sm mt-8">
-          <Link href="/" className="hover:text-slate-900 font-medium">
+        <p className="text-center text-zinc-600 text-sm mt-8">
+          <Link href="/" className="hover:text-zinc-900 font-medium">
             ← Back to home
           </Link>
         </p>

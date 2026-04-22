@@ -388,7 +388,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
             <div className="w-9 h-9 bg-sky-800 rounded-xl flex items-center justify-center flex-shrink-0">
               <Upload className="w-4 h-4 text-white" />
             </div>
-            <h2 className="text-xl font-bold text-zinc-900">Upload Itinerary</h2>
+            <h2 className="font-script italic text-xl font-semibold text-zinc-900">Upload Itinerary</h2>
           </div>
           <p className="text-sm text-zinc-500 pl-12">Import an existing itinerary and let AI structure it for you.</p>
           <button
@@ -695,7 +695,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 <CheckCircle2 className="w-8 h-8 text-emerald-600" />
               </div>
               <div>
-                <p className="text-xl font-bold text-zinc-900 mb-1">Itinerary imported!</p>
+                <p className="font-script italic text-xl font-semibold text-zinc-900 mb-1">Itinerary imported!</p>
                 {parsedMeta?.destination && (
                   <p className="text-sm text-zinc-500">
                     Parsed <span className="font-semibold text-zinc-700">{parsedMeta.destination}</span>

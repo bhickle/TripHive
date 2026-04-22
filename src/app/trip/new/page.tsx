@@ -960,7 +960,7 @@ function TripBuilderPage() {
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
         style={{ backgroundImage: `url(${getLoadingPhoto()})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
         {/* Warm parchment overlay */}
-        <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(245,241,232,0.82)' }} />
+        <div className="absolute inset-0 backdrop-blur-sm bg-parchment/[.82]" />
 
         <div className="relative z-10 flex flex-col items-center text-center px-8 max-w-lg">
           {/* Logo */}
@@ -1074,16 +1074,16 @@ function TripBuilderPage() {
                   🎉
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-900">Hey {welcomeName}, let's plan your first trip!</p>
-                  <p className="text-sm text-slate-500">Answer a few questions and we'll build a full AI itinerary in seconds.</p>
+                  <p className="font-semibold text-zinc-900">Hey {welcomeName}, let's plan your first trip!</p>
+                  <p className="text-sm text-zinc-500">Answer a few questions and we'll build a full AI itinerary in seconds.</p>
                 </div>
               </div>
             )}
 
-            <h1 className="text-3xl font-script italic font-semibold text-slate-900">
+            <h1 className="text-3xl font-script italic font-semibold text-zinc-900">
               {isFirstTrip ? 'Where are you headed?' : 'Let\'s Build Your Trip'}
             </h1>
-            <p className="text-slate-600 mt-2">
+            <p className="text-zinc-600 mt-2">
               Answer a few things and we'll handle the rest.
             </p>
           </div>
@@ -1161,7 +1161,7 @@ function TripBuilderPage() {
             {/* Step 1: Who's Traveling? */}
             {currentStep === 1 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   Who's coming? 👋
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1216,10 +1216,10 @@ function TripBuilderPage() {
                         }`}
                       >
                         <IconComponent className="w-8 h-8 mx-auto mb-3 text-green-800" />
-                        <p className="font-semibold text-slate-900">
+                        <p className="font-semibold text-zinc-900">
                           {option.label}
                         </p>
-                        <p className="text-sm text-slate-600 mt-1">
+                        <p className="text-sm text-zinc-600 mt-1">
                           {option.desc}
                         </p>
                         {isSelected && (
@@ -1238,16 +1238,16 @@ function TripBuilderPage() {
                 <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                   <div className="flex items-center gap-4">
                     <div className="flex-1">
-                      <label className="block text-sm font-semibold text-slate-900 mb-0.5">How many people total?</label>
-                      <p className="text-xs text-slate-400">Used to estimate per-person costs</p>
+                      <label className="block text-sm font-semibold text-zinc-900 mb-0.5">How many people total?</label>
+                      <p className="text-xs text-zinc-400">Used to estimate per-person costs</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => setState(prev => ({ ...prev, groupSize: Math.max(1, prev.groupSize - 1) }))}
-                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-zinc-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
                       >−</button>
-                      <span className="w-8 text-center text-lg font-bold text-slate-900">{state.groupSize}</span>
+                      <span className="w-8 text-center text-lg font-bold text-zinc-900">{state.groupSize}</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -1259,12 +1259,12 @@ function TripBuilderPage() {
                             setState(prev => ({ ...prev, groupSize: prev.groupSize + 1 }));
                           }
                         }}
-                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-zinc-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
                       >+</button>
                     </div>
                   </div>
                   {entitlementsReady && (
-                    <p className="text-xs text-slate-400 mt-2">
+                    <p className="text-xs text-zinc-400 mt-2">
                       {tier === 'free' && 'Free plan: up to 4 travelers. '}
                       {tier === 'explorer' && 'Explorer plan: up to 8 travelers. '}
                       {tier === 'nomad' && 'Nomad plan: up to 15 travelers. '}
@@ -1281,19 +1281,19 @@ function TripBuilderPage() {
             {/* Step 2: Where to? */}
             {currentStep === 2 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   Where to? 🌍
                 </h2>
                 <div className="space-y-6">
                   <div className="relative">
                     <div className="flex items-baseline justify-between mb-3">
-                      <label className="text-sm font-semibold text-slate-900">
+                      <label className="text-sm font-semibold text-zinc-900">
                         Search Destination
                       </label>
-                      <span className="text-xs text-slate-400">Any city, country, or region in the world</span>
+                      <span className="text-xs text-zinc-400">Any city, country, or region in the world</span>
                     </div>
                     <div className="relative">
-                      <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                      <Search className="absolute left-3 top-3 w-5 h-5 text-zinc-400" />
                       <input
                         type="text"
                         value={state.destination}
@@ -1307,7 +1307,7 @@ function TripBuilderPage() {
                         className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
                       />
                       {destLoading && (
-                        <Loader2 className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 animate-spin" />
+                        <Loader2 className="absolute right-3 top-3.5 w-4 h-4 text-zinc-400 animate-spin" />
                       )}
                     </div>
 
@@ -1333,10 +1333,10 @@ function TripBuilderPage() {
                               }}
                               className="w-full text-left px-4 py-3 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-start gap-3"
                             >
-                              <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                              <MapPin className="w-4 h-4 text-zinc-400 flex-shrink-0 mt-0.5" />
                               <div>
-                                <p className="font-medium text-slate-900 text-sm">{s.name}</p>
-                                <p className="text-xs text-slate-500">{s.address}</p>
+                                <p className="font-medium text-zinc-900 text-sm">{s.name}</p>
+                                <p className="text-xs text-zinc-500">{s.address}</p>
                               </div>
                             </button>
                           );
@@ -1374,13 +1374,13 @@ function TripBuilderPage() {
                           return prev;
                         });
                       }}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-dashed border-slate-300 hover:border-sky-400 hover:bg-sky-50 text-slate-500 hover:text-sky-700 rounded-lg text-sm font-medium transition-colors w-full"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-dashed border-slate-300 hover:border-sky-400 hover:bg-sky-50 text-zinc-500 hover:text-sky-700 rounded-lg text-sm font-medium transition-colors w-full"
                     >
                       <Plus className="w-4 h-4" />
                       Add another destination (multi-city trip)
                     </button>
                   ) : (
-                    <div className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
                       <span className="text-sm font-medium text-sky-800">Multi-city trip</span>
                       <button
                         type="button"
@@ -1389,7 +1389,7 @@ function TripBuilderPage() {
                           setState(prev => ({ ...prev, destinations: [], daysPerDestination: {} }));
                           setDestinationCityInput('');
                         }}
-                        className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                        className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
                       >
                         Remove
                       </button>
@@ -1399,7 +1399,7 @@ function TripBuilderPage() {
                   {/* ── Guided destination browser — visible when search is empty ── */}
                   {(!state.destination || state.destination.length < 2) && !showDestinationSuggestions && (
                     <div className="mt-2 pt-4 border-t border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
                         Need inspiration?
                       </p>
 
@@ -1415,7 +1415,7 @@ function TripBuilderPage() {
                               setDestQuery('');
                               setShowDestinationSuggestions(false);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50 text-slate-700 hover:text-sky-800 rounded-full text-xs font-medium transition-colors shadow-sm"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50 text-zinc-700 hover:text-sky-800 rounded-full text-xs font-medium transition-colors shadow-sm"
                           >
                             <span>{vibe.emoji}</span>
                             {vibe.label}
@@ -1433,7 +1433,7 @@ function TripBuilderPage() {
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                               selectedRegion === key
                                 ? 'bg-sky-800 text-white'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                : 'bg-slate-100 text-zinc-600 hover:bg-slate-200'
                             }`}
                           >
                             {region.emoji} {region.label}
@@ -1455,10 +1455,10 @@ function TripBuilderPage() {
                             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50 rounded-xl text-left transition-colors shadow-sm group"
                           >
                             <span className="text-lg leading-none flex-shrink-0">{city.emoji}</span>
-                            <span className="text-xs font-medium text-slate-700 group-hover:text-sky-800 leading-tight">
+                            <span className="text-xs font-medium text-zinc-700 group-hover:text-sky-800 leading-tight">
                               {city.name.split(',')[0]}
                               {city.name.includes(',') && (
-                                <span className="block text-slate-400 font-normal text-[10px]">{city.name.split(', ').slice(1).join(', ')}</span>
+                                <span className="block text-zinc-400 font-normal text-[10px]">{city.name.split(', ').slice(1).join(', ')}</span>
                               )}
                             </span>
                           </button>
@@ -1502,7 +1502,7 @@ function TripBuilderPage() {
                               className="w-full px-3 py-2.5 border border-sky-300 rounded-lg text-sm bg-white focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
                             />
                             {cityLoading && (
-                              <Loader2 className="absolute right-3 top-3 w-4 h-4 text-slate-400 animate-spin" />
+                              <Loader2 className="absolute right-3 top-3 w-4 h-4 text-zinc-400 animate-spin" />
                             )}
                           </div>
                           <button
@@ -1542,9 +1542,9 @@ function TripBuilderPage() {
                                   }}
                                   className="w-full text-left px-4 py-2.5 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-center gap-2"
                                 >
-                                  <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                                  <span className="text-sm text-slate-900">{s.name}</span>
-                                  {s.address && <span className="text-xs text-slate-400">{s.address}</span>}
+                                  <MapPin className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
+                                  <span className="text-sm text-zinc-900">{s.name}</span>
+                                  {s.address && <span className="text-xs text-zinc-400">{s.address}</span>}
                                 </button>
                               );
                             })}
@@ -1591,12 +1591,12 @@ function TripBuilderPage() {
             {/* Step 3: When? */}
             {currentStep === 3 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   When are you going? 📅
                 </h2>
                 <div className="space-y-6">
                   {/* Flexible dates toggle — at top so quick-select is context-aware */}
-                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <input
                       type="checkbox"
                       id="flexibleDates"
@@ -1611,7 +1611,7 @@ function TripBuilderPage() {
                       }
                       className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                     />
-                    <label htmlFor="flexibleDates" className="text-sm font-medium text-slate-900 cursor-pointer">
+                    <label htmlFor="flexibleDates" className="text-sm font-medium text-zinc-900 cursor-pointer">
                       I have flexible dates
                     </label>
                   </div>
@@ -1619,10 +1619,10 @@ function TripBuilderPage() {
                   {/* Trip Length — quick-select only for flexible dates (Item 6) */}
                   {state.flexibleDates && (
                     <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      <label className="block text-sm font-semibold text-zinc-900 mb-1">
                         Trip Length
                       </label>
-                      <p className="text-xs text-slate-400 mb-3">How many days are you thinking?</p>
+                      <p className="text-xs text-zinc-400 mb-3">How many days are you thinking?</p>
                       <div className="grid grid-cols-5 gap-2">
                         {[3, 5, 7, 10, 14].map((days) => {
                           const isLocked = days > maxTripDays;
@@ -1638,7 +1638,7 @@ function TripBuilderPage() {
                                     ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
                                     : state.tripLength === days
                                       ? 'border-green-700 bg-green-50 text-green-800'
-                                      : 'border-slate-200 text-slate-700 hover:border-sky-300'
+                                      : 'border-slate-200 text-zinc-700 hover:border-sky-300'
                                 }`}
                               >
                                 {days}d
@@ -1656,7 +1656,7 @@ function TripBuilderPage() {
                       </div>
                       {/* Tier disclaimer for locked days (Item 6) */}
                       {maxTripDays < 14 && (
-                        <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                        <p className="text-xs text-zinc-400 mt-2 flex items-center gap-1">
                           <Lock className="w-3 h-3" />
                           Your {tier} plan supports up to {maxTripDays}-day trips.{' '}
                           <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade for longer adventures.</Link>
@@ -1668,12 +1668,12 @@ function TripBuilderPage() {
                   {/* Exact date pickers (non-flexible) */}
                   {!state.flexibleDates && (
                     <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-3">
+                      <label className="block text-sm font-semibold text-zinc-900 mb-3">
                         Travel Dates
                       </label>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs text-slate-500 mb-1.5">Start Date</label>
+                          <label className="block text-xs text-zinc-500 mb-1.5">Start Date</label>
                           <input
                             type="date"
                             value={state.startDate}
@@ -1682,7 +1682,7 @@ function TripBuilderPage() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-slate-500 mb-1.5">End Date</label>
+                          <label className="block text-xs text-zinc-500 mb-1.5">End Date</label>
                           <input
                             type="date"
                             value={state.endDate}
@@ -1748,7 +1748,7 @@ function TripBuilderPage() {
                       <p className="text-xs text-sky-800 font-semibold uppercase tracking-wide">Which months work for you?</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-semibold text-slate-900 mb-2">Earliest month</label>
+                          <label className="block text-sm font-semibold text-zinc-900 mb-2">Earliest month</label>
                           <select
                             value={state.startDate ? state.startDate.slice(0, 7) : ''}
                             onChange={(e) => {
@@ -1770,7 +1770,7 @@ function TripBuilderPage() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-semibold text-slate-900 mb-2">Latest month</label>
+                          <label className="block text-sm font-semibold text-zinc-900 mb-2">Latest month</label>
                           <select
                             value={state.endDate ? state.endDate.slice(0, 7) : ''}
                             onChange={(e) => {
@@ -1796,7 +1796,7 @@ function TripBuilderPage() {
                       </div>
                       {/* Chronological validation (Item 11) */}
                       {state.startDate && state.endDate && state.startDate > state.endDate && (
-                        <div className="flex items-center justify-between p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                        <div className="flex items-center justify-between p-3 bg-rose-50 border border-rose-200 rounded-xl">
                           <p className="text-xs text-rose-700 font-medium">
                             Oops — your &ldquo;latest&rdquo; month is earlier than your &ldquo;earliest.&rdquo; Swap them?
                           </p>
@@ -1821,10 +1821,10 @@ function TripBuilderPage() {
                     return cities.length >= 2;
                   })())) && (
                     <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      <label className="block text-sm font-semibold text-zinc-900 mb-1">
                         Nights per City
                       </label>
-                      <p className="text-xs text-slate-400 mb-3">Optional — helps the AI balance time across your stops. Leave blank for even distribution.</p>
+                      <p className="text-xs text-zinc-400 mb-3">Optional — helps the AI balance time across your stops. Leave blank for even distribution.</p>
                       {(!state.startDate || !state.endDate) && (
                         <p className="text-xs text-amber-600 mb-3 flex items-center gap-1.5">
                           <span>⚠️</span> Set your trip dates first to see the total nights available.
@@ -1893,10 +1893,10 @@ function TripBuilderPage() {
             {/* Step 4: Pre-Booked Hotels & Flights */}
             {currentStep === 4 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-2">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
                   Got a head start? ✈️
                 </h2>
-                <p className="text-slate-500 mb-6 text-sm">
+                <p className="text-zinc-500 mb-6 text-sm">
                   If you've already booked flights or a hotel, add them here so your itinerary is built around your schedule. Skip if you're starting fresh.
                 </p>
 
@@ -1905,10 +1905,10 @@ function TripBuilderPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Plane className="w-5 h-5 text-sky-700" />
-                      <span className="font-semibold text-slate-900">Flights</span>
+                      <span className="font-semibold text-zinc-900">Flights</span>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-sm text-slate-600">Already booked</span>
+                      <span className="text-sm text-zinc-600">Already booked</span>
                       <button
                         onClick={() => setState(prev => ({
                           ...prev,
@@ -1932,7 +1932,7 @@ function TripBuilderPage() {
 
                   {/* Same-airport note — always visible once flights are toggled on */}
                   {state.hasPreBookedFlight && (
-                    <div className="flex items-start gap-2 px-3 py-2.5 bg-sky-50 border border-sky-100 rounded-lg mb-4 text-xs text-sky-700">
+                    <div className="flex items-start gap-2 px-3 py-2.5 bg-sky-50 border border-sky-100 rounded-xl mb-4 text-xs text-sky-700">
                       <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <span>
                         We plan your itinerary assuming your return flight departs from the same airport you arrive into.
@@ -1945,13 +1945,13 @@ function TripBuilderPage() {
                     <div className="p-5 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Airline</label>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Airline</label>
                           <input type="text" placeholder="e.g. Delta, United" value={state.bookedFlight.airline}
                             onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, airline: e.target.value } }))}
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Flight Number</label>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Flight Number</label>
                           <input type="text" placeholder="e.g. DL 412" value={state.bookedFlight.flightNumber}
                             onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, flightNumber: e.target.value } }))}
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
@@ -1959,28 +1959,28 @@ function TripBuilderPage() {
                       </div>
 
                       <div className="border-t border-sky-100 pt-4">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Outbound</p>
+                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Outbound</p>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Departing From</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Departing From</label>
                             <input type="text" placeholder="e.g. JFK, LAX" value={state.bookedFlight.departureAirport}
                               onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, departureAirport: e.target.value } }))}
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Arriving At</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Arriving At</label>
                             <input type="text" placeholder="e.g. KEF, CDG" value={state.bookedFlight.arrivalAirport}
                               onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, arrivalAirport: e.target.value } }))}
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Departure Time</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Departure Time</label>
                             <input type="datetime-local" value={state.bookedFlight.departureTime}
                               onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, departureTime: e.target.value } }))}
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Arrival Time</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Arrival Time</label>
                             <input type="datetime-local" value={state.bookedFlight.arrivalTime}
                               onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, arrivalTime: e.target.value } }))}
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
@@ -1989,11 +1989,11 @@ function TripBuilderPage() {
                       </div>
 
                       <div className="border-t border-sky-100 pt-4">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Return (optional)</p>
+                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Return (optional)</p>
 
                         {/* Open-jaw toggle — Nomad only */}
                         {tier === 'nomad' && (
-                          <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-amber-100 rounded-lg">
+                          <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-amber-100 rounded-xl">
                             <button
                               onClick={() => setState(prev => ({
                                 ...prev,
@@ -2010,7 +2010,7 @@ function TripBuilderPage() {
                                 state.isOpenJaw ? 'translate-x-4' : 'translate-x-0.5'
                               }`} />
                             </button>
-                            <span className="text-xs text-slate-700 flex items-center gap-1.5">
+                            <span className="text-xs text-zinc-700 flex items-center gap-1.5">
                               <Crown className="w-3 h-3 text-amber-400 flex-shrink-0" />
                               My return flight departs from a different airport
                             </span>
@@ -2021,14 +2021,14 @@ function TripBuilderPage() {
                         {tier === 'nomad' && state.isOpenJaw && (
                           <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Return Departs From</label>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departs From</label>
                               <input type="text" placeholder="e.g. FCO, BCN"
                                 value={state.bookedFlight.returnDepartureAirport ?? ''}
                                 onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnDepartureAirport: e.target.value } }))}
                                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white" />
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Return Arrives At (home)</label>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Arrives At (home)</label>
                               <input type="text" placeholder="e.g. JFK, LAX"
                                 value={state.bookedFlight.returnArrivalAirport ?? ''}
                                 onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnArrivalAirport: e.target.value } }))}
@@ -2039,13 +2039,13 @@ function TripBuilderPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Return Departure</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departure</label>
                             <input type="datetime-local" value={state.bookedFlight.returnDepartureTime}
                               onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnDepartureTime: e.target.value } }))}
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Return Arrival</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Arrival</label>
                             <input type="datetime-local" value={state.bookedFlight.returnArrivalTime}
                               onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnArrivalTime: e.target.value } }))}
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
@@ -2061,10 +2061,10 @@ function TripBuilderPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">🏨</span>
-                      <span className="font-semibold text-slate-900">Hotel / Accommodation</span>
+                      <span className="font-semibold text-zinc-900">Hotel / Accommodation</span>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-sm text-slate-600">Already booked</span>
+                      <span className="text-sm text-zinc-600">Already booked</span>
                       <button
                         onClick={() => setState(prev => ({
                           ...prev,
@@ -2106,7 +2106,7 @@ function TripBuilderPage() {
                             )}
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Hotel Name</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Hotel Name</label>
                             <input
                               type="text"
                               placeholder="e.g. Marriott Downtown Reykjavik"
@@ -2121,7 +2121,7 @@ function TripBuilderPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
                               City
                               {state.bookedHotels.length > 1 && (
                                 <span className="ml-1 text-sky-600 font-normal">(used to build your route)</span>
@@ -2141,7 +2141,7 @@ function TripBuilderPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Address (optional)</label>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Address (optional)</label>
                             <input
                               type="text"
                               placeholder="e.g. 44 Suðurgata, 101 Reykjavik"
@@ -2157,7 +2157,7 @@ function TripBuilderPage() {
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Check-in Date</label>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Check-in Date</label>
                               <input
                                 type="date"
                                 value={hotel.checkIn}
@@ -2171,7 +2171,7 @@ function TripBuilderPage() {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Check-out Date</label>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Check-out Date</label>
                               <input
                                 type="date"
                                 value={hotel.checkOut}
@@ -2207,7 +2207,7 @@ function TripBuilderPage() {
                             <Plus className="w-4 h-4" />
                             Add another hotel
                             {tier === 'explorer' && state.bookedHotels.length < maxHotels && (
-                              <span className="text-xs text-slate-400 font-normal">({state.bookedHotels.length}/{maxHotels})</span>
+                              <span className="text-xs text-zinc-400 font-normal">({state.bookedHotels.length}/{maxHotels})</span>
                             )}
                           </button>
                         );
@@ -2215,7 +2215,7 @@ function TripBuilderPage() {
 
                       {/* Tier cap hint for Free / Trip Pass */}
                       {(tier === 'free' || tier === 'trip_pass') && state.bookedHotels.length >= 1 && (
-                        <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                        <p className="text-xs text-zinc-400 flex items-center gap-1.5">
                           <Lock className="w-3 h-3" />
                           Multiple hotels require Explorer or Nomad. <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade</Link>
                         </p>
@@ -2250,7 +2250,7 @@ function TripBuilderPage() {
                         const uniqueCities = Array.from(new Set(cities));
                         if (uniqueCities.length < 2) return (
                           state.bookedHotels.length > 1
-                            ? <p className="text-xs text-slate-500 italic">Add a city to each hotel above to see your route.</p>
+                            ? <p className="text-xs text-zinc-500 italic">Add a city to each hotel above to see your route.</p>
                             : null
                         );
                         return (
@@ -2259,14 +2259,14 @@ function TripBuilderPage() {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {uniqueCities.map((city, i) => (
                                 <React.Fragment key={city}>
-                                  <span className="text-sm font-semibold text-slate-800">{city}</span>
+                                  <span className="text-sm font-semibold text-zinc-800">{city}</span>
                                   {i < uniqueCities.length - 1 && (
                                     <span className="text-slate-300 text-sm">→</span>
                                   )}
                                 </React.Fragment>
                               ))}
                             </div>
-                            <p className="text-xs text-slate-400 mt-2">
+                            <p className="text-xs text-zinc-400 mt-2">
                               The AI will route between these cities in order, respecting travel times and check-in/out dates.
                             </p>
                           </div>
@@ -2278,7 +2278,7 @@ function TripBuilderPage() {
 
                 {!state.hasPreBookedFlight && !state.hasPreBookedHotel && (
                   <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                    <p className="text-sm text-slate-500">No pre-bookings? No problem — your AI itinerary will include hotel and flight suggestions that fit your budget.</p>
+                    <p className="text-sm text-zinc-500">No pre-bookings? No problem — your AI itinerary will include hotel and flight suggestions that fit your budget.</p>
                   </div>
                 )}
               </div>
@@ -2287,16 +2287,16 @@ function TripBuilderPage() {
             {/* Step 5: What Matters Most? */}
             {currentStep === 5 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   What's your vibe? ✨
                 </h2>
-                <p className="text-slate-600 mb-6">
+                <p className="text-zinc-600 mb-6">
                   Select your top priorities (we'll rank the top 3)
                 </p>
 
                 {/* Age Ranges */}
                 <div className="mb-8">
-                  <label className="block text-sm font-semibold text-slate-900 mb-4">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-4">
                     Age Ranges
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -2311,7 +2311,7 @@ function TripBuilderPage() {
                           onChange={() => toggleAgeRange(ageRange)}
                           className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                         />
-                        <span className="text-sm font-medium text-slate-900">
+                        <span className="text-sm font-medium text-zinc-900">
                           {ageRange}
                         </span>
                       </label>
@@ -2321,10 +2321,10 @@ function TripBuilderPage() {
 
                 {/* Accessibility Needs */}
                 <div className="mb-8">
-                  <label className="block text-sm font-semibold text-slate-900 mb-1">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
                     Accessibility Needs
                   </label>
-                  <p className="text-xs text-slate-400 mb-4">Does anyone in your group have accessibility requirements?</p>
+                  <p className="text-xs text-zinc-400 mb-4">Does anyone in your group have accessibility requirements?</p>
                   <div className="flex gap-3 mb-4">
                     <button
                       type="button"
@@ -2335,7 +2335,7 @@ function TripBuilderPage() {
                       className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
                         !showAccessibilityOptions
                           ? 'border-sky-700 bg-sky-50 text-sky-800'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                          : 'border-slate-200 text-zinc-600 hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
                       No
@@ -2346,7 +2346,7 @@ function TripBuilderPage() {
                       className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
                         showAccessibilityOptions
                           ? 'border-sky-700 bg-sky-50 text-sky-800'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                          : 'border-slate-200 text-zinc-600 hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
                       Yes
@@ -2365,7 +2365,7 @@ function TripBuilderPage() {
                             onChange={() => toggleAccessibilityNeed(need)}
                             className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                           />
-                          <span className="text-sm font-medium text-slate-900">{need}</span>
+                          <span className="text-sm font-medium text-zinc-900">{need}</span>
                         </label>
                       ))}
                     </div>
@@ -2375,13 +2375,13 @@ function TripBuilderPage() {
                 {/* Travel Priorities */}
                 <div className="mb-8">
                   <div className="flex items-baseline justify-between mb-4">
-                    <label className="text-sm font-semibold text-slate-900">
+                    <label className="text-sm font-semibold text-zinc-900">
                       Travel Priorities
                     </label>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       state.priorities.length >= 4
                         ? 'bg-green-100 text-green-700'
-                        : 'bg-slate-100 text-slate-500'
+                        : 'bg-slate-100 text-zinc-500'
                     }`}>
                       {state.priorities.length}/4 selected
                     </span>
@@ -2403,7 +2403,7 @@ function TripBuilderPage() {
                           }`}
                         >
                           <span className="text-xl leading-none">{priority.icon}</span>
-                          <p className={`font-semibold text-sm ${isSelected ? 'text-sky-800' : 'text-slate-700'}`}>{priority.label}</p>
+                          <p className={`font-semibold text-sm ${isSelected ? 'text-sky-800' : 'text-zinc-700'}`}>{priority.label}</p>
                           {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-sky-600 mt-0.5" />}
                         </button>
                       );
@@ -2413,7 +2413,7 @@ function TripBuilderPage() {
 
                 {/* Summary */}
                 {state.priorities.length > 0 && (
-                  <div className="p-4 bg-sky-50 rounded-lg border border-sky-200 flex flex-wrap gap-2">
+                  <div className="p-4 bg-sky-50 rounded-xl border border-sky-200 flex flex-wrap gap-2">
                     {state.priorities.map((id) => {
                       const p = priorityOptions.find((o) => o.id === id);
                       return p ? (
@@ -2427,10 +2427,10 @@ function TripBuilderPage() {
 
                 {/* Must-haves */}
                 <div className="mt-8 pt-6 border-t border-slate-100">
-                  <label className="block text-sm font-semibold text-slate-900 mb-1">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
                     Must-haves 📍
                   </label>
-                  <p className="text-xs text-slate-500 mb-4">
+                  <p className="text-xs text-zinc-500 mb-4">
                     Specific places, restaurants, or experiences you absolutely don&apos;t want to miss — we&apos;ll make sure they&apos;re in your itinerary.
                   </p>
                   <div className="flex gap-2 mb-3">
@@ -2489,10 +2489,10 @@ function TripBuilderPage() {
 
                 {/* Anything else? */}
                 <div className="mt-8 pt-6 border-t border-slate-100">
-                  <label className="block text-sm font-semibold text-slate-900 mb-1">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
                     Anything else we should know? 💬
                   </label>
-                  <p className="text-xs text-slate-500 mb-3">
+                  <p className="text-xs text-zinc-500 mb-3">
                     Dietary restrictions, physical limitations, things to avoid, special occasions, travel style quirks — anything that would help us plan the perfect trip.
                   </p>
                   <textarea
@@ -2509,17 +2509,17 @@ function TripBuilderPage() {
             {/* Step 6: How Do You Travel? */}
             {currentStep === 6 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   How do you roll? 🎒
                 </h2>
 
                 <div className="space-y-8">
                   {/* Local Transportation */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
                       Local Transportation
                     </label>
-                    <p className="text-xs text-slate-400 mb-4">Select all that apply — how will you get around once you're there?</p>
+                    <p className="text-xs text-zinc-400 mb-4">Select all that apply — how will you get around once you're there?</p>
                     <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
                       {[
                         { id: 'train', label: 'Train / Metro', icon: '🚂' },
@@ -2539,7 +2539,7 @@ function TripBuilderPage() {
                             }`}
                           >
                             <span className="text-3xl block mb-2">{mode.icon}</span>
-                            <p className="text-sm font-semibold text-slate-900">{mode.label}</p>
+                            <p className="text-sm font-semibold text-zinc-900">{mode.label}</p>
                             {isSelected && <div className="mt-1 w-3 h-3 bg-sky-700 rounded-full mx-auto" />}
                           </button>
                         );
@@ -2549,10 +2549,10 @@ function TripBuilderPage() {
 
                   {/* Accommodation Type */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
                       Accommodation Type
                     </label>
-                    <p className="text-xs text-slate-400 mb-4">Select all that apply</p>
+                    <p className="text-xs text-zinc-400 mb-4">Select all that apply</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {[
                         { id: 'hotel', label: 'Hotel', icon: '🏨' },
@@ -2568,7 +2568,7 @@ function TripBuilderPage() {
                             className={`p-4 rounded-lg border-2 transition-all text-center ${
                               isSelected
                                 ? 'border-sky-700 bg-sky-50 text-sky-800'
-                                : 'border-slate-200 hover:border-sky-300 text-slate-900'
+                                : 'border-slate-200 hover:border-sky-300 text-zinc-900'
                             }`}
                           >
                             <span className="text-2xl block mb-1">{type.icon}</span>
@@ -2581,7 +2581,7 @@ function TripBuilderPage() {
                   </div>
 
                   {/* Local Mode Toggle */}
-                  <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <input
                       type="checkbox"
                       checked={state.localMode}
@@ -2593,7 +2593,7 @@ function TripBuilderPage() {
                       }
                       className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                     />
-                    <label className="text-sm font-medium text-slate-900">
+                    <label className="text-sm font-medium text-zinc-900">
                       Local insider mode (off-the-beaten-path experiences)
                     </label>
                   </div>
@@ -2612,10 +2612,10 @@ function TripBuilderPage() {
                       className="w-5 h-5 rounded border-pink-300 text-pink-600 focus:ring-pink-500"
                     />
                     <div>
-                      <label className="text-sm font-medium text-slate-900">
+                      <label className="text-sm font-medium text-zinc-900">
                         ✨ Date night included
                       </label>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-zinc-500 mt-0.5">
                         One evening will be reserved for a romantic dinner or special experience for two.
                       </p>
                     </div>
@@ -2627,21 +2627,21 @@ function TripBuilderPage() {
             {/* Step 7: Budget */}
             {currentStep === 7 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   What's the budget? 💰
                 </h2>
 
                 <div className="space-y-8">
                   {/* Travel Comfort Slider */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
                       Travel Style
                     </label>
-                    <p className="text-xs text-slate-400 mb-4">How do you prefer to travel — budget-smart or comfort-first?</p>
+                    <p className="text-xs text-zinc-400 mb-4">How do you prefer to travel — budget-smart or comfort-first?</p>
                     <div className="flex items-center gap-4">
                       <div className="text-center flex-shrink-0">
                         <span className="text-xl block mb-1">🛏️</span>
-                        <span className="text-xs text-slate-500 font-medium">Backpacker</span>
+                        <span className="text-xs text-zinc-500 font-medium">Backpacker</span>
                       </div>
                       <input
                         type="range"
@@ -2663,10 +2663,10 @@ function TripBuilderPage() {
                       />
                       <div className="text-center flex-shrink-0">
                         <span className="text-xl block mb-1">✨</span>
-                        <span className="text-xs text-slate-500 font-medium">Luxury</span>
+                        <span className="text-xs text-zinc-500 font-medium">Luxury</span>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-400 mt-2 text-center">
+                    <p className="text-xs text-zinc-400 mt-2 text-center">
                       {state.curiosityLevel < 30
                         ? 'Budget-conscious — hostels, street food, local transit'
                         : state.curiosityLevel < 60
@@ -2679,12 +2679,12 @@ function TripBuilderPage() {
 
                   {/* Per-Person Budget */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
                       Per-Person Budget (USD)
                     </label>
-                    <p className="text-xs text-slate-400 mb-3">Your budget for one person — excluding flights if already booked</p>
+                    <p className="text-xs text-zinc-400 mb-3">Your budget for one person — excluding flights if already booked</p>
                     <div className="flex items-center space-x-2">
-                      <DollarSign className="w-5 h-5 text-slate-600" />
+                      <DollarSign className="w-5 h-5 text-zinc-600" />
                       <input
                         type="number"
                         value={budgetInput}
@@ -2710,8 +2710,8 @@ function TripBuilderPage() {
 
                   {/* Budget Breakdown — number inputs */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-4">
-                      Budget Breakdown <span className="text-slate-400 font-normal text-xs">(per person)</span>
+                    <label className="block text-sm font-semibold text-zinc-900 mb-4">
+                      Budget Breakdown <span className="text-zinc-400 font-normal text-xs">(per person)</span>
                     </label>
                     <div className="space-y-3">
                       {[
@@ -2726,14 +2726,14 @@ function TripBuilderPage() {
                           <div key={key} className={`flex items-center gap-3 p-3 rounded-xl border ${isPreBooked ? 'bg-emerald-50 border-emerald-200 opacity-70' : 'bg-white border-slate-200'}`}>
                             <span className="text-xl w-8 text-center">{icon}</span>
                             <div className="flex-1">
-                              <p className="text-sm font-semibold text-slate-900">{label}</p>
-                              <p className="text-xs text-slate-400">{hint}</p>
+                              <p className="text-sm font-semibold text-zinc-900">{label}</p>
+                              <p className="text-xs text-zinc-400">{hint}</p>
                             </div>
                             {isPreBooked ? (
                               <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">✓ Paid</span>
                             ) : (
                               <div className="flex items-center gap-1">
-                                <span className="text-sm text-slate-500">$</span>
+                                <span className="text-sm text-zinc-500">$</span>
                                 <input
                                   type="number"
                                   min="0"
@@ -2768,7 +2768,7 @@ function TripBuilderPage() {
             {/* Step 8: Review & Generate */}
             {currentStep === 8 && (
               <div>
-                <h2 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   Good to go? 🚀
                 </h2>
 
@@ -2780,8 +2780,8 @@ function TripBuilderPage() {
                         <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Group Type</p>
                         <button onClick={() => setCurrentStep(1)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
                       </div>
-                      <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.groupType || <span className="text-slate-400">Not set</span>}
+                      <p className="text-lg font-semibold text-zinc-900 capitalize">
+                        {state.groupType || <span className="text-zinc-400">Not set</span>}
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
@@ -2803,14 +2803,14 @@ function TripBuilderPage() {
                             <div className="flex items-center gap-1 flex-wrap">
                               {routeCities.map((city, i) => (
                                 <React.Fragment key={city}>
-                                  <span className="text-base font-semibold text-slate-900">{city}</span>
+                                  <span className="text-base font-semibold text-zinc-900">{city}</span>
                                   {i < routeCities.length - 1 && <span className="text-sky-400 font-light">→</span>}
                                 </React.Fragment>
                               ))}
                             </div>
                           );
                         }
-                        return <p className="text-lg font-semibold text-slate-900">{state.destination || <span className="text-slate-400">Not selected</span>}</p>;
+                        return <p className="text-lg font-semibold text-zinc-900">{state.destination || <span className="text-zinc-400">Not selected</span>}</p>;
                       })()}
                     </div>
                     <div className="p-4 bg-parchment rounded-lg border border-stone-200">
@@ -2818,15 +2818,15 @@ function TripBuilderPage() {
                         <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Trip Length</p>
                         <button onClick={() => setCurrentStep(3)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
                       </div>
-                      <p className="text-lg font-semibold text-slate-900">{state.tripLength} days</p>
+                      <p className="text-lg font-semibold text-zinc-900">{state.tripLength} days</p>
                     </div>
                     <div className="p-4 bg-parchment rounded-lg border border-stone-200">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Budget (per person)</p>
                         <button onClick={() => setCurrentStep(7)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
                       </div>
-                      <p className="text-lg font-semibold text-slate-900">
-                        ${state.budget.toLocaleString()} <span className="text-sm text-slate-500">× {state.groupSize} = ${(state.budget * state.groupSize).toLocaleString()}</span>
+                      <p className="text-lg font-semibold text-zinc-900">
+                        ${state.budget.toLocaleString()} <span className="text-sm text-zinc-500">× {state.groupSize} = ${(state.budget * state.groupSize).toLocaleString()}</span>
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
@@ -2834,8 +2834,8 @@ function TripBuilderPage() {
                         <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Local Transport</p>
                         <button onClick={() => setCurrentStep(6)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
                       </div>
-                      <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.modality.length > 0 ? state.modality.join(', ') : <span className="text-slate-400">Not set</span>}
+                      <p className="text-lg font-semibold text-zinc-900 capitalize">
+                        {state.modality.length > 0 ? state.modality.join(', ') : <span className="text-zinc-400">Not set</span>}
                       </p>
                     </div>
                     <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
@@ -2843,8 +2843,8 @@ function TripBuilderPage() {
                         <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Accommodation</p>
                         <button onClick={() => setCurrentStep(6)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
                       </div>
-                      <p className="text-lg font-semibold text-slate-900 capitalize">
-                        {state.accommodationType.length > 0 ? state.accommodationType.join(', ') : <span className="text-slate-400">Not set</span>}
+                      <p className="text-lg font-semibold text-zinc-900 capitalize">
+                        {state.accommodationType.length > 0 ? state.accommodationType.join(', ') : <span className="text-zinc-400">Not set</span>}
                       </p>
                     </div>
                   </div>
@@ -2853,8 +2853,8 @@ function TripBuilderPage() {
                   {state.priorities.length > 0 && (
                     <div className="p-4 bg-slate-100 rounded-lg border border-slate-300">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-slate-900">Priorities</p>
-                        <button onClick={() => setCurrentStep(5)} className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2">Edit →</button>
+                        <p className="text-sm font-semibold text-zinc-900">Priorities</p>
+                        <button onClick={() => setCurrentStep(5)} className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 underline underline-offset-2">Edit →</button>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {state.priorities.map((id) => {
@@ -2935,7 +2935,7 @@ function TripBuilderPage() {
 
                   {/* CTA */}
                   <div className="pt-6 border-t border-slate-200">
-                    <p className="text-sm text-slate-600 mb-4">
+                    <p className="text-sm text-zinc-600 mb-4">
                       Ready? AI will build a day-by-day itinerary around your preferences
                       {state.destination ? ` for ${state.destination}` : ''}.
                     </p>
@@ -2990,7 +2990,7 @@ function TripBuilderPage() {
               <button
                 onClick={handleBack}
                 disabled={currentStep === 1}
-                className="flex items-center space-x-2 px-6 py-3 text-sky-700 hover:text-sky-800 disabled:text-slate-400 disabled:cursor-not-allowed font-medium transition-colors"
+                className="flex items-center space-x-2 px-6 py-3 text-sky-700 hover:text-sky-800 disabled:text-zinc-400 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 <ChevronLeft className="w-5 h-5" />
                 <span>Back</span>

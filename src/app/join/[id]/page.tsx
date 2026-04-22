@@ -222,7 +222,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
         <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
           <div className="w-full max-w-2xl text-center">
             <Loader className="w-12 h-12 text-sky-700 mx-auto mb-4 animate-spin" />
-            <p className="text-slate-600 font-medium">Loading trip details...</p>
+            <p className="text-zinc-600 font-medium">Loading trip details...</p>
           </div>
         </main>
       </div>
@@ -241,10 +241,10 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
         <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
           <div className="w-full max-w-2xl bg-white rounded-xl shadow-md p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-              <MapPin className="w-8 h-8 text-slate-400" />
+              <MapPin className="w-8 h-8 text-zinc-400" />
             </div>
-            <h2 className="text-2xl font-semibold text-slate-900 mb-2">Trip not found</h2>
-            <p className="text-slate-600 mb-6">We couldn't find the trip you're looking for. Please check the link and try again.</p>
+            <h2 className="text-2xl font-semibold text-zinc-900 mb-2">Trip not found</h2>
+            <p className="text-zinc-600 mb-6">We couldn't find the trip you're looking for. Please check the link and try again.</p>
             <Link
               href="/"
               className="inline-flex items-center space-x-2 px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-all"
@@ -287,20 +287,20 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               <div className="p-8">
                 {/* Trip Details */}
                 <div className="mb-8">
-                  <h2 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">{tripData.destination}</h2>
-                  <p className="text-slate-600">{tripData.title}</p>
+                  <h2 className="text-3xl font-script italic font-semibold text-zinc-900 mb-2">{tripData.destination}</h2>
+                  <p className="text-zinc-600">{tripData.title}</p>
 
                   {/* Meta Info */}
                   <div className="grid grid-cols-3 gap-4 mt-6">
-                    <div className="flex items-center space-x-2 text-slate-600">
+                    <div className="flex items-center space-x-2 text-zinc-600">
                       <Calendar className="w-4 h-4 text-sky-700" />
                       <span className="text-sm">{new Date(tripData.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}-{new Date(tripData.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                     </div>
-                    <div className="flex items-center space-x-2 text-slate-600">
+                    <div className="flex items-center space-x-2 text-zinc-600">
                       <Users className="w-4 h-4 text-sky-700" />
                       <span className="text-sm">{tripData.travelerCount} travelers</span>
                     </div>
-                    <div className="flex items-center space-x-2 text-slate-600">
+                    <div className="flex items-center space-x-2 text-zinc-600">
                       <MapPin className="w-4 h-4 text-sky-700" />
                       <span className="text-sm">{tripData.itineraryPreview.length} days</span>
                     </div>
@@ -308,14 +308,14 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 </div>
 
                 <div className="border-t border-slate-200 pt-6 mb-8">
-                  <p className="text-sm text-slate-600 mb-3">Organized by</p>
-                  <p className="font-semibold text-slate-900">{tripData.organizerName}</p>
+                  <p className="text-sm text-zinc-600 mb-3">Organized by</p>
+                  <p className="font-semibold text-zinc-900">{tripData.organizerName}</p>
                 </div>
 
                 {/* Guest Flow */}
                 <div>
-                  <h3 className="font-semibold text-slate-900 mb-2 text-lg">What should we call you?</h3>
-                  <p className="text-sm text-slate-600 mb-4">No app required to join — but we'll need your name to vote and submit preferences.</p>
+                  <h3 className="font-semibold text-zinc-900 mb-2 text-lg">What should we call you?</h3>
+                  <p className="text-sm text-zinc-600 mb-4">No app required to join — but we'll need your name to vote and submit preferences.</p>
                   <input
                     type="text"
                     placeholder="Your name"
@@ -325,7 +325,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   />
 
                   <div>
-                    <label className="block text-sm text-slate-600 mb-2">Email (optional — for updates)</label>
+                    <label className="block text-sm text-zinc-600 mb-2">Email (optional — for updates)</label>
                     <input
                       type="email"
                       placeholder="your@email.com"
@@ -346,7 +346,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   <ChevronRight className="w-5 h-5" />
                 </button>
 
-                <p className="text-xs text-slate-500 text-center mt-4">Step 1 of 3</p>
+                <p className="text-xs text-zinc-500 text-center mt-4">Step 1 of 3</p>
               </div>
             </div>
           )}
@@ -354,11 +354,11 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
           {/* STEP 2: PREFERENCES */}
           {step === 'preferences' && (
             <div className="bg-white rounded-xl shadow-md p-8">
-              <h3 className="text-2xl font-script italic font-semibold text-slate-900 mb-6">Tell us about your travel style</h3>
+              <h3 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">Tell us about your travel style</h3>
 
               {/* Travel Priorities */}
               <div className="mb-8">
-                <label className="block text-sm font-semibold text-slate-900 mb-3">What are you most interested in?</label>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">What are you most interested in?</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {priorityOptions.map((priority) => (
                     <button
@@ -367,7 +367,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                       className={`px-4 py-2 rounded-lg font-medium transition-all text-left ${
                         guestData.priorities.includes(priority)
                           ? 'bg-sky-800 text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          : 'bg-slate-100 text-zinc-700 hover:bg-slate-200'
                       }`}
                     >
                       {priority}
@@ -378,7 +378,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
 
               {/* Accommodation Preference */}
               <div className="mb-8">
-                <label className="block text-sm font-semibold text-slate-900 mb-3">Accommodation preference</label>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">Accommodation preference</label>
                 <div className="space-y-2">
                   {accommodationOptions.map((option) => (
                     <label key={option} className="flex items-center space-x-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
@@ -389,7 +389,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                         onChange={() => setGuestData({ ...guestData, accommodation: option })}
                         className="w-4 h-4 text-sky-700"
                       />
-                      <span className="text-slate-700">{option}</span>
+                      <span className="text-zinc-700">{option}</span>
                     </label>
                   ))}
                 </div>
@@ -397,7 +397,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
 
               {/* Curiosity Level */}
               <div className="mb-8">
-                <label className="block text-sm font-semibold text-slate-900 mb-3">What's your pace?</label>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">What's your pace?</label>
                 <div className="space-y-2">
                   {curiosityLevels.map((level) => (
                     <label key={level} className="flex items-center space-x-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
@@ -408,7 +408,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                         onChange={() => setGuestData({ ...guestData, curiosity: level })}
                         className="w-4 h-4 text-sky-700"
                       />
-                      <span className="text-slate-700">{level}</span>
+                      <span className="text-zinc-700">{level}</span>
                     </label>
                   ))}
                 </div>
@@ -432,7 +432,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 </button>
               </div>
 
-              <p className="text-xs text-slate-500 text-center mt-4">Step 2 of 3</p>
+              <p className="text-xs text-zinc-500 text-center mt-4">Step 2 of 3</p>
             </div>
           )}
 
@@ -443,25 +443,25 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4">
                   <Heart className="w-8 h-8 text-stone-700" />
                 </div>
-                <h3 className="text-2xl font-script italic font-semibold text-slate-900">You're in!</h3>
-                <p className="text-slate-600 mt-2">Your preferences have been submitted to {tripData.destination}.</p>
+                <h3 className="text-2xl font-script italic font-semibold text-zinc-900">You're in!</h3>
+                <p className="text-zinc-600 mt-2">Your preferences have been submitted to {tripData.destination}.</p>
               </div>
 
               {/* Summary */}
               <div className="bg-slate-50 rounded-lg p-6 mb-6">
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm text-slate-600">Your Name</p>
-                    <p className="font-semibold text-slate-900">{guestData.name}</p>
+                    <p className="text-sm text-zinc-600">Your Name</p>
+                    <p className="font-semibold text-zinc-900">{guestData.name}</p>
                   </div>
                   {guestData.email && (
                     <div>
-                      <p className="text-sm text-slate-600">Email</p>
-                      <p className="font-semibold text-slate-900">{guestData.email}</p>
+                      <p className="text-sm text-zinc-600">Email</p>
+                      <p className="font-semibold text-zinc-900">{guestData.email}</p>
                     </div>
                   )}
                   <div>
-                    <p className="text-sm text-slate-600">Interests</p>
+                    <p className="text-sm text-zinc-600">Interests</p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {guestData.priorities.map((p) => (
                         <span key={p} className="px-3 py-1 bg-sky-100 text-sky-900 rounded-full text-xs font-medium">
@@ -475,8 +475,8 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
 
               {/* Itinerary Preview - Read Only */}
               <div className="mb-8">
-                <h4 className="font-semibold text-slate-900 mb-4">Your {tripData.itineraryPreview.length}-Day Itinerary (Read-Only)</h4>
-                <p className="text-sm text-slate-600 mb-4">You can view the full itinerary below, but to edit or plan your own trip, download the app.</p>
+                <h4 className="font-semibold text-zinc-900 mb-4">Your {tripData.itineraryPreview.length}-Day Itinerary (Read-Only)</h4>
+                <p className="text-sm text-zinc-600 mb-4">You can view the full itinerary below, but to edit or plan your own trip, download the app.</p>
                 <div className="space-y-3">
                   {tripData.itineraryPreview.slice(0, 3).map((day) => (
                     <div key={day.day} className="flex items-start space-x-3 p-3 border border-slate-200 rounded-lg">
@@ -484,14 +484,14 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                         <span className="text-sm font-bold text-sky-800">{day.day}</span>
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-900">{day.theme}</p>
-                        <p className="text-sm text-slate-600">{day.activities[0]}</p>
+                        <p className="font-semibold text-zinc-900">{day.theme}</p>
+                        <p className="text-sm text-zinc-600">{day.activities[0]}</p>
                       </div>
                     </div>
                   ))}
                   {tripData.itineraryPreview.length > 3 && (
                     <div className="text-center py-3">
-                      <p className="text-sm text-slate-600">+ {tripData.itineraryPreview.length - 3} more days planned</p>
+                      <p className="text-sm text-zinc-600">+ {tripData.itineraryPreview.length - 3} more days planned</p>
                     </div>
                   )}
                 </div>
@@ -501,12 +501,12 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               <div className="bg-gradient-to-br from-sky-50 to-green-50 rounded-lg p-6 mb-6 border border-sky-200">
                 <div className="flex items-start gap-3 mb-3">
                   <Lock className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <h4 className="font-semibold text-slate-900">Get more from this trip</h4>
+                  <h4 className="font-semibold text-zinc-900">Get more from this trip</h4>
                 </div>
-                <p className="text-sm text-slate-700 mb-4">
+                <p className="text-sm text-zinc-700 mb-4">
                   Your preferences have been submitted. But the app is where the trip really comes alive. For $7.99/month (Explorer plan), you get:
                 </p>
-                <ul className="space-y-2 text-sm text-slate-700 mb-4">
+                <ul className="space-y-2 text-sm text-zinc-700 mb-4">
                   <li className="flex items-center space-x-2">
                     <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
                     <span>Group chat with other travelers</span>
@@ -545,7 +545,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               <div className="bg-slate-50 rounded-lg p-6 text-center border border-slate-200">
                 <div className="space-y-3">
                   <div>
-                    <p className="text-slate-700 font-medium mb-2">Ready to plan your own adventure?</p>
+                    <p className="text-zinc-700 font-medium mb-2">Ready to plan your own adventure?</p>
                     <Link
                       href="/auth/signup"
                       className="inline-flex items-center space-x-2 text-sky-700 hover:text-sky-800 font-semibold"
@@ -555,10 +555,10 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                     </Link>
                   </div>
                   <div className="border-t border-slate-200 pt-3">
-                    <p className="text-sm text-slate-600 mb-2">Already have an account?</p>
+                    <p className="text-sm text-zinc-600 mb-2">Already have an account?</p>
                     <Link
                       href="/auth/login"
-                      className="inline-flex items-center space-x-2 text-slate-600 hover:text-sky-700 font-medium text-sm"
+                      className="inline-flex items-center space-x-2 text-zinc-600 hover:text-sky-700 font-medium text-sm"
                     >
                       <span>Sign in</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -574,8 +574,8 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 px-4">
         <div className="max-w-2xl mx-auto text-center">
-          <p className="text-sm text-slate-600 mb-2">
-            Powered by <span className="font-semibold text-slate-900">tripcoord</span>
+          <p className="text-sm text-zinc-600 mb-2">
+            Powered by <span className="font-semibold text-zinc-900">tripcoord</span>
           </p>
           <Link
             href="/auth/signup"

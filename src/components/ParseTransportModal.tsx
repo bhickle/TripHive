@@ -240,7 +240,7 @@ export function ParseTransportModal({ dayNumber, dayDate, onAdd, onClose }: Pars
               <div className="w-6 h-6 bg-sky-800 rounded-lg flex items-center justify-center">
                 <Sparkles className="w-3.5 h-3.5 text-white" />
               </div>
-              <h2 className="text-zinc-900 text-lg font-bold">Import from Confirmation</h2>
+              <h2 className="font-script italic text-zinc-900 text-lg font-semibold">Import from Confirmation</h2>
             </div>
             <p className="text-zinc-400 text-sm">
               Paste any booking confirmation — car rental, bus, train, or excursion — and AI will extract the details.

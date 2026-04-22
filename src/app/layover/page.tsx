@@ -249,7 +249,7 @@ function AirportSearch({ value, onSelect }: AirportSearchProps) {
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
         <input
           type="text"
           placeholder="City, airport name, or code (e.g. Tokyo, LHR)"
@@ -272,8 +272,8 @@ function AirportSearch({ value, onSelect }: AirportSearchProps) {
               <div className="flex items-center gap-3">
                 <span className="font-mono font-bold text-sky-800 text-sm w-10 flex-shrink-0">{airport.code}</span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">{airport.name}</p>
-                  <p className="text-xs text-slate-500">{airport.city}</p>
+                  <p className="text-sm font-medium text-zinc-900 truncate">{airport.name}</p>
+                  <p className="text-xs text-zinc-500">{airport.city}</p>
                 </div>
               </div>
             </button>
@@ -428,11 +428,11 @@ export default function LayoverPlannerPage() {
           </Link>
 
           <div className="mb-8">
-            <h1 className="text-3xl font-script italic font-semibold text-slate-900 flex items-center gap-3">
+            <h1 className="text-3xl font-script italic font-semibold text-zinc-900 flex items-center gap-3">
               <Plane className="w-8 h-8 text-sky-700" />
               Layover Planner
             </h1>
-            <p className="text-slate-600 mt-2">
+            <p className="text-zinc-600 mt-2">
               Got a layover? We'll help you make the most of your time — from quick airport bites to full city day trips.
             </p>
           </div>
@@ -441,14 +441,14 @@ export default function LayoverPlannerPage() {
           <div className="card p-6 mb-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Airport</label>
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">Airport</label>
                 <AirportSearch
                   value={selectedCode}
                   onSelect={(code) => setSelectedCode(code)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Layover Duration</label>
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">Layover Duration</label>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 flex-1">
                     <input
@@ -460,7 +460,7 @@ export default function LayoverPlannerPage() {
                       max="48"
                       className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
                     />
-                    <span className="text-sm text-slate-500 whitespace-nowrap">hrs</span>
+                    <span className="text-sm text-zinc-500 whitespace-nowrap">hrs</span>
                   </div>
                   {hoursNum > 0 && (
                     <span className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${getTierLabel(hoursNum).color}`}>
@@ -473,7 +473,7 @@ export default function LayoverPlannerPage() {
 
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-slate-500">Popular:</span>
+                <span className="text-xs text-zinc-500">Popular:</span>
                 {popularAirports.map(a => (
                   <button
                     key={a.code}
@@ -501,17 +501,17 @@ export default function LayoverPlannerPage() {
           {/* Preferences Panel */}
           {showPreferences && (
             <div className="card p-6 mb-8">
-              <h2 className="font-script italic text-xl font-semibold text-slate-900 mb-2">
+              <h2 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">
                 Customize Your Layover at {pendingCode}
               </h2>
-              <p className="text-sm text-slate-600 mb-6">
+              <p className="text-sm text-zinc-600 mb-6">
                 Tell us a bit more so AI can tailor suggestions for your{' '}
                 {layoverHours ? `${layoverHours}-hour` : ''} layover.
               </p>
 
               {/* Who's Traveling */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-slate-900 mb-3">Who's traveling?</label>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">Who's traveling?</label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {groupTypeOptions.map(option => (
                     <button
@@ -522,8 +522,8 @@ export default function LayoverPlannerPage() {
                       }`}
                     >
                       <span className="text-2xl block mb-1">{option.icon}</span>
-                      <p className="font-semibold text-slate-900 text-sm">{option.label}</p>
-                      <p className="text-xs text-slate-500">{option.desc}</p>
+                      <p className="font-semibold text-zinc-900 text-sm">{option.label}</p>
+                      <p className="text-xs text-zinc-500">{option.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -531,8 +531,8 @@ export default function LayoverPlannerPage() {
 
               {/* Travel Priorities */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-slate-900 mb-3">
-                  What are you in the mood for? <span className="text-slate-400 font-normal">(pick any)</span>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">
+                  What are you in the mood for? <span className="text-zinc-400 font-normal">(pick any)</span>
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {priorityOptions.map((priority) => {
@@ -550,7 +550,7 @@ export default function LayoverPlannerPage() {
                         }`}
                       >
                         <span className="text-2xl mb-1 block">{priority.icon}</span>
-                        <p className="font-medium text-slate-900 text-sm">{priority.label}</p>
+                        <p className="font-medium text-zinc-900 text-sm">{priority.label}</p>
                       </button>
                     );
                   })}
@@ -559,7 +559,7 @@ export default function LayoverPlannerPage() {
 
               {/* Age Ranges */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-slate-900 mb-3">Age Ranges in Your Group</label>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">Age Ranges in Your Group</label>
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                   {ageRangeOptions.map((age) => (
                     <button
@@ -570,7 +570,7 @@ export default function LayoverPlannerPage() {
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
                         selectedAgeRanges.includes(age)
                           ? 'border-sky-700 bg-sky-50 text-sky-800'
-                          : 'border-slate-200 text-slate-700 hover:border-sky-300'
+                          : 'border-slate-200 text-zinc-700 hover:border-sky-300'
                       }`}
                     >
                       {age}
@@ -581,7 +581,7 @@ export default function LayoverPlannerPage() {
 
               {/* Accessibility */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-slate-900 mb-3">Accessibility Needs</label>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">Accessibility Needs</label>
                 <div className="grid grid-cols-2 gap-2">
                   {accessibilityOptionsList.map((need) => (
                     <label key={need} className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
@@ -593,7 +593,7 @@ export default function LayoverPlannerPage() {
                         )}
                         className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                       />
-                      <span className="text-sm font-medium text-slate-900">{need}</span>
+                      <span className="text-sm font-medium text-zinc-900">{need}</span>
                     </label>
                   ))}
                 </div>
@@ -613,8 +613,8 @@ export default function LayoverPlannerPage() {
           {isSearching && (
             <div className="card p-12 text-center">
               <Loader2 className="w-10 h-10 text-sky-700 animate-spin mx-auto mb-4" />
-              <p className="text-lg font-semibold text-slate-900">Finding the best layover activities…</p>
-              <p className="text-sm text-slate-500 mt-1">AI is personalizing suggestions for {pendingCode}</p>
+              <p className="text-lg font-semibold text-zinc-900">Finding the best layover activities…</p>
+              <p className="text-sm text-zinc-500 mt-1">AI is personalizing suggestions for {pendingCode}</p>
             </div>
           )}
 
@@ -622,8 +622,8 @@ export default function LayoverPlannerPage() {
           {error && !isSearching && (
             <div className="card p-6 text-center">
               <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-              <p className="text-lg font-semibold text-slate-900">Couldn't load suggestions</p>
-              <p className="text-sm text-slate-600 mt-1">{error}</p>
+              <p className="text-lg font-semibold text-zinc-900">Couldn't load suggestions</p>
+              <p className="text-sm text-zinc-600 mt-1">{error}</p>
               <button
                 onClick={() => handleSearch()}
                 className="mt-4 px-5 py-2.5 bg-sky-800 text-white rounded-lg text-sm font-medium hover:bg-sky-900 transition-colors"
@@ -639,17 +639,17 @@ export default function LayoverPlannerPage() {
               <div className="mb-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="font-script italic text-xl font-semibold text-slate-900">
+                    <h2 className="font-script italic text-xl font-semibold text-zinc-900">
                       {result.airport.name}
                     </h2>
-                    <p className="text-sm text-slate-600 mt-1">
+                    <p className="text-sm text-zinc-600 mt-1">
                       {result.airport.city}, {result.airport.country} · {result.suggestions.length} activities
                       {layoverHours ? ` · ${layoverHours}-hour layover` : ''}
                     </p>
                   </div>
                   <button
                     onClick={() => { setShowPreferences(true); setResult(null); }}
-                    className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                    className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-zinc-600 hover:bg-slate-50 transition-colors"
                   >
                     Adjust Preferences
                   </button>
@@ -673,14 +673,14 @@ export default function LayoverPlannerPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-semibold text-slate-900 text-lg">{item.title}</h3>
+                              <h3 className="font-semibold text-zinc-900 text-lg">{item.title}</h3>
                               {item.requiresExitAirside && (
                                 <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium flex-shrink-0">
                                   Exits Airside
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 text-sm text-slate-600 mt-1 flex-wrap">
+                            <div className="flex items-center gap-3 text-sm text-zinc-600 mt-1 flex-wrap">
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3.5 h-3.5" /> {item.duration}
                               </span>
@@ -691,13 +691,13 @@ export default function LayoverPlannerPage() {
                               <span>⭐ {item.rating.toFixed(1)}</span>
                             </div>
                           </div>
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${categoryColors[item.category] ?? 'bg-slate-100 text-slate-700'}`}>
+                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${categoryColors[item.category] ?? 'bg-slate-100 text-zinc-700'}`}>
                             {item.category}
                           </span>
                         </div>
 
-                        <p className="text-sm text-slate-700 mt-2">{item.description}</p>
-                        <p className="text-xs text-slate-500 mt-1">{item.location}</p>
+                        <p className="text-sm text-zinc-700 mt-2">{item.description}</p>
+                        <p className="text-xs text-zinc-500 mt-1">{item.location}</p>
 
                         {item.bookingTip && (
                           <p className="text-xs text-sky-700 mt-1.5 font-medium">💡 {item.bookingTip}</p>
@@ -726,12 +726,12 @@ export default function LayoverPlannerPage() {
                 <div className="mb-8">
                   <div className="flex items-center gap-2 mb-4">
                     <Hotel className="w-5 h-5 text-violet-600" />
-                    <h3 className="font-script italic text-lg font-semibold text-slate-900">Rest & Recharge</h3>
+                    <h3 className="font-script italic text-lg font-semibold text-zinc-900">Rest & Recharge</h3>
                     <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">
                       Long layover hotels
                     </span>
                   </div>
-                  <p className="text-sm text-slate-500 mb-4">
+                  <p className="text-sm text-zinc-500 mb-4">
                     With {layoverHours} hours to spare, a transit hotel lets you shower, nap, or relax properly before your next flight.
                   </p>
                   <div className="space-y-3">
@@ -740,20 +740,20 @@ export default function LayoverPlannerPage() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <h4 className="font-semibold text-slate-900">{hotel.name}</h4>
+                              <h4 className="font-semibold text-zinc-900">{hotel.name}</h4>
                               <div className="flex items-center gap-0.5">
                                 {Array.from({ length: hotel.stars }).map((_, si) => (
                                   <Star key={si} className="w-3 h-3 fill-amber-400 text-amber-400" />
                                 ))}
                               </div>
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-slate-500 mb-2 flex-wrap">
+                            <div className="flex items-center gap-3 text-xs text-zinc-500 mb-2 flex-wrap">
                               <span className="flex items-center gap-1">
                                 <MapPin className="w-3 h-3" /> {hotel.distanceFromAirport}
                               </span>
-                              <span className="font-medium text-slate-700">{hotel.priceRange}</span>
+                              <span className="font-medium text-zinc-700">{hotel.priceRange}</span>
                             </div>
-                            <p className="text-sm text-slate-700">{hotel.why}</p>
+                            <p className="text-sm text-zinc-700">{hotel.why}</p>
                             {hotel.checkInNote && (
                               <p className="text-xs text-violet-700 mt-1.5 font-medium">💡 {hotel.checkInNote}</p>
                             )}

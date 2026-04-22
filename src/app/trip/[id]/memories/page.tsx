@@ -81,7 +81,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="mb-12">
           <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">The Pics</h1>
-          <p className="text-slate-600">Your {tripDestination} adventure through photos</p>
+          <p className="text-zinc-600">Your {tripDestination} adventure through photos</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
@@ -125,9 +125,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
         {shareMode && (
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">Share Album</h3>
+              <h3 className="font-script italic text-lg font-semibold text-zinc-900">Share Album</h3>
               <button onClick={() => setShareMode(false)}>
-                <X className="w-5 h-5 text-slate-400 hover:text-slate-600" />
+                <X className="w-5 h-5 text-zinc-400 hover:text-zinc-600" />
               </button>
             </div>
 
@@ -141,8 +141,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                     className="w-4 h-4"
                   />
                   <div>
-                    <p className="font-medium text-slate-900">Private</p>
-                    <p className="text-sm text-slate-500">Only group members can view</p>
+                    <p className="font-medium text-zinc-900">Private</p>
+                    <p className="text-sm text-zinc-500">Only group members can view</p>
                   </div>
                 </label>
               </div>
@@ -156,8 +156,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                     className="w-4 h-4"
                   />
                   <div>
-                    <p className="font-medium text-slate-900">Public Link</p>
-                    <p className="text-sm text-slate-500">Anyone with the link can view</p>
+                    <p className="font-medium text-zinc-900">Public Link</p>
+                    <p className="text-sm text-zinc-500">Anyone with the link can view</p>
                   </div>
                 </label>
               </div>
@@ -171,21 +171,21 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                     className="w-4 h-4"
                   />
                   <div>
-                    <p className="font-medium text-slate-900">Password Protected</p>
-                    <p className="text-sm text-slate-500">Share with a password</p>
+                    <p className="font-medium text-zinc-900">Password Protected</p>
+                    <p className="text-sm text-zinc-500">Share with a password</p>
                   </div>
                 </label>
               </div>
             </div>
 
             <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-              <p className="text-xs font-semibold text-slate-600 mb-2">Share Link</p>
+              <p className="text-xs font-semibold text-zinc-600 mb-2">Share Link</p>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={`${typeof window !== 'undefined' ? window.location.origin : ''}/trip/${params.id}/memories`}
                   readOnly
-                  className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm text-slate-900"
+                  className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded text-sm text-zinc-900"
                 />
                 <button
                   onClick={() => {
@@ -203,17 +203,17 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   {linkCopied ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
-              <p className="text-xs text-slate-500 mt-2">The album is only visible to group members who are signed in.</p>
+              <p className="text-xs text-zinc-500 mt-2">The album is only visible to group members who are signed in.</p>
             </div>
           </div>
         )}
 
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 mb-8">
-          <h3 className="text-xl font-display font-bold text-slate-900 mb-6">Trip Recap</h3>
+          <h3 className="text-xl font-display font-bold text-zinc-900 mb-6">Trip Recap</h3>
 
           {isMockTrip ? (
             <>
-              <div className="prose prose-sm max-w-none text-slate-700 mb-6 leading-relaxed">
+              <div className="prose prose-sm max-w-none text-zinc-700 mb-6 leading-relaxed">
                 <p>
                   Reykjavik revealed itself slowly: first the airport's raw brutality, then the city's hushed charm
                   along the harbor. We stumbled through golden-hour light at Þingvellir, where the earth literally pulls
@@ -235,8 +235,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           ) : (
             <div className="text-center py-8">
               <div className="text-5xl mb-4">✈️📸</div>
-              <p className="text-lg font-semibold text-slate-800 mb-2">Your story is still being written.</p>
-              <p className="text-sm text-slate-500 max-w-sm mx-auto">
+              <p className="text-lg font-semibold text-zinc-800 mb-2">Your story is still being written.</p>
+              <p className="text-sm text-zinc-500 max-w-sm mx-auto">
                 Upload photos as you go and at the end of your trip we'll craft an AI-generated recap narrative — a keepsake you can share with the whole crew.
               </p>
               {uploadedCount > 0 && (
@@ -250,7 +250,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <h3 className="font-script italic text-lg font-semibold text-zinc-900 flex items-center gap-2">
               <Filter className="w-5 h-5" />
               Filter Photos
             </h3>
@@ -269,7 +269,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">By Day</label>
+              <label className="block text-sm font-medium text-zinc-900 mb-2">By Day</label>
               <select
                 value={filterDay || ''}
                 onChange={(e) => setFilterDay(e.target.value ? parseInt(e.target.value) : null)}
@@ -285,7 +285,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">By Photographer</label>
+              <label className="block text-sm font-medium text-zinc-900 mb-2">By Photographer</label>
               <select
                 value={filterPerson || ''}
                 onChange={(e) => setFilterPerson(e.target.value || null)}
@@ -411,7 +411,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
           {uploadedPhotos.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Uploaded Photos</h3>
+              <h3 className="font-script italic text-lg font-semibold text-zinc-900 mb-4">Uploaded Photos</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {uploadedPhotos.map((photo, idx) => (
                   <div key={idx} className="relative overflow-hidden rounded-lg shadow-md bg-slate-200 aspect-square">
@@ -432,10 +432,10 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
         {photosByDay.map(dayGroup => (
           <div key={dayGroup.day} className="mb-12">
             <div className="mb-6">
-              <h2 className="text-2xl font-script italic font-semibold text-slate-900">
+              <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
                 Day {dayGroup.day} — {dayGroup.theme}
               </h2>
-              <p className="text-slate-600 text-sm">
+              <p className="text-zinc-600 text-sm">
                 {new Date(dayGroup.date).toLocaleDateString('en-US', {
                   weekday: 'long',
                   month: 'long',
@@ -486,7 +486,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               onClick={() => setSelectedPhoto(null)}
               className="absolute top-4 right-4 z-10 p-2 bg-white rounded-lg shadow-md hover:bg-slate-50"
             >
-              <X className="w-6 h-6 text-slate-600" />
+              <X className="w-6 h-6 text-zinc-600" />
             </button>
 
             <div className="relative w-full aspect-video bg-slate-200">
@@ -499,7 +499,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             </div>
 
             <div className="p-6">
-              <h3 className="text-2xl font-bold text-slate-900 mb-4">{selectedPhoto.activity}</h3>
+              <h3 className="text-2xl font-bold text-zinc-900 mb-4">{selectedPhoto.activity}</h3>
 
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-200">
                 <Avatar
@@ -507,8 +507,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   size="md"
                 />
                 <div>
-                  <p className="font-medium text-slate-900">{selectedPhoto.uploadedBy}</p>
-                  <p className="text-sm text-slate-500">
+                  <p className="font-medium text-zinc-900">{selectedPhoto.uploadedBy}</p>
+                  <p className="text-sm text-zinc-500">
                     {new Date(selectedPhoto.timestamp).toLocaleDateString()} at{' '}
                     {new Date(selectedPhoto.timestamp).toLocaleTimeString()}
                   </p>
