@@ -56,12 +56,15 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   earlyAccess: boolean;
 }> = {
   free: {
-    activeTrips: 1,
+    // Trip count is no longer the constraint — AI credits are.
+    // Free users can plan as many trips as they like; the 10-credit
+    // monthly allowance (= 1 itinerary build) is the natural throttle.
+    activeTrips: 999,
     travelersPerTrip: 4,
     aiCreditsPerMonth: 10,
     maxTripDays: 7,
     canUseAI: true,
-    canUseTripStory: false,
+    canUseTripStory: true,   // Trip Story on all tiers — great for organic sharing
     canUseYearInReview: false,
     canUseSplitTracks: false,
     canAddCoOrganizer: false,
@@ -90,14 +93,14 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     earlyAccess: false,
   },
   explorer: {
-    activeTrips: 8,
+    activeTrips: 999,          // unlimited in practice — AI credits are the constraint
     travelersPerTrip: 8,
     aiCreditsPerMonth: 100,
     maxTripDays: 10,
     canUseAI: true,
     canUseTripStory: true,
     canUseYearInReview: true,
-    canUseSplitTracks: false,
+    canUseSplitTracks: true,   // Explorer unlocks split tracks for groups of 4+
     canAddCoOrganizer: false,
     canUseTransportParser: true,
     canUseWishlist: true,
@@ -107,7 +110,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     earlyAccess: false,
   },
   nomad: {
-    activeTrips: 15,
+    activeTrips: 999,          // unlimited in practice — AI credits are the constraint
     travelersPerTrip: 15,
     aiCreditsPerMonth: 350,
     maxTripDays: 14,

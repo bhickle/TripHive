@@ -22,26 +22,25 @@ const featureRows: {
   nomadHighlight?: boolean;
 }[] = [
   // Planning
-  { label: 'Active trips', icon: <Map className="w-4 h-4" />, free: '1 trip', trip_pass: '1 trip', explorer: 'Your whole travel year', nomad: 'Your whole travel year' },
+  { label: 'Active trips', icon: <Map className="w-4 h-4" />, free: 'Unlimited', trip_pass: '1 trip (pass)', explorer: 'Unlimited', nomad: 'Unlimited' },
   { label: 'Travelers per trip', icon: <Users className="w-4 h-4" />, free: 'Up to 4', trip_pass: 'Up to 6 (+add-ons)', explorer: 'Up to 8', nomad: 'Up to 15' },
   { label: 'Manual itinerary builder', icon: <CalendarDays className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Packing & prep checklists', icon: <CheckCircle className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Activity voting', icon: <Star className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Group chat & expense splitting', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   // AI
-  { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: 'Up to 7 days', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
-  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: false, trip_pass: '30 per pass', explorer: '100 / month', nomad: '350 / month', nomadHighlight: true },
+  { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
+  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '10 / month', trip_pass: '30 per pass', explorer: '100 / month', nomad: '350 / month', nomadHighlight: true },
   { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  // Group
-  { label: 'Activity voting', icon: <Star className="w-4 h-4" />, free: 'View only', trip_pass: true, explorer: true, nomad: true },
-  { label: 'Group chat & expense splitting', icon: <Users className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
-  { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
-  // Stories & memories
-  { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  // Tools
-  { label: 'Packing & prep checklists', icon: <CheckCircle className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
+  // Group & trips
+  { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
+  { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Wishlist & destination discovery', icon: <Globe className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
+  { label: 'Year in Review', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
   // Support
   { label: 'Early access to new features', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Support', icon: <Shield className="w-4 h-4" />, free: 'Community', trip_pass: 'Email', explorer: 'Email', nomad: 'Priority' },
@@ -52,7 +51,7 @@ const featureRows: {
 const faqs = [
   {
     q: 'What exactly is a Trip Pass?',
-    a: "A Trip Pass is a one-time $30 purchase tied to a single trip. It unlocks all AI features, group tools, and Trip Story for that trip for up to 6 travelers. It's perfect if you travel once or twice a year and don't want a monthly subscription. The pass is active for your trip duration plus 30 days after.",
+    a: "A Trip Pass is a one-time $30 purchase tied to a single trip. It unlocks AI itinerary generation, the transport parser, photo gallery, and more for up to 6 travelers. It's perfect if you travel once or twice a year and don't want a monthly subscription. The pass is active for your trip duration plus 30 days after.",
   },
   {
     q: 'Can I add more people to a Trip Pass?',
@@ -72,7 +71,7 @@ const faqs = [
   },
   {
     q: 'Do you offer annual billing?',
-    a: "Yes — pay annually and save ~20%. Explorer drops to $6.42/mo ($76.99/year) and Nomad to $10.42/mo ($124.99/year). No subscription renews without a reminder.",
+    a: "Yes — pay annually and save ~20%. Explorer drops to $6.42/mo ($76.99/year) and Nomad to ~$12/mo ($143.99/year). No subscription renews without a reminder.",
   },
   {
     q: 'What happens to my data if I cancel?',

@@ -64,13 +64,13 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
   no_ai: {
     reason: 'no_ai',
     headline: 'Want more AI itineraries?',
-    body: 'Every plan includes one free AI build. Upgrade to Explorer for unlimited builds all year, or grab a Trip Pass for this trip.',
+    body: 'Free plans include one AI itinerary build per month. Upgrade to Explorer for 10 builds a month all year, or grab a Trip Pass just for this trip.',
     ctaLabel: 'See plans',
   },
   ai_credits_empty: {
     reason: 'ai_credits_empty',
-    headline: "You've used your free AI build",
-    body: "Upgrade to Explorer for 10 AI itinerary builds per month, or Nomad for 35. Your first build is always free.",
+    headline: "You've used your AI build for this month",
+    body: "Your free credit refreshes at the start of next month. Upgrade to Explorer for 100 credits a month, or Nomad for 350.",
     ctaLabel: 'See plans',
   },
   ai_credits_low: {
