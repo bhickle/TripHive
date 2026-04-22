@@ -247,6 +247,8 @@ function buildPrompt(params: {
   additionalContext?: string;          // free-text notes from the user ("anything else?")
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
   multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
+  organizerPersona?: { priorities: string[]; vibes?: string[] } | null;
+  groupSize?: number;
 }) {
   const {
     destination, startDate, endDate, tripLength,
@@ -260,6 +262,39 @@ function buildPrompt(params: {
   const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
   const multiCityPlaces = params.multiCityPlaces ?? null;
+  const organizerPersona = params.organizerPersona ?? null;
+  const groupSize = params.groupSize ?? 2;
+
+  // ── Organizer persona context ──────────────────────────────────────────────
+  // The trip's stated priorities (above) define the VIBE of this specific trip.
+  // The organizer's saved travel persona is their general travel identity —
+  // used here to quietly add texture and, for groups of 4+, to suggest split days.
+  const personaText = (() => {
+    if (!organizerPersona || organizerPersona.priorities.length === 0) return '';
+
+    // Find persona priorities that diverge from the trip's stated priorities —
+    // these are the organizer's personal interests that didn't make the trip vibe cut
+    const tripPriorities = new Set(priorities.map(p => p.toLowerCase()));
+    const personaOnly = organizerPersona.priorities.filter(p => !tripPriorities.has(p.toLowerCase()));
+    const overlap = organizerPersona.priorities.filter(p => tripPriorities.has(p.toLowerCase()));
+
+    // Build the texture line: what the organizer cares about beyond the trip vibe
+    const personaInterests = organizerPersona.priorities.join(', ');
+
+    let text = `\nORGANIZER TRAVEL PERSONA (background context — use to add texture, not to override trip vibe):
+The organizer's general travel style leans toward: ${personaInterests}.
+${overlap.length > 0 ? `This aligns with the trip's stated priorities (${overlap.join(', ')}) — lean into these confidently.` : ''}
+${personaOnly.length > 0 ? `The organizer also personally values ${personaOnly.join(', ')} even though it isn't the focus of this trip. Where it fits naturally into the schedule without derailing the trip vibe, thread in a moment that honours this — a neighbourhood food market on the way to a museum, a scenic detour that satisfies a nature lover, etc. Don't force it; let it be incidental.` : ''}`;
+
+    // Split track guidance — only for groups of 4+ (solo/couple/small groups don't need to split)
+    if (groupSize >= 4 && personaOnly.length > 0) {
+      text += `
+
+SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and divergent interests, consider proposing 1–2 split days where travelers can divide by preference and reconvene for dinner. One track could lean into the organizer's personal interests (${personaOnly.join(', ')}); the other stays anchored to the main trip vibe (${Array.from(tripPriorities).join(', ')}). Only split on days where the schedule naturally accommodates it — never force a split on a day with a group anchor event or a transition leg. Both tracks must rejoin for dinner at a shared venue (set dinnerMeetupLocation for those days).`;
+    }
+
+    return text;
+  })();
 
   // Normalise hotels: prefer bookedHotels array; fall back to legacy single bookedHotel field
   const bookedHotels: BookedHotel[] = params.bookedHotels?.length
@@ -529,7 +564,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${dateNightText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${preBookingText}${multiCityText}
+- Travel style: ${travelStyleText}${localModeText}${dateNightText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -868,8 +903,9 @@ export async function POST(request: NextRequest) {
     }, { status: 503 });
   }
 
-  // Resolve subscription tier
+  // Resolve subscription tier + organizer persona in one query
   let userTier: SubscriptionTier = 'free';
+  let organizerPersona: { priorities: string[]; vibes?: string[] } | null = null;
   try {
     const authClient = await createClient();
     const { data: { user } } = await authClient.auth.getUser();
@@ -877,14 +913,20 @@ export async function POST(request: NextRequest) {
       const adminClient = createAdminClient();
       const { data: profile } = await adminClient
         .from('profiles')
-        .select('subscription_tier')
+        .select('subscription_tier, travel_persona')
         .eq('id', user.id)
         .single();
       if (profile?.subscription_tier) {
         userTier = profile.subscription_tier as SubscriptionTier;
       }
+      if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
+        const p = profile.travel_persona as Record<string, unknown>;
+        const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];
+        const vibes = Array.isArray(p.vibes) ? p.vibes as string[] : undefined;
+        if (priorities.length > 0) organizerPersona = { priorities, vibes };
+      }
     }
-  } catch { /* fall back to free */ }
+  } catch { /* fall back to free, no persona */ }
 
   const tierLimits = TIER_LIMITS[userTier];
   const requestedLength = Number(body.tripLength) || 7;
@@ -964,6 +1006,8 @@ export async function POST(request: NextRequest) {
     additionalContext: (body.additionalContext as string | undefined) ?? '',
     realPlaces,
     multiCityPlaces,
+    organizerPersona,
+    groupSize: Number(body.groupSize) || 2,
   });
 
   // ── Open SSE stream ──────────────────────────────────────────────────────────
