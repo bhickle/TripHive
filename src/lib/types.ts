@@ -101,7 +101,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canUseTripStory: true,
     canUseYearInReview: true,
     canUseSplitTracks: true,   // Explorer unlocks split tracks for groups of 4+
-    canAddCoOrganizer: false,
+    canAddCoOrganizer: true,   // Co-organizer uses their own AI credit pool (Explorer limit applies)
     canUseTransportParser: true,
     canUseWishlist: true,
     canUseAIPacking: false,

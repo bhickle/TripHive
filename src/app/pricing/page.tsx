@@ -38,7 +38,7 @@ const featureRows: {
   // Group & trips
   { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
-  { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
+  { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
   { label: 'Wishlist & destination discovery', icon: <Globe className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
   { label: 'Year in Review', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
   // Support
