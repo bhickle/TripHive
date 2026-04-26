@@ -88,12 +88,13 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     const loadAll = async () => {
       setDataLoading(true);
       try {
-        // Fetch trip title, members, votes, messages in parallel
-        const [tripRes, membersRes, votesRes, messagesRes] = await Promise.allSettled([
+        // Fetch trip title, members, votes, messages, wishlist in parallel
+        const [tripRes, membersRes, votesRes, messagesRes, wishlistRes] = await Promise.allSettled([
           fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
           fetch(`/api/trips/${params.id}/members`).then(r => r.ok ? r.json() : null),
           fetch(`/api/trips/${params.id}/group-votes`).then(r => r.ok ? r.json() : null),
           fetch(`/api/trips/${params.id}/messages`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/trips/${params.id}/discover-wishlist`).then(r => r.ok ? r.json() : null),
         ]);
 
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.title) {
@@ -142,6 +143,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           }));
           setChatMessages(msgs);
         }
+        if (wishlistRes.status === 'fulfilled' && wishlistRes.value?.items) {
+          // Sort by total engagement (up + down) descending, then by yay-heavy first
+          const sorted = [...wishlistRes.value.items].sort((a: WishlistItem, b: WishlistItem) => {
+            const engA = a.upVotes + a.downVotes;
+            const engB = b.upVotes + b.downVotes;
+            if (engB !== engA) return engB - engA;
+            return b.upVotes - a.upVotes;
+          });
+          setWishlistItems(sorted);
+        }
       } catch { /* ignore */ } finally {
         setDataLoading(false);
       }
@@ -182,6 +193,82 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [itineraryDaysData, setItineraryDaysData] = useState<any[]>([]);
   // Trip budget_total from Supabase — used to calculate the utilization bar
   const [tripBudgetTotal, setTripBudgetTotal] = useState<number>(0);
+
+  // Discover Wishlist — items voted on in the What's Out There tab
+  type WishlistItem = {
+    itemId: string;
+    itemData: {
+      name?: string; category?: string; rating?: number; priceRange?: string;
+      description?: string; duration?: string; location?: string;
+      imageUrl?: string; imageGradient?: string; bookable?: boolean;
+      affiliatePartner?: string; affiliateDeepUrl?: string; matchScore?: number;
+    };
+    upVotes: number;
+    downVotes: number;
+    myVote: 'up' | 'down' | null;
+  };
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
+  const [wishlistAddingId, setWishlistAddingId] = useState<string | null>(null);
+  const [wishlistAddedIds, setWishlistAddedIds] = useState<Set<string>>(new Set());
+  const [wishlistDayPicker, setWishlistDayPicker] = useState<string | null>(null);
+
+  // Add a Wishlist item to the itinerary on the chosen day
+  const handleWishlistAddToItinerary = async (item: WishlistItem, dayNumber: number) => {
+    setWishlistAddingId(item.itemId);
+    try {
+      // Fetch fresh itinerary days
+      let days = itineraryDaysData;
+      if (!days.length) {
+        const res = await fetch(`/api/trips/${params.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          days = data.itinerary?.days ?? [];
+          setItineraryDaysData(days);
+        }
+      }
+      const dayIndex = days.findIndex((d: any) => d.day === dayNumber);
+      if (dayIndex === -1) throw new Error('Day not found');
+
+      const newActivity = {
+        id: `wish_${item.itemId}_${Date.now()}`,
+        dayNumber,
+        timeSlot: item.itemData.category === 'dining' ? '19:00–21:00' : '14:00–16:00',
+        name: item.itemData.name ?? item.itemId,
+        title: item.itemData.name ?? item.itemId,
+        address: item.itemData.location ?? '',
+        website: null,
+        isRestaurant: item.itemData.category === 'dining',
+        mealType: item.itemData.category === 'dining' ? 'dinner' : null,
+        track: 'shared',
+        priceLevel: 2,
+        description: item.itemData.description ?? '',
+        costEstimate: null,
+        confidence: 0.8,
+        verified: false,
+        packingTips: [],
+        transportToNext: null,
+        fromDiscover: true,
+      };
+
+      const updatedDays = days.map((d: any, i: number) => {
+        if (i !== dayIndex) return d;
+        return { ...d, tracks: { ...d.tracks, shared: [...(d.tracks?.shared ?? []), newActivity] } };
+      });
+
+      const patchRes = await fetch(`/api/trips/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: updatedDays }),
+      });
+      if (!patchRes.ok) throw new Error('Save failed');
+
+      setItineraryDaysData(updatedDays);
+      setWishlistAddedIds(prev => new Set(Array.from(prev).concat(item.itemId)));
+      setWishlistDayPicker(null);
+    } catch { /* ignore */ } finally {
+      setWishlistAddingId(null);
+    }
+  };
 
   // Replace a majority-Nay activity with an AI suggestion
   const handleReplaceNayActivity = async (nay: NayActivity) => {
@@ -1460,6 +1547,93 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               </div>
 
             </div>{/* end grid */}
+
+            {/* ── Discover Wishlist ─────────────────────────────────────────── */}
+            {!isMockTrip && wishlistItems.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">⭐</span>
+                  </div>
+                  <div>
+                    <h2 className="font-script italic text-xl font-semibold text-zinc-900">Wishlist</h2>
+                    <p className="text-xs text-zinc-400">Activities the group voted on in What&apos;s Out There</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {wishlistItems.map(item => {
+                    const name = item.itemData.name ?? item.itemId;
+                    const isAdded = wishlistAddedIds.has(item.itemId);
+                    const isPickerOpen = wishlistDayPicker === item.itemId;
+                    const dayCount = itineraryDaysData.length || 7;
+                    return (
+                      <div key={item.itemId} className="border border-zinc-100 rounded-xl overflow-hidden">
+                        <div className="flex items-center gap-3 p-3">
+                          {/* Gradient swatch */}
+                          <div className={`w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br ${item.itemData.imageGradient ?? 'from-sky-300 to-indigo-500'} flex items-center justify-center`}>
+                            <span className="text-lg">
+                              {item.itemData.category === 'dining' ? '🍽️' :
+                               item.itemData.category === 'nature' ? '🏔️' :
+                               item.itemData.category === 'sights' ? '🏛️' :
+                               item.itemData.category === 'events' ? '🎭' :
+                               item.itemData.category === 'sports' ? '⛹️' : '🎯'}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-zinc-900 truncate">{name}</p>
+                            <p className="text-[10px] text-zinc-400 mt-0.5">
+                              {item.itemData.duration && `${item.itemData.duration} · `}
+                              {item.itemData.priceRange}
+                            </p>
+                          </div>
+                          {/* Vote tally */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${item.upVotes > 0 ? 'bg-emerald-50 text-emerald-700' : 'text-zinc-300 bg-zinc-50'}`}>
+                              👍 {item.upVotes}
+                            </span>
+                            <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${item.downVotes > 0 ? 'bg-rose-50 text-rose-600' : 'text-zinc-300 bg-zinc-50'}`}>
+                              👎 {item.downVotes}
+                            </span>
+                          </div>
+                          {/* Add to itinerary */}
+                          <button
+                            onClick={() => setWishlistDayPicker(isPickerOpen ? null : item.itemId)}
+                            disabled={isAdded}
+                            className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                              isAdded
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-sky-100 text-sky-800 hover:bg-sky-200'
+                            }`}
+                          >
+                            {isAdded ? '✓ Added' : '+ Add to Trip'}
+                          </button>
+                        </div>
+
+                        {/* Day picker */}
+                        {isPickerOpen && (
+                          <div className="px-4 pb-4 bg-zinc-50 border-t border-zinc-100">
+                            <p className="text-xs font-semibold text-zinc-600 mt-3 mb-2">Which day?</p>
+                            <div className="flex flex-wrap gap-2">
+                              {Array.from({ length: dayCount }, (_, i) => i + 1).map(day => (
+                                <button
+                                  key={day}
+                                  disabled={wishlistAddingId === item.itemId}
+                                  onClick={() => handleWishlistAddToItinerary(item, day)}
+                                  className="px-3 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                >
+                                  {wishlistAddingId === item.itemId ? '…' : `Day ${day}`}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Nay Watch — only shown for real trips with majority-Nay activities */}
             {!isMockTrip && (nayActivities.length > 0 || replacedActivityIds.size > 0) && (

@@ -324,11 +324,12 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [addingToDay, setAddingToDay] = useState<string | null>(null); // itemId being saved
   const [addToastItem, setAddToastItem] = useState<string | null>(null); // itemId that just succeeded
 
-  // Voting state
+  // Voting state — persisted to Supabase for real trips, local-only for mock trips
   const [votes, setVotes] = useState<Record<string, 'up' | 'down' | null>>({});
   const [voteCounts, setVoteCounts] = useState<Record<string, { up: number; down: number }>>({});
 
-  const handleVote = (itemId: string, direction: 'up' | 'down') => {
+  const handleVote = (item: DiscoverItem, direction: 'up' | 'down') => {
+    const itemId = item.id;
     const current = votes[itemId] ?? null;
     const counts = voteCounts[itemId] ?? { up: 0, down: 0 };
 
@@ -337,12 +338,10 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     let newVote: 'up' | 'down' | null;
 
     if (current === direction) {
-      // Clicking same button — toggle off
       newVote = null;
       if (direction === 'up') newUp = Math.max(0, newUp - 1);
       else newDown = Math.max(0, newDown - 1);
     } else {
-      // Switching or first vote
       newVote = direction;
       if (direction === 'up') {
         newUp += 1;
@@ -353,8 +352,40 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       }
     }
 
+    // Optimistic update
     setVotes(prev => ({ ...prev, [itemId]: newVote }));
     setVoteCounts(prev => ({ ...prev, [itemId]: { up: newUp, down: newDown } }));
+
+    // Persist to Supabase for real trips
+    if (!isMockTrip && /^[0-9a-f-]{36}$/i.test(params.id)) {
+      const itemData = {
+        name: item.name,
+        category: item.category,
+        rating: item.rating,
+        priceRange: item.priceRange,
+        description: item.description,
+        duration: item.duration,
+        location: item.location,
+        imageUrl: item.imageUrl,
+        imageGradient: item.imageGradient,
+        bookable: item.bookable,
+        affiliatePartner: item.affiliatePartner,
+        affiliateDeepUrl: item.affiliateDeepUrl,
+        matchScore: item.matchScore,
+      };
+      fetch(`/api/trips/${params.id}/discover-wishlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, itemData, vote: newVote }),
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return;
+          // Sync server counts (in case other users voted simultaneously)
+          setVoteCounts(prev => ({ ...prev, [itemId]: { up: data.upVotes, down: data.downVotes } }));
+        })
+        .catch(() => {});
+    }
   };
 
   // For non-mock trips: fetch AI-generated destination recommendations
@@ -366,6 +397,27 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [aiError, setAiError] = useState(false);
   const [aiErrorDetail, setAiErrorDetail] = useState<string>('');
   const [aiDestination, setAiDestination] = useState<string>('');
+
+  // Load existing wishlist votes from Supabase on mount (real trips only)
+  useEffect(() => {
+    if (isMockTrip) return;
+    const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
+    if (!looksLikeUuid) return;
+    fetch(`/api/trips/${params.id}/discover-wishlist`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.items) return;
+        const newVotes: Record<string, 'up' | 'down' | null> = {};
+        const newCounts: Record<string, { up: number; down: number }> = {};
+        for (const item of data.items) {
+          newVotes[item.itemId] = item.myVote ?? null;
+          newCounts[item.itemId] = { up: item.upVotes, down: item.downVotes };
+        }
+        setVotes(newVotes);
+        setVoteCounts(newCounts);
+      })
+      .catch(() => {});
+  }, [isMockTrip, params.id]);
 
   useEffect(() => {
     if (isMockTrip) return;
@@ -846,7 +898,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                         {/* Yay / Nay voting */}
                         <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
                           <button
-                            onClick={() => handleVote(item.id, 'up')}
+                            onClick={() => handleVote(item, 'up')}
                             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
                               votes[item.id] === 'up'
                                 ? 'bg-emerald-500 text-white shadow-sm'
@@ -860,7 +912,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                             )}
                           </button>
                           <button
-                            onClick={() => handleVote(item.id, 'down')}
+                            onClick={() => handleVote(item, 'down')}
                             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
                               votes[item.id] === 'down'
                                 ? 'bg-rose-500 text-white shadow-sm'
