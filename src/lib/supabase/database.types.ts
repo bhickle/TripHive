@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_votes: {
+        Row: {
+          activity_id: string
+          created_at: string | null
+          id: string
+          trip_id: string
+          updated_at: string | null
+          user_id: string
+          vote: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string | null
+          id?: string
+          trip_id: string
+          updated_at?: string | null
+          user_id: string
+          vote: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string | null
+          id?: string
+          trip_id?: string
+          updated_at?: string | null
+          user_id?: string
+          vote?: string
+        }
+        Relationships: []
+      }
+      destination_events: {
+        Row: {
+          created_at: string
+          destination: string
+          event_type: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          destination: string
+          event_type: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          destination?: string
+          event_type?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       discover_destinations: {
         Row: {
           affiliate_links: Json
@@ -67,6 +121,47 @@ export type Database = {
           vibes?: string[]
         }
         Relationships: []
+      }
+      discover_wishlist: {
+        Row: {
+          created_at: string
+          id: string
+          item_data: Json
+          item_id: string
+          trip_id: string
+          updated_at: string
+          user_id: string
+          vote: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_data?: Json
+          item_id: string
+          trip_id: string
+          updated_at?: string
+          user_id: string
+          vote: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_data?: Json
+          item_id?: string
+          trip_id?: string
+          updated_at?: string
+          user_id?: string
+          vote?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discover_wishlist_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expenses: {
         Row: {
@@ -350,6 +445,7 @@ export type Database = {
       profiles: {
         Row: {
           ai_credits_reset_at: string | null
+          ai_credits_total: number
           ai_credits_used: number
           avatar_url: string | null
           created_at: string
@@ -357,12 +453,15 @@ export type Database = {
           id: string
           name: string | null
           notification_preferences: Json | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           subscription_tier: string
           travel_persona: Json | null
           updated_at: string
         }
         Insert: {
           ai_credits_reset_at?: string | null
+          ai_credits_total?: number
           ai_credits_used?: number
           avatar_url?: string | null
           created_at?: string
@@ -370,12 +469,15 @@ export type Database = {
           id: string
           name?: string | null
           notification_preferences?: Json | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subscription_tier?: string
           travel_persona?: Json | null
           updated_at?: string
         }
         Update: {
           ai_credits_reset_at?: string | null
+          ai_credits_total?: number
           ai_credits_used?: number
           avatar_url?: string | null
           created_at?: string
@@ -383,6 +485,8 @@ export type Database = {
           id?: string
           name?: string | null
           notification_preferences?: Json | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subscription_tier?: string
           travel_persona?: Json | null
           updated_at?: string
@@ -446,7 +550,7 @@ export type Database = {
           id: string
           joined_at: string
           name: string | null
-          preferences: Record<string, unknown> | null
+          preferences: Json | null
           role: string
           trip_id: string
           user_id: string | null
@@ -456,7 +560,7 @@ export type Database = {
           id?: string
           joined_at?: string
           name?: string | null
-          preferences?: Record<string, unknown> | null
+          preferences?: Json | null
           role?: string
           trip_id: string
           user_id?: string | null
@@ -466,7 +570,7 @@ export type Database = {
           id?: string
           joined_at?: string
           name?: string | null
-          preferences?: Record<string, unknown> | null
+          preferences?: Json | null
           role?: string
           trip_id?: string
           user_id?: string | null
@@ -481,6 +585,57 @@ export type Database = {
           },
           {
             foreignKeyName: "trip_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_passes: {
+        Row: {
+          ai_credits_total: number
+          ai_credits_used: number
+          created_at: string
+          expires_at: string
+          extra_people: number
+          id: string
+          purchased_at: string
+          trip_id: string
+          user_id: string
+        }
+        Insert: {
+          ai_credits_total?: number
+          ai_credits_used?: number
+          created_at?: string
+          expires_at: string
+          extra_people?: number
+          id?: string
+          purchased_at?: string
+          trip_id: string
+          user_id: string
+        }
+        Update: {
+          ai_credits_total?: number
+          ai_credits_used?: number
+          created_at?: string
+          expires_at?: string
+          extra_people?: number
+          id?: string
+          purchased_at?: string
+          trip_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_passes_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_passes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
