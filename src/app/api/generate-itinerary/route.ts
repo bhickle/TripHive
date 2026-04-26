@@ -409,7 +409,7 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
 
   // Nature priority (Item 13)
   const natureText = priorities.includes('nature')
-    ? `\n- NATURE PRIORITY: This group prioritizes time outdoors. Anchor at least one activity per day in a natural setting — national parks, botanical gardens, scenic coastal walks, riverside paths, viewpoints, forests, or wildlife areas. For hiking or walking activities, specify trail name and approximate difficulty. Mix in quieter natural escapes alongside any urban sightseeing.`
+    ? `\n- NATURE PRIORITY: This group prioritizes time outdoors and natural settings. Anchor at least one activity per day in nature — this includes beaches and coastlines (swimming, snorkeling, beach walks, cliff-top lookouts), national parks, botanical gardens, scenic coastal trails, rivers and waterfalls, viewpoints, forests, and wildlife areas. If the destination has beaches or a coastline, include at least one beach activity across the trip (morning swim, sunset beach walk, snorkeling spot, coastal bluff hike). For hiking or walking activities, specify the trail name and approximate difficulty. Mix quieter natural escapes with any urban sightseeing — never pack every hour with cities if the group chose nature.`
     : '';
 
   // Nightlife priority (Item 13)
