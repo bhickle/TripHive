@@ -14,11 +14,24 @@ import {
   MapPin,
   Calendar,
   Users,
-  DollarSign,
 } from 'lucide-react';
 
 type StatusFilter = 'all' | 'planning' | 'active' | 'completed';
 type ViewMode = 'grid' | 'list';
+
+/** Compute trip status from dates rather than the stored column. */
+function computeStatus(startDate?: string, endDate?: string): 'planning' | 'active' | 'completed' {
+  if (!startDate) return 'planning';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  if (today < start) return 'planning';
+  if (!endDate) return 'active';
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  return today <= end ? 'active' : 'completed';
+}
 
 export default function TripsPage() {
   const currentUser = useCurrentUser();
@@ -46,12 +59,12 @@ export default function TripsPage() {
               startDate: t.start_date,
               endDate: t.end_date,
               tripLength: t.trip_length,
-              status: t.status ?? 'planning',
+              status: computeStatus(t.start_date, t.end_date),
               groupType: t.group_type,
               groupSize: t.group_size ?? 1,
               coverImage: t.cover_image ?? null,
               budgetTotal: t.budget_total ?? 0,
-              memberCount: 1,
+              memberCount: t.group_size ?? 1,
               guestCount: 0,
             })));
           }
@@ -81,9 +94,14 @@ export default function TripsPage() {
     return matchesStatus && matchesSearch;
   });
 
-  const planningTrips = filteredTrips.filter((t) => t.status === 'planning');
-  const activeTrips = filteredTrips.filter((t) => t.status === 'active');
-  const completedTrips = filteredTrips.filter((t) => t.status === 'completed');
+  const sortByDate = (a: { startDate?: string }, b: { startDate?: string }) => {
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+  };
+  const planningTrips = filteredTrips.filter((t) => t.status === 'planning').sort(sortByDate);
+  const activeTrips = filteredTrips.filter((t) => t.status === 'active').sort(sortByDate);
+  const completedTrips = filteredTrips.filter((t) => t.status === 'completed').sort(sortByDate);
 
   const statusCounts = {
     all: allTrips.length,
@@ -290,11 +308,7 @@ export default function TripsPage() {
                   <div className="flex items-center gap-8 flex-shrink-0">
                     <div className="flex items-center gap-1.5 text-sm text-zinc-600">
                       <Users className="w-4 h-4" />
-                      <span>{trip.memberCount + trip.guestCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm font-bold text-sky-700">
-                      <DollarSign className="w-4 h-4" />
-                      <span>${(trip.budgetTotal ?? 0).toLocaleString()}</span>
+                      <span>{trip.memberCount + trip.guestCount} {trip.memberCount + trip.guestCount === 1 ? 'traveler' : 'travelers'}</span>
                     </div>
                   </div>
                 </Link>

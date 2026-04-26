@@ -43,18 +43,18 @@ const GROUP_TYPE_OPTIONS = [
   { id: 'work',    label: 'Work Trip',    emoji: '💼' },
 ];
 
-// Matches trip/new/page.tsx priorityOptions exactly
+// Keep in sync with trip/new/page.tsx priorityOptions
 const PRIORITY_OPTIONS = [
   { id: 'nature',      label: 'Nature',       icon: '🌿' },
   { id: 'food',        label: 'Food',         icon: '🍽️' },
-  { id: 'nightlife',   label: 'Nightlife',    icon: '🎉' },
-  { id: 'history',     label: 'History',      icon: '🏛️' },
-  { id: 'sports',      label: 'Sports',       icon: '⚽' },
-  { id: 'photography', label: 'Photography',  icon: '📸' },
-  { id: 'wellness',    label: 'Wellness',     icon: '🧘' },
+  { id: 'nightlife',   label: 'Nightlife',    icon: '🎶' },
+  { id: 'history',     label: 'History',      icon: '📜' },
+  { id: 'sports',      label: 'Sports',       icon: '⛹️' },
+  { id: 'photography', label: 'Photography',  icon: '📷' },
+  { id: 'wellness',    label: 'Wellness',     icon: '💆' },
   { id: 'shopping',    label: 'Shopping',     icon: '🛍️' },
-  { id: 'adventure',   label: 'Adventure',    icon: '🪂' },
-  { id: 'culture',     label: 'Culture',      icon: '🎨' },
+  { id: 'adventure',   label: 'Adventure',    icon: '⚡' },
+  { id: 'culture',     label: 'Culture',      icon: '🏛️' },
 ];
 
 // ─── Subscription display helpers ─────────────────────────────────────────────
