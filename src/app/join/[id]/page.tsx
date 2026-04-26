@@ -49,6 +49,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
   const [tripData, setTripData] = useState<TripData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [joining, setJoining] = useState(false);
   const [guestData, setGuestData] = useState<GuestJoinData>({
     name: '',
     email: '',
@@ -202,10 +203,35 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
     });
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (step === 'intro' && guestData.name.trim()) {
       setStep('preferences');
     } else if (step === 'preferences' && guestData.priorities.length > 0 && guestData.accommodation && guestData.curiosity) {
+      // Only write to trip_members for real Supabase trip UUIDs (not mock/upload trips)
+      const isRealTrip = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tripId);
+      if (isRealTrip) {
+        setJoining(true);
+        try {
+          await fetch(`/api/trips/${tripId}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: guestData.name.trim(),
+              email: guestData.email.trim() || undefined,
+              preferences: {
+                priorities: guestData.priorities,
+                accommodation: guestData.accommodation,
+                curiosity: guestData.curiosity,
+              },
+            }),
+          });
+        } catch (err) {
+          console.error('Join trip error:', err);
+          // Non-blocking — still advance to confirmation even if the write fails
+        } finally {
+          setJoining(false);
+        }
+      }
       setStep('confirmation');
     }
   };
@@ -418,17 +444,27 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               <div className="flex space-x-3 pt-4">
                 <button
                   onClick={() => setStep('intro')}
-                  className="flex-1 px-6 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 font-semibold transition-all"
+                  disabled={joining}
+                  className="flex-1 px-6 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 font-semibold transition-all disabled:opacity-50"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleContinue}
-                  disabled={!guestData.priorities.length || !guestData.accommodation || !guestData.curiosity}
+                  disabled={!guestData.priorities.length || !guestData.accommodation || !guestData.curiosity || joining}
                   className="flex-1 px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
                 >
-                  <span>Review</span>
-                  <ChevronRight className="w-5 h-5" />
+                  {joining ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      <span>Joining...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Join Trip</span>
+                      <ChevronRight className="w-5 h-5" />
+                    </>
+                  )}
                 </button>
               </div>
 

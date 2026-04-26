@@ -1082,8 +1082,10 @@ function ItineraryPageContent() {
   // If the day has a dinnerMeetupLocation but no dinner restaurant in the shared track,
   // synthesize a virtual dinner card so the meetup restaurant actually appears on the timeline.
   const sharedActivities: Activity[] = (currentDayData.tracks?.shared ?? []) as Activity[];
+  // Use mealType='dinner' as the authoritative check — the old regex on timeSlot never matched
+  // since "19:00–21:00" contains no keyword, causing false negatives and missing cards.
   const hasDinnerInShared = sharedActivities.some(
-    (a: Activity) => a.isRestaurant && /dinner|evening|night/i.test(a.timeSlot ?? a.title ?? '')
+    (a: Activity) => a.isRestaurant && a.mealType === 'dinner'
   );
   const virtualDinnerActivity: Activity | null =
     currentDayData.dinnerMeetupLocation && !hasDinnerInShared
@@ -1635,6 +1637,12 @@ function ItineraryPageContent() {
                                 <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 text-xs font-medium px-2.5 py-1 rounded-full border border-sky-100">
                                   <Utensils className="w-3 h-3" />
                                   Restaurant
+                                </span>
+                              )}
+                              {/* Evening Meetup badge — shown on the dinner card that is the reconvene point */}
+                              {currentDayData.dinnerMeetupLocation && activity.mealType === 'dinner' && activity.track === 'shared' && (
+                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-600 text-xs font-semibold px-2.5 py-1 rounded-full border border-rose-100">
+                                  🌙 Evening Meetup
                                 </span>
                               )}
                               <a

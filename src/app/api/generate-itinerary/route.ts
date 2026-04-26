@@ -248,6 +248,7 @@ function buildPrompt(params: {
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
   multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
   organizerPersona?: { priorities: string[]; vibes?: string[] } | null;
+  memberPersonas?: Array<{ name: string; priorities: string[]; curiosity?: string }>;
   groupSize?: number;
 }) {
   const {
@@ -263,6 +264,7 @@ function buildPrompt(params: {
   const additionalContext = (params.additionalContext ?? '').trim();
   const multiCityPlaces = params.multiCityPlaces ?? null;
   const organizerPersona = params.organizerPersona ?? null;
+  const memberPersonas = params.memberPersonas ?? [];
   const groupSize = params.groupSize ?? 2;
 
   // ── Organizer persona context ──────────────────────────────────────────────
@@ -270,27 +272,60 @@ function buildPrompt(params: {
   // The organizer's saved travel persona is their general travel identity —
   // used here to quietly add texture and, for groups of 4+, to suggest split days.
   const personaText = (() => {
-    if (!organizerPersona || organizerPersona.priorities.length === 0) return '';
+    // Generate persona text when there's either an organizer persona OR member preferences
+    if ((!organizerPersona || organizerPersona.priorities.length === 0) && memberPersonas.length === 0) return '';
 
     // Find persona priorities that diverge from the trip's stated priorities —
     // these are the organizer's personal interests that didn't make the trip vibe cut
     const tripPriorities = new Set(priorities.map(p => p.toLowerCase()));
-    const personaOnly = organizerPersona.priorities.filter(p => !tripPriorities.has(p.toLowerCase()));
-    const overlap = organizerPersona.priorities.filter(p => tripPriorities.has(p.toLowerCase()));
+    const orgPriorities = organizerPersona?.priorities ?? [];
+    const personaOnly = orgPriorities.filter(p => !tripPriorities.has(p.toLowerCase()));
+    const overlap = orgPriorities.filter(p => tripPriorities.has(p.toLowerCase()));
 
     // Build the texture line: what the organizer cares about beyond the trip vibe
-    const personaInterests = organizerPersona.priorities.join(', ');
+    const personaInterests = orgPriorities.join(', ');
 
-    let text = `\nORGANIZER TRAVEL PERSONA (background context — use to add texture, not to override trip vibe):
+    let text = orgPriorities.length > 0
+      ? `\nORGANIZER TRAVEL PERSONA (background context — use to add texture, not to override trip vibe):
 The organizer's general travel style leans toward: ${personaInterests}.
 ${overlap.length > 0 ? `This aligns with the trip's stated priorities (${overlap.join(', ')}) — lean into these confidently.` : ''}
-${personaOnly.length > 0 ? `The organizer also personally values ${personaOnly.join(', ')} even though it isn't the focus of this trip. Where it fits naturally into the schedule without derailing the trip vibe, thread in a moment that honours this — a neighbourhood food market on the way to a museum, a scenic detour that satisfies a nature lover, etc. Don't force it; let it be incidental.` : ''}`;
+${personaOnly.length > 0 ? `The organizer also personally values ${personaOnly.join(', ')} even though it isn't the focus of this trip. Where it fits naturally into the schedule without derailing the trip vibe, thread in a moment that honours this — a neighbourhood food market on the way to a museum, a scenic detour that satisfies a nature lover, etc. Don't force it; let it be incidental.` : ''}`
+      : '';
 
-    // Split track guidance — only for groups of 4+ (solo/couple/small groups don't need to split)
-    if (groupSize >= 4 && personaOnly.length > 0) {
+    // Layer 2: weave in member preferences when they exist — this gives the AI
+    // real group-level data to create splits that genuinely serve the whole crew.
+    if (memberPersonas.length > 0) {
+      const memberLines = memberPersonas.map(m => {
+        const pace = m.curiosity ? ` (pace: ${m.curiosity})` : '';
+        return `  - ${m.name}: ${m.priorities.join(', ')}${pace}`;
+      }).join('\n');
       text += `
 
-SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and divergent interests, consider proposing 1–2 split days where travelers can divide by preference and reconvene for dinner. One track could lean into the organizer's personal interests (${personaOnly.join(', ')}); the other stays anchored to the main trip vibe (${Array.from(tripPriorities).join(', ')}). Only split on days where the schedule naturally accommodates it — never force a split on a day with a group anchor event or a transition leg. Both tracks must rejoin for dinner at a shared venue (set dinnerMeetupLocation for those days).`;
+GROUP MEMBER PREFERENCES (collected at join time):
+${memberLines}
+Use these to understand the diversity of interests in the group. Where member priorities diverge significantly from the organizer's, this strengthens the case for a split day — propose a track that serves each interest cluster. Merge overlapping preferences (e.g. multiple members interested in food → it's a genuine group priority).`;
+    }
+
+    // Split track guidance — only for groups of 4+ (solo/couple/small groups don't need to split)
+    // Activates when organizer has personal interests diverging from trip vibe, OR when member
+    // preferences show genuine divergence (even without organizer persona data).
+    const hasMemberDivergence = memberPersonas.length >= 2 && (() => {
+      // Check if member priorities cover both high-energy and low-energy categories
+      const allMemberPriorities = memberPersonas.flatMap(m => m.priorities.map(p => p.toLowerCase()));
+      const highEnergy = ['adventure', 'sports', 'nightlife', 'active', 'outdoors'];
+      const lowEnergy = ['wellness', 'culture', 'history', 'food', 'shopping', 'relaxation'];
+      const hasHigh = allMemberPriorities.some(p => highEnergy.some(h => p.includes(h)));
+      const hasLow = allMemberPriorities.some(p => lowEnergy.some(l => p.includes(l)));
+      return hasHigh && hasLow;
+    })();
+
+    if (groupSize >= 4 && (personaOnly.length > 0 || hasMemberDivergence)) {
+      const splitReason = personaOnly.length > 0
+        ? `One track could lean into the organizer's personal interests (${personaOnly.join(', ')}); the other stays anchored to the main trip vibe (${Array.from(tripPriorities).join(', ')})`
+        : `Base each track on the clusters of member interests revealed above`;
+      text += `
+
+SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and divergent interests, consider proposing 1–2 split days where travelers can divide by preference and reconvene for dinner. ${splitReason}. Only split on days where the schedule naturally accommodates it — never force a split on a day with a group anchor event or a transition leg. Both tracks must rejoin for dinner at a shared venue (set dinnerMeetupLocation for those days).`;
     }
 
     return text;
@@ -929,6 +964,37 @@ export async function POST(request: NextRequest) {
     }
   } catch { /* fall back to free, no persona */ }
 
+  // ── Layer 2: member preferences from trip_members ─────────────────────────
+  // When the request includes a tripId and the trip has members who joined via
+  // the invite flow, fetch their saved preferences (priorities, accommodation,
+  // curiosity). These feed into the split-track prompt so the AI proposes tracks
+  // that genuinely serve the group's divergent interests.
+  let memberPersonas: Array<{ name: string; priorities: string[]; curiosity?: string }> = [];
+  const requestBodyTripId = body?.tripId as string | undefined;
+  if (requestBodyTripId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestBodyTripId)) {
+    try {
+      const adminClient = createAdminClient();
+      const { data: members } = await adminClient
+        .from('trip_members')
+        .select('name, preferences')
+        .eq('trip_id', requestBodyTripId)
+        .not('preferences', 'is', null);
+
+      if (members?.length) {
+        for (const m of members) {
+          const prefs = m.preferences as Record<string, unknown> | null;
+          if (prefs && Array.isArray(prefs.priorities) && prefs.priorities.length > 0) {
+            memberPersonas.push({
+              name: m.name ?? 'A member',
+              priorities: prefs.priorities as string[],
+              curiosity: typeof prefs.curiosity === 'string' ? prefs.curiosity : undefined,
+            });
+          }
+        }
+      }
+    } catch { /* non-blocking */ }
+  }
+
   const tierLimits = TIER_LIMITS[userTier];
   const requestedLength = Number(body.tripLength) || 7;
 
@@ -1013,6 +1079,7 @@ export async function POST(request: NextRequest) {
     realPlaces,
     multiCityPlaces,
     organizerPersona,
+    memberPersonas,
     groupSize: Number(body.groupSize) || 2,
   });
 

@@ -97,6 +97,97 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 /**
+ * POST /api/trips/[id]/members
+ * Adds a member to the trip. Works for both:
+ *   - Authenticated users (user_id is set from session)
+ *   - Guest joiners (user_id is null; name + email stored directly)
+ * Body: { name: string, email?: string, preferences?: object }
+ */
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const supabase = createAdminClient();
+
+    // Check if the trip exists
+    const { data: trip, error: tripErr } = await supabase
+      .from('trips')
+      .select('id, organizer_id')
+      .eq('id', params.id)
+      .single();
+
+    if (tripErr || !trip) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    }
+
+    const body = await req.json();
+    const { name, email, preferences } = body as { name?: string; email?: string; preferences?: object };
+
+    if (!name?.trim()) {
+      return NextResponse.json({ error: 'name is required' }, { status: 400 });
+    }
+
+    // Try to detect an authenticated user
+    let userId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      userId = user?.id ?? null;
+    } catch { /* unauthenticated guest — that's fine */ }
+
+    // Don't add the organizer as a member
+    if (userId && userId === trip.organizer_id) {
+      return NextResponse.json({ ok: true, alreadyOrganizer: true });
+    }
+
+    // Upsert: avoid duplicates (same user_id or same email for guests)
+    if (userId) {
+      const { data: existing } = await supabase
+        .from('trip_members')
+        .select('id')
+        .eq('trip_id', params.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json({ ok: true, alreadyMember: true });
+      }
+    } else if (email?.trim()) {
+      const { data: existing } = await supabase
+        .from('trip_members')
+        .select('id')
+        .eq('trip_id', params.id)
+        .eq('email', email.trim())
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json({ ok: true, alreadyMember: true });
+      }
+    }
+
+    const { error: insertErr } = await supabase
+      .from('trip_members')
+      .insert({
+        trip_id: params.id,
+        name: name.trim(),
+        email: email?.trim() ?? null,
+        role: 'member',
+        joined_at: new Date().toISOString(),
+        ...(userId ? { user_id: userId } : {}),
+        ...(preferences ? { preferences: preferences as Record<string, unknown> } : {}),
+      });
+
+    if (insertErr) {
+      console.error('POST members insert error:', insertErr);
+      return NextResponse.json({ error: 'Failed to join trip' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('POST members error:', err);
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  }
+}
+
+/**
  * PATCH /api/trips/[id]/members
  * Updates a member's role (e.g. promote to co_organizer or demote back to member).
  * Requires the caller to be the trip organizer with a Nomad subscription.

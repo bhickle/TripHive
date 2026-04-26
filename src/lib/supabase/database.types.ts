@@ -446,6 +446,7 @@ export type Database = {
           id: string
           joined_at: string
           name: string | null
+          preferences: Record<string, unknown> | null
           role: string
           trip_id: string
           user_id: string | null
@@ -455,6 +456,7 @@ export type Database = {
           id?: string
           joined_at?: string
           name?: string | null
+          preferences?: Record<string, unknown> | null
           role?: string
           trip_id: string
           user_id?: string | null
@@ -464,6 +466,7 @@ export type Database = {
           id?: string
           joined_at?: string
           name?: string | null
+          preferences?: Record<string, unknown> | null
           role?: string
           trip_id?: string
           user_id?: string | null
