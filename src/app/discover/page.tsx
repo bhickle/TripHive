@@ -333,6 +333,50 @@ function DestinationCard({
   );
 }
 
+// ─── Top Search Card ────────────────────────────────────────────────────────
+
+function TopSearchCard({ name, rank, onSearch }: { name: string; rank: number; onSearch: (name: string) => void }) {
+  return (
+    <div
+      className="relative bg-gradient-to-br from-sky-600 to-indigo-700 rounded-2xl overflow-hidden cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+      onClick={() => onSearch(name)}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.08),transparent)]" />
+      <div className="p-5 h-full flex flex-col justify-between min-h-[160px]">
+        {/* Top row */}
+        <div className="flex items-start justify-between gap-2">
+          <span className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
+            <TrendingUp className="w-3 h-3" />
+            Trending #{rank}
+          </span>
+          <Search className="w-4 h-4 text-white/40 group-hover:text-white/70 transition-colors" />
+        </div>
+
+        {/* Destination name */}
+        <div>
+          <p className="text-white/60 text-xs mb-1">Travelers are searching for</p>
+          <h3 className="font-script italic text-2xl font-bold text-white leading-tight">{name}</h3>
+        </div>
+
+        {/* CTA */}
+        <div className="flex items-center justify-between mt-3">
+          <Link
+            href={`/trip/new?destination=${encodeURIComponent(name)}`}
+            onClick={e => e.stopPropagation()}
+            className="flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-colors"
+          >
+            <Sparkles className="w-3 h-3" />
+            Plan this trip
+          </Link>
+          <span className="text-white/40 text-xs group-hover:text-white/60 transition-colors">
+            Search →
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function DiscoverPage() {
@@ -520,19 +564,20 @@ export default function DiscoverPage() {
           </div>
 
           {/* ══════════════════════════════════════════════════════════════
-              LAYER 1 — Featured editorial itineraries
+              LAYER 1 — Featured itineraries + Top Searches (2+2 grid)
               Only shown when no filters active
           ══════════════════════════════════════════════════════════════ */}
-          {!isFiltering && featured.length > 0 && (
+          {!isFiltering && (featured.length > 0 || topSearches.length > 0) && (
             <section>
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Featured Itineraries</h2>
-                  <p className="text-sm text-zinc-400 mt-0.5">Hand-built day-by-day trips — AI personalizes them for your group</p>
+                  <p className="text-sm text-zinc-400 mt-0.5">Hand-built trips from the tripcoord team — plus what travelers are searching right now</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {featured.map(item => (
+                {/* Editorial picks — capped at 2 */}
+                {featured.slice(0, 2).map(item => (
                   <FeaturedItineraryCard
                     key={item.slug}
                     item={item}
@@ -540,28 +585,14 @@ export default function DiscoverPage() {
                     loadingDays={loadingFeaturedDays && !featuredDays[item.slug]}
                   />
                 ))}
-              </div>
-            </section>
-          )}
-
-          {/* ── Top Searches ────────────────────────────────────────────── */}
-          {!isFiltering && topSearches.length > 0 && (
-            <section>
-              <div className="flex items-center gap-3 mb-4">
-                <TrendingUp className="w-4 h-4 text-sky-700" />
-                <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Top Searches</h2>
-                <span className="text-xs text-zinc-400">— last 30 days</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {topSearches.map(({ name }) => (
-                  <button
-                    key={name}
-                    onClick={() => handleSearchChange(name)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-white border border-zinc-200 hover:border-sky-300 hover:text-sky-800 text-zinc-600 text-sm font-semibold rounded-full transition-all shadow-sm"
-                  >
-                    <Search className="w-3 h-3" />
-                    {name}
-                  </button>
+                {/* Top search cards — fill up to 2 slots */}
+                {topSearches.slice(0, 2).map((s, i) => (
+                  <TopSearchCard
+                    key={s.name}
+                    name={s.name}
+                    rank={i + 1}
+                    onSearch={handleSearchChange}
+                  />
                 ))}
               </div>
             </section>
