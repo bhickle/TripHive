@@ -1268,7 +1268,7 @@ function ItineraryPageContent() {
               )}
             </div>
             <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
-              {new Date(currentDayData.date).toLocaleDateString('en-US', {
+              {new Date(currentDayData.date + 'T00:00:00').toLocaleDateString('en-US', {
                 weekday: 'long', month: 'long', day: 'numeric',
               })}
             </h1>
@@ -1411,7 +1411,7 @@ function ItineraryPageContent() {
         <div className="mb-8 overflow-x-auto pb-2">
           <div className="flex gap-2 min-w-min">
             {activeDays.map((day: { day: number; date: string }) => {
-              const dayDateStr = new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const dayDateStr = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               return (
                 <button
                   key={day.day}
@@ -2114,9 +2114,9 @@ function ItineraryPageContent() {
                       )}
                       {(h.checkIn || h.checkOut) && (
                         <p className="text-[11px] text-zinc-400 mt-1.5">
-                          {h.checkIn && new Date(h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {h.checkIn && new Date(h.checkIn.length === 10 ? h.checkIn + 'T00:00:00' : h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           {h.checkIn && h.checkOut && ' → '}
-                          {h.checkOut && new Date(h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {h.checkOut && new Date(h.checkOut.length === 10 ? h.checkOut + 'T00:00:00' : h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </p>
                       )}
                     </div>
