@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         endDate: string;
         groupType: string;
         groupSize: number;
+        tripLength?: number;
         budget: number;
         budgetBreakdown: Record<string, number>;
         bookedHotels: unknown[];
@@ -31,12 +32,14 @@ export async function POST(request: NextRequest) {
         isCruise?: boolean;
         cruiseLine?: string;
       };
-      itinerary: unknown[];
+      itinerary: unknown[] | null;
     };
 
-    if (!tripMeta?.destination || !Array.isArray(itinerary)) {
+    // itinerary may be null for draft saves (Option B: invite-first flow)
+    if (!tripMeta?.destination) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+    const isDraft = !itinerary || itinerary.length === 0;
 
     // Identify the current user (cookie-based auth) — optional, anon saves are allowed
     let userId: string | null = null;
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
       destination: tripMeta.destination,
       start_date: tripMeta.startDate || null,
       end_date: tripMeta.endDate || null,
-      trip_length: itinerary.length,
+      trip_length: isDraft ? (tripMeta.tripLength ?? 0) : (itinerary as unknown[]).length,
       group_size: tripMeta.groupSize ?? 1,
       group_type: tripMeta.groupType ?? null,
       budget_total: tripMeta.budget ?? 0,
@@ -68,7 +71,9 @@ export async function POST(request: NextRequest) {
       booked_hotels: tripMeta.bookedHotels ?? [],
       booked_flight: tripMeta.bookedFlight ?? null,
       preferences: tripMeta.preferences ?? {},
-      status: 'planning',
+      status: isDraft ? 'draft' : 'planning',
+      // Stamp the generation time when an itinerary is included
+      itinerary_generated_at: isDraft ? null : new Date().toISOString(),
     };
 
     const { data: trip, error: tripError } = await supabase
@@ -82,42 +87,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save trip', detail: tripError?.message }, { status: 500 });
     }
 
-    // ── 2. Insert the itinerary row ───────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const itinInsert: any = {
-      trip_id: trip.id,
-      days: itinerary,
-      meta: {
-        destination: tripMeta.destination,
-        title: tripMeta.title,
-        startDate: tripMeta.startDate,
-        endDate: tripMeta.endDate,
-        budget: tripMeta.budget,
-        budgetBreakdown: tripMeta.budgetBreakdown,
-        bookedHotels: tripMeta.bookedHotels,
-        bookedFlight: tripMeta.bookedFlight,
-        groupType: tripMeta.groupType,
-        groupSize: tripMeta.groupSize,
-        practicalNotes: tripMeta.practicalNotes ?? null,
-        hotelSuggestions: tripMeta.hotelSuggestions ?? null,
-        isCruise: tripMeta.isCruise ?? false,
-        cruiseLine: tripMeta.cruiseLine ?? '',
-      },
-      source: 'ai',
-    };
+    // ── 2. Insert the itinerary row (skip for draft saves) ───────────────────
+    if (!isDraft) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const itinInsert: any = {
+        trip_id: trip.id,
+        days: itinerary,
+        meta: {
+          destination: tripMeta.destination,
+          title: tripMeta.title,
+          startDate: tripMeta.startDate,
+          endDate: tripMeta.endDate,
+          budget: tripMeta.budget,
+          budgetBreakdown: tripMeta.budgetBreakdown,
+          bookedHotels: tripMeta.bookedHotels,
+          bookedFlight: tripMeta.bookedFlight,
+          groupType: tripMeta.groupType,
+          groupSize: tripMeta.groupSize,
+          practicalNotes: tripMeta.practicalNotes ?? null,
+          hotelSuggestions: tripMeta.hotelSuggestions ?? null,
+          isCruise: tripMeta.isCruise ?? false,
+          cruiseLine: tripMeta.cruiseLine ?? '',
+        },
+        source: 'ai',
+      };
 
-    const { error: itinError } = await supabase
-      .from('itineraries')
-      .insert(itinInsert);
+      const { error: itinError } = await supabase
+        .from('itineraries')
+        .insert(itinInsert);
 
-    if (itinError) {
-      console.error('Itinerary insert error:', JSON.stringify(itinError));
-      // Clean up the trip row if itinerary failed
-      await supabase.from('trips').delete().eq('id', trip.id);
-      return NextResponse.json({ error: 'Failed to save itinerary' }, { status: 500 });
+      if (itinError) {
+        console.error('Itinerary insert error:', JSON.stringify(itinError));
+        // Clean up the trip row if itinerary failed
+        await supabase.from('trips').delete().eq('id', trip.id);
+        return NextResponse.json({ error: 'Failed to save itinerary' }, { status: 500 });
+      }
     }
 
-    return NextResponse.json({ tripId: trip.id });
+    return NextResponse.json({ tripId: trip.id, isDraft });
   } catch (err) {
     console.error('Save trip error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });

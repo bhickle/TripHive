@@ -52,18 +52,28 @@ export async function GET(
       }
     }
 
-    // Load itinerary
-    const { data: itinerary, error: itinError } = await supabase
+    // Load itinerary (may be null for draft trips)
+    const { data: itinerary } = await supabase
       .from('itineraries')
       .select('*')
       .eq('trip_id', params.id)
-      .single();
+      .maybeSingle();
 
-    if (itinError || !itinerary) {
-      return NextResponse.json({ error: 'Itinerary not found' }, { status: 404 });
+    // ── newPrefsCount: members whose preferences arrived after the last itinerary build ──
+    // Only meaningful for Explorer/Nomad (who see the regenerate banner), but we compute it
+    // for all tiers — clients can gate on it however they like.
+    let newPrefsCount = 0;
+    if (trip.itinerary_generated_at) {
+      const { count } = await supabase
+        .from('trip_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('trip_id', params.id)
+        .gt('joined_at', trip.itinerary_generated_at)
+        .not('preferences', 'is', null);
+      newPrefsCount = count ?? 0;
     }
 
-    return NextResponse.json({ trip, itinerary });
+    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount });
   } catch (err) {
     console.error('Load trip error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
@@ -85,7 +95,7 @@ export async function PATCH(
     const { days, metaPatch, tripPatch } = body as {
       days?: any[];
       metaPatch?: Record<string, any>;
-      tripPatch?: { destination?: string; title?: string; start_date?: string; end_date?: string };
+      tripPatch?: { destination?: string; title?: string; start_date?: string; end_date?: string; itinerary_generated_at?: string };
     };
 
     if (!Array.isArray(days) && !metaPatch && !tripPatch) {

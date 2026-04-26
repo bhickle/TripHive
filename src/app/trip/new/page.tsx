@@ -359,6 +359,7 @@ function TripBuilderPage() {
   const isFirstTrip = searchParams.get('firsttrip') === 'true';
   const [currentStep, setCurrentStep] = useState(1);
   const [isGenerating] = useState(false); // kept for disabled-button guard; generation now happens on /trip/generating
+  const [savingDraft, setSavingDraft] = useState(false);
   const [daysReceived] = useState(0);     // unused; kept to avoid refactoring references below
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
@@ -710,6 +711,50 @@ function TripBuilderPage() {
     }
 
     router.push('/trip/generating');
+  };
+
+  // Option B: Trip Pass "invite first" — saves a draft trip (no itinerary) then goes to the group page
+  const handleSaveAndInvite = async () => {
+    if (!state.destination.trim()) return;
+    setSavingDraft(true);
+    try {
+      const canonicalDestination = canonicalDestinationFor(state);
+      const meta = {
+        destination: canonicalDestination,
+        title: `${state.destination} Trip`,
+        startDate: state.startDate || null,
+        endDate: state.endDate || null,
+        tripLength: state.tripLength,
+        groupType: state.groupType,
+        groupSize: state.groupSize,
+        budget: state.budget,
+        budgetBreakdown: state.budgetBreakdown,
+        bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+        bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
+        preferences: {
+          priorities: state.priorities,
+          modality: state.modality,
+          accommodationType: state.accommodationType,
+          localMode: state.localMode,
+          curiosityLevel: state.curiosityLevel,
+          ageRanges: state.ageRanges,
+          accessibilityNeeds: state.accessibilityNeeds,
+        },
+      };
+      const res = await fetch('/api/trips/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripMeta: meta, itinerary: null }),
+      });
+      if (res.ok) {
+        const { tripId } = await res.json();
+        router.push(`/trip/${tripId}/group`);
+      }
+    } catch (e) {
+      console.error('[trip/new] handleSaveAndInvite error:', e);
+    } finally {
+      setSavingDraft(false);
+    }
   };
 
   const updateBudgetBreakdown = (
@@ -2747,6 +2792,32 @@ function TripBuilderPage() {
 
                   {/* CTA */}
                   <div className="pt-6 border-t border-slate-200">
+                    {/* Trip Pass + group: invite-first nudge */}
+                    {tier === 'trip_pass' && state.groupSize >= 2 && (
+                      <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="flex items-start gap-3 mb-3">
+                          <Users className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-900">Get everyone&apos;s input first</p>
+                            <p className="text-xs text-amber-700 mt-0.5">
+                              Invite your group before generating — the AI will fold everyone&apos;s preferences
+                              into the itinerary automatically.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleSaveAndInvite}
+                          disabled={savingDraft || !state.destination.trim()}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-full bg-amber-600 hover:bg-amber-700 disabled:bg-amber-200 disabled:text-amber-400 text-white transition-all"
+                        >
+                          {savingDraft ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" />Saving trip…</>
+                          ) : (
+                            <><Users className="w-4 h-4" />Set up trip &amp; invite first</>
+                          )}
+                        </button>
+                      </div>
+                    )}
                     <p className="text-sm text-zinc-600 mb-4">
                       Ready? AI will build a day-by-day itinerary around your preferences
                       {state.destination ? ` for ${state.destination}` : ''}.

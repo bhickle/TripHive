@@ -317,19 +317,39 @@ export default function GeneratingPage() {
     localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaFull));
 
     let tripId = 'trip_1';
+    const existingTripId = payload.existingTripId as string | undefined;
     try {
-      const saveRes = await fetch('/api/trips/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: dedupedDays }),
-      });
-      if (saveRes.ok) {
-        const saveData = await saveRes.json();
-        if (saveData.tripId) {
-          tripId = saveData.tripId;
+      if (existingTripId && /^[0-9a-f-]{36}$/i.test(existingTripId)) {
+        // Regenerate flow: update the existing trip's itinerary + stamp generation time
+        const patchRes = await fetch(`/api/trips/${existingTripId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            days: dedupedDays,
+            metaPatch: { ...tripMetaFull },
+            tripPatch: { itinerary_generated_at: new Date().toISOString() },
+          }),
+        });
+        if (patchRes.ok) {
+          tripId = existingTripId;
           localStorage.setItem('currentTripId', tripId);
           localStorage.removeItem('generatedItinerary');
           localStorage.removeItem('generatedTripMeta');
+        }
+      } else {
+        const saveRes = await fetch('/api/trips/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: dedupedDays }),
+        });
+        if (saveRes.ok) {
+          const saveData = await saveRes.json();
+          if (saveData.tripId) {
+            tripId = saveData.tripId;
+            localStorage.setItem('currentTripId', tripId);
+            localStorage.removeItem('generatedItinerary');
+            localStorage.removeItem('generatedTripMeta');
+          }
         }
       }
     } catch { /* localStorage fallback stays */ }

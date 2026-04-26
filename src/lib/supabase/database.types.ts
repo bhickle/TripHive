@@ -815,6 +815,7 @@ export type Database = {
           group_size: number
           group_type: string | null
           id: string
+          itinerary_generated_at: string | null
           organizer_id: string | null
           preferences: Json
           start_date: string | null
@@ -835,6 +836,7 @@ export type Database = {
           group_size?: number
           group_type?: string | null
           id?: string
+          itinerary_generated_at?: string | null
           organizer_id?: string | null
           preferences?: Json
           start_date?: string | null
@@ -855,6 +857,7 @@ export type Database = {
           group_size?: number
           group_type?: string | null
           id?: string
+          itinerary_generated_at?: string | null
           organizer_id?: string | null
           preferences?: Json
           start_date?: string | null
