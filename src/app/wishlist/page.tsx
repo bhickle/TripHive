@@ -242,22 +242,45 @@ function AddDestinationModal({
         }),
       });
 
-      const data = await res.json();
-
-      // Gather highlights from across multiple days for longer trips
+      // The generate-itinerary route returns SSE (text/event-stream).
+      // Read just enough to get the first day object, then extract activity names
+      // as highlights and close the reader — no need to wait for the full generation.
       let highlights: string[] = VIBE_HIGHLIGHTS[vibes[0]];
-      if (res.ok && data.itinerary?.days?.length) {
-        const allActivities: string[] = [];
-        // Sample from day 1, middle day, and last day for variety
-        const sampleDays = [0, Math.floor(data.itinerary.days.length / 2), data.itinerary.days.length - 1];
-        const seen = new Set<number>();
-        for (const di of sampleDays) {
-          if (seen.has(di)) continue;
-          seen.add(di);
-          const acts = data.itinerary.days[di]?.activities ?? [];
-          if (acts.length) allActivities.push(acts[0].name);
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = '';
+        try {
+          outer: while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            sseBuffer += decoder.decode(value, { stream: true });
+            const events = sseBuffer.split('\n\n');
+            sseBuffer = events.pop() ?? '';
+            for (const rawEvent of events) {
+              for (const line of rawEvent.split('\n')) {
+                if (!line.startsWith('data: ')) continue;
+                let parsed: Record<string, unknown>;
+                try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
+                if (parsed.type === 'day' && parsed.index === 0) {
+                  // Extract non-restaurant activity names from the first day as highlights
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const day = parsed.data as any;
+                  const shared: unknown[] = day?.tracks?.shared ?? [];
+                  const actNames = (shared as Array<{ isRestaurant?: boolean; name?: string }>)
+                    .filter(a => !a.isRestaurant && a.name)
+                    .map(a => a.name as string)
+                    .slice(0, 3);
+                  if (actNames.length >= 2) highlights = actNames;
+                  break outer; // got what we need — stop reading
+                }
+                if (parsed.type === 'done' || parsed.type === 'error') break outer;
+              }
+            }
+          }
+        } finally {
+          reader.cancel(); // release the stream (we read only day 1)
         }
-        if (allActivities.length >= 2) highlights = allActivities;
       }
 
       const city = destination.split(',')[0].trim();
