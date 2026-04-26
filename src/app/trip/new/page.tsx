@@ -429,9 +429,22 @@ function TripBuilderPage() {
     setQuery: setCityQuery,
   } = usePlacesSearch(150, '/api/destinations/search');
 
+  // Clamp groupSize to the user's tier limit once entitlements are known.
+  // Without this, a free user could increment to >4 during the brief loading window.
+  useEffect(() => {
+    if (!entitlementsReady) return;
+    const cap = maxTravelersForTrip();
+    if (state.groupSize > cap) {
+      setState(prev => ({ ...prev, groupSize: cap }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entitlementsReady]);
+
   // Load profile: for first-trip flow read from localStorage (just populated by onboarding).
   // For returning real users, fetch travel_persona from Supabase so persona is available
   // on any device even if localStorage is empty.
+  // NOTE: we intentionally only load groupType here — priorities are NOT pre-populated
+  // from the saved persona so each new trip starts with a clean slate (#93).
   useEffect(() => {
     if (isFirstTrip) {
       // Coming straight from onboarding — localStorage was just written, use it
@@ -1263,7 +1276,7 @@ function TripBuilderPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          const cap = entitlementsReady ? maxTravelersForTrip() : 20;
+                          const cap = entitlementsReady ? maxTravelersForTrip() : 4; // 4 = free tier floor during load
                           if (state.groupSize >= cap) {
                             setUpgradeReason('traveler_limit');
                             setShowUpgradeModal(true);
@@ -1700,11 +1713,16 @@ function TripBuilderPage() {
                             value={state.endDate}
                             min={state.startDate || undefined}
                             onFocus={(e) => {
-                              // Open picker to start date's month so user doesn't have to navigate
-                              if (state.startDate && !state.endDate) {
+                              // When startDate is set, position the calendar at that month.
+                              // This prevents the picker from opening to a different month
+                              // (e.g. May) when the auto-filled endDate crossed a month boundary
+                              // from startDate (e.g. April) — #96.
+                              if (state.startDate) {
+                                const saved = state.endDate;
                                 e.target.value = state.startDate;
-                                // Reset so no date is pre-selected, just positioned
-                                requestAnimationFrame(() => { e.target.value = ''; });
+                                requestAnimationFrame(() => {
+                                  e.target.value = saved; // restore actual value; picker stays on startDate month
+                                });
                               }
                             }}
                             onChange={(e) => handleDateChange('endDate', e.target.value)}
@@ -1837,63 +1855,75 @@ function TripBuilderPage() {
                         Nights per City
                       </label>
                       <p className="text-xs text-zinc-400 mb-3">Optional — helps the AI balance time across your stops. Leave blank for even distribution.</p>
-                      {(!state.startDate || !state.endDate) && (
-                        <p className="text-xs text-amber-600 mb-3 flex items-center gap-1.5">
-                          <span>⚠️</span> Set your trip dates first to see the total nights available.
-                        </p>
-                      )}
                       {(() => {
-                        const cities = state.destinations.length >= 2
-                          ? state.destinations
-                          : Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city!.trim())));
+                        // Dates are "set" if both start+end are chosen, OR if flexible-dates mode
+                        // is active (in which case tripLength is set via quick-select).
+                        const datesSet = state.flexibleDates
+                          ? state.tripLength > 0
+                          : !!(state.startDate && state.endDate);
                         return (
-                          <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl space-y-2">
-                            {cities.map((city) => {
-                              const days = state.daysPerDestination[city] ?? 0;
+                          <>
+                            {!datesSet && (
+                              <p className="text-xs text-amber-600 mb-3 flex items-center gap-1.5">
+                                <span>⚠️</span> Set your trip dates first to allocate nights. (#95)
+                              </p>
+                            )}
+                            {(() => {
+                              const cities = state.destinations.length >= 2
+                                ? state.destinations
+                                : Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city!.trim())));
                               return (
-                                <div key={city} className="flex items-center justify-between">
-                                  <span className="text-sm text-sky-900 font-medium">{city}</span>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setState(prev => ({
-                                        ...prev,
-                                        daysPerDestination: { ...prev.daysPerDestination, [city]: Math.max(0, (prev.daysPerDestination[city] ?? 0) - 1) },
-                                      }))}
-                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
-                                      disabled={days <= 0}
-                                    >−</button>
-                                    <span className="w-8 text-center text-sm font-semibold text-sky-900">{days > 0 ? `${days}` : '—'}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setState(prev => ({
-                                        ...prev,
-                                        daysPerDestination: { ...prev.daysPerDestination, [city]: (prev.daysPerDestination[city] ?? 0) + 1 },
-                                      }))}
-                                      className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold"
-                                    >+</button>
-                                  </div>
+                                <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl space-y-2">
+                                  {cities.map((city) => {
+                                    const days = state.daysPerDestination[city] ?? 0;
+                                    return (
+                                      <div key={city} className="flex items-center justify-between">
+                                        <span className="text-sm text-sky-900 font-medium">{city}</span>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => setState(prev => ({
+                                              ...prev,
+                                              daysPerDestination: { ...prev.daysPerDestination, [city]: Math.max(0, (prev.daysPerDestination[city] ?? 0) - 1) },
+                                            }))}
+                                            className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
+                                            disabled={days <= 0 || !datesSet}
+                                          >−</button>
+                                          <span className="w-8 text-center text-sm font-semibold text-sky-900">{days > 0 ? `${days}` : '—'}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setState(prev => ({
+                                              ...prev,
+                                              daysPerDestination: { ...prev.daysPerDestination, [city]: (prev.daysPerDestination[city] ?? 0) + 1 },
+                                            }))}
+                                            className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
+                                            disabled={!datesSet}
+                                          >+</button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {datesSet && (() => {
+                                    const total = Object.values(state.daysPerDestination).reduce((a, b) => a + b, 0);
+                                    if (total > 0 && total !== state.tripLength) {
+                                      const diff = total - state.tripLength;
+                                      return (
+                                        <p className={`text-xs mt-1 ${diff > 0 ? 'text-rose-600' : 'text-amber-700'}`}>
+                                          {diff > 0
+                                            ? `That's ${diff} night${diff === 1 ? '' : 's'} over your ${state.tripLength}-day trip — trim a city or extend your trip.`
+                                            : `${state.tripLength - total} night${state.tripLength - total === 1 ? '' : 's'} still unassigned — they'll be divided evenly.`}
+                                        </p>
+                                      );
+                                    }
+                                    if (total > 0 && total === state.tripLength) {
+                                      return <p className="text-xs text-green-700 mt-1">All {state.tripLength} nights accounted for.</p>;
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
                               );
-                            })}
-                            {(() => {
-                              const total = Object.values(state.daysPerDestination).reduce((a, b) => a + b, 0);
-                              if (total > 0 && total !== state.tripLength) {
-                                const diff = total - state.tripLength;
-                                return (
-                                  <p className={`text-xs mt-1 ${diff > 0 ? 'text-rose-600' : 'text-amber-700'}`}>
-                                    {diff > 0
-                                      ? `That's ${diff} night${diff === 1 ? '' : 's'} over your ${state.tripLength}-day trip — trim a city or extend your trip.`
-                                      : `${state.tripLength - total} night${state.tripLength - total === 1 ? '' : 's'} still unassigned — they'll be divided evenly.`}
-                                  </p>
-                                );
-                              }
-                              if (total > 0 && total === state.tripLength) {
-                                return <p className="text-xs text-green-700 mt-1">All {state.tripLength} nights accounted for.</p>;
-                              }
-                              return null;
                             })()}
-                          </div>
+                          </>
                         );
                       })()}
                     </div>
