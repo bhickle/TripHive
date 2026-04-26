@@ -336,7 +336,7 @@ function ItineraryPageContent() {
     const payload = {
       destination,
       tripLength: aiDaysRef.current?.length || tripRow?.trip_length || 7,
-      groupSize: tripRow?.group_size || aiMeta?.preferences?.groupSize || 2,
+      groupSize: tripRow?.group_size || 2,
       groupType: tripRow?.group_type || aiMeta?.groupType || 'friends',
       startDate: aiMeta?.startDate || tripRow?.start_date || null,
       endDate: aiMeta?.endDate || tripRow?.end_date || null,
