@@ -229,6 +229,69 @@ export type Database = {
           },
         ]
       }
+      featured_itineraries: {
+        Row: {
+          affiliate_links: Json | null
+          avg_cost_per_day: number | null
+          country: string
+          created_at: string | null
+          destination: string
+          duration_days: number
+          editor_pick: boolean | null
+          hero_image: string | null
+          id: string
+          itinerary: Json
+          persona_tags: string[] | null
+          published: boolean | null
+          season_tags: string[] | null
+          slug: string
+          sort_order: number | null
+          tagline: string | null
+          title: string
+          vibes: string[] | null
+        }
+        Insert: {
+          affiliate_links?: Json | null
+          avg_cost_per_day?: number | null
+          country: string
+          created_at?: string | null
+          destination: string
+          duration_days?: number
+          editor_pick?: boolean | null
+          hero_image?: string | null
+          id?: string
+          itinerary?: Json
+          persona_tags?: string[] | null
+          published?: boolean | null
+          season_tags?: string[] | null
+          slug: string
+          sort_order?: number | null
+          tagline?: string | null
+          title: string
+          vibes?: string[] | null
+        }
+        Update: {
+          affiliate_links?: Json | null
+          avg_cost_per_day?: number | null
+          country?: string
+          created_at?: string | null
+          destination?: string
+          duration_days?: number
+          editor_pick?: boolean | null
+          hero_image?: string | null
+          id?: string
+          itinerary?: Json
+          persona_tags?: string[] | null
+          published?: boolean | null
+          season_tags?: string[] | null
+          slug?: string
+          sort_order?: number | null
+          tagline?: string | null
+          title?: string
+          vibes?: string[] | null
+        }
+        Relationships: []
+      }
       group_messages: {
         Row: {
           content: string
@@ -490,6 +553,48 @@ export type Database = {
           subscription_tier?: string
           travel_persona?: Json | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      seasonal_collections: {
+        Row: {
+          accent_color: string | null
+          created_at: string | null
+          description: string | null
+          destination_names: string[] | null
+          hero_image: string | null
+          id: string
+          published: boolean | null
+          season: string
+          slug: string
+          sort_order: number | null
+          title: string
+        }
+        Insert: {
+          accent_color?: string | null
+          created_at?: string | null
+          description?: string | null
+          destination_names?: string[] | null
+          hero_image?: string | null
+          id?: string
+          published?: boolean | null
+          season: string
+          slug: string
+          sort_order?: number | null
+          title: string
+        }
+        Update: {
+          accent_color?: string | null
+          created_at?: string | null
+          description?: string | null
+          destination_names?: string[] | null
+          hero_image?: string | null
+          id?: string
+          published?: boolean | null
+          season?: string
+          slug?: string
+          sort_order?: number | null
+          title?: string
         }
         Relationships: []
       }
