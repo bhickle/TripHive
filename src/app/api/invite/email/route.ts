@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
 
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) {
-    console.log('[invite/email] SENDGRID_API_KEY not set. Would have sent to:', email);
-    return NextResponse.json({ success: true, stub: true });
+    console.warn('[invite/email] SENDGRID_API_KEY not set — email invite not sent to:', email);
+    return NextResponse.json({ error: 'Email service not configured' }, { status: 503 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email }] }],
-        from: { email: 'brandon.hickle@gmail.com', name: 'TripCoord' },
+        from: { email: process.env.SENDGRID_FROM_EMAIL || 'hello@tripcoord.ai', name: 'TripCoord' },
         subject,
         content: [
           {

@@ -8,7 +8,7 @@ import { discoverDestinations as mockDiscoverDestinations, DiscoverDestination, 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
-  Globe2, ChevronRight, ArrowRight, Sparkles, Clock, DollarSign,
+  Globe2, ChevronRight, ArrowRight, Sparkles, Clock, DollarSign, Lock,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 
@@ -23,10 +23,12 @@ function DestinationCard({
   dest,
   onWishlist,
   wishlisted,
+  canWishlist,
 }: {
   dest: DiscoverDestination;
   onWishlist: (id: string) => void;
   wishlisted: boolean;
+  canWishlist: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -67,9 +69,13 @@ function DestinationCard({
         {/* Wishlist button */}
         <button
           onClick={() => onWishlist(dest.id)}
+          title={canWishlist ? 'Save to wishlist' : 'Explorer plan required to save destinations'}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition-all"
         >
-          <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+          {canWishlist
+            ? <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+            : <Lock className="w-3.5 h-3.5 text-white/80" />
+          }
         </button>
 
         {/* Destination name on image */}
@@ -148,10 +154,11 @@ function DestinationCard({
   );
 }
 
-function FeaturedCard({ dest, onWishlist, wishlisted }: {
+function FeaturedCard({ dest, onWishlist, wishlisted, canWishlist }: {
   dest: DiscoverDestination;
   onWishlist: (id: string) => void;
   wishlisted: boolean;
+  canWishlist: boolean;
 }) {
   return (
     <div className="relative rounded-2xl overflow-hidden h-60 md:h-80 group flex-shrink-0 w-full">
@@ -173,9 +180,13 @@ function FeaturedCard({ dest, onWishlist, wishlisted }: {
 
       <button
         onClick={() => onWishlist(dest.id)}
+        title={canWishlist ? 'Save to wishlist' : 'Explorer plan required to save destinations'}
         className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition-all"
       >
-        <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+        {canWishlist
+          ? <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+          : <Lock className="w-4 h-4 text-white/80" />
+        }
       </button>
 
       {/* Bottom content */}
@@ -271,6 +282,28 @@ export default function DiscoverPage() {
           {/* Page Header */}
           <div className="mb-8">
             <p className="text-xs font-semibold uppercase tracking-widest text-sky-700 mb-3">Discover</p>
+
+            {/* Tier-gate banner for free users */}
+            {!hasWishlist && (
+              <div className="flex items-center justify-between gap-4 px-5 py-4 mb-6 bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+                    <Lock className="w-4 h-4 text-sky-700" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-900">Explorer feature</p>
+                    <p className="text-xs text-zinc-500">Upgrade to save destinations to your wishlist and unlock full discovery.</p>
+                  </div>
+                </div>
+                <Link
+                  href="/pricing"
+                  className="flex-shrink-0 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-xl transition-colors whitespace-nowrap"
+                >
+                  Upgrade
+                </Link>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
                 <h1 className="text-4xl font-script italic font-semibold text-zinc-900">Where to next?</h1>
@@ -351,6 +384,7 @@ export default function DiscoverPage() {
                     dest={dest}
                     onWishlist={handleWishlist}
                     wishlisted={wishlistedIds.has(dest.id)}
+                    canWishlist={hasWishlist}
                   />
                 ))}
               </div>
@@ -380,9 +414,13 @@ export default function DiscoverPage() {
                     </div>
                     <button
                       onClick={() => handleWishlist(dest.id)}
+                      title={hasWishlist ? 'Save to wishlist' : 'Explorer plan required to save destinations'}
                       className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition-all"
                     >
-                      <Heart className={`w-4 h-4 transition-colors ${wishlistedIds.has(dest.id) ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+                      {hasWishlist
+                        ? <Heart className={`w-4 h-4 transition-colors ${wishlistedIds.has(dest.id) ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+                        : <Lock className="w-3.5 h-3.5 text-white/80" />
+                      }
                     </button>
                   </div>
                 ))}
@@ -427,6 +465,7 @@ export default function DiscoverPage() {
                     dest={dest}
                     onWishlist={handleWishlist}
                     wishlisted={wishlistedIds.has(dest.id)}
+                    canWishlist={hasWishlist}
                   />
                 ))}
               </div>

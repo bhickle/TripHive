@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, Apple } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -111,9 +111,9 @@ export default function LoginPage() {
                 <input type="checkbox" className="w-4 h-4 rounded border-slate-300" />
                 <span className="text-sm text-zinc-600">Remember me</span>
               </label>
-              <a href="#" className="text-sm font-medium text-sky-700 hover:text-sky-800">
+              <Link href="/auth/reset-password" className="text-sm font-medium text-sky-700 hover:text-sky-800">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {/* Submit Button */}
@@ -137,10 +137,10 @@ export default function LoginPage() {
           </div>
 
           {/* Social Buttons */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="mb-8">
             <button
               onClick={handleGoogleLogin}
-              className="btn-outline flex items-center justify-center gap-2"
+              className="btn-outline w-full flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#1F2937"/>
@@ -148,11 +148,7 @@ export default function LoginPage() {
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
-              <span className="text-sm font-medium">Google</span>
-            </button>
-            <button className="btn-outline flex items-center justify-center gap-2" disabled>
-              <Apple className="w-5 h-5" />
-              <span className="text-sm font-medium">Apple</span>
+              <span className="text-sm font-medium">Continue with Google</span>
             </button>
           </div>
 

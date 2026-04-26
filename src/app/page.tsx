@@ -406,30 +406,16 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h4 className="font-script italic text-white font-semibold mb-4">Company</h4>
-              <ul className="space-y-2">
-                <li><a href="#" className="hover:text-white transition">About</a></li>
-                <li><a href="#" className="hover:text-white transition">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition">Careers</a></li>
-              </ul>
-            </div>
-            <div>
               <h4 className="font-script italic text-white font-semibold mb-4">Legal</h4>
               <ul className="space-y-2">
-                <li><a href="#" className="hover:text-white transition">Privacy</a></li>
-                <li><a href="#" className="hover:text-white transition">Terms</a></li>
-                <li><a href="#" className="hover:text-white transition">Security</a></li>
+                <li><Link href="/legal/privacy" className="hover:text-white transition">Privacy</Link></li>
+                <li><Link href="/legal/terms" className="hover:text-white transition">Terms</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-script italic text-white font-semibold mb-4">Connect</h4>
               <ul className="space-y-2">
-                <li><a href="#" className="hover:text-white transition">Twitter / X</a></li>
-                <li><a href="#" className="hover:text-white transition">Instagram</a></li>
-                <li><a href="#" className="hover:text-white transition">TikTok</a></li>
-                <li><a href="#" className="hover:text-white transition">Facebook</a></li>
-                <li><a href="#" className="hover:text-white transition">LinkedIn</a></li>
-                <li><a href="mailto:hello@tripcoord.com" className="hover:text-white transition">Email</a></li>
+                <li><a href="mailto:hello@tripcoord.ai" className="hover:text-white transition">Email us</a></li>
               </ul>
             </div>
           </div>

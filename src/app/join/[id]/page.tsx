@@ -143,44 +143,6 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
           return;
         }
 
-        // Check if it starts with 'upload_'
-        if (tripId.startsWith('upload_')) {
-          const storedTripsJson = localStorage.getItem('tripcoord_user_trips');
-          if (storedTripsJson) {
-            const storedTrips = JSON.parse(storedTripsJson);
-            const uploadedTrip = storedTrips.find((t: any) => t.id === tripId);
-
-            if (uploadedTrip) {
-              const startDate = new Date(uploadedTrip.startDate);
-              const endDate = new Date(uploadedTrip.endDate);
-              const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-              const itineraryPreview = Array.from({ length: dayCount }, (_, i) => ({
-                day: i + 1,
-                date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                theme: `Day ${i + 1}`,
-                activities: ['Explore and plan'],
-              }));
-
-              setTripData({
-                title: uploadedTrip.title,
-                destination: uploadedTrip.destination,
-                startDate: uploadedTrip.startDate,
-                endDate: uploadedTrip.endDate,
-                travelerCount: uploadedTrip.groupSize || 1,
-                organizerName: uploadedTrip.organizerName || 'You',
-                coverImage: uploadedTrip.coverImage || '/default-trip.jpg',
-                itineraryPreview,
-              });
-              setLoading(false);
-              return;
-            }
-          }
-          setNotFound(true);
-          setLoading(false);
-          return;
-        }
-
         // Not found
         setNotFound(true);
       } catch (err) {

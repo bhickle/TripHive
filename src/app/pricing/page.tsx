@@ -504,9 +504,9 @@ export default function PricingPage() {
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <Image src="/tripcoord_logo.png" alt="tripcoord" width={120} height={38} className="h-7 w-auto brightness-0 invert opacity-60" />
           <div className="flex items-center gap-6 text-xs text-zinc-600">
-            <Link href="#" className="hover:text-zinc-400 transition-colors">Privacy</Link>
-            <Link href="#" className="hover:text-zinc-400 transition-colors">Terms</Link>
-            <Link href="#" className="hover:text-zinc-400 transition-colors">Contact</Link>
+            <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
+            <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms</Link>
+            <a href="mailto:hello@tripcoord.ai" className="hover:text-zinc-400 transition-colors">Contact</a>
           </div>
           <p className="text-zinc-600 text-xs">© 2026 tripcoord. All rights reserved.</p>
         </div>

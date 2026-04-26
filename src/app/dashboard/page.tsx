@@ -108,11 +108,7 @@ export default function DashboardPage() {
     if (!currentUser.isDemo && currentUser.id) {
       loadTrips();
     } else {
-      // Demo or unauthenticated — fall back to localStorage, resolve loading immediately
-      try {
-        const stored = localStorage.getItem('tripcoord_user_trips');
-        if (stored) setUserTrips(JSON.parse(stored));
-      } catch { /* ignore */ }
+      // Demo or unauthenticated — show empty userTrips; mock trips come from baseTripData
       setTripsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -6,7 +6,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
-  Mountain, Waves, Compass, Utensils, Music, ShoppingBag,
+  Mountain, Waves, Compass, Utensils, Music, Scale,
   ArrowRight, ArrowLeft, Check, Sparkles,
 } from 'lucide-react';
 
@@ -32,7 +32,7 @@ const VIBE_OPTIONS: { id: TravelVibe; label: string; icon: React.ReactNode; desc
   { id: 'cultural', label: 'Cultural', icon: <Compass className="w-4 h-4" />, desc: 'History, art, museums' },
   { id: 'foodie', label: 'Foodie', icon: <Utensils className="w-4 h-4" />, desc: 'Restaurants, markets' },
   { id: 'party', label: 'Nightlife', icon: <Music className="w-4 h-4" />, desc: 'Bars, clubs, events' },
-  { id: 'balanced', label: 'Balanced', icon: <ShoppingBag className="w-4 h-4" />, desc: 'A bit of everything' },
+  { id: 'balanced', label: 'Balanced', icon: <Scale className="w-4 h-4" />, desc: 'A bit of everything' },
 ];
 
 const GROUP_TYPES: { id: GroupType; label: string; emoji: string }[] = [
