@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { Json } from '@/lib/supabase/database.types';
 
 /**
  * GET /api/trips/[id]/members
@@ -171,8 +172,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         email: email?.trim() ?? null,
         role: 'member',
         joined_at: new Date().toISOString(),
-        ...(userId ? { user_id: userId } : {}),
-        ...(preferences ? { preferences: preferences as Record<string, unknown> } : {}),
+        user_id: userId ?? undefined,
+        preferences: preferences ? (preferences as Json) : undefined,
       });
 
     if (insertErr) {
