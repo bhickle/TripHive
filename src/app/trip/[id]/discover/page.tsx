@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, MapPin, Star, Clock, Plus, AlertCircle, Check, ExternalLink } from 'lucide-react';
+import { Search, MapPin, Star, Clock, Plus, AlertCircle, Check, ExternalLink, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { MOCK_TRIP_IDS } from '@/data/mock';
 
 interface DiscoverItem {
@@ -323,6 +323,39 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [tripDays, setTripDays] = useState<any[]>([]);
   const [addingToDay, setAddingToDay] = useState<string | null>(null); // itemId being saved
   const [addToastItem, setAddToastItem] = useState<string | null>(null); // itemId that just succeeded
+
+  // Voting state
+  const [votes, setVotes] = useState<Record<string, 'up' | 'down' | null>>({});
+  const [voteCounts, setVoteCounts] = useState<Record<string, { up: number; down: number }>>({});
+
+  const handleVote = (itemId: string, direction: 'up' | 'down') => {
+    const current = votes[itemId] ?? null;
+    const counts = voteCounts[itemId] ?? { up: 0, down: 0 };
+
+    let newUp = counts.up;
+    let newDown = counts.down;
+    let newVote: 'up' | 'down' | null;
+
+    if (current === direction) {
+      // Clicking same button — toggle off
+      newVote = null;
+      if (direction === 'up') newUp = Math.max(0, newUp - 1);
+      else newDown = Math.max(0, newDown - 1);
+    } else {
+      // Switching or first vote
+      newVote = direction;
+      if (direction === 'up') {
+        newUp += 1;
+        if (current === 'down') newDown = Math.max(0, newDown - 1);
+      } else {
+        newDown += 1;
+        if (current === 'up') newUp = Math.max(0, newUp - 1);
+      }
+    }
+
+    setVotes(prev => ({ ...prev, [itemId]: newVote }));
+    setVoteCounts(prev => ({ ...prev, [itemId]: { up: newUp, down: newDown } }));
+  };
 
   // For non-mock trips: fetch AI-generated destination recommendations
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
@@ -810,6 +843,37 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                             <span className="text-sky-700 font-semibold text-sm">{item.priceRange}</span>
                           </div>
                         </div>
+                        {/* Yay / Nay voting */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                          <button
+                            onClick={() => handleVote(item.id, 'up')}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+                              votes[item.id] === 'up'
+                                ? 'bg-emerald-500 text-white shadow-sm'
+                                : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                            }`}
+                            title="Yay — I want to do this"
+                          >
+                            <ThumbsUp className="w-3.5 h-3.5" />
+                            {(voteCounts[item.id]?.up ?? 0) > 0 && (
+                              <span>{voteCounts[item.id].up}</span>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleVote(item.id, 'down')}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+                              votes[item.id] === 'down'
+                                ? 'bg-rose-500 text-white shadow-sm'
+                                : 'bg-rose-50 text-rose-500 hover:bg-rose-100'
+                            }`}
+                            title="Nay — not for me"
+                          >
+                            <ThumbsDown className="w-3.5 h-3.5" />
+                            {(voteCounts[item.id]?.down ?? 0) > 0 && (
+                              <span>{voteCounts[item.id].down}</span>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Description */}
@@ -874,6 +938,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                               </button>
                             ))}
                           </div>
+                          <p className="text-xs text-zinc-500 mt-2">This activity will be appended to the selected day. The trip organizer may need to manually adjust the schedule to fit it in.</p>
                         </div>
                       )}
                     </div>
