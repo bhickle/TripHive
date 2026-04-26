@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Sidebar } from '@/components/Sidebar';
@@ -8,9 +8,20 @@ import { discoverDestinations as mockDiscoverDestinations, DiscoverDestination, 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
-  Globe2, ChevronRight, ArrowRight, Sparkles, Clock, DollarSign, Lock,
+  Globe2, ChevronRight, ArrowRight, Sparkles, Clock, DollarSign, Lock, TrendingUp,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
+
+// ─── Event logging ─────────────────────────────────────────────────────────────
+
+function logDestinationEvent(destination: string, eventType: 'search' | 'card_click' | 'plan_click') {
+  // Fire-and-forget — never blocks the UI
+  fetch('/api/discover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ destination, eventType }),
+  }).catch(() => { /* silent */ });
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24,11 +35,15 @@ function DestinationCard({
   onWishlist,
   wishlisted,
   canWishlist,
+  onCardClick,
+  onPlanClick,
 }: {
   dest: DiscoverDestination;
   onWishlist: (id: string) => void;
   wishlisted: boolean;
   canWishlist: boolean;
+  onCardClick?: () => void;
+  onPlanClick?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -37,6 +52,7 @@ function DestinationCard({
       className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col border border-zinc-100"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={onCardClick}
     >
       {/* Image */}
       <div className="relative h-40 sm:h-52 overflow-hidden flex-shrink-0">
@@ -144,6 +160,7 @@ function DestinationCard({
         <Link
           href={`/trip/new?destination=${encodeURIComponent(dest.name + ', ' + dest.country)}`}
           className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-zinc-900 hover:bg-zinc-700 text-white text-xs font-bold rounded-xl transition-all"
+          onClick={e => { e.stopPropagation(); onPlanClick?.(); }}
         >
           <Sparkles className="w-3.5 h-3.5" />
           Plan this trip
@@ -229,20 +246,34 @@ export default function DiscoverPage() {
   const currentUser = useCurrentUser();
   const { hasWishlist } = useEntitlements();
   const [destinations, setDestinations] = useState<DiscoverDestination[]>(mockDiscoverDestinations);
+  const [topSearches, setTopSearches] = useState<Array<{ name: string; count: number }>>([]);
   const [query, setQuery] = useState('');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
   const [activeContinent, setActiveContinent] = useState('All');
   const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
   const [showWishlistToast, setShowWishlistToast] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load destinations from Supabase (replaces mock data once fetched)
+  // Load destinations + top searches from Supabase
   useEffect(() => {
     fetch('/api/discover')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.destinations?.length) setDestinations(data.destinations);
+        if (data?.topSearches?.length) setTopSearches(data.topSearches);
       })
       .catch(() => { /* keep mock fallback */ });
+  }, []);
+
+  // Debounced search event — fires 800ms after the user stops typing (min 2 chars)
+  const handleSearchChange = useCallback((value: string) => {
+    setQuery(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (value.trim().length >= 2) {
+      searchTimerRef.current = setTimeout(() => {
+        logDestinationEvent(value.trim(), 'search');
+      }, 800);
+    }
   }, []);
 
   const toggleVibe = (v: VibeTag) => {
@@ -314,7 +345,7 @@ export default function DiscoverPage() {
                 <input
                   type="text"
                   value={query}
-                  onChange={e => setQuery(e.target.value)}
+                  onChange={e => handleSearchChange(e.target.value)}
                   placeholder="Search destinations…"
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-300 shadow-sm"
                 />
@@ -428,6 +459,29 @@ export default function DiscoverPage() {
             </section>
           )}
 
+          {/* Top Searches — live data, only shown when no filter active and data exists */}
+          {activeVibes.length === 0 && activeContinent === 'All' && !query && topSearches.length > 0 && (
+            <section>
+              <div className="flex items-center gap-3 mb-4">
+                <TrendingUp className="w-4 h-4 text-sky-700" />
+                <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Top Searches</h2>
+                <span className="text-xs text-zinc-400">— last 30 days</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {topSearches.map(({ name }) => (
+                  <button
+                    key={name}
+                    onClick={() => handleSearchChange(name)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-white border border-zinc-200 hover:border-sky-300 hover:text-sky-800 text-zinc-600 text-sm font-semibold rounded-full transition-all shadow-sm"
+                  >
+                    <Search className="w-3 h-3" />
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* All / filtered destinations */}
           <section>
             <div className="flex items-center justify-between mb-5">
@@ -466,6 +520,8 @@ export default function DiscoverPage() {
                     onWishlist={handleWishlist}
                     wishlisted={wishlistedIds.has(dest.id)}
                     canWishlist={hasWishlist}
+                    onCardClick={() => logDestinationEvent(dest.name, 'card_click')}
+                    onPlanClick={() => logDestinationEvent(dest.name, 'plan_click')}
                   />
                 ))}
               </div>
