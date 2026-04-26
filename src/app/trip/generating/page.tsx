@@ -201,7 +201,7 @@ export default function GeneratingPage() {
       return;
     }
 
-    // Pre-stream errors (NO_API_KEY, tier limit, etc.) come back as plain JSON
+    // Pre-stream errors (NO_API_KEY, tier limit, credit limit, etc.) come back as plain JSON
     const ct = res.headers.get('content-type') ?? '';
     if (!res.ok || !ct.includes('text/event-stream')) {
       let msg = 'Generation failed';
@@ -210,6 +210,11 @@ export default function GeneratingPage() {
         if (d.error === 'NO_API_KEY') {
           // Demo fallback — redirect to the sample itinerary
           router.push('/trip/trip_1/itinerary');
+          return;
+        }
+        if (d.error === 'CREDIT_LIMIT') {
+          // Out of AI credits — send to pricing page with context
+          router.push('/pricing?reason=credits');
           return;
         }
         msg = d.message || msg;

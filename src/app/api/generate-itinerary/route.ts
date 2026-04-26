@@ -939,30 +939,52 @@ export async function POST(request: NextRequest) {
     }, { status: 503 });
   }
 
-  // Resolve subscription tier + organizer persona in one query
+  // Resolve subscription tier, organizer persona, and AI credit balance in one query.
+  // Uses auth.ctx.userId from requireAuth — no redundant auth call needed.
+  const authenticatedUserId = auth.ctx.userId;
   let userTier: SubscriptionTier = 'free';
   let organizerPersona: { priorities: string[]; vibes?: string[] } | null = null;
+  let creditsUsed = 0;
+  let creditsTotal = 10; // conservative default (free tier)
+
   try {
-    const authClient = await createClient();
-    const { data: { user } } = await authClient.auth.getUser();
-    if (user?.id) {
-      const adminClient = createAdminClient();
-      const { data: profile } = await adminClient
-        .from('profiles')
-        .select('subscription_tier, travel_persona')
-        .eq('id', user.id)
-        .single();
-      if (profile?.subscription_tier) {
-        userTier = profile.subscription_tier as SubscriptionTier;
-      }
-      if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
-        const p = profile.travel_persona as Record<string, unknown>;
-        const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];
-        const vibes = Array.isArray(p.vibes) ? p.vibes as string[] : undefined;
-        if (priorities.length > 0) organizerPersona = { priorities, vibes };
-      }
+    const adminClient = createAdminClient();
+    const { data: profile } = await adminClient
+      .from('profiles')
+      .select('subscription_tier, travel_persona, ai_credits_used, ai_credits_total, ai_credits_reset_at')
+      .eq('id', authenticatedUserId)
+      .single();
+
+    if (profile?.subscription_tier) {
+      userTier = profile.subscription_tier as SubscriptionTier;
     }
-  } catch { /* fall back to free, no persona */ }
+
+    // Determine credit totals — prefer DB value, fall back to tier default
+    const tierDefault = TIER_LIMITS[userTier].aiCreditsPerMonth;
+    creditsTotal = profile?.ai_credits_total ?? (typeof tierDefault === 'number' ? tierDefault : 30);
+    creditsUsed  = profile?.ai_credits_used  ?? 0;
+
+    // Monthly reset: if the reset window has passed, zero out credits and push the window forward
+    const resetAt = profile?.ai_credits_reset_at ? new Date(profile.ai_credits_reset_at) : null;
+    if (resetAt && new Date() > resetAt) {
+      const nextReset = new Date();
+      nextReset.setMonth(nextReset.getMonth() + 1);
+      nextReset.setDate(1);
+      nextReset.setHours(0, 0, 0, 0);
+      await adminClient
+        .from('profiles')
+        .update({ ai_credits_used: 0, ai_credits_reset_at: nextReset.toISOString() })
+        .eq('id', authenticatedUserId);
+      creditsUsed = 0;
+    }
+
+    if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
+      const p = profile.travel_persona as Record<string, unknown>;
+      const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];
+      const vibes = Array.isArray(p.vibes) ? p.vibes as string[] : undefined;
+      if (priorities.length > 0) organizerPersona = { priorities, vibes };
+    }
+  } catch { /* fall back to free tier defaults — non-fatal */ }
 
   // ── Layer 2: member preferences from trip_members ─────────────────────────
   // When the request includes a tripId and the trip has members who joined via
@@ -1003,6 +1025,18 @@ export async function POST(request: NextRequest) {
       error: 'TRIP_LENGTH_LIMIT',
       message: `Your ${userTier} plan supports itineraries up to ${tierLimits.maxTripDays} days. Upgrade to generate longer trips.`,
     }, { status: 403 });
+  }
+
+  // ── AI credit gate ─────────────────────────────────────────────────────────
+  // Each successful generation costs 1 credit. Check before the stream opens
+  // so we never burn Anthropic tokens for an over-quota request.
+  if (creditsUsed >= creditsTotal) {
+    return NextResponse.json({
+      error: 'CREDIT_LIMIT',
+      message: `You've used all ${creditsTotal} AI credits for this billing period. Upgrade your plan or wait for your credits to reset next month.`,
+      creditsUsed,
+      creditsTotal,
+    }, { status: 429 });
   }
 
   // Token budget scales with trip length.
@@ -1248,6 +1282,20 @@ export async function POST(request: NextRequest) {
         // Signal stream end to client. Include total days emitted so the client
         // can detect partial results (e.g. truncated generation).
         send({ type: 'done', daysEmitted: dayIndex, model: modelId });
+
+        // Increment AI credit usage. Uses LEAST() semantics via a conditional
+        // update so a race condition (two concurrent requests) can't push
+        // usage past the total. Non-fatal if the update fails.
+        try {
+          const adminClient = createAdminClient();
+          await adminClient
+            .from('profiles')
+            .update({ ai_credits_used: creditsUsed + 1 })
+            .eq('id', authenticatedUserId)
+            .lt('ai_credits_used', creditsTotal);
+        } catch (creditErr) {
+          console.warn('[generate-itinerary] Failed to increment AI credits:', creditErr);
+        }
 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
