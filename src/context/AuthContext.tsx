@@ -93,9 +93,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Keep in sync with auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         setSession(session);
         if (session?.user) {
+          // On a fresh sign-in, evict the localStorage persona so Supabase is
+          // authoritative — prevents stale onboarding data from shadowing the
+          // real profile on a different device or after a profile update.
+          if (event === 'SIGNED_IN') {
+            try { localStorage.removeItem('tripcoord_profile'); } catch { /* ignore */ }
+          }
           await fetchProfile(session.user.id);
         } else {
           setProfile(null);
@@ -127,6 +133,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    // Clear cached persona so a subsequent login always reads from Supabase.
+    try { localStorage.removeItem('tripcoord_profile'); } catch { /* ignore */ }
   };
 
   const refreshProfile = async () => {
