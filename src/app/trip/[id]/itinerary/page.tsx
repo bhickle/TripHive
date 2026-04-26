@@ -583,10 +583,9 @@ function ItineraryPageContent() {
   }, []);
 
   const handleGenerateHotels = useCallback(async () => {
-    // Resolve destination: prefer aiMeta, fall back to trip object (always available)
-    const destination = aiMeta?.destination || trip.destination;
+    const destination = aiMeta?.destination;
     if (!destination) {
-      setHotelGenError('Could not determine trip destination. Please refresh and try again.');
+      setHotelGenError('Trip destination not loaded yet — please refresh the page and try again.');
       return;
     }
     setGeneratingHotels(true);
@@ -609,10 +608,7 @@ function ItineraryPageContent() {
       }
       const { hotelSuggestions } = await res.json();
       if (hotelSuggestions?.length) {
-        // Works whether aiMeta is populated or not — create a stub if needed
-        setAiMeta(prev => prev
-          ? { ...prev, hotelSuggestions }
-          : { destination, hotelSuggestions });
+        setAiMeta(prev => prev ? { ...prev, hotelSuggestions } : prev);
       } else {
         setHotelGenError('No hotel suggestions returned. Try again.');
       }
@@ -621,7 +617,7 @@ function ItineraryPageContent() {
     } finally {
       setGeneratingHotels(false);
     }
-  }, [aiMeta, trip.destination]);
+  }, [aiMeta]);
 
   // Form state
   const [newActivityName, setNewActivityName] = useState('');
