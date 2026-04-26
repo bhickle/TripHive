@@ -420,9 +420,9 @@ function ItineraryPageContent() {
       // Deduplicate by day number — AI occasionally emits duplicate day objects
       // on multi-city trips when a transition straddles two cities. Keep the
       // last occurrence so any richer data wins, then re-sort by day number.
-      const byDay = new Map<number, ItineraryDay>();
-      for (const d of days) byDay.set(d.day, d);
-      const deduped = Array.from(byDay.values()).sort((a, b) => a.day - b.day);
+      const byDay: Record<number, ItineraryDay> = {};
+      for (const d of days) byDay[d.day] = d;
+      const deduped = (Object.values(byDay) as ItineraryDay[]).sort((a, b) => a.day - b.day);
       aiDaysRef.current = deduped;
       setAiDays(deduped);
     } else {
