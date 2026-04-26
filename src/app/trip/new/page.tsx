@@ -358,8 +358,8 @@ function TripBuilderPage() {
   const searchParams = useSearchParams();
   const isFirstTrip = searchParams.get('firsttrip') === 'true';
   const [currentStep, setCurrentStep] = useState(1);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [daysReceived, setDaysReceived] = useState(0);
+  const [isGenerating] = useState(false); // kept for disabled-button guard; generation now happens on /trip/generating
+  const [daysReceived] = useState(0);     // unused; kept to avoid refactoring references below
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
   const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady, maxTravelersForTrip } = useEntitlements();
@@ -590,8 +590,7 @@ function TripBuilderPage() {
     setShowDestinationSuggestions(false);
   };
 
-  const [generationStatus, setGenerationStatus] = useState('');
-  const [generationError, setGenerationError] = useState('');
+  // generationStatus / generationError now live on /trip/generating — removed from here
 
   // ── Places pre-warm cache ──────────────────────────────────────────────────
   // Kick off the Google Places fetch as soon as the user reaches Step 8 (Review)
@@ -619,26 +618,7 @@ function TripBuilderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
-  // Rotating city index for multi-city loading screen
-  const [rotatingCityIdx, setRotatingCityIdx] = useState(0);
-  useEffect(() => {
-    if (!isGenerating) { setRotatingCityIdx(0); return; }
-    const cities = state.destinations.length >= 2 ? state.destinations : [];
-    if (cities.length < 2) return;
-    const id = setInterval(() => setRotatingCityIdx(i => (i + 1) % cities.length), 2000);
-    return () => clearInterval(id);
-  }, [isGenerating, state.destinations]);
-
-  const LOADING_MESSAGES = [
-    `Researching the best spots in ${state.destination || 'your destination'}…`,
-    'Crafting the perfect daily rhythm…',
-    'Finding hidden gems off the tourist trail…',
-    'Balancing must-sees with breathing room…',
-    'Checking seasonal highlights and local tips…',
-    'Timing activities to avoid the crowds…',
-    "Personalizing for your group's priorities…",
-    'Adding the finishing touches…',
-  ];
+  // (rotatingCityIdx / LOADING_MESSAGES moved to /trip/generating)
 
   // Helper: derive the canonical single-destination string from current state.
   // Used both in the pre-warm useEffect and in the generate payload.
@@ -651,208 +631,85 @@ function TripBuilderPage() {
     return s.destination;
   }
 
-  const handleGenerateItinerary = async () => {
-    setIsGenerating(true);
-    setGenerationError('');
-    setDaysReceived(0);
-    setGenerationStatus('Crafting your itinerary…');
+  const handleGenerateItinerary = () => {
+    // Build the canonical destination string for multi-city trips
+    const canonicalDestination = canonicalDestinationFor(state);
 
+    // Derive ordered city list: hotel cities take priority, then explicit destinations
+    const destinations = (() => {
+      const hotelCities = state.hasPreBookedHotel
+        ? state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())
+        : [];
+      const uniqueHotelCities = Array.from(new Set(hotelCities));
+      if (uniqueHotelCities.length > 1) return uniqueHotelCities;
+      if (state.destinations.length > 1) return state.destinations;
+      return [];
+    })();
+
+    // ── Build the API payload ──────────────────────────────────────────────────
+    const payload: Record<string, unknown> = {
+      destination: canonicalDestination,
+      startDate: state.startDate || '2026-09-15',
+      endDate: state.endDate || '2026-09-21',
+      tripLength: state.tripLength || 7,
+      groupType: state.groupType,
+      priorities: state.priorities,
+      budget: state.budget,
+      budgetBreakdown: state.budgetBreakdown,
+      ageRanges: state.ageRanges,
+      accessibilityNeeds: state.accessibilityNeeds,
+      mustHaves: state.mustHaves,
+      additionalContext: state.additionalContext,
+      destinations,
+      daysPerDestination: state.daysPerDestination,
+      localMode: state.localMode,
+      dateNight: state.dateNight,
+      curiosityLevel: state.curiosityLevel,
+      modality: state.modality.join(', '),
+      accommodationType: state.accommodationType.join(', '),
+      bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
+      bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+      // Pass pre-fetched places if available — backend will skip its own fetch
+      ...(placesCache ? {
+        preFetchedRealPlaces: placesCache.realPlaces,
+        preFetchedMultiCityPlaces: placesCache.multiCityPlaces,
+      } : {}),
+    };
+
+    // ── Trip meta base (stream-derived fields like title added by /trip/generating) ──
+    const metaBase = {
+      destination: canonicalDestination,
+      startDate: state.startDate,
+      endDate: state.endDate,
+      groupType: state.groupType,
+      groupSize: state.groupSize,
+      budget: state.budget,
+      budgetBreakdown: state.budgetBreakdown,
+      bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+      bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
+      preferences: {
+        priorities: state.priorities,
+        modality: state.modality,
+        accommodationType: state.accommodationType,
+        localMode: state.localMode,
+        curiosityLevel: state.curiosityLevel,
+        ageRanges: state.ageRanges,
+        accessibilityNeeds: state.accessibilityNeeds,
+      },
+    };
+
+    // ── Store in sessionStorage and hand off to /trip/generating ─────────────
     try {
-      // For multi-city trips, the canonical "destination" should be the first actual city
-      // in the route, not whatever the user typed in the search field before switching to multi-city.
-      const canonicalDestination = canonicalDestinationFor(state);
-
-      const res = await fetch('/api/generate-itinerary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination: canonicalDestination,
-          startDate: state.startDate || '2026-09-15',
-          endDate: state.endDate || '2026-09-21',
-          tripLength: state.tripLength || 7,
-          groupType: state.groupType,
-          priorities: state.priorities,
-          budget: state.budget,
-          budgetBreakdown: state.budgetBreakdown,
-          ageRanges: state.ageRanges,
-          accessibilityNeeds: state.accessibilityNeeds,
-          mustHaves: state.mustHaves,
-          additionalContext: state.additionalContext,
-          // Derive ordered city list: hotel cities take priority, then explicit destinations
-          destinations: (() => {
-            const hotelCities = state.hasPreBookedHotel
-              ? state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())
-              : [];
-            const uniqueHotelCities = Array.from(new Set(hotelCities));
-            if (uniqueHotelCities.length > 1) return uniqueHotelCities;
-            if (state.destinations.length > 1) return state.destinations;
-            return [];
-          })(),
-          daysPerDestination: state.daysPerDestination,
-          localMode: state.localMode,
-          dateNight: state.dateNight,
-          curiosityLevel: state.curiosityLevel,
-          modality: state.modality.join(', '),
-          accommodationType: state.accommodationType.join(', '),
-          bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
-          bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
-          // Pass pre-fetched places if available — backend will skip its own fetch
-          ...(placesCache ? {
-            preFetchedRealPlaces: placesCache.realPlaces,
-            preFetchedMultiCityPlaces: placesCache.multiCityPlaces,
-          } : {}),
-        }),
-      });
-
-      // Pre-stream errors (NO_API_KEY, TRIP_LENGTH_LIMIT, etc.) come back as JSON
-      const contentType = res.headers.get('content-type') ?? '';
-      if (!res.ok || !contentType.includes('text/event-stream')) {
-        const data = await res.json();
-        if (data.error === 'NO_API_KEY') {
-          setGenerationStatus('Loading your demo itinerary…');
-          await new Promise(r => setTimeout(r, 800));
-          router.push('/trip/trip_1/itinerary');
-          return;
-        }
-        throw new Error(data.message || 'Generation failed');
-      }
-
-      // ── Read the SSE stream ──────────────────────────────────────────────────
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let sseBuffer = '';
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const collectedDays: any[] = [];
-      let tripMeta: { title?: string; practicalNotes?: unknown; hotelSuggestions?: unknown; foodieTips?: unknown; nightlifeHighlights?: unknown; shoppingGuide?: unknown } = {};
-      const totalDays = state.tripLength || 7;
-
-      outer: while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        sseBuffer += decoder.decode(value, { stream: true });
-
-        // SSE events are delimited by \n\n
-        const events = sseBuffer.split('\n\n');
-        sseBuffer = events.pop() ?? ''; // keep incomplete trailing event
-
-        for (const rawEvent of events) {
-          for (const line of rawEvent.split('\n')) {
-            if (!line.startsWith('data: ')) continue;
-            let parsed: Record<string, unknown>;
-            try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
-
-            switch (parsed.type) {
-              case 'meta':
-                tripMeta = {
-                  title: parsed.title as string | undefined,
-                  practicalNotes: parsed.practicalNotes,
-                  hotelSuggestions: parsed.hotelSuggestions,
-                  foodieTips: parsed.foodieTips ?? null,
-                  nightlifeHighlights: parsed.nightlifeHighlights ?? null,
-                  shoppingGuide: parsed.shoppingGuide ?? null,
-                };
-                break;
-
-              case 'day': {
-                const idx = parsed.index as number;
-                collectedDays[idx] = parsed.data;
-                const received = idx + 1;
-                setDaysReceived(received);
-                setGenerationStatus(`Building Day ${received} of ${totalDays}…`);
-                break;
-              }
-
-              case 'done':
-                break outer;
-
-              case 'error':
-                throw new Error((parsed.message as string) || 'Generation failed');
-            }
-          }
-        }
-      }
-
-      // ── All days received — build meta and save ──────────────────────────────
-      setGenerationStatus('Saving your trip…');
-
-      const tripMetaFull = {
-        destination: canonicalDestination,
-        startDate: state.startDate,
-        endDate: state.endDate,
-        groupType: state.groupType,
-        groupSize: state.groupSize,
-        budget: state.budget,
-        budgetBreakdown: state.budgetBreakdown,
-        bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
-        bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
-        preferences: {
-          priorities: state.priorities,
-          modality: state.modality,
-          accommodationType: state.accommodationType,
-          localMode: state.localMode,
-          curiosityLevel: state.curiosityLevel,
-          ageRanges: state.ageRanges,
-          accessibilityNeeds: state.accessibilityNeeds,
-        },
-        title: tripMeta.title || null,
-        practicalNotes: tripMeta.practicalNotes || null,
-        hotelSuggestions: tripMeta.hotelSuggestions || null,
-        foodieTips: tripMeta.foodieTips || null,
-        nightlifeHighlights: tripMeta.nightlifeHighlights || null,
-        shoppingGuide: tripMeta.shoppingGuide || null,
-      };
-
-      // Deduplicate by day field — on multi-city trips the AI occasionally emits
-      // two objects with the same day number (transition straddles two cities).
-      // Keep the last occurrence so richer data wins, then sort ascending.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const byDayNum: Record<number, any> = {};
-      for (const d of collectedDays) {
-        if (d && typeof d.day === 'number') byDayNum[d.day] = d;
-        else if (d) byDayNum[Object.keys(byDayNum).length + 1] = d; // fallback index
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dedupedDays = (Object.values(byDayNum) as any[]).sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
-
-      // Write to localStorage as an immediate fallback while we attempt the Supabase save
-      localStorage.setItem('generatedItinerary', JSON.stringify(dedupedDays));
-      localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaFull));
-
-      // Try to persist to Supabase and get a real trip ID
-      let tripId = 'trip_1';
-      try {
-        const saveRes = await fetch('/api/trips/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: dedupedDays }),
-        });
-        if (saveRes.ok) {
-          const saveData = await saveRes.json();
-          if (saveData.tripId) {
-            tripId = saveData.tripId;
-            localStorage.setItem('currentTripId', tripId);
-            // Supabase confirmed — clear the bulky localStorage backup.
-            // The itinerary page will load the canonical copy from Supabase
-            // using the real UUID, so the localStorage copy is no longer needed.
-            localStorage.removeItem('generatedItinerary');
-            localStorage.removeItem('generatedTripMeta');
-          }
-        }
-      } catch {
-        // Supabase save failed — localStorage fallback stays intact so the
-        // itinerary page can still load the trip in this session.
-      }
-
-      setGenerationStatus('Your itinerary is ready ✦');
-      await new Promise(r => setTimeout(r, 700));
-      router.push(`/trip/${tripId}/itinerary`);
-
-    } catch (err) {
-      // Keep isGenerating true — the error card inside the loading screen
-      // lets the user read what went wrong and choose to go back.
-      setGenerationError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payload));
+      sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(metaBase));
+    } catch {
+      // sessionStorage unavailable (e.g. private browsing with strict settings)
+      // Fall back to the old inline loading screen
+      console.warn('[trip/new] sessionStorage unavailable — cannot use generating page');
+      return;
     }
+
+    router.push('/trip/generating');
   };
 
   const updateBudgetBreakdown = (
@@ -980,94 +837,7 @@ function TripBuilderPage() {
     return destinationPhotos.default;
   };
 
-  if (isGenerating) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-        style={{ backgroundImage: `url(${getLoadingPhoto()})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        {/* Warm parchment overlay */}
-        <div className="absolute inset-0 backdrop-blur-sm bg-parchment/[.82]" />
-
-        <div className="relative z-10 flex flex-col items-center text-center px-8 max-w-lg">
-          {/* Logo */}
-          <div className="mb-8">
-            <Image src="/tripcoord_logo.png" alt="tripcoord" width={180} height={64} className="h-14 w-auto animate-pulse" priority />
-          </div>
-
-          <p className="text-xs font-semibold uppercase tracking-widest text-orange-600 mb-3">
-            AI Itinerary Generator
-          </p>
-          {(() => {
-            const multiCities = state.destinations.length >= 2 ? state.destinations : null;
-            const displayCity = multiCities
-              ? multiCities[rotatingCityIdx % multiCities.length]
-              : (state.destination || 'Your Trip');
-            return (
-              <>
-                <h2 className="text-4xl font-script italic font-semibold text-zinc-900 mb-1 leading-tight transition-all duration-700">
-                  {displayCity}
-                </h2>
-                {multiCities && (
-                  <p className="text-xs text-zinc-400 mb-2">
-                    {multiCities.join(' · ')}
-                  </p>
-                )}
-              </>
-            );
-          })()}
-          <p className="text-zinc-500 text-sm mb-10">
-            {state.startDate && state.endDate
-              ? `${new Date(state.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(state.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-              : `${state.tripLength} days`}
-          </p>
-
-          {/* Status message */}
-          <div className="mb-8 h-6">
-            <p className="text-zinc-600 text-sm font-medium transition-all duration-500">
-              {generationStatus}
-            </p>
-          </div>
-
-          {/* Progress bar — hidden once an error occurs */}
-          {!generationError && (() => {
-            const totalDays = state.tripLength || 7;
-            // Phase 0: pre-stream (Places fetch + first token) → indeterminate pulse at 8%
-            // Phase 1: days streaming in → real progress 8% → 92%
-            // Phase 2: saving → 96%
-            const isSaving = generationStatus.startsWith('Saving') || generationStatus.startsWith('Your itinerary');
-            const pct = isSaving
-              ? 96
-              : daysReceived > 0
-                ? Math.round(8 + (daysReceived / totalDays) * 84)
-                : 8;
-            return (
-              <div className="w-64 h-1.5 bg-zinc-900/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-orange-500 rounded-full transition-all duration-500 ease-out"
-                  style={{
-                    width: `${pct}%`,
-                    animation: daysReceived === 0 && !isSaving ? 'pulse 1.5s ease-in-out infinite' : 'none',
-                  }}
-                />
-              </div>
-            );
-          })()}
-
-          {generationError && (
-            <div className="mt-8 w-full max-w-sm px-5 py-4 bg-rose-50 border border-rose-200 rounded-2xl text-left">
-              <p className="text-rose-800 text-sm font-semibold mb-1">Something went wrong</p>
-              <p className="text-rose-600 text-xs mb-3 leading-relaxed">{generationError}</p>
-              <button
-                onClick={() => { setIsGenerating(false); setGenerationError(''); }}
-                className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors"
-              >
-                ← Go back and try again
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // (Loading overlay removed — generation now happens on /trip/generating)
 
   return (
     <div className="flex h-screen bg-parchment">
