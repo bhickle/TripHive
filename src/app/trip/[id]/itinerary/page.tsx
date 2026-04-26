@@ -329,46 +329,6 @@ function ItineraryPageContent() {
   const [tripRow, setTripRow] = useState<Record<string, any> | null>(null);
   const [newPrefsCount, setNewPrefsCount] = useState(0);
 
-  // Rebuild the itinerary incorporating new member preferences (Explorer/Nomad)
-  const handleRegenerate = useCallback(() => {
-    if (!aiMeta && !tripRow) return;
-    const destination = tripRow?.destination || aiMeta?.destination || '';
-    const payload = {
-      destination,
-      tripLength: aiDaysRef.current?.length || tripRow?.trip_length || 7,
-      groupSize: tripRow?.group_size || 2,
-      groupType: tripRow?.group_type || aiMeta?.groupType || 'friends',
-      startDate: aiMeta?.startDate || tripRow?.start_date || null,
-      endDate: aiMeta?.endDate || tripRow?.end_date || null,
-      budget: aiMeta?.budget || tripRow?.budget_total || 0,
-      // Merge trip preferences with aiMeta preferences
-      preferences: {
-        ...(tripRow?.preferences as object || {}),
-        ...(aiMeta?.preferences as object || {}),
-      },
-      // Pass tripId so generate-itinerary picks up latest member preferences
-      tripId: tripPageId,
-      // Signal to generating page: update this trip instead of creating a new one
-      existingTripId: tripPageId,
-    };
-    const meta = {
-      destination,
-      title: aiMeta?.destination ? `${aiMeta.destination} Trip` : (tripRow?.title || 'My Trip'),
-      startDate: payload.startDate,
-      endDate: payload.endDate,
-      budget: payload.budget,
-      budgetBreakdown: aiMeta?.budgetBreakdown || tripRow?.budget_breakdown || {},
-      bookedHotels: aiMeta?.bookedHotels || tripRow?.booked_hotels || [],
-      bookedFlight: tripRow?.booked_flight || null,
-      groupType: payload.groupType,
-      groupSize: payload.groupSize,
-      preferences: payload.preferences,
-    };
-    sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payload));
-    sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(meta));
-    router.push('/trip/generating');
-  }, [aiMeta, tripRow, tripPageId, router]);
-
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     // Compute new vote counts using the current votes state via functional updater
     // (captures prev synchronously so next is available immediately after)
@@ -537,6 +497,44 @@ function ItineraryPageContent() {
     }>;
   } | null>(null);
   const [showAiBanner, setShowAiBanner] = useState(false);
+
+  // Rebuild the itinerary incorporating new member preferences (Explorer/Nomad)
+  // Declared after aiMeta so it can reference it without a forward-reference error
+  const handleRegenerate = useCallback(() => {
+    if (!aiMeta && !tripRow) return;
+    const destination = tripRow?.destination || aiMeta?.destination || '';
+    const payload = {
+      destination,
+      tripLength: aiDaysRef.current?.length || tripRow?.trip_length || 7,
+      groupSize: tripRow?.group_size || 2,
+      groupType: tripRow?.group_type || aiMeta?.groupType || 'friends',
+      startDate: aiMeta?.startDate || tripRow?.start_date || null,
+      endDate: aiMeta?.endDate || tripRow?.end_date || null,
+      budget: aiMeta?.budget || tripRow?.budget_total || 0,
+      preferences: {
+        ...(tripRow?.preferences as object || {}),
+        ...(aiMeta?.preferences as object || {}),
+      },
+      tripId: tripPageId,
+      existingTripId: tripPageId,
+    };
+    const meta = {
+      destination,
+      title: aiMeta?.destination ? `${aiMeta.destination} Trip` : (tripRow?.title || 'My Trip'),
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      budget: payload.budget,
+      budgetBreakdown: aiMeta?.budgetBreakdown || tripRow?.budget_breakdown || {},
+      bookedHotels: aiMeta?.bookedHotels || tripRow?.booked_hotels || [],
+      bookedFlight: tripRow?.booked_flight || null,
+      groupType: payload.groupType,
+      groupSize: payload.groupSize,
+      preferences: payload.preferences,
+    };
+    sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payload));
+    sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(meta));
+    router.push('/trip/generating');
+  }, [aiMeta, tripRow, tripPageId, router]);
 
   useEffect(() => {
     const load = async () => {
