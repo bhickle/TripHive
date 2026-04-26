@@ -5,12 +5,25 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * GET /api/trips/[id]
  * Loads a trip + its itinerary from Supabase.
+ * Requires the caller to be the trip organizer or a member.
  */
 export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Auth check
+    let userId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      userId = user?.id ?? null;
+    } catch { /* auth failed */ }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createAdminClient();
 
     // Load trip row
@@ -22,6 +35,21 @@ export async function GET(
 
     if (tripError || !trip) {
       return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    }
+
+    // Verify the caller is the organizer or a trip member
+    const isOrganizer = trip.organizer_id === userId;
+    if (!isOrganizer) {
+      const { data: membership } = await supabase
+        .from('trip_members')
+        .select('id')
+        .eq('trip_id', params.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!membership) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     // Load itinerary

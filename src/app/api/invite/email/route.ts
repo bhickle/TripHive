@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/invite/email
  * Sends a trip invite email via SendGrid.
+ * Requires the caller to be the trip organizer.
  *
  * Required env vars:
  *   SENDGRID_API_KEY      — from app.sendgrid.com → Settings → API Keys
@@ -11,7 +14,26 @@ import { NextRequest, NextResponse } from 'next/server';
  * Body: { email, tripId, tripName, inviterName, message? }
  */
 export async function POST(request: NextRequest) {
+  // Auth — must be signed in
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+  const { userId } = auth.ctx;
+
   const { email, tripId, tripName, inviterName, message } = await request.json();
+
+  // Verify the caller is the organizer of this trip
+  if (tripId) {
+    const supabase = createAdminClient();
+    const { data: trip } = await supabase
+      .from('trips')
+      .select('organizer_id')
+      .eq('id', tripId)
+      .maybeSingle();
+
+    if (!trip || trip.organizer_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
 
   if (!email || !tripId) {
     return NextResponse.json({ error: 'email and tripId required' }, { status: 400 });

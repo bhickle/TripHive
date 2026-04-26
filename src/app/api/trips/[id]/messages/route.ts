@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 /**
  * GET /api/trips/[id]/messages
  * Returns all chat messages for a trip.
+ * Requires the caller to be the trip organizer or a member.
  *
  * POST /api/trips/[id]/messages
  * Sends a new message.
@@ -12,7 +13,43 @@ import { createAdminClient } from '@/lib/supabase/admin';
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
+    // Auth check
+    let userId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      userId = user?.id ?? null;
+    } catch { /* auth failed */ }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createAdminClient();
+
+    // Verify caller is organizer or member of this trip
+    const { data: trip } = await supabase
+      .from('trips')
+      .select('organizer_id')
+      .eq('id', params.id)
+      .maybeSingle();
+
+    if (!trip) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    }
+
+    if (trip.organizer_id !== userId) {
+      const { data: membership } = await supabase
+        .from('trip_members')
+        .select('id')
+        .eq('trip_id', params.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!membership) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
 
     const { data: messages, error } = await supabase
       .from('group_messages')

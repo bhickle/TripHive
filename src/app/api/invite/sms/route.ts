@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/invite/sms
  * Sends a trip invite SMS via Twilio.
+ * Requires the caller to be the trip organizer.
  *
  * Required env vars:
  *   TWILIO_ACCOUNT_SID    — from console.twilio.com
@@ -13,7 +16,26 @@ import { NextRequest, NextResponse } from 'next/server';
  * Body: { phone, tripId, tripName, inviterName }
  */
 export async function POST(request: NextRequest) {
+  // Auth — must be signed in
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+  const { userId } = auth.ctx;
+
   const { phone, tripId, tripName, inviterName } = await request.json();
+
+  // Verify the caller is the organizer of this trip
+  if (tripId) {
+    const supabase = createAdminClient();
+    const { data: trip } = await supabase
+      .from('trips')
+      .select('organizer_id')
+      .eq('id', tripId)
+      .maybeSingle();
+
+    if (!trip || trip.organizer_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
 
   if (!phone || !tripId) {
     return NextResponse.json({ error: 'phone and tripId required' }, { status: 400 });
