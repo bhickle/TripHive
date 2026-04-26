@@ -444,6 +444,7 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
     return `
 MULTI-CITY TRIP — CRITICAL ROUTING RULES:
 This trip visits multiple cities in this order: ${cities.join(' → ')}.${dayAllocationText}
+ABSOLUTE RULE — NO DUPLICATE DAY NUMBERS: Every day object must have a unique "day" value. Day 1, Day 2, Day 3… through Day ${tripLength}. Never emit two objects with the same day number. If a city transition happens on Day 3, that transition IS Day 3 — do not re-use 3 for the next city's arrival.
 You MUST follow ALL of these rules:
 
 1. VISIT ORDER: Travel through the cities exactly in the order listed above. Never skip ahead and double back.
@@ -938,10 +939,12 @@ export async function POST(request: NextRequest) {
     }, { status: 403 });
   }
 
-  // Model selection: Nomad trips >7 days get higher token cap; all trips use claude-sonnet-4-6
-  const useHighCapModel = userTier === 'nomad' && requestedLength > 7;
+  // Token budget scales with trip length — each day needs ~2,400 tokens of JSON
+  // (activities, restaurants, transport legs, photo spots, descriptions).
+  // 16k was the old flat cap; it runs out on 7-day trips and badly truncates 10+ day trips.
+  // Formula: 2,400 tokens × days, clamped between 16k (floor) and 32k (API max for streaming).
   const modelId = 'claude-sonnet-4-6';
-  const maxTokens = useHighCapModel ? 32000 : 16000;
+  const maxTokens = Math.min(32000, Math.max(16000, requestedLength * 2400));
 
   // Use pre-fetched places from client if available (they were fetched on Step 8 / Review),
   // otherwise fall back to fetching here. This removes the ~10-15s wait before streaming starts.

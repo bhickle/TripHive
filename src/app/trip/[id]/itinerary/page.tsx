@@ -416,8 +416,19 @@ function ItineraryPageContent() {
   const [aiDays, setAiDays] = useState<ItineraryDay[] | null>(null);
   // Keep ref in sync so vote handler can read latest value without stale closures
   const syncAiDays = (days: ItineraryDay[] | null) => {
-    aiDaysRef.current = days;
-    setAiDays(days);
+    if (days) {
+      // Deduplicate by day number — AI occasionally emits duplicate day objects
+      // on multi-city trips when a transition straddles two cities. Keep the
+      // last occurrence so any richer data wins, then re-sort by day number.
+      const byDay = new Map<number, ItineraryDay>();
+      for (const d of days) byDay.set(d.day, d);
+      const deduped = Array.from(byDay.values()).sort((a, b) => a.day - b.day);
+      aiDaysRef.current = deduped;
+      setAiDays(deduped);
+    } else {
+      aiDaysRef.current = null;
+      setAiDays(null);
+    }
   };
   const [aiMeta, setAiMeta] = useState<{
     destination?: string; startDate?: string; endDate?: string;
@@ -572,7 +583,12 @@ function ItineraryPageContent() {
   }, []);
 
   const handleGenerateHotels = useCallback(async () => {
-    if (!aiMeta?.destination) return;
+    // Resolve destination: prefer aiMeta, fall back to trip object (always available)
+    const destination = aiMeta?.destination || trip.destination;
+    if (!destination) {
+      setHotelGenError('Could not determine trip destination. Please refresh and try again.');
+      return;
+    }
     setGeneratingHotels(true);
     setHotelGenError(null);
     try {
@@ -580,11 +596,11 @@ function ItineraryPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination: aiMeta.destination,
-          startDate: aiMeta.startDate,
-          endDate: aiMeta.endDate,
-          budget: aiMeta.budget,
-          budgetBreakdown: aiMeta.budgetBreakdown,
+          destination,
+          startDate: aiMeta?.startDate,
+          endDate: aiMeta?.endDate,
+          budget: aiMeta?.budget,
+          budgetBreakdown: aiMeta?.budgetBreakdown,
         }),
       });
       if (!res.ok) {
@@ -593,7 +609,10 @@ function ItineraryPageContent() {
       }
       const { hotelSuggestions } = await res.json();
       if (hotelSuggestions?.length) {
-        setAiMeta(prev => prev ? { ...prev, hotelSuggestions } : prev);
+        // Works whether aiMeta is populated or not — create a stub if needed
+        setAiMeta(prev => prev
+          ? { ...prev, hotelSuggestions }
+          : { destination, hotelSuggestions });
       } else {
         setHotelGenError('No hotel suggestions returned. Try again.');
       }
@@ -602,7 +621,7 @@ function ItineraryPageContent() {
     } finally {
       setGeneratingHotels(false);
     }
-  }, [aiMeta]);
+  }, [aiMeta, trip.destination]);
 
   // Form state
   const [newActivityName, setNewActivityName] = useState('');
