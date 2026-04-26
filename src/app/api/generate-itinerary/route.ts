@@ -939,12 +939,15 @@ export async function POST(request: NextRequest) {
     }, { status: 403 });
   }
 
-  // Token budget scales with trip length — each day needs ~2,400 tokens of JSON
-  // (activities, restaurants, transport legs, photo spots, descriptions).
-  // 16k was the old flat cap; it runs out on 7-day trips and badly truncates 10+ day trips.
-  // Formula: 2,400 tokens × days, clamped between 16k (floor) and 32k (API max for streaming).
+  // Token budget scales with trip length.
+  // Real-world measurement: each day object uses 5,000–8,000 tokens of JSON
+  // (shared track 3-4 activities + track_a/b, 3 restaurants, transport legs,
+  //  photo spots, destination tip, meetup, weather, descriptions).
+  // The old estimate of 2,400/day + 32K cap caused hard truncation at 4–5 days
+  // for any trip 7 days or longer. New formula: 8,000 tokens × days, 64K cap.
+  // Trips longer than ~8 days get a server-side continuation call (see below).
   const modelId = 'claude-sonnet-4-6';
-  const maxTokens = Math.min(32000, Math.max(16000, requestedLength * 2400));
+  const maxTokens = Math.min(64000, Math.max(24000, requestedLength * 8000));
 
   // Use pre-fetched places from client if available (they were fetched on Step 8 / Review),
   // otherwise fall back to fetching here. This removes the ~10-15s wait before streaming starts.
@@ -1103,6 +1106,75 @@ export async function POST(request: NextRequest) {
                 }
               }
             }
+          }
+        }
+
+        // ── Continuation call for trips where the first pass ran short ──────
+        // If the model stopped before generating all requested days (common for
+        // 9+ day trips even at 64K tokens), make a second Anthropic call asking
+        // it to produce only the remaining days, then stream those to the client.
+        if (dayIndex < requestedLength) {
+          console.log(`[generate-itinerary] First pass produced ${dayIndex}/${requestedLength} days — running continuation for days ${dayIndex + 1}–${requestedLength}`);
+          const remaining = requestedLength - dayIndex;
+          const contPrompt =
+            `The previous response only generated days 1–${dayIndex} of the ${requestedLength}-day trip to ${body.destination as string}. ` +
+            `Please generate ONLY the remaining ${remaining} days: Day ${dayIndex + 1} through Day ${requestedLength}. ` +
+            `Use the EXACT same JSON object format (same fields, same structure). ` +
+            `Return a JSON array starting at day number ${dayIndex + 1}. ` +
+            `Do NOT repeat any days already generated. Do NOT include a preamble — output ONLY the JSON array.`;
+
+          try {
+            const contStream = await client.messages.create({
+              model: modelId,
+              max_tokens: Math.min(64000, remaining * 8000),
+              stream: true,
+              messages: [
+                { role: 'user', content: prompt },
+                { role: 'user', content: contPrompt },
+              ],
+            });
+
+            let contBuf = '';
+            let contDepth = 0;
+            let contInStr = false;
+            let contEsc = false;
+            let contStart = -1;
+
+            for await (const ev of contStream) {
+              if (ev.type !== 'content_block_delta') continue;
+              if (ev.delta.type !== 'text_delta') continue;
+
+              for (const ch of ev.delta.text) {
+                if (contEsc)                      { contEsc = false; contBuf += ch; continue; }
+                if (ch === '\\' && contInStr)     { contEsc = true;  contBuf += ch; continue; }
+                if (ch === '"')                   { contInStr = !contInStr; contBuf += ch; continue; }
+                if (contInStr)                    { contBuf += ch; continue; }
+
+                contBuf += ch;
+
+                if (ch === '{') {
+                  if (contDepth === 0) contStart = contBuf.length - 1;
+                  contDepth++;
+                } else if (ch === '}' && contDepth > 0) {
+                  contDepth--;
+                  if (contDepth === 0 && contStart >= 0) {
+                    const rawObj = contBuf.slice(contStart);
+                    try {
+                      const dayObj = JSON.parse(cleanJson(rawObj)) as Record<string, unknown>;
+                      send({ type: 'day', index: dayIndex, data: dayObj });
+                      dayIndex++;
+                      contBuf = '';
+                      contStart = -1;
+                    } catch {
+                      contStart = -1;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (contErr) {
+            console.warn('[generate-itinerary] continuation call failed:', contErr);
+            // Non-fatal — we'll send done with however many days we have
           }
         }
 

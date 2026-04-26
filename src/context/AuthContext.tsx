@@ -63,10 +63,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('*')
           .eq('id', userId)
           .single();
-        setProfile(data ?? null);
+        // Only update profile when we get real data back.
+        // If Supabase returns null (transient — e.g. profile momentarily
+        // unavailable, tab-focus re-fetch during a slow network), keep the
+        // cached profile rather than dropping back to free tier.
+        // Profile is explicitly nulled only on sign-out.
+        if (data) setProfile(data);
       } catch (err) {
-        // Don't wipe profile on transient fetch errors — keep whatever was
-        // previously loaded. Profile is only explicitly nulled on sign-out.
+        // Query threw — same policy: keep cached profile.
         console.warn('[AuthContext] fetchProfile error (profile preserved):', err);
       } finally {
         setIsLoading(false);

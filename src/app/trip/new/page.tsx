@@ -790,8 +790,20 @@ function TripBuilderPage() {
         shoppingGuide: tripMeta.shoppingGuide || null,
       };
 
+      // Deduplicate by day field — on multi-city trips the AI occasionally emits
+      // two objects with the same day number (transition straddles two cities).
+      // Keep the last occurrence so richer data wins, then sort ascending.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const byDayNum: Record<number, any> = {};
+      for (const d of collectedDays) {
+        if (d && typeof d.day === 'number') byDayNum[d.day] = d;
+        else if (d) byDayNum[Object.keys(byDayNum).length + 1] = d; // fallback index
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dedupedDays = (Object.values(byDayNum) as any[]).sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+
       // Write to localStorage as an immediate fallback while we attempt the Supabase save
-      localStorage.setItem('generatedItinerary', JSON.stringify(collectedDays));
+      localStorage.setItem('generatedItinerary', JSON.stringify(dedupedDays));
       localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaFull));
 
       // Try to persist to Supabase and get a real trip ID
@@ -800,7 +812,7 @@ function TripBuilderPage() {
         const saveRes = await fetch('/api/trips/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: collectedDays }),
+          body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: dedupedDays }),
         });
         if (saveRes.ok) {
           const saveData = await saveRes.json();

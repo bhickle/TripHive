@@ -439,6 +439,7 @@ export default function SettingsPage() {
   ];
 
   const LS_KEY = 'tripcoord_integration_votes';
+  const LS_COMMENTS_KEY = 'tripcoord_integration_comments';
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>(
     Object.fromEntries(INTEGRATIONS.map(i => [i.id, i.votes]))
@@ -450,9 +451,17 @@ export default function SettingsPage() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(LS_KEY);
-      if (!stored) return;
-      const ids: string[] = JSON.parse(stored);
-      setVotedIds(new Set(ids));
+      if (stored) {
+        const ids: string[] = JSON.parse(stored);
+        setVotedIds(new Set(ids));
+      }
+    } catch { /* ignore */ }
+    try {
+      const storedComments = localStorage.getItem(LS_COMMENTS_KEY);
+      if (storedComments) {
+        const ids: string[] = JSON.parse(storedComments);
+        setSubmittedComments(new Set(ids));
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -485,7 +494,12 @@ export default function SettingsPage() {
     const text = comments[id]?.trim();
     if (!text) return;
     postVote(id, name, 'comment', text);
-    setSubmittedComments(prev => new Set(prev).add(id));
+    setSubmittedComments(prev => {
+      const next = new Set(prev).add(id);
+      try { localStorage.setItem(LS_COMMENTS_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+    setComments(prev => ({ ...prev, [id]: '' }));
     setExpandedComment(null);
   };
 
@@ -1016,31 +1030,31 @@ export default function SettingsPage() {
                               </button>
                             </div>
                           </div>
-                          {isExpanded && !submitted && (
-                            <div className="px-4 pb-4 flex gap-2">
-                              <input
-                                type="text"
-                                placeholder={`Tell us more about how you'd use ${integration.name}…`}
-                                value={comments[integration.id] || ''}
-                                onChange={e => setComments(prev => ({ ...prev, [integration.id]: e.target.value }))}
-                                onKeyDown={e => { if (e.key === 'Enter') handleSubmitComment(integration.id, integration.name); }}
-                                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 bg-white"
-                                autoFocus
-                              />
-                              <button
-                                onClick={() => handleSubmitComment(integration.id, integration.name)}
-                                disabled={!comments[integration.id]?.trim()}
-                                className="px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg transition-colors"
-                              >
-                                <Send className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-                          {isExpanded && submitted && (
-                            <div className="px-4 pb-4">
-                              <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5">
-                                <Check className="w-3.5 h-3.5" /> Thanks! We'll factor this in.
-                              </p>
+                          {isExpanded && (
+                            <div className="px-4 pb-4 space-y-2">
+                              {submitted && (
+                                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5">
+                                  <Check className="w-3.5 h-3.5" /> Your comment was submitted — feel free to add more!
+                                </p>
+                              )}
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder={submitted ? `Add another thought about ${integration.name}…` : `Tell us more about how you'd use ${integration.name}…`}
+                                  value={comments[integration.id] || ''}
+                                  onChange={e => setComments(prev => ({ ...prev, [integration.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter') handleSubmitComment(integration.id, integration.name); }}
+                                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 bg-white"
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleSubmitComment(integration.id, integration.name)}
+                                  disabled={!comments[integration.id]?.trim()}
+                                  className="px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg transition-colors"
+                                >
+                                  <Send className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
