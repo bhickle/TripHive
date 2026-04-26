@@ -171,7 +171,7 @@ function AddDestinationModal({
 }) {
   const [stage, setStage] = useState<ModalStage>('search');
   const [destination, setDestination] = useState('');
-  const [vibe, setVibe] = useState<TravelVibe>('adventure');
+  const [vibes, setVibes] = useState<TravelVibe[]>(['adventure']);
   const [tripDays, setTripDays] = useState<number>(7);
   const [msgIdx, setMsgIdx] = useState(0);
   const [preview, setPreview] = useState<WishlistItem | null>(null);
@@ -228,7 +228,7 @@ function AddDestinationModal({
           endDate: fmt(endDate),
           tripLength: tripDays,
           groupType: 'friends',
-          priorities: [vibe],
+          priorities: vibes,
           budget,
           budgetBreakdown: {
             flights: Math.round(budget * 0.30 / 50) * 50,
@@ -245,7 +245,7 @@ function AddDestinationModal({
       const data = await res.json();
 
       // Gather highlights from across multiple days for longer trips
-      let highlights: string[] = VIBE_HIGHLIGHTS[vibe];
+      let highlights: string[] = VIBE_HIGHLIGHTS[vibes[0]];
       if (res.ok && data.itinerary?.days?.length) {
         const allActivities: string[] = [];
         // Sample from day 1, middle day, and last day for variety
@@ -270,7 +270,7 @@ function AddDestinationModal({
         coverImage: getCoverImage(destination),
         bestSeason: 'Year-round',
         estimatedCost,
-        tags: [vibe.charAt(0).toUpperCase() + vibe.slice(1)],
+        tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
         highlights,
         aiGenerated: true,
         tripDays,
@@ -286,14 +286,14 @@ function AddDestinationModal({
         coverImage: getCoverImage(destination),
         bestSeason: 'Year-round',
         estimatedCost,
-        tags: [vibe.charAt(0).toUpperCase() + vibe.slice(1)],
-        highlights: VIBE_HIGHLIGHTS[vibe],
+        tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
+        highlights: VIBE_HIGHLIGHTS[vibes[0]],
         aiGenerated: true,
         tripDays,
       });
       setStage('preview');
     }
-  }, [destination, vibe, tripDays]);
+  }, [destination, vibes, tripDays]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -480,23 +480,35 @@ function AddDestinationModal({
 
             {/* Vibe selector */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">What's the vibe?</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-slate-700">What's the vibe?</label>
+                <span className="text-xs text-slate-400">Pick up to 3</span>
+              </div>
               <div className="grid grid-cols-3 gap-2">
-                {VIBE_OPTIONS.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setVibe(v.id)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all duration-150 ${
-                      vibe === v.id
-                        ? 'border-sky-600 bg-sky-50 text-sky-700'
-                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                    }`}
-                  >
-                    <span className={vibe === v.id ? 'text-sky-600' : 'text-slate-400'}>{v.icon}</span>
-                    {v.label}
-                  </button>
-                ))}
+                {VIBE_OPTIONS.map((v) => {
+                  const selected = vibes.includes(v.id);
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => {
+                        setVibes(prev =>
+                          prev.includes(v.id)
+                            ? prev.length > 1 ? prev.filter(x => x !== v.id) : prev // keep at least 1
+                            : prev.length < 3 ? [...prev, v.id] : prev              // cap at 3
+                        );
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all duration-150 ${
+                        selected
+                          ? 'border-sky-600 bg-sky-50 text-sky-700'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <span className={selected ? 'text-sky-600' : 'text-slate-400'}>{v.icon}</span>
+                      {v.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
