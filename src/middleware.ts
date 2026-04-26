@@ -23,6 +23,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ── Always allow join pages — SMS invitees don't have the preview cookie ──
+  if (pathname.startsWith('/join/')) {
+    return NextResponse.next();
+  }
+
   // ── Preview key in query string → set cookie & redirect to clean URL ──
   const previewKey = searchParams.get('preview');
   if (previewKey === PREVIEW_SECRET) {
