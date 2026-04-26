@@ -423,8 +423,37 @@ function ItineraryPageContent() {
       const byDay: Record<number, ItineraryDay> = {};
       for (const d of days) byDay[d.day] = d;
       const deduped = (Object.values(byDay) as ItineraryDay[]).sort((a, b) => a.day - b.day);
-      aiDaysRef.current = deduped;
-      setAiDays(deduped);
+
+      // Normalize track labels — the AI sometimes renames tracks between days
+      // despite prompt instructions. Pick the most-common non-null label pair
+      // across all split days and enforce it everywhere.
+      const countLabels = (key: 'trackALabel' | 'trackBLabel'): string | null => {
+        const freq: Record<string, number> = {};
+        for (const d of deduped) {
+          const v = (d as unknown as Record<string, unknown>)[key];
+          if (typeof v === 'string' && v.trim()) {
+            freq[v] = (freq[v] ?? 0) + 1;
+          }
+        }
+        const entries = Object.entries(freq);
+        if (!entries.length) return null;
+        return entries.reduce((best, cur) => cur[1] > best[1] ? cur : best)[0];
+      };
+      const canonA = countLabels('trackALabel');
+      const canonB = countLabels('trackBLabel');
+      const normalized = deduped.map(d => {
+        const da = d as unknown as Record<string, unknown>;
+        const hasSplit = Array.isArray(da.track_a) && (da.track_a as unknown[]).length > 0;
+        if (!hasSplit) return d;
+        return {
+          ...d,
+          trackALabel: canonA ?? da.trackALabel,
+          trackBLabel: canonB ?? da.trackBLabel,
+        } as ItineraryDay;
+      });
+
+      aiDaysRef.current = normalized;
+      setAiDays(normalized);
     } else {
       aiDaysRef.current = null;
       setAiDays(null);
