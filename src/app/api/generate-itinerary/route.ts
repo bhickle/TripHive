@@ -946,6 +946,7 @@ export async function POST(request: NextRequest) {
   let organizerPersona: { priorities: string[]; vibes?: string[] } | null = null;
   let creditsUsed = 0;
   let creditsTotal = 10; // conservative default (free tier)
+  let creditsResetAt: string = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString();
 
   try {
     const adminClient = createAdminClient();
@@ -963,6 +964,7 @@ export async function POST(request: NextRequest) {
     const tierDefault = TIER_LIMITS[userTier].aiCreditsPerMonth;
     creditsTotal = profile?.ai_credits_total ?? (typeof tierDefault === 'number' ? tierDefault : 30);
     creditsUsed  = profile?.ai_credits_used  ?? 0;
+    if (profile?.ai_credits_reset_at) creditsResetAt = profile.ai_credits_reset_at;
 
     // Monthly reset: if the reset window has passed, zero out credits and push the window forward
     const resetAt = profile?.ai_credits_reset_at ? new Date(profile.ai_credits_reset_at) : null;
@@ -1033,9 +1035,10 @@ export async function POST(request: NextRequest) {
   if (creditsUsed >= creditsTotal) {
     return NextResponse.json({
       error: 'CREDIT_LIMIT',
-      message: `You've used all ${creditsTotal} AI credits for this billing period. Upgrade your plan or wait for your credits to reset next month.`,
+      message: `You've used all ${creditsTotal} AI credits for this billing period.`,
       creditsUsed,
       creditsTotal,
+      creditsResetAt,
     }, { status: 429 });
   }
 
@@ -1150,6 +1153,8 @@ export async function POST(request: NextRequest) {
         let escape = false;
         let objStart = -1;
         let dayIndex = 0;
+        // Accumulate day objects so continuations can reference what's been built
+        const collectedDays: Record<string, unknown>[] = [];
 
         for await (const event of anthropicStream) {
           if (event.type !== 'content_block_delta') continue;
@@ -1195,6 +1200,7 @@ export async function POST(request: NextRequest) {
                   }
 
                   send({ type: 'day', index: dayIndex, data: dayObj });
+                  collectedDays.push(dayObj);
                   dayIndex++;
 
                   // Trim the buffer — the object has been consumed
@@ -1210,29 +1216,43 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // ── Continuation call for trips where the first pass ran short ──────
-        // If the model stopped before generating all requested days (common for
-        // 9+ day trips even at 64K tokens), make a second Anthropic call asking
-        // it to produce only the remaining days, then stream those to the client.
-        if (dayIndex < requestedLength) {
-          console.log(`[generate-itinerary] First pass produced ${dayIndex}/${requestedLength} days — running continuation for days ${dayIndex + 1}–${requestedLength}`);
+        // ── Continuation loop for trips where a pass ran short ───────────────
+        // Each pass is allowed to produce fewer days than requested (common at
+        // 9+ days even at 64K tokens). We retry up to MAX_CONTINUATIONS times,
+        // each time passing a summary of what has already been generated so the
+        // model never repeats days. We stop as soon as all days are present or
+        // we exhaust our retry budget.
+        const MAX_CONTINUATIONS = 3;
+        let contAttempt = 0;
+
+        while (dayIndex < requestedLength && contAttempt < MAX_CONTINUATIONS) {
+          contAttempt++;
           const remaining = requestedLength - dayIndex;
-          const contPrompt =
-            `The previous response only generated days 1–${dayIndex} of the ${requestedLength}-day trip to ${body.destination as string}. ` +
-            `Please generate ONLY the remaining ${remaining} days: Day ${dayIndex + 1} through Day ${requestedLength}. ` +
-            `Use the EXACT same JSON object format (same fields, same structure). ` +
-            `Return a JSON array starting at day number ${dayIndex + 1}. ` +
-            `Do NOT repeat any days already generated. Do NOT include a preamble — output ONLY the JSON array.`;
+          console.log(`[generate-itinerary] Pass ${contAttempt}: have ${dayIndex}/${requestedLength} days — requesting days ${dayIndex + 1}–${requestedLength}`);
+
+          // Build a compact summary of already-generated days so the model
+          // knows exactly what exists and won't regenerate any of it.
+          const generatedSummary = collectedDays
+            .map((d) => `Day ${String(d.day ?? '')}: ${String(d.theme ?? 'generated')}`)
+            .join('\n');
+
+          const contPrompt = [
+            `CONTINUATION — ${requestedLength}-day trip to ${body.destination as string}.`,
+            `Days already generated (DO NOT reproduce these — output ONLY what comes after):`,
+            generatedSummary,
+            ``,
+            `Generate ONLY Day ${dayIndex + 1} through Day ${requestedLength} (${remaining} day${remaining === 1 ? '' : 's'}).`,
+            `Use the EXACT same JSON object format (same fields, same structure as the original request).`,
+            `Return a JSON array starting at "day": ${dayIndex + 1}. No preamble — output ONLY the JSON array.`,
+          ].join('\n');
 
           try {
             const contStream = await client.messages.create({
               model: modelId,
               max_tokens: Math.min(64000, remaining * 8000),
               stream: true,
-              messages: [
-                { role: 'user', content: prompt },
-                { role: 'user', content: contPrompt },
-              ],
+              // Single valid user message: original context + continuation directive
+              messages: [{ role: 'user', content: `${prompt}\n\n---\n\n${contPrompt}` }],
             });
 
             let contBuf = '';
@@ -1240,16 +1260,17 @@ export async function POST(request: NextRequest) {
             let contInStr = false;
             let contEsc = false;
             let contStart = -1;
+            const daysBefore = dayIndex; // detect if this pass produces anything
 
             for await (const ev of contStream) {
               if (ev.type !== 'content_block_delta') continue;
               if (ev.delta.type !== 'text_delta') continue;
 
               for (const ch of ev.delta.text) {
-                if (contEsc)                      { contEsc = false; contBuf += ch; continue; }
-                if (ch === '\\' && contInStr)     { contEsc = true;  contBuf += ch; continue; }
-                if (ch === '"')                   { contInStr = !contInStr; contBuf += ch; continue; }
-                if (contInStr)                    { contBuf += ch; continue; }
+                if (contEsc)                       { contEsc = false; contBuf += ch; continue; }
+                if (ch === '\\' && contInStr)      { contEsc = true;  contBuf += ch; continue; }
+                if (ch === '"')                    { contInStr = !contInStr; contBuf += ch; continue; }
+                if (contInStr)                     { contBuf += ch; continue; }
 
                 contBuf += ch;
 
@@ -1263,6 +1284,7 @@ export async function POST(request: NextRequest) {
                     try {
                       const dayObj = JSON.parse(cleanJson(rawObj)) as Record<string, unknown>;
                       send({ type: 'day', index: dayIndex, data: dayObj });
+                      collectedDays.push(dayObj);
                       dayIndex++;
                       contBuf = '';
                       contStart = -1;
@@ -1273,10 +1295,21 @@ export async function POST(request: NextRequest) {
                 }
               }
             }
+
+            // If the model returned nothing new, no point retrying — it's stuck
+            if (dayIndex === daysBefore) {
+              console.warn(`[generate-itinerary] Continuation pass ${contAttempt} produced 0 days — stopping retry loop`);
+              break;
+            }
           } catch (contErr) {
-            console.warn('[generate-itinerary] continuation call failed:', contErr);
-            // Non-fatal — we'll send done with however many days we have
+            console.warn(`[generate-itinerary] Continuation pass ${contAttempt} failed:`, contErr);
+            // Break rather than retry on hard errors (rate limits, network, etc.)
+            break;
           }
+        }
+
+        if (dayIndex < requestedLength) {
+          console.warn(`[generate-itinerary] Trip ended with ${dayIndex}/${requestedLength} days after ${contAttempt} continuation attempt(s)`);
         }
 
         // Signal stream end to client. Include total days emitted so the client
