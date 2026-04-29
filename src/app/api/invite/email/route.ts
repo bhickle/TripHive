@@ -118,11 +118,13 @@ export async function POST(request: NextRequest) {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(JSON.stringify(data) || 'SendGrid error');
+      console.error('[invite/email] SendGrid status:', res.status, 'body:', JSON.stringify(data));
+      throw new Error(`SendGrid ${res.status}: ${JSON.stringify(data)}`);
     }
     return NextResponse.json({ success: true, notified: existingUserId ? 'in_app_and_email' : 'email' });
   } catch (err) {
-    console.error('[invite/email] error:', err);
-    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[invite/email] error:', msg);
+    return NextResponse.json({ error: 'Failed to send email', detail: msg }, { status: 500 });
   }
 }
