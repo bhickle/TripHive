@@ -26,11 +26,6 @@ import {
   UserPlus,
   X,
   MessageSquare,
-  Route,
-  DollarSign,
-  Vote,
-  AlertCircle,
-  CheckCircle2,
   Users,
   Sparkles,
   Copy,
@@ -48,16 +43,6 @@ interface Notification {
   icon: string;
 }
 
-const mockNotifications: Notification[] = [
-  { id: 'n1', type: 'vote', title: 'New votes on Boat Tour', message: 'Sarah and 2 others voted for the sunset boat tour on Day 3.', trip: 'Bali Escape', time: '8 min ago', read: false, icon: '🗳️' },
-  { id: 'n2', type: 'chat', title: 'Marcus in Group Chat', message: '"Should we book the cooking class now? Spots are filling up fast!"', trip: 'Bali Escape', time: '22 min ago', read: false, icon: '💬' },
-  { id: 'n3', type: 'expense', title: 'Expense Added', message: 'Emily Park added Spa Day ($340) — split equally 5 ways.', trip: 'Bali Escape', time: '1 hr ago', read: false, icon: '💰' },
-  { id: 'n4', type: 'activity', title: 'Transport leg added', message: 'A private driver transfer from the airport to the resort was added to Day 1.', trip: 'Bali Escape', time: '2 hrs ago', read: false, icon: '🗺️' },
-  { id: 'n5', type: 'activity', title: 'Itinerary Updated', message: 'Sarah Chen added "Temple Visit" to Day 3 of Bali Escape.', trip: 'Bali Escape', time: '3 hrs ago', read: true, icon: '🗺️' },
-  { id: 'n6', type: 'ai', title: 'AI suggestion ready', message: 'Your personalised Day 4 itinerary was generated based on your group\'s votes.', trip: 'Bali Escape', time: '4 hrs ago', read: true, icon: '✨' },
-  { id: 'n7', type: 'member', title: 'Tyler joined the trip', message: 'Tyler Hansen accepted your invite and joined Bali Escape.', trip: 'Bali Escape', time: 'Yesterday', read: true, icon: '👋' },
-  { id: 'n8', type: 'prep', title: '3 days until departure', message: 'Your trip to Bali starts on May 12. Time to check your prep list!', trip: 'Bali Escape', time: 'Yesterday', read: true, icon: '⏰' },
-];
 
 export default function DashboardPage() {
   const currentUser = useCurrentUser();
@@ -125,13 +110,9 @@ export default function DashboardPage() {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  // Load notifications: mock for demo, real DB records for authenticated users
+  // Load notifications from DB for authenticated users
   useEffect(() => {
-    if (currentUser.isLoading) return;
-    if (currentUser.isDemo) {
-      setNotifications(mockNotifications);
-      return;
-    }
+    if (currentUser.isLoading || currentUser.isDemo) return;
     // Real user — fetch from DB
     fetch('/api/notifications')
       .then(r => r.ok ? r.json() : { notifications: [] })

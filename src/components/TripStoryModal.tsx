@@ -307,8 +307,7 @@ function BudgetSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string }) {
     <SlideWithPhotoBg bgPhoto={bgPhoto}>
       <div className="flex flex-col p-8 pt-10 h-full">
         <p className="text-zinc-400 text-xs font-semibold uppercase tracking-widest mb-2">Follow the money</p>
-        <h2 className="text-white text-3xl font-black mb-1 leading-tight">Where it went</h2>
-        <p className="text-zinc-400 text-sm mb-5">${total.toLocaleString()} total budget</p>
+        <h2 className="text-white text-3xl font-black mb-5 leading-tight">Where it went</h2>
         <div className="flex flex-col gap-3 flex-1">
           {items.map(({ key, val, pct }) => (
             <div key={key}>
@@ -554,14 +553,14 @@ function ShareSlide({ trip, onDownload }: { trip: Trip; onDownload: () => void }
             Save this card
           </button>
           <button
-            onClick={() => navigator.clipboard.writeText(`https://tripcoord.app/story/${trip.id}`)}
+            onClick={() => navigator.clipboard.writeText(`https://tripcoord.ai/story/${trip.id}`)}
             className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all"
           >
             <Share2 className="w-4 h-4" />
             Copy share link
           </button>
         </div>
-        <p className="text-white/30 text-xs mt-8 font-medium">tripcoord.app</p>
+        <p className="text-white/30 text-xs mt-8 font-medium">tripcoord.ai</p>
       </div>
     </div>
   );
@@ -761,12 +760,12 @@ function YearlyShareSlide({ year, onDownload, reactions, onOpen }: { year: numbe
             <Download className="w-4 h-4" />
             Save your wrap
           </button>
-          <button onClick={() => navigator.clipboard.writeText(`https://tripcoord.app/year/${year}`)} className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all">
+          <button onClick={() => navigator.clipboard.writeText(`https://tripcoord.ai/year/${year}`)} className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all">
             <Share2 className="w-4 h-4" />
             Share your {year}
           </button>
         </div>
-        <p className="text-white/25 text-xs mt-5 font-medium">tripcoord.app</p>
+        <p className="text-white/25 text-xs mt-5 font-medium">tripcoord.ai</p>
       </div>
     </div>
   );

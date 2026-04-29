@@ -6,7 +6,6 @@ import {
   DollarSign, ThumbsUp, UserPlus, Sparkles, Route,
   Calendar,
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,106 +32,6 @@ export interface Notification {
   avatarColor?: string;
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: 'n1',
-    type: 'vote',
-    title: 'New votes on Boat Tour',
-    message: 'Sarah and 2 others voted for the sunset boat tour on Day 3.',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: '8 min ago',
-    read: false,
-    avatar: 'SC',
-    avatarColor: 'bg-violet-500',
-  },
-  {
-    id: 'n2',
-    type: 'chat',
-    title: 'Marcus in Group Chat',
-    message: '"Should we book the cooking class now? Spots are filling up fast!"',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: '22 min ago',
-    read: false,
-    avatar: 'MJ',
-    avatarColor: 'bg-sky-600',
-  },
-  {
-    id: 'n3',
-    type: 'expense',
-    title: 'Expense added',
-    message: 'Emily Park added Spa Day ($340) — split equally 5 ways.',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: '1 hr ago',
-    read: false,
-    avatar: 'EP',
-    avatarColor: 'bg-emerald-500',
-  },
-  {
-    id: 'n4',
-    type: 'transport',
-    title: 'Transport leg added',
-    message: 'A private driver transfer from the airport to the resort was added to Day 1.',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: '2 hr ago',
-    read: false,
-    avatar: 'TH',
-    avatarColor: 'bg-amber-500',
-  },
-  {
-    id: 'n5',
-    type: 'itinerary',
-    title: 'Itinerary updated',
-    message: 'Sarah Chen added "Temple Visit" to Day 3 of Bali Escape.',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: '3 hr ago',
-    read: true,
-    avatar: 'SC',
-    avatarColor: 'bg-violet-500',
-  },
-  {
-    id: 'n6',
-    type: 'ai',
-    title: 'AI suggestion ready',
-    message: 'Your personalized Day 4 itinerary was generated based on your group\'s votes.',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: '4 hr ago',
-    read: true,
-    avatar: undefined,
-    avatarColor: undefined,
-  },
-  {
-    id: 'n7',
-    type: 'member',
-    title: 'Tyler joined the trip',
-    message: 'Tyler Hansen accepted your invite and joined Bali Escape.',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: 'Yesterday',
-    read: true,
-    avatar: 'TH',
-    avatarColor: 'bg-rose-500',
-  },
-  {
-    id: 'n8',
-    type: 'reminder',
-    title: '3 days until departure',
-    message: 'Your trip to Bali starts on May 12. Time to check your prep list!',
-    tripId: 'trip_1',
-    tripName: 'Bali Escape',
-    time: 'Yesterday',
-    read: true,
-    avatar: undefined,
-    avatarColor: undefined,
-  },
-];
 
 // ─── Icon factory ─────────────────────────────────────────────────────────────
 
@@ -219,13 +118,8 @@ function NotifItem({
 // ─── Bell Button (exported for use in TopBar) ─────────────────────────────────
 
 export function NotificationBell() {
-  const { user, isDemo } = useAuth();
-  const isRealUser = !!user && !isDemo;
-
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(
-    isRealUser ? [] : MOCK_NOTIFICATIONS,
-  );
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -343,7 +237,7 @@ export function NotificationBell() {
           {/* Footer */}
           <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
             <p className="text-xs text-slate-400 text-center">
-              {isRealUser ? 'Notifications are per-trip.' : 'Demo mode — showing sample notifications.'}
+              Notifications are per-trip.
             </p>
           </div>
         </div>
