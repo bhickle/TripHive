@@ -214,9 +214,12 @@ export default function GeneratingPage() {
           return;
         }
         if (d.error === 'CREDIT_LIMIT') {
-          // Out of AI credits — show a clear message, then redirect to pricing
-          const used = d.creditsTotal ?? 'your';
-          setErrorMsg(`You've used all ${used} AI credits for this billing period. Credits refresh automatically at the start of next month — or upgrade now for more.`);
+          // Out of AI credits — show a clear message with the actual reset date, then redirect
+          const total = d.creditsTotal ?? 'your';
+          const resetDate = d.creditsResetAt
+            ? new Date(d.creditsResetAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+            : 'the start of next month';
+          setErrorMsg(`You've used all ${total} AI credits for this period. They reset on ${resetDate} — or upgrade now for more.`);
           setErrorType('credits');
           setPhase('error');
           // Auto-redirect after 5s so users can read the message

@@ -66,7 +66,7 @@ const faqs = [
   },
   {
     q: 'What happens if I use all my AI credits?',
-    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you 350 credits — enough for even the most enthusiastic planner.",
+    a: "Free credits reset on the 1st of each month. Paid plan credits reset on your monthly renewal date. If you need more immediately, upgrading to Nomad gives you 350 credits — enough for even the most enthusiastic planner.",
   },
   {
     q: 'Can I switch plans?',
@@ -128,8 +128,8 @@ function CreditsBanner() {
         <div>
           <p className="text-sm font-semibold text-amber-900">You&apos;ve used all your AI credits for this billing period</p>
           <p className="text-sm text-amber-700 mt-0.5">
-            Your credits refresh automatically on your next billing date — or upgrade below to get more right now.
-            Explorer gives you 100 credits/month, Nomad gives you 350.
+            Free credits reset at the start of each month; paid plan credits reset on your renewal date.
+            Upgrade below to get more right now — Explorer gives you 100 credits/month, Nomad gives you 350.
           </p>
         </div>
       </div>

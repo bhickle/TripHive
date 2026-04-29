@@ -3,6 +3,35 @@ import { createClient } from './server';
 import { createAdminClient } from './admin';
 import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
 
+/**
+ * requireFeature — call after requireAuth to gate a feature by tier.
+ *
+ * Returns null if the user is allowed, or a ready-to-return 403 NextResponse
+ * if they are not.
+ *
+ * Usage:
+ *   const auth = await requireAuth();
+ *   if (!auth.ok) return auth.response;
+ *   const denied = requireFeature(auth.ctx.tier, 'canUseTransportParser');
+ *   if (denied) return denied;
+ */
+export function requireFeature(
+  tier: SubscriptionTier,
+  feature: keyof typeof TIER_LIMITS[SubscriptionTier],
+): NextResponse | null {
+  const allowed = TIER_LIMITS[tier][feature];
+  if (allowed) return null;
+  return NextResponse.json(
+    {
+      error: 'FEATURE_LOCKED',
+      message: 'This feature is not available on your current plan. Upgrade to unlock it.',
+      feature,
+      tier,
+    },
+    { status: 403 },
+  );
+}
+
 export interface AuthContext {
   userId: string;
   tier: SubscriptionTier;

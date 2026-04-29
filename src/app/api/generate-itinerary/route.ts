@@ -1031,11 +1031,16 @@ export async function POST(request: NextRequest) {
   // Each successful generation costs 1 credit. Check before the stream opens
   // so we never burn Anthropic tokens for an over-quota request.
   if (creditsUsed >= creditsTotal) {
+    // Compute the reset date to show the user exactly when they get credits back
+    const resetAt = profile?.ai_credits_reset_at
+      ? new Date(profile.ai_credits_reset_at)
+      : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
     return NextResponse.json({
       error: 'CREDIT_LIMIT',
-      message: `You've used all ${creditsTotal} AI credits for this billing period. Upgrade your plan or wait for your credits to reset next month.`,
+      message: `You've used all ${creditsTotal} AI credits for this billing period.`,
       creditsUsed,
       creditsTotal,
+      creditsResetAt: resetAt.toISOString(),
     }, { status: 429 });
   }
 
