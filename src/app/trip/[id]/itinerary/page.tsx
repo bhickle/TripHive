@@ -47,7 +47,8 @@ import {
   FileDown,
   Map,
 } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { MapView } from '@/components/MapView';
@@ -296,7 +297,9 @@ function ItineraryPageContent() {
   const [editEndDate, setEditEndDate] = useState('');
   const [savingTripEdit, setSavingTripEdit] = useState(false);
 
-  const { hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements();
+  const { tier, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements();
+  const currentUser = useCurrentUser();
+  const router = useRouter();
 
   // Extra transport legs added live via the parser (keyed by day number)
   const [addedTransport, setAddedTransport] = useState<Record<number, TransportLeg[]>>({});
@@ -320,6 +323,11 @@ function ItineraryPageContent() {
   // Hotel generation state
   const [generatingHotels, setGeneratingHotels] = useState(false);
   const [hotelGenError, setHotelGenError] = useState<string | null>(null);
+
+  // Group input / regenerate state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [tripRow, setTripRow] = useState<Record<string, any> | null>(null);
+  const [newPrefsCount, setNewPrefsCount] = useState(0);
 
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     // Compute new vote counts using the current votes state via functional updater
@@ -490,6 +498,44 @@ function ItineraryPageContent() {
   } | null>(null);
   const [showAiBanner, setShowAiBanner] = useState(false);
 
+  // Rebuild the itinerary incorporating new member preferences (Explorer/Nomad)
+  // Declared after aiMeta so it can reference it without a forward-reference error
+  const handleRegenerate = useCallback(() => {
+    if (!aiMeta && !tripRow) return;
+    const destination = tripRow?.destination || aiMeta?.destination || '';
+    const payload = {
+      destination,
+      tripLength: aiDaysRef.current?.length || tripRow?.trip_length || 7,
+      groupSize: tripRow?.group_size || 2,
+      groupType: tripRow?.group_type || aiMeta?.groupType || 'friends',
+      startDate: aiMeta?.startDate || tripRow?.start_date || null,
+      endDate: aiMeta?.endDate || tripRow?.end_date || null,
+      budget: aiMeta?.budget || tripRow?.budget_total || 0,
+      preferences: {
+        ...(tripRow?.preferences as object || {}),
+        ...(aiMeta?.preferences as object || {}),
+      },
+      tripId: tripPageId,
+      existingTripId: tripPageId,
+    };
+    const meta = {
+      destination,
+      title: aiMeta?.destination ? `${aiMeta.destination} Trip` : (tripRow?.title || 'My Trip'),
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      budget: payload.budget,
+      budgetBreakdown: aiMeta?.budgetBreakdown || tripRow?.budget_breakdown || {},
+      bookedHotels: aiMeta?.bookedHotels || tripRow?.booked_hotels || [],
+      bookedFlight: tripRow?.booked_flight || null,
+      groupType: payload.groupType,
+      groupSize: payload.groupSize,
+      preferences: payload.preferences,
+    };
+    sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payload));
+    sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(meta));
+    router.push('/trip/generating');
+  }, [aiMeta, tripRow, tripPageId, router]);
+
   useEffect(() => {
     const load = async () => {
       // 1. Try Supabase first using the CURRENT PAGE's trip ID (from the URL)
@@ -498,8 +544,10 @@ function ItineraryPageContent() {
         try {
           const res = await fetch(`/api/trips/${tripPageId}`);
           if (res.ok) {
-            const { itinerary } = await res.json();
-            if (Array.isArray(itinerary.days) && itinerary.days.length > 0) {
+            const { trip: tripData, itinerary, newPrefsCount: npc } = await res.json();
+            if (tripData) setTripRow(tripData);
+            if (typeof npc === 'number') setNewPrefsCount(npc);
+            if (itinerary && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
               syncAiDays(itinerary.days);
               setShowAiBanner(true);
               if (itinerary.meta) setAiMeta(itinerary.meta);
@@ -1220,7 +1268,7 @@ function ItineraryPageContent() {
               )}
             </div>
             <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
-              {new Date(currentDayData.date).toLocaleDateString('en-US', {
+              {new Date(currentDayData.date + 'T00:00:00').toLocaleDateString('en-US', {
                 weekday: 'long', month: 'long', day: 'numeric',
               })}
             </h1>
@@ -1337,11 +1385,33 @@ function ItineraryPageContent() {
           </p>
         )}
 
+        {/* Regenerate with group input banner — Explorer/Nomad only, organizer only */}
+        {newPrefsCount > 0
+          && (tier === 'explorer' || tier === 'nomad')
+          && currentUser.id
+          && tripRow?.organizer_id === currentUser.id
+          && (
+          <div className="mb-5 flex items-center gap-3 bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
+            <Users className="w-4 h-4 text-sky-600 flex-shrink-0" />
+            <p className="flex-1 text-sm text-sky-800">
+              <span className="font-semibold">{newPrefsCount} new {newPrefsCount === 1 ? 'traveler has' : 'travelers have'} added their preferences</span>
+              {' '}since this itinerary was built.
+            </p>
+            <button
+              onClick={handleRegenerate}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-full transition-all whitespace-nowrap"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Regenerate
+            </button>
+          </div>
+        )}
+
         {/* Day Selector */}
         <div className="mb-8 overflow-x-auto pb-2">
           <div className="flex gap-2 min-w-min">
             {activeDays.map((day: { day: number; date: string }) => {
-              const dayDateStr = new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const dayDateStr = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               return (
                 <button
                   key={day.day}
@@ -2044,9 +2114,9 @@ function ItineraryPageContent() {
                       )}
                       {(h.checkIn || h.checkOut) && (
                         <p className="text-[11px] text-zinc-400 mt-1.5">
-                          {h.checkIn && new Date(h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {h.checkIn && new Date(h.checkIn.length === 10 ? h.checkIn + 'T00:00:00' : h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           {h.checkIn && h.checkOut && ' → '}
-                          {h.checkOut && new Date(h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {h.checkOut && new Date(h.checkOut.length === 10 ? h.checkOut + 'T00:00:00' : h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </p>
                       )}
                     </div>
