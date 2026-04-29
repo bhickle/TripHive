@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireAuth, requireFeature } from '@/lib/supabase/requireAuth';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -49,6 +49,8 @@ Return ONLY the JSON object. Start with { and end with }.`;
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+  const denied = requireFeature(auth.ctx.tier, 'canUseTransportParser');
+  if (denied) return denied;
 
   try {
     const body = await request.json();

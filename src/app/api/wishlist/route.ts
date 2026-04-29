@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAuth, requireFeature } from '@/lib/supabase/requireAuth';
 
 /**
  * GET /api/wishlist
  * Returns the current user's wishlist items.
  *
- * POST /api/wishlist
+ * POST /api/wishlist  [Explorer+ required]
  * Adds a wishlist item. Body: { destination, country?, coverImage?, bestSeason?, estimatedCost?, tags? }
  *
- * DELETE /api/wishlist?id=<item_id>
+ * DELETE /api/wishlist?id=<item_id>  [Explorer+ required]
  * Removes a wishlist item.
  */
 async function getCurrentUserId(): Promise<string | null> {
@@ -55,9 +56,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+  const denied = requireFeature(auth.ctx.tier, 'canUseWishlist');
+  if (denied) return denied;
+
   try {
-    const userId = await getCurrentUserId();
-    if (!userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const userId = auth.ctx.userId;
 
     const body = await req.json();
     const { destination, country, coverImage, bestSeason, estimatedCost, tags, notes } = body;
@@ -100,9 +105,13 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+  const denied = requireFeature(auth.ctx.tier, 'canUseWishlist');
+  if (denied) return denied;
+
   try {
-    const userId = await getCurrentUserId();
-    if (!userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const userId = auth.ctx.userId;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
