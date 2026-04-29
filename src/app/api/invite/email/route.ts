@@ -4,11 +4,12 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/invite/email
- * Sends a trip invite email via Resend, OR creates an in-app notification
+ * Sends a trip invite email via SendGrid, OR creates an in-app notification
  * if the invitee already has a TripCoord account.
  *
- * Required env var (when email delivery is needed):
- *   RESEND_API_KEY         — from resend.com → API Keys
+ * Required env vars (when email delivery is needed):
+ *   SENDGRID_API_KEY       — from app.sendgrid.com → Settings → API Keys
+ *   SENDGRID_FROM_EMAIL    — verified sender address in SendGrid
  *   NEXT_PUBLIC_APP_URL    — e.g. https://www.tripcoord.ai
  *
  * Body: { email, tripId, tripName, inviterName, message? }
@@ -64,55 +65,61 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, notified: 'in_app' });
   }
 
-  // ── Send email via Resend ─────────────────────────────────────────────────
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey || apiKey === 'your_resend_api_key_here') {
+  // ── Send email via SendGrid ───────────────────────────────────────────────
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!apiKey) {
     // Email service not yet configured — tell the client to fall back to the link
     return NextResponse.json({ success: false, noService: true });
   }
 
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'hello@tripcoord.ai';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
   const joinUrl = `${appUrl}/join/${tripId}`;
   const subject = `${inviterName || 'Someone'} invited you to join ${tripName || 'a trip'} on TripCoord`;
   const body = message || `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on TripCoord — AI-powered group travel planning.`;
 
   try {
-    const res = await fetch('https://api.resend.com/emails', {
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `TripCoord <${process.env.SENDGRID_FROM_EMAIL || 'hello@tripcoord.ai'}>`,
-        to: [email],
+        from: { email: fromEmail, name: 'TripCoord' },
+        to: [{ email }],
         subject,
-        html: `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#fafaf9;border-radius:16px;">
-            <div style="text-align:center;margin-bottom:28px;">
-              <span style="font-size:32px;">✈️</span>
-              <h1 style="color:#0c4a6e;font-size:26px;margin:12px 0 4px;">You're invited!</h1>
-              <p style="color:#71717a;font-size:14px;margin:0;">TripCoord · group travel made easy</p>
-            </div>
-            <div style="background:white;border-radius:12px;padding:24px;border:1px solid #e4e4e7;margin-bottom:24px;">
-              <p style="color:#3f3f46;font-size:16px;line-height:1.6;margin:0 0 20px;">${body}</p>
-              <a href="${joinUrl}"
-                style="display:inline-block;background:#0c4a6e;color:white;padding:14px 28px;border-radius:100px;text-decoration:none;font-weight:700;font-size:15px;">
-                Join the Trip →
-              </a>
-            </div>
-            <p style="color:#a1a1aa;font-size:12px;text-align:center;">
-              Can't click the button? Copy this link:<br/>
-              <a href="${joinUrl}" style="color:#0c4a6e;">${joinUrl}</a>
-            </p>
-          </div>
-        `,
+        content: [
+          {
+            type: 'text/html',
+            value: `
+              <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#fafaf9;border-radius:16px;">
+                <div style="text-align:center;margin-bottom:28px;">
+                  <span style="font-size:32px;">✈️</span>
+                  <h1 style="color:#0c4a6e;font-size:26px;margin:12px 0 4px;">You're invited!</h1>
+                  <p style="color:#71717a;font-size:14px;margin:0;">TripCoord · group travel made easy</p>
+                </div>
+                <div style="background:white;border-radius:12px;padding:24px;border:1px solid #e4e4e7;margin-bottom:24px;">
+                  <p style="color:#3f3f46;font-size:16px;line-height:1.6;margin:0 0 20px;">${body}</p>
+                  <a href="${joinUrl}"
+                    style="display:inline-block;background:#0c4a6e;color:white;padding:14px 28px;border-radius:100px;text-decoration:none;font-weight:700;font-size:15px;">
+                    Join the Trip →
+                  </a>
+                </div>
+                <p style="color:#a1a1aa;font-size:12px;text-align:center;">
+                  Can't click the button? Copy this link:<br/>
+                  <a href="${joinUrl}" style="color:#0c4a6e;">${joinUrl}</a>
+                </p>
+              </div>
+            `,
+          },
+        ],
       }),
     });
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error((data as { message?: string }).message || 'Resend error');
+      throw new Error(JSON.stringify(data) || 'SendGrid error');
     }
     return NextResponse.json({ success: true, notified: 'email' });
   } catch (err) {
