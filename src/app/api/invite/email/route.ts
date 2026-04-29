@@ -61,8 +61,7 @@ export async function POST(request: NextRequest) {
       inviter_name: inviterName || null,
       message: message || null,
     });
-    // Return success — they'll see it on their dashboard
-    return NextResponse.json({ success: true, notified: 'in_app' });
+    // Don't return early — also send an email below so they get both
   }
 
   // ── Send email via SendGrid ───────────────────────────────────────────────
@@ -121,7 +120,7 @@ export async function POST(request: NextRequest) {
       const data = await res.json().catch(() => ({}));
       throw new Error(JSON.stringify(data) || 'SendGrid error');
     }
-    return NextResponse.json({ success: true, notified: 'email' });
+    return NextResponse.json({ success: true, notified: existingUserId ? 'in_app_and_email' : 'email' });
   } catch (err) {
     console.error('[invite/email] error:', err);
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
