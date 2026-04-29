@@ -63,24 +63,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('*')
           .eq('id', userId)
           .single();
-        // Only update profile when we get real data back.
-        // If Supabase returns null (transient — e.g. profile momentarily
-        // unavailable, tab-focus re-fetch during a slow network), keep the
-        // cached profile rather than dropping back to free tier.
-        // Profile is explicitly nulled only on sign-out.
         if (data) {
           setProfile(data);
-          // Cache tier in localStorage so useCurrentUser can restore it if the
-          // next profile fetch returns null (network hiccup, RLS transient error).
+          // Cache tier in localStorage to survive transient null fetches
+          // for the same user (network hiccup, RLS transient error).
           try {
             localStorage.setItem(`tc_tier_${userId}`, data.subscription_tier);
           } catch {
             // localStorage unavailable (e.g. private browsing with storage blocked) — ignore
           }
+        } else {
+          // Preserve the cached profile ONLY when it belongs to the same user
+          // (handles network hiccups on tab-focus re-fetches without dropping the tier).
+          // If a different user has logged in, clear immediately — never show
+          // one user's name or data to a different account.
+          setProfile(prev => (prev?.id === userId ? prev : null));
         }
       } catch (err) {
-        // Query threw — same policy: keep cached profile.
-        console.warn('[AuthContext] fetchProfile error (profile preserved):', err);
+        // Query threw — apply same same-user preservation logic.
+        console.warn('[AuthContext] fetchProfile error (profile preserved for same user):', err);
+        setProfile(prev => (prev?.id === userId ? prev : null));
       } finally {
         setIsLoading(false);
       }

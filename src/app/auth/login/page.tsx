@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -14,20 +14,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  // If already authenticated (server-confirmed), skip the login page entirely.
-  // This prevents getting "stuck" on login when a valid session already exists
-  // — e.g. after a hard refresh or returning to the page mid-session.
-  useEffect(() => {
-    const checkExistingSession = async () => {
-      const supabase = createClient();
-      // getUser() validates the token server-side — more reliable than getSession()
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        window.location.href = '/dashboard';
-      }
-    };
-    checkExistingSession();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
