@@ -4,45 +4,71 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * POST /api/invite/email
- * Sends a trip invite email via SendGrid.
- * Requires the caller to be the trip organizer.
+ * Sends a trip invite email via Resend, OR creates an in-app notification
+ * if the invitee already has a TripCoord account.
  *
- * Required env vars:
- *   SENDGRID_API_KEY      — from app.sendgrid.com → Settings → API Keys
- *   NEXT_PUBLIC_APP_URL   — e.g. https://www.tripcoord.ai (used for join links)
+ * Required env var (when email delivery is needed):
+ *   RESEND_API_KEY         — from resend.com → API Keys
+ *   NEXT_PUBLIC_APP_URL    — e.g. https://www.tripcoord.ai
  *
  * Body: { email, tripId, tripName, inviterName, message? }
  */
 export async function POST(request: NextRequest) {
-  // Auth — must be signed in
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
   const { userId } = auth.ctx;
 
   const { email, tripId, tripName, inviterName, message } = await request.json();
 
-  // Verify the caller is the organizer of this trip
-  if (tripId) {
-    const supabase = createAdminClient();
-    const { data: trip } = await supabase
-      .from('trips')
-      .select('organizer_id')
-      .eq('id', tripId)
-      .maybeSingle();
-
-    if (!trip || trip.organizer_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-  }
-
   if (!email || !tripId) {
     return NextResponse.json({ error: 'email and tripId required' }, { status: 400 });
   }
 
-  const apiKey = process.env.SENDGRID_API_KEY;
-  if (!apiKey) {
-    console.warn('[invite/email] SENDGRID_API_KEY not set — email invite not sent to:', email);
-    return NextResponse.json({ error: 'Email service not configured' }, { status: 503 });
+  const supabase = createAdminClient();
+
+  // Verify caller is the trip organizer
+  const { data: trip } = await supabase
+    .from('trips')
+    .select('organizer_id')
+    .eq('id', tripId)
+    .maybeSingle();
+
+  if (!trip || trip.organizer_id !== userId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // ── Check if invitee already has a TripCoord account ─────────────────────
+  // If yes, create an in-app notification instead of (or in addition to) email
+  let existingUserId: string | null = null;
+  try {
+    const { data: authUser } = await supabase.auth.admin.listUsers();
+    const matched = authUser?.users?.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+    if (matched) existingUserId = matched.id;
+  } catch {
+    // Non-fatal — continue with email path
+  }
+
+  if (existingUserId) {
+    // Insert in-app notification for the existing user
+    await supabase.from('notifications').insert({
+      user_id: existingUserId,
+      type: 'trip_invite',
+      trip_id: tripId,
+      trip_name: tripName || null,
+      inviter_name: inviterName || null,
+      message: message || null,
+    });
+    // Return success — they'll see it on their dashboard
+    return NextResponse.json({ success: true, notified: 'in_app' });
+  }
+
+  // ── Send email via Resend ─────────────────────────────────────────────────
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || apiKey === 'your_resend_api_key_here') {
+    // Email service not yet configured — tell the client to fall back to the link
+    return NextResponse.json({ success: false, noService: true });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
@@ -51,50 +77,44 @@ export async function POST(request: NextRequest) {
   const body = message || `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on TripCoord — AI-powered group travel planning.`;
 
   try {
-    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email }] }],
-        from: { email: process.env.SENDGRID_FROM_EMAIL || 'hello@tripcoord.ai', name: 'TripCoord' },
+        from: `TripCoord <${process.env.SENDGRID_FROM_EMAIL || 'hello@tripcoord.ai'}>`,
+        to: [email],
         subject,
-        content: [
-          {
-            type: 'text/html',
-            value: `
-              <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#fafaf9;border-radius:16px;">
-                <div style="text-align:center;margin-bottom:28px;">
-                  <span style="font-size:32px;">✈️</span>
-                  <h1 style="color:#0c4a6e;font-size:26px;margin:12px 0 4px;">You're invited!</h1>
-                  <p style="color:#71717a;font-size:14px;margin:0;">TripCoord · group travel made easy</p>
-                </div>
-                <div style="background:white;border-radius:12px;padding:24px;border:1px solid #e4e4e7;margin-bottom:24px;">
-                  <p style="color:#3f3f46;font-size:16px;line-height:1.6;margin:0 0 20px;">${body}</p>
-                  <a href="${joinUrl}"
-                    style="display:inline-block;background:#0c4a6e;color:white;padding:14px 28px;border-radius:100px;text-decoration:none;font-weight:700;font-size:15px;">
-                    Join the Trip →
-                  </a>
-                </div>
-                <p style="color:#a1a1aa;font-size:12px;text-align:center;">
-                  Can't click the button? Copy this link:<br/>
-                  <a href="${joinUrl}" style="color:#0c4a6e;">${joinUrl}</a>
-                </p>
-              </div>
-            `,
-          },
-        ],
+        html: `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#fafaf9;border-radius:16px;">
+            <div style="text-align:center;margin-bottom:28px;">
+              <span style="font-size:32px;">✈️</span>
+              <h1 style="color:#0c4a6e;font-size:26px;margin:12px 0 4px;">You're invited!</h1>
+              <p style="color:#71717a;font-size:14px;margin:0;">TripCoord · group travel made easy</p>
+            </div>
+            <div style="background:white;border-radius:12px;padding:24px;border:1px solid #e4e4e7;margin-bottom:24px;">
+              <p style="color:#3f3f46;font-size:16px;line-height:1.6;margin:0 0 20px;">${body}</p>
+              <a href="${joinUrl}"
+                style="display:inline-block;background:#0c4a6e;color:white;padding:14px 28px;border-radius:100px;text-decoration:none;font-weight:700;font-size:15px;">
+                Join the Trip →
+              </a>
+            </div>
+            <p style="color:#a1a1aa;font-size:12px;text-align:center;">
+              Can't click the button? Copy this link:<br/>
+              <a href="${joinUrl}" style="color:#0c4a6e;">${joinUrl}</a>
+            </p>
+          </div>
+        `,
       }),
     });
 
-    // SendGrid returns 202 Accepted with no body on success
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error((data as { errors?: { message: string }[] }).errors?.[0]?.message || 'SendGrid error');
+      throw new Error((data as { message?: string }).message || 'Resend error');
     }
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, notified: 'email' });
   } catch (err) {
     console.error('[invite/email] error:', err);
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });

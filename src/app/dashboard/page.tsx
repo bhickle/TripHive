@@ -38,10 +38,11 @@ import {
 
 interface Notification {
   id: string;
-  type: 'activity' | 'chat' | 'expense' | 'vote' | 'member' | 'ai' | 'prep';
+  type: 'activity' | 'chat' | 'expense' | 'vote' | 'member' | 'ai' | 'prep' | 'trip_invite';
   title: string;
   message: string;
   trip: string;
+  trip_id?: string;
   time: string;
   read: boolean;
   icon: string;
@@ -124,11 +125,37 @@ export default function DashboardPage() {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  // Load notifications only for demo account; real users start with an empty inbox
+  // Load notifications: mock for demo, real DB records for authenticated users
   useEffect(() => {
-    if (!currentUser.isLoading) {
-      setNotifications(currentUser.isDemo ? mockNotifications : []);
+    if (currentUser.isLoading) return;
+    if (currentUser.isDemo) {
+      setNotifications(mockNotifications);
+      return;
     }
+    // Real user — fetch from DB
+    fetch('/api/notifications')
+      .then(r => r.ok ? r.json() : { notifications: [] })
+      .then(({ notifications: rows }) => {
+        if (!Array.isArray(rows)) return;
+        const mapped: Notification[] = rows.map((n: {
+          id: string; type: string; trip_id?: string; trip_name?: string;
+          inviter_name?: string; message?: string; read: boolean; created_at: string;
+        }) => ({
+          id: n.id,
+          type: (n.type as Notification['type']) || 'trip_invite',
+          title: n.type === 'trip_invite'
+            ? `${n.inviter_name || 'Someone'} invited you to a trip`
+            : 'Notification',
+          message: n.message || (n.trip_name ? `You've been invited to join ${n.trip_name}.` : 'You have a new notification.'),
+          trip: n.trip_name || '',
+          trip_id: n.trip_id,
+          time: new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          read: n.read,
+          icon: n.type === 'trip_invite' ? '✈️' : '🔔',
+        }));
+        setNotifications(mapped);
+      })
+      .catch(() => {});
   }, [currentUser.isLoading, currentUser.isDemo]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -142,10 +169,24 @@ export default function DashboardPage() {
 
   const markAllRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (!currentUser.isDemo) {
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAllRead: true }),
+      }).catch(() => {});
+    }
   };
 
   const markRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (!currentUser.isDemo) {
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).catch(() => {});
+    }
   };
 
   const notifTypeColors: Record<string, string> = {
@@ -156,6 +197,10 @@ export default function DashboardPage() {
     member: 'bg-sky-100 text-sky-700',
     ai: 'bg-pink-100 text-pink-700',
     prep: 'bg-rose-100 text-rose-700',
+    trip_invite: 'bg-amber-100 text-amber-700',
+  };
+  const notifTypeLabel: Record<string, string> = {
+    trip_invite: 'invite',
   };
 
   // Destination photo library - curated high-quality images per destination
@@ -348,11 +393,16 @@ export default function DashboardPage() {
 
                 {/* Notification List */}
                 <div className="flex-1 overflow-y-auto divide-y divide-zinc-100">
+                  {notifications.length === 0 && (
+                    <div className="px-5 py-10 text-center">
+                      <p className="text-sm text-zinc-400">No notifications yet</p>
+                    </div>
+                  )}
                   {notifications.map((notif) => (
-                    <button
+                    <div
                       key={notif.id}
                       onClick={() => markRead(notif.id)}
-                      className={`w-full text-left px-5 py-4 hover:bg-parchment-dark transition-colors ${
+                      className={`w-full text-left px-5 py-4 hover:bg-parchment-dark transition-colors cursor-pointer ${
                         !notif.read ? 'bg-sky-50/30' : ''
                       }`}
                     >
@@ -360,8 +410,8 @@ export default function DashboardPage() {
                         <span className="text-xl flex-shrink-0 mt-0.5">{notif.icon}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${notifTypeColors[notif.type]}`}>
-                              {notif.type}
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${notifTypeColors[notif.type] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                              {notifTypeLabel[notif.type] ?? notif.type}
                             </span>
                             {!notif.read && (
                               <span className="w-2 h-2 bg-sky-800 rounded-full flex-shrink-0" />
@@ -371,10 +421,21 @@ export default function DashboardPage() {
                             {notif.title}
                           </p>
                           <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2">{notif.message}</p>
-                          <p className="text-[11px] text-zinc-400 mt-1">{notif.trip} · {notif.time}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-[11px] text-zinc-400">{notif.trip}{notif.trip ? ' · ' : ''}{notif.time}</p>
+                            {notif.type === 'trip_invite' && notif.trip_id && (
+                              <Link
+                                href={`/trip/${notif.trip_id}/itinerary`}
+                                className="text-[11px] font-semibold text-sky-700 hover:text-sky-900"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                View Trip →
+                              </Link>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
 

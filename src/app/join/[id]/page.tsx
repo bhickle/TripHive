@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
 import { trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock, Loader } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
@@ -41,9 +40,9 @@ const curiosityLevels = ['Exploring casually', 'Moderate pace', 'Packed schedule
 // MOCK_TRIP_IDS imported from @/data/mock
 
 export default function JoinTripPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const p = useParams();
-  const tripId = p?.id as string;
+  // Use params.id directly (always available from route props) to avoid
+  // the useParams() first-render undefined race that can set notFound too early.
+  const tripId = params?.id as string;
 
   const [step, setStep] = useState<JoinStep>('intro');
   const [tripData, setTripData] = useState<TripData | null>(null);
@@ -61,7 +60,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const loadTripData = async () => {
       setLoading(true);
-      setNotFound(false);
+      setNotFound(false); // always reset between effect runs
 
       try {
         if (!tripId) {
@@ -136,7 +135,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
             endDate: data.end_date,
             travelerCount: data.group_size || 0,
             organizerName: 'Trip Organizer',
-            coverImage: data.cover_image || '/default-trip.jpg',
+            coverImage: data.cover_image || '',
             itineraryPreview,
           });
           setLoading(false);
@@ -204,7 +203,9 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <header className="bg-white border-b border-slate-200 py-4 px-6">
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-script italic font-semibold text-sky-900">tripcoord</h1>
+            <Link href="/">
+              <Image src="/tripcoord_logo.png" alt="TripCoord" width={140} height={36} className="h-9 w-auto" />
+            </Link>
           </div>
         </header>
         <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
@@ -223,7 +224,9 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <header className="bg-white border-b border-slate-200 py-4 px-6">
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-script italic font-semibold text-sky-900">tripcoord</h1>
+            <Link href="/">
+              <Image src="/tripcoord_logo.png" alt="TripCoord" width={140} height={36} className="h-9 w-auto" />
+            </Link>
           </div>
         </header>
         <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
@@ -262,14 +265,21 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
           {step === 'intro' && (
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
               {/* Trip Info Card */}
-              <div className="relative h-64 bg-slate-100">
-                <Image
-                  src={tripData.coverImage}
-                  alt={tripData.destination}
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+              <div className="relative h-64 bg-gradient-to-br from-sky-800 to-sky-600">
+                {tripData.coverImage && (
+                  <Image
+                    src={tripData.coverImage}
+                    alt={tripData.destination}
+                    fill
+                    className="object-cover"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                {!tripData.coverImage && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-6xl opacity-40">✈️</span>
+                  </div>
+                )}
               </div>
 
               <div className="p-8">
@@ -532,12 +542,12 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               </div>
 
               {/* CTA - View Trip */}
-              <button
-                onClick={() => router.push(`/trip/${tripId}/itinerary`)}
-                className="w-full px-6 py-3 border border-sky-300 hover:bg-sky-50 text-sky-700 rounded-lg font-semibold transition-all mb-4"
+              <a
+                href={`/trip/${tripId}/itinerary`}
+                className="block w-full px-6 py-3 border border-sky-300 hover:bg-sky-50 text-sky-700 rounded-lg font-semibold transition-all mb-4 text-center"
               >
                 View Full Trip
-              </button>
+              </a>
 
               {/* Footer Signup/Login CTA */}
               <div className="bg-slate-50 rounded-lg p-6 text-center border border-slate-200">

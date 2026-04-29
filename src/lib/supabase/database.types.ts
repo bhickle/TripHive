@@ -413,6 +413,50 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          inviter_name: string | null
+          message: string | null
+          read: boolean
+          trip_id: string | null
+          trip_name: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inviter_name?: string | null
+          message?: string | null
+          read?: boolean
+          trip_id?: string | null
+          trip_name?: string | null
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inviter_name?: string | null
+          message?: string | null
+          read?: boolean
+          trip_id?: string | null
+          trip_name?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_items: {
         Row: {
           category: string

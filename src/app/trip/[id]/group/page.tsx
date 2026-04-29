@@ -2053,14 +2053,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             {inviteSent ? (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center mb-4">
                 <p className="text-sm font-semibold text-emerald-700">
-                  Invite sent via {inviteMethod}!
+                  {inviteMethod === 'email' ? '✓ Invite sent! They\'ll see it in their email or TripCoord dashboard.' : `✓ Invite sent via ${inviteMethod}!`}
                 </p>
               </div>
             ) : null}
 
             {inviteError ? (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-center mb-4">
-                <p className="text-sm font-semibold text-rose-700">
+              <div className={`p-3 rounded-lg text-center mb-4 border ${inviteError.includes('copied') ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'}`}>
+                <p className={`text-sm font-semibold ${inviteError.includes('copied') ? 'text-amber-700' : 'text-rose-700'}`}>
                   {inviteError}
                 </p>
               </div>
@@ -2094,6 +2094,27 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
                     if (!res.ok) {
                       throw new Error('Failed to send invite');
+                    }
+
+                    const data = await res.json();
+
+                    if (data.noService) {
+                      // Email service not configured yet — fall back to link copy
+                      const inviteLink = `${window.location.origin}/join/${params.id}`;
+                      await navigator.clipboard.writeText(inviteLink).catch(() => {});
+                      setInviteMethod('link');
+                      setInviteError('Email isn\'t set up yet — invite link copied to clipboard! Paste it to your guest.');
+                      return;
+                    }
+
+                    if (data.notified === 'in_app') {
+                      setInviteSent(true);
+                      setTimeout(() => {
+                        setShowInviteModal(false);
+                        setInviteSent(false);
+                        setInviteContact('');
+                      }, 2500);
+                      return;
                     }
 
                     setInviteSent(true);
