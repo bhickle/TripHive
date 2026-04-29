@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
@@ -116,13 +116,32 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Isolated component so useSearchParams is inside its own Suspense boundary
+function CreditsBanner() {
+  const searchParams = useSearchParams();
+  const reason = searchParams.get('reason');
+  if (reason !== 'credits') return null;
+  return (
+    <div className="bg-amber-50 border-b border-amber-200 px-4 py-4">
+      <div className="max-w-2xl mx-auto flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-amber-900">You&apos;ve used all your AI credits for this billing period</p>
+          <p className="text-sm text-amber-700 mt-0.5">
+            Your credits refresh automatically on your next billing date — or upgrade below to get more right now.
+            Explorer gives you 100 credits/month, Nomad gives you 350.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PricingPage() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const reason = searchParams.get('reason');
 
   // ── Kick off Stripe checkout ──────────────────────────────────────────────
   async function startCheckout(priceId: string, mode: 'subscription' | 'payment') {
@@ -175,20 +194,9 @@ export default function PricingPage() {
       </nav>
 
       {/* Credits-exhausted banner — shown when arriving from the generating page */}
-      {reason === 'credits' && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-4">
-          <div className="max-w-2xl mx-auto flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-amber-900">You&apos;ve used all your AI credits for this billing period</p>
-              <p className="text-sm text-amber-700 mt-0.5">
-                Your credits refresh automatically on your next billing date — or upgrade below to get more right now.
-                Explorer gives you 100 credits/month, Nomad gives you 350.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <Suspense fallback={null}>
+        <CreditsBanner />
+      </Suspense>
 
       {/* Hero */}
       <section className="pt-20 pb-10 px-4 text-center">
