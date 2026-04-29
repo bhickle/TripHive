@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Mail, Lock } from 'lucide-react';
 import { useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { signInAction } from './actions';
 
 export default function LoginPage() {
