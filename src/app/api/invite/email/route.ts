@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        personalizations: [{ to: [{ email }] }],
         from: { email: fromEmail, name: 'TripCoord' },
-        to: [{ email }],
         subject,
         content: [
           {
