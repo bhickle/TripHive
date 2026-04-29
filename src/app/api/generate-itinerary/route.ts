@@ -946,6 +946,7 @@ export async function POST(request: NextRequest) {
   let organizerPersona: { priorities: string[]; vibes?: string[] } | null = null;
   let creditsUsed = 0;
   let creditsTotal = 10; // conservative default (free tier)
+  let creditsResetAt: string = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString();
 
   try {
     const adminClient = createAdminClient();
@@ -963,6 +964,7 @@ export async function POST(request: NextRequest) {
     const tierDefault = TIER_LIMITS[userTier].aiCreditsPerMonth;
     creditsTotal = profile?.ai_credits_total ?? (typeof tierDefault === 'number' ? tierDefault : 30);
     creditsUsed  = profile?.ai_credits_used  ?? 0;
+    if (profile?.ai_credits_reset_at) creditsResetAt = profile.ai_credits_reset_at;
 
     // Monthly reset: if the reset window has passed, zero out credits and push the window forward
     const resetAt = profile?.ai_credits_reset_at ? new Date(profile.ai_credits_reset_at) : null;
@@ -1031,16 +1033,12 @@ export async function POST(request: NextRequest) {
   // Each successful generation costs 1 credit. Check before the stream opens
   // so we never burn Anthropic tokens for an over-quota request.
   if (creditsUsed >= creditsTotal) {
-    // Compute the reset date to show the user exactly when they get credits back
-    const resetAt = profile?.ai_credits_reset_at
-      ? new Date(profile.ai_credits_reset_at)
-      : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
     return NextResponse.json({
       error: 'CREDIT_LIMIT',
       message: `You've used all ${creditsTotal} AI credits for this billing period.`,
       creditsUsed,
       creditsTotal,
-      creditsResetAt: resetAt.toISOString(),
+      creditsResetAt,
     }, { status: 429 });
   }
 
