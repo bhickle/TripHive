@@ -1018,7 +1018,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   // ─── Page shell ───────────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen bg-parchment p-6">
+    <main className="min-h-screen bg-parchment p-4 md:p-6">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <p className="text-xs uppercase tracking-widest text-zinc-400 mb-3">Pre-Trip</p>

@@ -31,6 +31,8 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Hash,
   Users,
   DollarSign,
@@ -285,6 +287,9 @@ function ItineraryPageContent() {
   const [showMapView, setShowMapView] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const dayTabScrollRef = useRef<HTMLDivElement>(null);
+  const [dayTabCanScrollLeft, setDayTabCanScrollLeft] = useState(false);
+  const [dayTabCanScrollRight, setDayTabCanScrollRight] = useState(false);
   // Keep a ref to the latest aiDays so the vote handler can read current state
   // without causing stale-closure issues or side effects inside state updaters
   const aiDaysRef = useRef<ItineraryDay[] | null>(null);
@@ -648,6 +653,22 @@ function ItineraryPageContent() {
       return () => { supabase.removeChannel(channel); };
     });
   }, [tripPageId]);
+
+  // ── Day-tab arrow scroll helpers ─────────────────────────────────────────────
+  const updateDayTabScroll = useCallback(() => {
+    const el = dayTabScrollRef.current;
+    if (!el) return;
+    setDayTabCanScrollLeft(el.scrollLeft > 4);
+    setDayTabCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  }, []);
+
+  // Re-check overflow whenever AI days load or on resize
+  useEffect(() => {
+    const timer = setTimeout(updateDayTabScroll, 50);
+    window.addEventListener('resize', updateDayTabScroll);
+    return () => { clearTimeout(timer); window.removeEventListener('resize', updateDayTabScroll); };
+  }, [aiDays, updateDayTabScroll]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const clearAiItinerary = useCallback(() => {
     localStorage.removeItem('generatedItinerary');
@@ -1407,16 +1428,30 @@ function ItineraryPageContent() {
           </div>
         )}
 
-        {/* Day Selector */}
-        <div className="mb-8 overflow-x-auto pb-2">
-          <div className="flex gap-2 min-w-min">
+        {/* Day Selector — arrow navigation when overflow */}
+        <div className="mb-8 relative flex items-center">
+          {dayTabCanScrollLeft && (
+            <button
+              onClick={() => dayTabScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+              className="absolute left-0 z-10 w-8 h-8 flex items-center justify-center bg-white border border-zinc-200 rounded-full shadow-sm hover:bg-zinc-50 transition-colors flex-shrink-0"
+              aria-label="Scroll days left"
+            >
+              <ChevronLeft className="w-4 h-4 text-zinc-600" />
+            </button>
+          )}
+          <div
+            ref={dayTabScrollRef}
+            onScroll={updateDayTabScroll}
+            className={`flex gap-2 overflow-x-auto pb-1 flex-1 ${dayTabCanScrollLeft ? 'pl-10' : ''} ${dayTabCanScrollRight ? 'pr-10' : ''}`}
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
             {activeDays.map((day: { day: number; date: string }) => {
               const dayDateStr = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               return (
                 <button
                   key={day.day}
                   onClick={() => setSelectedDay(day.day)}
-                  className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
+                  className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all flex-shrink-0 ${
                     selectedDay === day.day
                       ? 'bg-zinc-900 text-white shadow-sm'
                       : 'bg-white border border-zinc-200 text-zinc-600 hover:border-zinc-300'
@@ -1427,6 +1462,15 @@ function ItineraryPageContent() {
               );
             })}
           </div>
+          {dayTabCanScrollRight && (
+            <button
+              onClick={() => dayTabScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+              className="absolute right-0 z-10 w-8 h-8 flex items-center justify-center bg-white border border-zinc-200 rounded-full shadow-sm hover:bg-zinc-50 transition-colors flex-shrink-0"
+              aria-label="Scroll days right"
+            >
+              <ChevronRight className="w-4 h-4 text-zinc-600" />
+            </button>
+          )}
         </div>
 
         {/* Map View */}

@@ -753,7 +753,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   })();
 
   return (
-    <div className="min-h-screen bg-parchment p-6">
+    <div className="min-h-screen bg-parchment p-4 md:p-6">
+      <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">
           {tripName}
@@ -2147,6 +2148,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           onClose={() => setShowTravelerUpgrade(false)}
         />
       )}
+      </div>{/* /max-w-5xl */}
     </div>
   );
 }

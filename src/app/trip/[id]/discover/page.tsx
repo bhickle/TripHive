@@ -699,9 +699,9 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     <div className="min-h-screen bg-parchment">
       {/* Static Compact Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-zinc-100">
-        <div className="px-6 py-4 max-w-5xl mx-auto">
+        <div className="px-4 md:px-6 py-4 max-w-5xl mx-auto">
           {/* Title + meta row */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <div>
               <h2 className="font-script italic text-xl font-semibold text-zinc-900">
                 {isMockTrip ? 'Discover Reykjavik' : `Discover ${aiDestination || '…'}`}
@@ -710,7 +710,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                 {aiLoading ? 'Finding the best spots…' : `Curated for your group · ${filteredItems.length} results`}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
@@ -733,8 +733,8 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           </div>
 
           {/* Search + Category pills */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex-shrink-0 w-56">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="relative flex-shrink-0 w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
@@ -744,7 +744,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                 className="w-full pl-9 pr-4 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
               />
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto">
+            <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
               {categories.map((cat) => (
                 <button
                   key={cat.value}
@@ -797,7 +797,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Main Content */}
-      <div className="px-6 py-8">
+      <div className="px-4 md:px-6 py-6 md:py-8">
         <div className="max-w-5xl mx-auto">
           {/* Loading state while AI generates destination recommendations */}
           {!isMockTrip && aiLoading && (

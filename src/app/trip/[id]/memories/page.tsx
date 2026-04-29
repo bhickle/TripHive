@@ -81,7 +81,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
   return (
     <main className="min-h-screen bg-parchment">
-      <div className="max-w-5xl mx-auto px-4 py-12">
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         <div className="mb-12">
           <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">The Pics</h1>
           <p className="text-zinc-600">Your {tripDestination} adventure through photos</p>
