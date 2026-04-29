@@ -561,12 +561,28 @@ You MUST follow ALL of these rules:
   const needsHotelSuggestions = !hasPreBookedHotel;
   const hotelBudgetPerNight = Math.round((budgetBreakdown.hotel ?? 0) / tripLength);
   const hotelPriceTier = hotelBudgetPerNight < 80
-    ? 'budget — hostels, guesthouses, or economy hotels ($)'
+    ? 'budget ($)'
     : hotelBudgetPerNight < 180
-    ? 'mid-range — comfortable 3-4 star hotels ($$)'
+    ? 'mid-range ($$)'
     : hotelBudgetPerNight < 350
-    ? 'upscale — boutique or 4-star hotels ($$$)'
-    : 'luxury — 5-star or premium boutique hotels ($$$$)';
+    ? 'upscale ($$$)'
+    : 'luxury ($$$$)';
+  // Build lodging type instruction from accommodationType preference
+  const accomTypes = (accommodationType ?? '').split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const accomTypeLabel = accomTypes.length > 0
+    ? (() => {
+        const map: Record<string, string> = {
+          hotel: 'hotels',
+          airbnb: 'Airbnb / vacation rentals',
+          hostel: 'hostels',
+          resort: 'resorts',
+        };
+        return accomTypes.map((t: string) => map[t] || t).join(' or ');
+      })()
+    : 'hotels';
+  const lodgingTypeInstruction = accomTypes.length > 0 && !(accomTypes.length === 1 && accomTypes[0] === 'hotel')
+    ? `matching the traveler's preferred lodging type (${accomTypeLabel}) at the ${hotelPriceTier} price tier`
+    : `matching the ${hotelPriceTier} price tier`;
 
   // Per-day budget constraints
   const dailyFoodBudget = Math.round((budgetBreakdown.food ?? 0) / tripLength);
@@ -660,21 +676,21 @@ OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects.
 IMPORTANT: The FIRST day object (day 1) must include these additional top-level fields before "day":
   "title" — a concise, evocative 3-6 word trip name incorporating the destination and top priority (e.g. "Venice Food & History Adventure", "Bangkok Nights & Street Food", "Kyoto Temples & Quiet Gardens"). This will display as the trip name throughout the app.
   "practicalNotes" — a one-time block of essential destination knowledge (only on day 1, omit from all other days):${needsHotelSuggestions ? `
-  "hotelSuggestions" — since no hotel has been pre-booked, include hotel suggestions matching the ${hotelPriceTier} tier (only on day 1, omit from all other days):${destinations.length >= 2 ? `
-    For this multi-city trip (${destinations.join(' → ')}), include 1-2 hotels per city so the group knows where to stay in each location. Structure the array with a "city" field on each hotel so the app can group them:` : ''}
+  "hotelSuggestions" — since no hotel has been pre-booked, include lodging suggestions ${lodgingTypeInstruction} (only on day 1, omit from all other days):${destinations.length >= 2 ? `
+    For this multi-city trip (${destinations.join(' → ')}), include 1-2 options per city so the group knows where to stay in each location. Structure the array with a "city" field on each entry so the app can group them:` : ''}
     [
       {
-        ${destinations.length >= 2 ? '"city": "City name this hotel is in",' : ''}
-        "name": "Hotel name",
+        ${destinations.length >= 2 ? '"city": "City name this lodging is in",' : ''}
+        "name": "Property name",
         "neighborhood": "Area/district name",
         "address": "Full address",
         "pricePerNight": 150,
         "priceLevel": 2,
-        "whyRecommended": "One sentence on why this hotel is a great choice — location, reputation, amenities, or acclaim",
-        "bookingUrl": "https://www.booking.com/searchresults.html?ss=HOTEL+NAME+CITY&checkin=${startDate}&checkout=${endDate}"
+        "whyRecommended": "One sentence on why this is a great choice — location, reputation, amenities, or vibe",
+        "bookingUrl": "https://www.booking.com/searchresults.html?ss=PROPERTY+NAME+CITY&checkin=${startDate}&checkout=${endDate}"
       }
     ]
-    Choose hotels that are: (1) real and accurately named, (2) well-located — ideally central or near transport hubs, (3) highly regarded for their category.${destinations.length >= 2 ? ` For each city in the multi-city route, include 1-2 options — this helps the group plan where to base themselves in each leg of the trip.` : ' Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value.'} The bookingUrl should be a Booking.com search URL pre-filled with the hotel name and city.` : ''}${hasFoodPriority ? `
+    Choose properties that are: (1) real and accurately named, (2) well-located — ideally central or near transport hubs, (3) highly regarded for their category.${destinations.length >= 2 ? ` For each city in the multi-city route, include 1-2 options — this helps the group plan where to base themselves in each leg of the trip.` : ' Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value.'} The bookingUrl should be a Booking.com search URL pre-filled with the property name and city.` : ''}${hasFoodPriority ? `
   "foodieTips" — since food is a top priority, include an array of 6-8 bonus food finds spread across the trip (day 1 only, but tips cover the full trip):
     [
       {
@@ -939,54 +955,30 @@ export async function POST(request: NextRequest) {
     }, { status: 503 });
   }
 
-  // Resolve subscription tier, organizer persona, and AI credit balance in one query.
-  // Uses auth.ctx.userId from requireAuth — no redundant auth call needed.
-  const authenticatedUserId = auth.ctx.userId;
+  // Resolve subscription tier + organizer persona in one query
   let userTier: SubscriptionTier = 'free';
   let organizerPersona: { priorities: string[]; vibes?: string[] } | null = null;
-  let creditsUsed = 0;
-  let creditsTotal = 10; // conservative default (free tier)
-  let creditsResetAt: string = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString();
-
   try {
-    const adminClient = createAdminClient();
-    const { data: profile } = await adminClient
-      .from('profiles')
-      .select('subscription_tier, travel_persona, ai_credits_used, ai_credits_total, ai_credits_reset_at')
-      .eq('id', authenticatedUserId)
-      .single();
-
-    if (profile?.subscription_tier) {
-      userTier = profile.subscription_tier as SubscriptionTier;
-    }
-
-    // Determine credit totals — prefer DB value, fall back to tier default
-    const tierDefault = TIER_LIMITS[userTier].aiCreditsPerMonth;
-    creditsTotal = profile?.ai_credits_total ?? (typeof tierDefault === 'number' ? tierDefault : 30);
-    creditsUsed  = profile?.ai_credits_used  ?? 0;
-    if (profile?.ai_credits_reset_at) creditsResetAt = profile.ai_credits_reset_at;
-
-    // Monthly reset: if the reset window has passed, zero out credits and push the window forward
-    const resetAt = profile?.ai_credits_reset_at ? new Date(profile.ai_credits_reset_at) : null;
-    if (resetAt && new Date() > resetAt) {
-      const nextReset = new Date();
-      nextReset.setMonth(nextReset.getMonth() + 1);
-      nextReset.setDate(1);
-      nextReset.setHours(0, 0, 0, 0);
-      await adminClient
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (user?.id) {
+      const adminClient = createAdminClient();
+      const { data: profile } = await adminClient
         .from('profiles')
-        .update({ ai_credits_used: 0, ai_credits_reset_at: nextReset.toISOString() })
-        .eq('id', authenticatedUserId);
-      creditsUsed = 0;
+        .select('subscription_tier, travel_persona')
+        .eq('id', user.id)
+        .single();
+      if (profile?.subscription_tier) {
+        userTier = profile.subscription_tier as SubscriptionTier;
+      }
+      if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
+        const p = profile.travel_persona as Record<string, unknown>;
+        const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];
+        const vibes = Array.isArray(p.vibes) ? p.vibes as string[] : undefined;
+        if (priorities.length > 0) organizerPersona = { priorities, vibes };
+      }
     }
-
-    if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
-      const p = profile.travel_persona as Record<string, unknown>;
-      const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];
-      const vibes = Array.isArray(p.vibes) ? p.vibes as string[] : undefined;
-      if (priorities.length > 0) organizerPersona = { priorities, vibes };
-    }
-  } catch { /* fall back to free tier defaults — non-fatal */ }
+  } catch { /* fall back to free, no persona */ }
 
   // ── Layer 2: member preferences from trip_members ─────────────────────────
   // When the request includes a tripId and the trip has members who joined via
@@ -1027,19 +1019,6 @@ export async function POST(request: NextRequest) {
       error: 'TRIP_LENGTH_LIMIT',
       message: `Your ${userTier} plan supports itineraries up to ${tierLimits.maxTripDays} days. Upgrade to generate longer trips.`,
     }, { status: 403 });
-  }
-
-  // ── AI credit gate ─────────────────────────────────────────────────────────
-  // Each successful generation costs 1 credit. Check before the stream opens
-  // so we never burn Anthropic tokens for an over-quota request.
-  if (creditsUsed >= creditsTotal) {
-    return NextResponse.json({
-      error: 'CREDIT_LIMIT',
-      message: `You've used all ${creditsTotal} AI credits for this billing period.`,
-      creditsUsed,
-      creditsTotal,
-      creditsResetAt,
-    }, { status: 429 });
   }
 
   // Token budget scales with trip length.
@@ -1153,7 +1132,6 @@ export async function POST(request: NextRequest) {
         let escape = false;
         let objStart = -1;
         let dayIndex = 0;
-        // Accumulate day objects so continuations can reference what's been built
         const collectedDays: Record<string, unknown>[] = [];
 
         for await (const event of anthropicStream) {
@@ -1217,11 +1195,10 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Continuation loop for trips where a pass ran short ───────────────
-        // Each pass is allowed to produce fewer days than requested (common at
-        // 9+ days even at 64K tokens). We retry up to MAX_CONTINUATIONS times,
-        // each time passing a summary of what has already been generated so the
-        // model never repeats days. We stop as soon as all days are present or
-        // we exhaust our retry budget.
+        // Each pass may produce fewer days than requested (common for 9+ day trips
+        // even at 64K tokens). We retry up to MAX_CONTINUATIONS times, each time
+        // passing a summary of already-generated days so the model never repeats.
+        // We stop as soon as all days are present or we exhaust the retry budget.
         const MAX_CONTINUATIONS = 3;
         let contAttempt = 0;
 
@@ -1315,20 +1292,6 @@ export async function POST(request: NextRequest) {
         // Signal stream end to client. Include total days emitted so the client
         // can detect partial results (e.g. truncated generation).
         send({ type: 'done', daysEmitted: dayIndex, model: modelId });
-
-        // Increment AI credit usage. Uses LEAST() semantics via a conditional
-        // update so a race condition (two concurrent requests) can't push
-        // usage past the total. Non-fatal if the update fails.
-        try {
-          const adminClient = createAdminClient();
-          await adminClient
-            .from('profiles')
-            .update({ ai_credits_used: creditsUsed + 1 })
-            .eq('id', authenticatedUserId)
-            .lt('ai_credits_used', creditsTotal);
-        } catch (creditErr) {
-          console.warn('[generate-itinerary] Failed to increment AI credits:', creditErr);
-        }
 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

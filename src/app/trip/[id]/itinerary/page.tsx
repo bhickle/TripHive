@@ -2132,7 +2132,7 @@ function ItineraryPageContent() {
                   <span className="text-base">🏨</span>
                   <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
                 </div>
-                <p className="text-[11px] text-zinc-400 mb-4">AI picks that fit your budget</p>
+                <p className="text-[11px] text-zinc-400 mb-4">AI lodging suggestions for your trip</p>
                 <div className="space-y-3">
                   {aiMeta.hotelSuggestions.map((h, i) => (
                     <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">

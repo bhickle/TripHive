@@ -99,6 +99,15 @@ export default function TripsPage() {
     if (!b.startDate) return -1;
     return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
   };
+  const statusOrder: Record<string, number> = { active: 0, planning: 1, completed: 2 };
+  const sortedFilteredTrips = [...filteredTrips].sort((a, b) => {
+    const sA = statusOrder[a.status as string] ?? 1;
+    const sB = statusOrder[b.status as string] ?? 1;
+    if (sA !== sB) return sA - sB;
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+  });
   const planningTrips = filteredTrips.filter((t) => t.status === 'planning').sort(sortByDate);
   const activeTrips = filteredTrips.filter((t) => t.status === 'active').sort(sortByDate);
   const completedTrips = filteredTrips.filter((t) => t.status === 'completed').sort(sortByDate);
@@ -259,7 +268,7 @@ export default function TripsPage() {
         {/* List view */}
         {viewMode === 'list' && filteredTrips.length > 0 && (
           <div className="space-y-3">
-            {filteredTrips.map((trip) => {
+            {sortedFilteredTrips.map((trip) => {
               const startDate = new Date(trip.startDate);
               const endDate = new Date(trip.endDate);
               const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
