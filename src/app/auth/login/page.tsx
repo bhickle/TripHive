@@ -31,8 +31,10 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/dashboard');
-    router.refresh();
+    // Hard navigation so the server reads the fresh Supabase auth cookie
+    // immediately. router.refresh() after router.push() can race and re-render
+    // the login page before the navigation completes, leaving the user stuck.
+    window.location.href = '/dashboard';
   };
 
   const handleGoogleLogin = async () => {

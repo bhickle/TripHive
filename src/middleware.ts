@@ -28,6 +28,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ── Always allow the OAuth callback — it arrives before the cookie is set ──
+  if (pathname.startsWith('/auth/callback')) {
+    return NextResponse.next();
+  }
+
   // ── Preview key in query string → set cookie & redirect to clean URL ──
   const previewKey = searchParams.get('preview');
   if (previewKey === PREVIEW_SECRET) {
