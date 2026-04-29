@@ -105,11 +105,20 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
           );
 
-          const { data, error } = await supabase
+          // Race the Supabase query against a 10s timeout so a hung connection
+          // doesn't leave the user staring at the spinner indefinitely.
+          const queryPromise = supabase
             .from('trips')
             .select('id, title, destination, start_date, end_date, group_size, cover_image')
             .eq('id', tripId)
             .single();
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 10000)
+          );
+
+          const { data, error } = await Promise.race([queryPromise, timeoutPromise]).catch(
+            () => ({ data: null, error: new Error('timeout') })
+          );
 
           if (error || !data) {
             setNotFound(true);
