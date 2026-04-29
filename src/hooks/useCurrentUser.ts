@@ -20,9 +20,12 @@ export function useCurrentUser() {
 
   // Auth state still resolving — don't commit to demo/mock yet.
   // Pages guard against acting on this with `if (currentUser.isLoading) return;`
+  // IMPORTANT: override name so the mock user's hardcoded name never flashes
+  // on screen while a real user's profile is loading.
   if (isLoading) {
     return {
       ...mockUser,
+      name: '',
       isDemo: false,
       isLoading: true,
     };
@@ -49,10 +52,21 @@ export function useCurrentUser() {
   const aiTotal =
     typeof limits?.aiCreditsPerMonth === 'number' ? limits.aiCreditsPerMonth : 0;
 
+  // Resolve display name: prefer onboarding-set profile.name (stored as "first name
+  // or nickname"), fall back to OAuth full_name, then email prefix.
+  // Always take the first word only so full names like "Abby Stark" (set by signup
+  // rather than onboarding) become just "Abby".
+  const rawName =
+    profile?.name ??
+    (user.user_metadata as Record<string, string> | undefined)?.full_name ??
+    user.email?.split('@')[0] ??
+    'Traveler';
+  const displayName = rawName.split(' ')[0] || 'Traveler';
+
   return {
     id: user.id,
     email: user.email ?? '',
-    name: profile?.name ?? (user.user_metadata as Record<string, string> | undefined)?.full_name ?? user.email?.split('@')[0] ?? 'Traveler',
+    name: displayName,
     avatarUrl: profile?.avatar_url ?? undefined,
     subscriptionTier: tier,
     aiCredits: {
