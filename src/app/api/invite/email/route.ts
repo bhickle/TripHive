@@ -118,8 +118,9 @@ export async function POST(request: NextRequest) {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      console.error('[invite/email] SendGrid status:', res.status, 'body:', JSON.stringify(data));
-      throw new Error(`SendGrid ${res.status}: ${JSON.stringify(data)}`);
+      const errMsg = (data?.errors?.[0]?.message) || JSON.stringify(data);
+      console.error(`[sg-err] ${res.status} | ${errMsg}`);
+      throw new Error(`SendGrid ${res.status}: ${errMsg}`);
     }
     return NextResponse.json({ success: true, notified: existingUserId ? 'in_app_and_email' : 'email' });
   } catch (err) {
