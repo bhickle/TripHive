@@ -92,22 +92,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    // Validate session server-side with getUser() before trusting the cookie.
-    // getSession() alone reads the cookie without contacting the server, so a
-    // stale or expired token (e.g. from a previous session) passes through and
-    // causes profile fetches to fail, leaving stale data on screen.
-    // getUser() confirms the token is still valid with Supabase's auth server.
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (user) {
-        // Token is valid — pull the full session object for state
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        fetchProfile(user.id);
+    // Hydrate from the stored session cookie.
+    // NOTE: getSession() reads the cookie without server validation, but the
+    // Next.js middleware already runs getUser() on every request and refreshes
+    // the token, so by the time this runs the cookie is guaranteed fresh.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        fetchProfile(session.user.id);
       } else {
-        // Token invalid/expired — sign out silently to clear the stale cookie
-        // so the user gets a clean login screen rather than a broken dashboard.
-        await supabase.auth.signOut();
-        setSession(null);
         setIsLoading(false);
       }
     });

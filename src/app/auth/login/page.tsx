@@ -2,40 +2,32 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { Mail, Lock } from 'lucide-react';
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { signInAction } from './actions';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const router = useRouter();
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    // signInAction runs server-side: it calls Supabase, sets the auth cookie
+    // in the HTTP response, then redirects to /dashboard — all in one round trip.
+    // This avoids the client-side cookie timing issue where window.location.href
+    // would navigate before the browser had reliably stored the session cookie.
+    const result = await signInAction(email.trim(), password);
 
-    if (authError) {
-      setError(authError.message);
+    // If signInAction returned, it means there was an error (redirect never returns).
+    if (result?.error) {
+      setError(result.error);
       setIsLoading(false);
-      return;
     }
-
-    // Hard navigation so the server reads the fresh Supabase auth cookie
-    // immediately. router.refresh() after router.push() can race and re-render
-    // the login page before the navigation completes, leaving the user stuck.
-    window.location.href = '/dashboard';
   };
 
   const handleGoogleLogin = async () => {
