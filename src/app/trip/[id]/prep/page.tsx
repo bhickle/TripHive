@@ -867,6 +867,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <Globe className="w-4 h-4" />
               Generate {multi ? 'Phrasebooks' : 'Phrasebook'}
             </button>
+            <p className="text-xs text-zinc-400 mt-3">Uses 1 AI credit from your account</p>
           </div>
         </div>
       );
@@ -1018,7 +1019,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
   return (
     <main className="min-h-screen bg-parchment p-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <p className="text-xs uppercase tracking-widest text-zinc-400 mb-3">Pre-Trip</p>
           <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">Don't Forget</h1>

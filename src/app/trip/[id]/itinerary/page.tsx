@@ -1213,7 +1213,7 @@ function ItineraryPageContent() {
 
   return (
     <div className="min-h-screen bg-parchment p-3 md:p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
 
         {/* AI Generated Banner — demo only (not shown for real uploaded/generated trips) */}
         {showAiBanner && !aiMeta && (

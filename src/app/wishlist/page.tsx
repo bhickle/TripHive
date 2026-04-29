@@ -19,7 +19,7 @@ import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type FilterType = 'cost' | 'season' | 'all';
+type FilterType = string; // 'all' or a priority tag id
 type SortType = 'cost-low' | 'cost-high' | 'name';
 type ModalStage = 'search' | 'generating' | 'preview';
 type TravelVibe = 'adventure' | 'culture' | 'food' | 'photography' | 'nature' | 'wellness' | 'nightlife' | 'sports' | 'history' | 'shopping';
@@ -31,6 +31,20 @@ interface TripLengthOption {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+// Priority tags matching Trip Builder exactly
+const PRIORITY_TAGS: { id: string; label: string; emoji: string }[] = [
+  { id: 'nature',       label: 'Nature',       emoji: '🌿' },
+  { id: 'food',         label: 'Food',         emoji: '🍽️' },
+  { id: 'nightlife',    label: 'Nightlife',    emoji: '🎶' },
+  { id: 'history',      label: 'History',      emoji: '📜' },
+  { id: 'sports',       label: 'Sports',       emoji: '⛹️' },
+  { id: 'photography',  label: 'Photography',  emoji: '📷' },
+  { id: 'wellness',     label: 'Wellness',     emoji: '💆' },
+  { id: 'shopping',     label: 'Shopping',     emoji: '🛍️' },
+  { id: 'adventure',    label: 'Adventure',    emoji: '⚡' },
+  { id: 'culture',      label: 'Culture',      emoji: '🏛️' },
+];
 
 const VIBE_OPTIONS: { id: TravelVibe; label: string; icon: React.ReactNode }[] = [
   { id: 'adventure',   label: 'Adventure',   icon: <Mountain   className="w-3.5 h-3.5" /> },
@@ -755,13 +769,10 @@ export default function WishlistPage() {
       .map(id => allItems.find(w => w.id === id))
       .filter(Boolean) as WishlistItem[];
 
-    if (filterType === 'cost') {
-      filtered = filtered.filter(item => item.estimatedCost < 3500);
-    } else if (filterType === 'season') {
+    if (filterType !== 'all') {
       filtered = filtered.filter(item =>
-        item.bestSeason.toLowerCase().includes('mar') ||
-        item.bestSeason.toLowerCase().includes('apr') ||
-        item.bestSeason.toLowerCase().includes('may')
+        Array.isArray(item.tags) &&
+        item.tags.some((t: string) => t.toLowerCase() === filterType.toLowerCase())
       );
     }
 
@@ -860,31 +871,44 @@ export default function WishlistPage() {
           </div>
 
           {/* Filter / Sort Bar */}
-          <div className="mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex gap-2 flex-wrap">
-              {(['all', 'cost', 'season'] as FilterType[]).map((f) => (
+          <div className="mb-8">
+            <div className="flex gap-2 flex-wrap items-center mb-3">
+              <button
+                onClick={() => setFilterType('all')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                  filterType === 'all'
+                    ? 'bg-sky-800 text-white'
+                    : 'bg-white border border-zinc-200 text-zinc-700 hover:border-sky-400'
+                }`}
+              >
+                All
+              </button>
+              {PRIORITY_TAGS.map((tag) => (
                 <button
-                  key={f}
-                  onClick={() => setFilterType(f)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
-                    filterType === f
+                  key={tag.id}
+                  onClick={() => setFilterType(filterType === tag.id ? 'all' : tag.id)}
+                  className={`rounded-full px-3 py-2 text-sm font-semibold transition-all flex items-center gap-1.5 ${
+                    filterType === tag.id
                       ? 'bg-sky-800 text-white'
                       : 'bg-white border border-zinc-200 text-zinc-700 hover:border-sky-400'
                   }`}
                 >
-                  {f === 'all' ? 'All' : f === 'cost' ? 'Budget-Friendly' : 'Spring Season'}
+                  <span>{tag.emoji}</span>
+                  {tag.label}
                 </button>
               ))}
             </div>
-            <select
-              value={sortType}
-              onChange={(e) => setSortType(e.target.value as SortType)}
-              className="px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-700 bg-white hover:border-sky-400 focus:ring-2 focus:ring-sky-700 transition-all"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="cost-low">Price: Low to High</option>
-              <option value="cost-high">Price: High to Low</option>
-            </select>
+            <div className="flex justify-end">
+              <select
+                value={sortType}
+                onChange={(e) => setSortType(e.target.value as SortType)}
+                className="px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-700 bg-white hover:border-sky-400 focus:ring-2 focus:ring-sky-700 transition-all text-sm"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="cost-low">Price: Low to High</option>
+                <option value="cost-high">Price: High to Low</option>
+              </select>
+            </div>
           </div>
 
           {/* Wishlist Grid */}

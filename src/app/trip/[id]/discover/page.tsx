@@ -465,6 +465,22 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         return;
       }
       setAiDestination(destination);
+
+      // Check 24-hour localStorage cache before hitting the API
+      const cacheKey = `tc_discover_${params.id}`;
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const { items: cachedItems, ts } = JSON.parse(cached);
+          const ageMs = Date.now() - ts;
+          if (ageMs < 24 * 60 * 60 * 1000 && Array.isArray(cachedItems) && cachedItems.length > 0) {
+            setAiItems(cachedItems);
+            setAiLoading(false);
+            return;
+          }
+        }
+      } catch { /* ignore bad cache */ }
+
       setAiLoading(true);
       setAiError(false);
 
@@ -477,6 +493,10 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         if (res.ok) {
           const { items } = await res.json();
           setAiItems(items);
+          // Cache results for 24h to avoid re-generating on every page visit
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ items, ts: Date.now() }));
+          } catch { /* storage full or unavailable */ }
         } else {
           const body = await res.json().catch(() => ({}));
           setAiErrorDetail(body.detail ?? `HTTP ${res.status}`);
@@ -679,7 +699,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     <div className="min-h-screen bg-parchment">
       {/* Static Compact Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-zinc-100">
-        <div className="px-6 py-4 max-w-7xl mx-auto">
+        <div className="px-6 py-4 max-w-5xl mx-auto">
           {/* Title + meta row */}
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -754,7 +774,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       {/* Smart Alerts Panel — only shown for mock trips (alerts are Iceland-specific) */}
       {showAlerts && isMockTrip && (
         <div className="bg-white border-b border-zinc-100 px-6 py-4">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <h3 className="font-semibold text-zinc-900 mb-3">Smart Alerts</h3>
             <div className="space-y-3">
               {smartAlerts.map((alert) => (
@@ -778,7 +798,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
 
       {/* Main Content */}
       <div className="px-6 py-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {/* Loading state while AI generates destination recommendations */}
           {!isMockTrip && aiLoading && (
             <div className="text-center py-20">

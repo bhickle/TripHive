@@ -4,13 +4,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
-  Filter, Users, Calendar
+  Filter, MapPin
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, MOCK_TRIP_IDS } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
 import { createBrowserClient } from '@supabase/ssr';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 export default function MemoriesPage({ params }: { params: { id: string } }) {
+  const currentUser = useCurrentUser();
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
   const [tripPhotos, setTripPhotos] = useState<any[]>(isMockTrip ? mockTripPhotos : []);
   const itineraryDays = isMockTrip ? mockItineraryDays : [];
@@ -55,6 +57,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [uploadedPhotos, setUploadedPhotos] = useState<Array<{ url: string; name: string }>>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [photoLocation, setPhotoLocation] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const tripDestination = isMockTrip ? 'Iceland' : (tripDestinationFromApi ?? 'your trip');
@@ -78,7 +81,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
   return (
     <main className="min-h-screen bg-parchment">
-      <div className="max-w-7xl mx-auto px-4 py-12">
+      <div className="max-w-5xl mx-auto px-4 py-12">
         <div className="mb-12">
           <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">The Pics</h1>
           <p className="text-zinc-600">Your {tripDestination} adventure through photos</p>
@@ -331,18 +334,22 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             setUploadedPhotos(prev => [...prev, ...localPreviews]);
             setUploadedCount(prev => prev + fileArray.length);
 
+            // Use real user name if available, fallback to 'You'
+            const uploaderName = (!currentUser.isLoading && currentUser.name && currentUser.name !== 'Traveler')
+              ? currentUser.name
+              : 'You';
+
             // Also push into tripPhotos so totalPhotos and uniqueUploaders recompute immediately
             const newPhotoEntries = blobEntries.map(e => ({
               id: e.id,
               url: e.blobUrl,
-              activity: e.activity,
-              uploadedBy: 'You',
+              activity: photoLocation.trim() || e.activity,
+              uploadedBy: uploaderName,
               day: 1,
               timestamp: new Date().toISOString(),
+              location: photoLocation.trim() || undefined,
             }));
             setTripPhotos(prev => [...prev, ...newPhotoEntries]);
-
-            setUploadProgress(50);
 
             // Try Supabase upload in background (non-mock trips only)
             if (!isMockTrip) {
@@ -352,6 +359,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                 const supabase = createBrowserClient(supabaseUrl, supabaseKey);
                 for (let i = 0; i < fileArray.length; i++) {
                   const file = fileArray[i];
+                  // Update progress per file: spread evenly from 0–100
+                  setUploadProgress(Math.round(((i) / fileArray.length) * 100));
                   try {
                     const timestamp = Date.now() + i;
                     const path = `${params.id}/${timestamp}-${file.name}`;
@@ -373,22 +382,26 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                         });
                         // Also swap in tripPhotos state
                         setTripPhotos(prev => prev.map(p =>
-                          p.url.startsWith('blob:') && p.activity === file.name.replace(/\.[^.]+$/, '')
+                          p.url.startsWith('blob:') && p.activity === (photoLocation.trim() || file.name.replace(/\.[^.]+$/, ''))
                             ? { ...p, url: urlData.publicUrl }
                             : p
                         ));
-                        // Record in trip_photos table
+                        // Record in trip_photos table with real uploader name and location caption
                         await supabase.from('trip_photos').insert({
                           trip_id: params.id,
                           storage_path: path,
                           public_url: urlData.publicUrl,
-                          uploader_name: 'You',
+                          uploader_name: uploaderName,
                           day_number: 1,
+                          caption: photoLocation.trim() || null,
                         }).then(({ error }) => { if (error) console.warn('trip_photos insert:', error.message); });
                       }
                     }
+                    // Update progress after each completed file
+                    setUploadProgress(Math.round(((i + 1) / fileArray.length) * 100));
                   } catch (err) {
                     console.warn('Background upload failed for', file.name, err);
+                    setUploadProgress(Math.round(((i + 1) / fileArray.length) * 100));
                   }
                 }
               }
@@ -400,6 +413,17 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           }}
         />
         <div className="mb-8">
+          {/* Optional location tag before uploading */}
+          <div className="mb-3 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-zinc-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Tag a location (optional) — e.g. Blue Lagoon, Day 2"
+              value={photoLocation}
+              onChange={e => setPhotoLocation(e.target.value)}
+              className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 bg-white"
+            />
+          </div>
           <button
             onClick={() => photoInputRef.current?.click()}
             disabled={isUploading}
@@ -501,17 +525,23 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             <div className="p-6">
               <h3 className="text-2xl font-bold text-zinc-900 mb-4">{selectedPhoto.activity}</h3>
 
-              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-200">
+              <div className="flex items-center gap-4 mb-4 pb-4 border-b border-slate-200">
                 <Avatar
                   name={selectedPhoto.uploadedBy}
                   size="md"
                 />
-                <div>
+                <div className="flex-1">
                   <p className="font-medium text-zinc-900">{selectedPhoto.uploadedBy}</p>
                   <p className="text-sm text-zinc-500">
                     {new Date(selectedPhoto.timestamp).toLocaleDateString()} at{' '}
                     {new Date(selectedPhoto.timestamp).toLocaleTimeString()}
                   </p>
+                  {(selectedPhoto.location || selectedPhoto.activity) && selectedPhoto.activity !== 'Photo' && (
+                    <p className="text-sm text-zinc-600 flex items-center gap-1 mt-1">
+                      <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+                      {selectedPhoto.location || selectedPhoto.activity}
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -160,6 +160,11 @@ export default function DashboardPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [inviteTripId, setInviteTripId] = useState<string | null>(null);
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'text' | 'link'>('email');
+  const [inviteContact, setInviteContact] = useState('');
+  const [inviteSent, setInviteSent] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showYearlyReview, setShowYearlyReview] = useState(false);
   const [showYearInReviewUpgrade, setShowYearInReviewUpgrade] = useState(false);
@@ -735,50 +740,166 @@ export default function DashboardPage() {
       </main>
 
       {/* Invite Modal */}
-      {showInviteModal && (() => {
-        const inviteLink = inviteTripId ? `https://tripcoord.ai/join/${inviteTripId}` : '';
-        return (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-              <h3 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">Get the Crew Together</h3>
-              <p className="text-sm text-zinc-500 mb-5">Send this link and they&apos;re in. Easy.</p>
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowInviteModal(false); setInviteSent(false); setInviteError(null); setInviteContact(''); }}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Get the Crew Together</h3>
 
-              {userTrips.length === 0 ? (
-                <p className="text-sm text-zinc-400 mb-4 text-center py-4">Create a trip first, then invite your crew.</p>
-              ) : (
-                <>
-                  {userTrips.length > 1 && (
-                    <select
-                      value={inviteTripId ?? ''}
-                      onChange={e => { setInviteTripId(e.target.value); setInviteCopied(false); }}
-                      className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 mb-3 focus:outline-none focus:ring-2 focus:ring-sky-700"
-                    >
-                      {userTrips.map(t => (
-                        <option key={t.id} value={t.id}>{t.title} — {t.destination}</option>
-                      ))}
-                    </select>
-                  )}
-                  <div className="flex gap-2 mb-4">
-                    <input
-                      type="text"
-                      readOnly
-                      value={inviteLink}
-                      className="flex-1 px-4 py-2.5 bg-parchment border border-zinc-200 rounded-xl text-sm text-zinc-600 focus:outline-none"
-                    />
+            {userTrips.length === 0 ? (
+              <p className="text-sm text-zinc-400 mb-4 text-center py-4">Create a trip first, then invite your crew.</p>
+            ) : (
+              <>
+                {/* Trip selector */}
+                {userTrips.length > 1 && (
+                  <select
+                    value={inviteTripId ?? ''}
+                    onChange={e => { setInviteTripId(e.target.value); setInviteSent(false); setInviteError(null); }}
+                    className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 mb-4 focus:outline-none focus:ring-2 focus:ring-sky-700"
+                  >
+                    {userTrips.map(t => (
+                      <option key={t.id} value={t.id}>{t.title} — {t.destination}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Method toggle */}
+                <div className="flex gap-2 mb-4">
+                  {(['email', 'text', 'link'] as const).map(method => (
                     <button
-                      onClick={() => { navigator.clipboard.writeText(inviteLink); setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000); }}
-                      className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-xl text-sm transition-all"
+                      key={method}
+                      onClick={() => { setInviteMethod(method); setInviteSent(false); setInviteError(null); }}
+                      className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${
+                        inviteMethod === method ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                      }`}
                     >
-                      {inviteCopied ? 'Copied!' : 'Copy'}
+                      {method === 'email' ? 'Email' : method === 'text' ? 'Text' : 'Copy Link'}
                     </button>
+                  ))}
+                </div>
+
+                {inviteMethod === 'link' ? (
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">Invite Link</label>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={inviteTripId ? `${typeof window !== 'undefined' ? window.location.origin : 'https://www.tripcoord.ai'}/join/${inviteTripId}` : ''}
+                        className="flex-1 px-3 py-2.5 border border-zinc-200 rounded-lg text-sm text-zinc-600 bg-zinc-50 focus:outline-none"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!inviteTripId) return;
+                          const url = `${window.location.origin}/join/${inviteTripId}`;
+                          await navigator.clipboard.writeText(url);
+                          setInviteCopied(true);
+                          setTimeout(() => setInviteCopied(false), 2000);
+                        }}
+                        className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-medium text-sm transition-colors whitespace-nowrap"
+                      >
+                        {inviteCopied ? '✓ Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-2">Anyone with this link can join the trip.</p>
                   </div>
-                </>
+                ) : (
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      {inviteMethod === 'email' ? 'Email Address' : 'Phone Number'}
+                    </label>
+                    <input
+                      type={inviteMethod === 'email' ? 'email' : 'tel'}
+                      placeholder={inviteMethod === 'email' ? 'friend@example.com' : '+1 (555) 123-4567'}
+                      value={inviteContact}
+                      onChange={(e) => setInviteContact(e.target.value)}
+                      className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                    />
+                  </div>
+                )}
+
+                {inviteMethod !== 'link' && (
+                  <div className="mb-4 p-3 bg-parchment rounded-lg border border-zinc-200">
+                    <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1">Preview</p>
+                    <p className="text-sm text-zinc-700">
+                      {inviteMethod === 'email'
+                        ? `Hey! You're invited to join our trip on TripCoord. Click the link to join the group and start planning together!`
+                        : `You're invited to join a trip on TripCoord! Join here: ${typeof window !== 'undefined' ? window.location.origin : 'https://www.tripcoord.ai'}/join/${inviteTripId ?? ''}`}
+                    </p>
+                  </div>
+                )}
+
+                {inviteSent && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center mb-4">
+                    <p className="text-sm font-semibold text-emerald-700">
+                      {inviteMethod === 'email' ? '✓ Invite sent! They\'ll see it in their email or TripCoord dashboard.' : `✓ Invite sent via ${inviteMethod}!`}
+                    </p>
+                  </div>
+                )}
+
+                {inviteError && (
+                  <div className={`p-3 rounded-lg text-center mb-4 border ${inviteError.includes('copied') ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'}`}>
+                    <p className={`text-sm font-semibold ${inviteError.includes('copied') ? 'text-amber-700' : 'text-rose-700'}`}>
+                      {inviteError}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowInviteModal(false); setInviteSent(false); setInviteError(null); setInviteContact(''); }}
+                className="flex-1 px-4 py-2.5 border border-zinc-200 text-zinc-700 rounded-lg font-medium text-sm hover:bg-zinc-50"
+              >
+                {inviteMethod === 'link' ? 'Done' : 'Cancel'}
+              </button>
+              {inviteMethod !== 'link' && userTrips.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (!inviteContact.trim() || !inviteTripId) return;
+                    setIsSendingInvite(true);
+                    setInviteError(null);
+                    try {
+                      const selectedTrip = userTrips.find(t => t.id === inviteTripId);
+                      const endpoint = inviteMethod === 'email' ? '/api/invite/email' : '/api/invite/sms';
+                      const payload = inviteMethod === 'email'
+                        ? { email: inviteContact, tripId: inviteTripId, tripName: selectedTrip?.title, inviterName: currentUser.name }
+                        : { phone: inviteContact, tripId: inviteTripId, tripName: selectedTrip?.title, inviterName: currentUser.name };
+                      const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                      });
+                      if (!res.ok) throw new Error('Failed to send invite');
+                      const data = await res.json();
+                      if (data.noService) {
+                        const url = `${window.location.origin}/join/${inviteTripId}`;
+                        await navigator.clipboard.writeText(url).catch(() => {});
+                        setInviteMethod('link');
+                        setInviteError('Email isn\'t set up yet — invite link copied! Paste it to your guest.');
+                        return;
+                      }
+                      setInviteSent(true);
+                      setTimeout(() => {
+                        setShowInviteModal(false);
+                        setInviteSent(false);
+                        setInviteContact('');
+                      }, 2000);
+                    } catch {
+                      setInviteError('Failed to send invite. Please try again.');
+                    } finally {
+                      setIsSendingInvite(false);
+                    }
+                  }}
+                  disabled={isSendingInvite}
+                  className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-sky-600 text-white rounded-lg font-medium text-sm transition-colors"
+                >
+                  {isSendingInvite ? 'Sending...' : 'Send Invite'}
+                </button>
               )}
-              <button onClick={() => setShowInviteModal(false)} className="w-full py-2.5 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-600 hover:bg-parchment-dark transition-all">Close</button>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* Upload Itinerary Modal */}
       {showUploadModal && (

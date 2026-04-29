@@ -265,7 +265,7 @@ export default function LayoverPlannerPage() {
 
   return (
     <div className="min-h-screen bg-gradient-subtle p-6 md:p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">

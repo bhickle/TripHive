@@ -60,7 +60,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   );
   const expenses = isMockTrip ? mockExpenses : [];
   const [chatMessages, setChatMessages] = useState(isMockTrip ? mockMessages : []);
-  const [votes, setVotes] = useState<Vote[]>(isMockTrip ? (mockGroupVotes as Vote[]) : []);
+  const [votes, setVotes] = useState<Vote[]>([]);
   const [dataLoading, setDataLoading] = useState(!isMockTrip);
 
   // Current user info (for message attribution)
