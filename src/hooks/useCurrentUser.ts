@@ -18,17 +18,33 @@ import type { SubscriptionTier } from '@/lib/types';
 export function useCurrentUser() {
   const { user, profile, isDemo, isLoading } = useAuth();
 
+  // Auth state still resolving — don't commit to demo/mock yet.
+  // Pages guard against acting on this with `if (currentUser.isLoading) return;`
+  if (isLoading) {
+    return {
+      ...mockUser,
+      isDemo: false,
+      isLoading: true,
+    };
+  }
+
   // Not authenticated OR demo account → full mock experience
   if (!user || isDemo) {
     return {
       ...mockUser,
       isDemo: !!isDemo,
-      isLoading,
+      isLoading: false,
     };
   }
 
-  // Real authenticated user — build from Supabase profile
-  const tier = (profile?.subscription_tier ?? 'free') as SubscriptionTier;
+  // Real authenticated user — build from Supabase profile.
+  // Fall back to localStorage-cached tier if profile hasn't loaded yet (transient
+  // Supabase failure) so paid users don't revert to free on every page load.
+  const cachedTier =
+    typeof window !== 'undefined'
+      ? (localStorage.getItem(`tc_tier_${user.id}`) as SubscriptionTier | null)
+      : null;
+  const tier = (profile?.subscription_tier ?? cachedTier ?? 'free') as SubscriptionTier;
   const limits = TIER_LIMITS[tier];
   const aiTotal =
     typeof limits?.aiCreditsPerMonth === 'number' ? limits.aiCreditsPerMonth : 0;

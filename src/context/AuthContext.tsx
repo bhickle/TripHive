@@ -68,7 +68,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // unavailable, tab-focus re-fetch during a slow network), keep the
         // cached profile rather than dropping back to free tier.
         // Profile is explicitly nulled only on sign-out.
-        if (data) setProfile(data);
+        if (data) {
+          setProfile(data);
+          // Cache tier in localStorage so useCurrentUser can restore it if the
+          // next profile fetch returns null (network hiccup, RLS transient error).
+          try {
+            localStorage.setItem(`tc_tier_${userId}`, data.subscription_tier);
+          } catch {
+            // localStorage unavailable (e.g. private browsing with storage blocked) — ignore
+          }
+        }
       } catch (err) {
         // Query threw — same policy: keep cached profile.
         console.warn('[AuthContext] fetchProfile error (profile preserved):', err);
@@ -93,15 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Keep in sync with auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         setSession(session);
         if (session?.user) {
-          // On a fresh sign-in, evict the localStorage persona so Supabase is
-          // authoritative — prevents stale onboarding data from shadowing the
-          // real profile on a different device or after a profile update.
-          if (event === 'SIGNED_IN') {
-            try { localStorage.removeItem('tripcoord_profile'); } catch { /* ignore */ }
-          }
           await fetchProfile(session.user.id);
         } else {
           setProfile(null);
@@ -130,11 +133,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Clear cached tier before signing out so it doesn't leak to the next user
+    if (session?.user?.id) {
+      try { localStorage.removeItem(`tc_tier_${session.user.id}`); } catch {}
+    }
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
-    // Clear cached persona so a subsequent login always reads from Supabase.
-    try { localStorage.removeItem('tripcoord_profile'); } catch { /* ignore */ }
   };
 
   const refreshProfile = async () => {

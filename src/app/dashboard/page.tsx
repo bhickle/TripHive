@@ -68,7 +68,7 @@ export default function DashboardPage() {
   // Start in loading state so we never flash the "no trips" empty state before the fetch resolves
   const [tripsLoading, setTripsLoading] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [wishlistPreview, setWishlistPreview] = useState<any[]>(mockWishlistItems.slice(0, 3));
+  const [wishlistPreview, setWishlistPreview] = useState<any[]>([]);
 
   const loadTrips = () => {
     if (!currentUser.id || currentUser.isDemo) return;
