@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, AlertCircle, Sparkles, Utensils, MapPin, Coffee, Sunset } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, Sparkles, Utensils, MapPin, Coffee, Zap } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,6 +155,7 @@ export default function GeneratingPage() {
   const [doneCount, setDoneCount]         = useState(0);
   const [phase, setPhase]                 = useState<'starting' | 'streaming' | 'saving' | 'done' | 'error'>('starting');
   const [errorMsg, setErrorMsg]           = useState('');
+  const [errorType, setErrorType]         = useState<'generic' | 'credits'>('generic');
   const [bgPhoto, setBgPhoto]             = useState(DESTINATION_PHOTOS.default);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -201,7 +202,7 @@ export default function GeneratingPage() {
       return;
     }
 
-    // Pre-stream errors (NO_API_KEY, tier limit, etc.) come back as plain JSON
+    // Pre-stream errors (NO_API_KEY, tier limit, credit limit, etc.) come back as plain JSON
     const ct = res.headers.get('content-type') ?? '';
     if (!res.ok || !ct.includes('text/event-stream')) {
       let msg = 'Generation failed';
@@ -210,6 +211,16 @@ export default function GeneratingPage() {
         if (d.error === 'NO_API_KEY') {
           // Demo fallback — redirect to the sample itinerary
           router.push('/trip/trip_1/itinerary');
+          return;
+        }
+        if (d.error === 'CREDIT_LIMIT') {
+          // Out of AI credits — show a clear message, then redirect to pricing
+          const used = d.creditsTotal ?? 'your';
+          setErrorMsg(`You've used all ${used} AI credits for this billing period. Credits refresh automatically at the start of next month — or upgrade now for more.`);
+          setErrorType('credits');
+          setPhase('error');
+          // Auto-redirect after 5s so users can read the message
+          setTimeout(() => router.push('/pricing?reason=credits'), 5000);
           return;
         }
         msg = d.message || msg;
@@ -317,19 +328,39 @@ export default function GeneratingPage() {
     localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaFull));
 
     let tripId = 'trip_1';
+    const existingTripId = payload.existingTripId as string | undefined;
     try {
-      const saveRes = await fetch('/api/trips/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: dedupedDays }),
-      });
-      if (saveRes.ok) {
-        const saveData = await saveRes.json();
-        if (saveData.tripId) {
-          tripId = saveData.tripId;
+      if (existingTripId && /^[0-9a-f-]{36}$/i.test(existingTripId)) {
+        // Regenerate flow: update the existing trip's itinerary + stamp generation time
+        const patchRes = await fetch(`/api/trips/${existingTripId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            days: dedupedDays,
+            metaPatch: { ...tripMetaFull },
+            tripPatch: { itinerary_generated_at: new Date().toISOString() },
+          }),
+        });
+        if (patchRes.ok) {
+          tripId = existingTripId;
           localStorage.setItem('currentTripId', tripId);
           localStorage.removeItem('generatedItinerary');
           localStorage.removeItem('generatedTripMeta');
+        }
+      } else {
+        const saveRes = await fetch('/api/trips/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripMeta: tripMetaFull, itinerary: dedupedDays }),
+        });
+        if (saveRes.ok) {
+          const saveData = await saveRes.json();
+          if (saveData.tripId) {
+            tripId = saveData.tripId;
+            localStorage.setItem('currentTripId', tripId);
+            localStorage.removeItem('generatedItinerary');
+            localStorage.removeItem('generatedTripMeta');
+          }
         }
       }
     } catch { /* localStorage fallback stays */ }
@@ -449,7 +480,30 @@ export default function GeneratingPage() {
           )}
 
           {/* Error state */}
-          {phase === 'error' && (
+          {phase === 'error' && errorType === 'credits' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+              <Zap className="w-8 h-8 text-amber-400 mx-auto mb-3" />
+              <p className="font-semibold text-amber-900 mb-1">AI Credits Used Up</p>
+              <p className="text-sm text-amber-700 mb-5">{errorMsg}</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={() => router.push('/pricing?reason=credits')}
+                  className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  See upgrade plans
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  className="px-5 py-2.5 bg-white border border-amber-200 hover:bg-amber-50 text-amber-800 text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Back to dashboard
+                </button>
+              </div>
+              <p className="text-xs text-amber-500 mt-4">Redirecting to pricing in a moment…</p>
+            </div>
+          )}
+
+          {phase === 'error' && errorType === 'generic' && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
               <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
               <p className="font-semibold text-red-800 mb-1">Something went wrong</p>

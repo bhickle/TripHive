@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
   CalendarDays, Map, Camera, Shield, Star, ChevronDown,
-  ChevronUp, Lock, Crown, Loader2,
+  ChevronUp, Lock, Crown, Loader2, AlertCircle,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
@@ -121,6 +121,8 @@ export default function PricingPage() {
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reason = searchParams.get('reason');
 
   // ── Kick off Stripe checkout ──────────────────────────────────────────────
   async function startCheckout(priceId: string, mode: 'subscription' | 'payment') {
@@ -171,6 +173,22 @@ export default function PricingPage() {
           </Link>
         </div>
       </nav>
+
+      {/* Credits-exhausted banner — shown when arriving from the generating page */}
+      {reason === 'credits' && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-4">
+          <div className="max-w-2xl mx-auto flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">You&apos;ve used all your AI credits for this billing period</p>
+              <p className="text-sm text-amber-700 mt-0.5">
+                Your credits refresh automatically on your next billing date — or upgrade below to get more right now.
+                Explorer gives you 100 credits/month, Nomad gives you 350.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero */}
       <section className="pt-20 pb-10 px-4 text-center">
