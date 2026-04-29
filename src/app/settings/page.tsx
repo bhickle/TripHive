@@ -131,6 +131,8 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [pwResetSending, setPwResetSending] = useState(false);
+  const [pwResetSent, setPwResetSent] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
@@ -523,6 +525,22 @@ export default function SettingsPage() {
     }
   };
 
+  const handlePasswordReset = async () => {
+    if (!profile.email) return;
+    setPwResetSending(true);
+    try {
+      await fetch('/api/auth/send-reset-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: profile.email }),
+      });
+    } finally {
+      setPwResetSending(false);
+      setPwResetSent(true);
+      setTimeout(() => setPwResetSent(false), 5000);
+    }
+  };
+
   const handleExportData = async () => {
     setExportingData(true);
     try {
@@ -693,21 +711,41 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between pb-6 border-b border-slate-200">
-                      <div className="flex items-center space-x-6">
-                        <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
-                        <div>
-                          <p className="font-semibold text-slate-900">{profile.name || '—'}</p>
-                          <p className="text-slate-600">{profile.email || '—'}</p>
-                          <p className="text-sm text-slate-500 mt-1 capitalize">{tierLabel}</p>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+                        <div className="flex items-center space-x-6">
+                          <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
+                          <div>
+                            <p className="font-semibold text-slate-900">{profile.name || '—'}</p>
+                            <p className="text-slate-600">{profile.email || '—'}</p>
+                            <p className="text-sm text-slate-500 mt-1 capitalize">{tierLabel}</p>
+                          </div>
                         </div>
+                        <button
+                          onClick={() => setEditingProfile(true)}
+                          className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
+                        >
+                          Edit
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setEditingProfile(true)}
-                        className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
-                      >
-                        Edit
-                      </button>
+                      {/* Change Password */}
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <p className="font-semibold text-slate-900">Password</p>
+                          <p className="text-sm text-slate-500 mt-0.5">Send a reset link to {profile.email || 'your email'}</p>
+                        </div>
+                        <button
+                          onClick={handlePasswordReset}
+                          disabled={pwResetSending || pwResetSent}
+                          className={`px-4 py-2 border rounded-lg transition-all font-medium text-sm disabled:cursor-not-allowed ${
+                            pwResetSent
+                              ? 'border-green-300 bg-green-50 text-green-700'
+                              : 'border-slate-300 hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          {pwResetSent ? '✓ Link sent!' : pwResetSending ? 'Sending…' : 'Change Password'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

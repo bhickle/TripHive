@@ -4,7 +4,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
@@ -17,16 +16,20 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
     setError('');
 
-    const supabase = createClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+    try {
+      const res = await fetch('/api/auth/send-reset-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && data.error) {
+        setError(data.error);
+        setIsLoading(false);
+        return;
       }
-    );
-
-    if (resetError) {
-      setError(resetError.message);
+    } catch {
+      setError('Something went wrong. Please try again.');
       setIsLoading(false);
       return;
     }
