@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
-  Filter, MapPin, Calendar
+  Filter, MapPin, Calendar, Users
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, MOCK_TRIP_IDS } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
