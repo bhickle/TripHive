@@ -430,6 +430,13 @@ function TripBuilderPage() {
     setQuery: setCityQuery,
   } = usePlacesSearch(150, '/api/destinations/search');
 
+  // Redirect to login if auth resolves with no user
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace('/auth/login');
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
+
   // Clamp groupSize to the user's tier limit once entitlements are known.
   // Without this, a free user could increment to >4 during the brief loading window.
   useEffect(() => {

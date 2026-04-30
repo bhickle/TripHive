@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
@@ -287,7 +288,15 @@ function AirportSearch({ value, onSelect }: AirportSearchProps) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LayoverPlannerPage() {
+  const router = useRouter();
   const currentUser = useCurrentUser();
+
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace('/auth/login');
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
+
   const [selectedCode, setSelectedCode] = useState('');
   const [layoverHours, setLayoverHours] = useState('');
   const [isSearching, setIsSearching] = useState(false);

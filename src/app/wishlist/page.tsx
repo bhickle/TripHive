@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { wishlistItems as mockWishlistItems } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -689,7 +690,15 @@ function getTagColor(tag: string) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function WishlistPage() {
+  const router = useRouter();
   const currentUser = useCurrentUser();
+
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace('/auth/login');
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
+
   const { hasWishlist, getUpgradePrompt } = useEntitlements();
 
   const [filterType, setFilterType] = useState<FilterType>('all');

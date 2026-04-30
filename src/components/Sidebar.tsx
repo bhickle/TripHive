@@ -126,8 +126,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
         </div>
       )}
 
-      {/* User Profile */}
-      {user && (
+      {/* User Profile — only render once we have a real name. Real users always
+          have at least an email-prefix fallback, so name='' means still loading
+          or unauthenticated. Hides the section during auth resolution so paid
+          users don't see a "Free" flash before their actual tier loads. */}
+      {user?.name && (
         <div className="mx-3 mb-4" ref={userMenuRef}>
           <div className="mx-1 h-px mb-4" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
