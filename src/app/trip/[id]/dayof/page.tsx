@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   MapPin, Navigation, CheckCircle2, AlertCircle,
-  Cloud, ChevronDown, Camera, DollarSign,
-  Car, Bus, Train, Ticket, ArrowRight, Sun, Wind, Droplets,
+  ChevronDown, Camera, DollarSign,
+  Car, Bus, Train, Ticket, ArrowRight,
   ChevronLeft, Zap, Utensils, Star,
   CalendarDays, MessageSquare,
 } from 'lucide-react';
 import { itineraryDays, groupMembers, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import type { TransportLeg, TransportType, Activity } from '@/lib/types';
+import { WeatherWidget } from '@/components/WeatherWidget';
 
 // ─── Transport config ─────────────────────────────────────────────────────────
 
@@ -383,7 +384,7 @@ export default function DayOfPage() {
             <ChevronLeft className="w-5 h-5 text-slate-600" />
           </Link>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-500 font-medium">Day {currentDay.day} — {destination}</p>
+            <p className="text-xs text-slate-500 font-medium">Day {currentDay.day} — {currentDay.city ?? destination}</p>
             <p className="font-script italic font-semibold text-slate-900 truncate">
               {currentDay.theme || 'Today\'s Schedule'}
             </p>
@@ -399,50 +400,15 @@ export default function DayOfPage() {
 
         {/* Weather + Crew */}
         <div className="grid grid-cols-5 gap-3">
-          {isMockTrip ? (
-            <>
-              {/* Mock Weather */}
-              <div className="col-span-3 bg-gradient-to-br from-sky-600 to-sky-700 rounded-xl p-4 text-white">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="text-xs text-sky-200 font-medium">{destination}</p>
-                    <div className="flex items-end gap-2 mt-1">
-                      <span className="text-3xl font-script italic font-semibold">8°</span>
-                      <span className="text-sky-200 text-xs mb-1">Partly cloudy</span>
-                    </div>
-                  </div>
-                  <Cloud className="w-10 h-10 text-sky-200 opacity-70" />
-                </div>
-                <div className="grid grid-cols-3 gap-1 pt-2 border-t border-sky-500 text-center">
-                  <div>
-                    <Sun className="w-3.5 h-3.5 text-amber-300 mx-auto mb-0.5" />
-                    <p className="text-xs text-sky-100">High 10°</p>
-                  </div>
-                  <div>
-                    <Wind className="w-3.5 h-3.5 text-sky-300 mx-auto mb-0.5" />
-                    <p className="text-xs text-sky-100">15 km/h</p>
-                  </div>
-                  <div>
-                    <Droplets className="w-3.5 h-3.5 text-sky-300 mx-auto mb-0.5" />
-                    <p className="text-xs text-sky-100">20%</p>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Real Trip Weather Placeholder */}
-              <div className="col-span-3 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 text-slate-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-slate-500 font-medium">{destination}</p>
-                    <p className="text-sm text-slate-600 mt-2">Weather coming soon</p>
-                  </div>
-                  <Cloud className="w-10 h-10 text-slate-300 opacity-50" />
-                </div>
-              </div>
-            </>
-          )}
+          {/* Live weather for today's city (works for both mock and real trips) */}
+          <div className="col-span-3">
+            <WeatherWidget
+              destination={currentDay.city ?? destination}
+              startDate={currentDay.date}
+              endDate={currentDay.date}
+              showPackingTip={false}
+            />
+          </div>
 
           {/* Crew */}
           <div className="col-span-2 bg-white rounded-2xl border border-zinc-100 shadow-sm p-3">

@@ -396,6 +396,10 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [aiLoading, setAiLoading] = useState(!isMockTrip);
   const [aiError, setAiError] = useState(false);
   const [aiErrorDetail, setAiErrorDetail] = useState<string>('');
+  // Multi-city discover: one set of recommendations per city
+  const [tripCities, setTripCities] = useState<string[]>([]);
+  const [selectedDiscoverCity, setSelectedDiscoverCity] = useState<string>('');
+  const [cityItemsCache, setCityItemsCache] = useState<Record<string, DiscoverItem[]>>({});
   // Pre-populate destination from localStorage so the title renders immediately
   // rather than showing "Discover …" while the async fetch is in progress.
   const [aiDestination, setAiDestination] = useState<string>(() => {
@@ -436,10 +440,10 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       .catch(() => {});
   }, [isMockTrip, params.id]);
 
+  // ── Phase 1: load trip metadata (destination, days, cities) ─────────────────
   useEffect(() => {
     if (isMockTrip) return;
 
-    // Read destination from localStorage (set by upload or new-trip flow)
     const readDestination = async () => {
       let destination = '';
 
@@ -451,8 +455,19 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           if (res.ok) {
             const { trip, itinerary } = await res.json();
             destination = trip.destination || '';
-            // Store days so "We're doing this" can actually save to the itinerary
-            if (Array.isArray(itinerary?.days)) setTripDays(itinerary.days);
+            // Store days so "We're doing this" can save to the itinerary
+            if (Array.isArray(itinerary?.days)) {
+              setTripDays(itinerary.days);
+              // Extract ordered unique cities from the itinerary days
+              const cities: string[] = [];
+              for (const d of itinerary.days as { city?: string }[]) {
+                if (d.city && !cities.includes(d.city)) cities.push(d.city);
+              }
+              if (cities.length > 0) {
+                setTripCities(cities);
+                setSelectedDiscoverCity(cities[0]);
+              }
+            }
           }
         } catch { /* fall through */ }
       }
@@ -482,53 +497,70 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         return;
       }
       setAiDestination(destination);
+      // selectedDiscoverCity falls back to destination when no cities extracted from days
+      setSelectedDiscoverCity(prev => prev || destination);
+    };
 
-      // Check 24-hour localStorage cache before hitting the API
-      const cacheKey = `tc_discover_${params.id}`;
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const { items: cachedItems, ts } = JSON.parse(cached);
-          const ageMs = Date.now() - ts;
-          if (ageMs < 24 * 60 * 60 * 1000 && Array.isArray(cachedItems) && cachedItems.length > 0) {
-            setAiItems(cachedItems);
-            setAiLoading(false);
-            return;
-          }
+    readDestination();
+  }, [isMockTrip, params.id]);
+
+  // ── Phase 2: fetch discover items whenever the selected city changes ─────────
+  useEffect(() => {
+    if (isMockTrip) return;
+    const city = selectedDiscoverCity;
+    if (!city) return;
+
+    // If we already have this city's items in the in-memory cache, just swap in.
+    if (cityItemsCache[city]) {
+      setAiItems(cityItemsCache[city]);
+      setAiLoading(false);
+      return;
+    }
+
+    // Check 24-hour localStorage cache before hitting the API
+    const cacheKey = `tc_discover_${params.id}_${city}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { items: cachedItems, ts } = JSON.parse(cached);
+        const ageMs = Date.now() - ts;
+        if (ageMs < 24 * 60 * 60 * 1000 && Array.isArray(cachedItems) && cachedItems.length > 0) {
+          setAiItems(cachedItems);
+          setCityItemsCache(prev => ({ ...prev, [city]: cachedItems }));
+          setAiLoading(false);
+          return;
         }
-      } catch { /* ignore bad cache */ }
+      }
+    } catch { /* ignore bad cache */ }
 
-      setAiLoading(true);
-      setAiError(false);
+    setAiLoading(true);
+    setAiError(false);
 
-      try {
-        const res = await fetch('/api/generate-discover', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destination }),
-        });
+    fetch('/api/generate-discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destination: city }),
+    })
+      .then(async res => {
         if (res.ok) {
           const { items } = await res.json();
           setAiItems(items);
-          // Cache results for 24h to avoid re-generating on every page visit
+          setCityItemsCache(prev => ({ ...prev, [city]: items }));
           try {
             localStorage.setItem(cacheKey, JSON.stringify({ items, ts: Date.now() }));
-          } catch { /* storage full or unavailable */ }
+          } catch { /* storage full */ }
         } else {
           const body = await res.json().catch(() => ({}));
           setAiErrorDetail(body.detail ?? `HTTP ${res.status}`);
           setAiError(true);
         }
-      } catch (e) {
+      })
+      .catch(e => {
         setAiErrorDetail(e instanceof Error ? e.message : 'Network error');
         setAiError(true);
-      }
-
-      setAiLoading(false);
-    };
-
-    readDestination();
-  }, [isMockTrip, params.id]);
+      })
+      .finally(() => setAiLoading(false));
+  }, [isMockTrip, params.id, selectedDiscoverCity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use AI items for non-mock trips; hardcoded items for mock/demo trips
   const sourceItems: DiscoverItem[] = isMockTrip ? discoverItems : (aiItems ?? []);
@@ -721,11 +753,31 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <div>
               <h2 className="font-script italic text-xl font-semibold text-zinc-900">
-                {isMockTrip ? 'Discover Reykjavik' : `Discover ${aiDestination || '…'}`}
+                {isMockTrip
+                  ? 'Discover Reykjavik'
+                  : `Discover ${(tripCities.length > 1 ? selectedDiscoverCity : aiDestination) || '…'}`}
               </h2>
               <p className="text-xs text-zinc-400 mt-0.5">
                 {aiLoading ? 'Finding the best spots…' : `Curated for your group · ${filteredItems.length} results`}
               </p>
+              {/* City tabs — only shown when the trip covers multiple cities */}
+              {!isMockTrip && tripCities.length > 1 && (
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  {tripCities.map(city => (
+                    <button
+                      key={city}
+                      onClick={() => setSelectedDiscoverCity(city)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                        selectedDiscoverCity === city
+                          ? 'bg-sky-800 text-white'
+                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                      }`}
+                    >
+                      {city}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <select

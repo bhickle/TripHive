@@ -104,8 +104,18 @@ export default function PrintItineraryPage() {
           ...(day.tracks?.track_b ?? []),
         ].sort((a: any, b: any) => (a.timeSlot ?? '').localeCompare(b.timeSlot ?? ''));
 
+        // Show a city banner when the city changes between days
+        const prevCity = di > 0 ? days[di - 1]?.city : null;
+        const showCityBanner = day.city && day.city !== prevCity;
+
         return (
           <div key={di} className={di > 0 ? 'mt-10 pt-8 border-t border-zinc-200' : ''}>
+            {showCityBanner && (
+              <div className="mb-6 pb-2 border-b-2 border-zinc-900">
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-0.5">Destination</p>
+                <h2 className="text-2xl font-bold text-zinc-900">{day.city}</h2>
+              </div>
+            )}
             <div className="mb-4">
               <h2 className="text-xl font-bold">Day {day.day} — {day.theme ?? ''}</h2>
               {day.date && <p className="text-sm text-zinc-400">{day.date}</p>}

@@ -483,6 +483,8 @@ function ItineraryPageContent() {
       name: string; address?: string; neighborhood?: string;
       pricePerNight?: number; priceLevel?: number;
       whyRecommended?: string; bookingUrl?: string;
+      /** Set when trip has multiple cities — used to group suggestions under city headers. */
+      city?: string;
     }>;
     practicalNotes?: {
       currency?: string; tipping?: string; customs?: string; entryRequirements?: string;
@@ -690,24 +692,45 @@ function ItineraryPageContent() {
     setGeneratingHotels(true);
     setHotelGenError(null);
     try {
-      const res = await fetch('/api/generate-hotels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination,
-          startDate: aiMeta?.startDate,
-          endDate: aiMeta?.endDate,
-          budget: aiMeta?.budget,
-          budgetBreakdown: aiMeta?.budgetBreakdown,
-        }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.error || `Server error ${res.status}`);
+      // Derive unique cities from itinerary days; fall back to the trip destination.
+      // Use aiDays directly (activeDays is derived from aiDays but declared after this callback).
+      const days = aiDays ?? itineraryDays;
+      const citiesInOrder: string[] = [];
+      for (const d of days) {
+        const c = d.city?.trim();
+        if (c && !citiesInOrder.includes(c)) citiesInOrder.push(c);
       }
-      const { hotelSuggestions } = await res.json();
-      if (hotelSuggestions?.length) {
-        setAiMeta(prev => prev ? { ...prev, hotelSuggestions } : prev);
+      const targetCities = citiesInOrder.length > 0 ? citiesInOrder : [destination];
+
+      // Fetch hotel suggestions for every city in parallel.
+      const results = await Promise.all(
+        targetCities.map(async (city) => {
+          const res = await fetch('/api/generate-hotels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              destination: city,
+              startDate: aiMeta?.startDate,
+              endDate: aiMeta?.endDate,
+              budget: aiMeta?.budget,
+              budgetBreakdown: aiMeta?.budgetBreakdown,
+            }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData?.error || `Server error ${res.status}`);
+          }
+          const { hotelSuggestions } = await res.json();
+          // Tag each suggestion with its city so the UI can group them.
+          return ((hotelSuggestions ?? []) as Array<Record<string, unknown>>).map(
+            (h) => ({ ...h, city: targetCities.length > 1 ? city : undefined })
+          );
+        })
+      );
+
+      const allSuggestions = results.flat();
+      if (allSuggestions.length > 0) {
+        setAiMeta(prev => prev ? { ...prev, hotelSuggestions: allSuggestions as typeof prev.hotelSuggestions } : prev);
       } else {
         setHotelGenError('No hotel suggestions returned. Try again.');
       }
@@ -716,7 +739,7 @@ function ItineraryPageContent() {
     } finally {
       setGeneratingHotels(false);
     }
-  }, [aiMeta]);
+  }, [aiMeta, aiDays]);
 
   // Form state
   const [newActivityName, setNewActivityName] = useState('');
@@ -955,7 +978,7 @@ function ItineraryPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination: trip.destination,
+          destination: currentDayData?.city ?? trip.destination,
           dayNumber: selectedDay,
           date: currentDayData.date,
           mealType: (activity as Activity & { mealType?: string }).mealType ?? null,
@@ -1480,7 +1503,7 @@ function ItineraryPageContent() {
             <MapView
               activities={sortedActivities}
               transportLegs={[...(currentDayData.transportLegs ?? []), ...(addedTransport[selectedDay] ?? [])]}
-              destination={trip.destination}
+              destination={currentDayData?.city ?? trip.destination}
             />
           </div>
         )}
@@ -2171,48 +2194,68 @@ function ItineraryPageContent() {
             )}
 
             {/* Where to Stay Card — AI hotel suggestions (only when no hotel pre-booked) */}
-            {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) && aiMeta?.hotelSuggestions && aiMeta.hotelSuggestions.length > 0 && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">🏨</span>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
-                </div>
-                <p className="text-[11px] text-zinc-400 mb-4">AI lodging suggestions for your trip</p>
-                <div className="space-y-3">
-                  {aiMeta.hotelSuggestions.map((h, i) => (
-                    <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
-                        {h.pricePerNight && (
-                          <span className="flex-shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                            ${h.pricePerNight}/night
-                          </span>
+            {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) && aiMeta?.hotelSuggestions && aiMeta.hotelSuggestions.length > 0 && (() => {
+              const suggestions = aiMeta.hotelSuggestions!;
+              const isMultiCity = suggestions.some(h => h.city);
+              // Group by city when tagged, otherwise treat as a single flat list.
+              const groups: { city?: string; hotels: typeof suggestions }[] = isMultiCity
+                ? Array.from(new Set(suggestions.map(h => h.city))).map(city => ({
+                    city,
+                    hotels: suggestions.filter(h => h.city === city),
+                  }))
+                : [{ hotels: suggestions }];
+              return (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-base">🏨</span>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mb-4">AI lodging suggestions for your trip</p>
+                  <div className="space-y-4">
+                    {groups.map((group, gi) => (
+                      <div key={gi}>
+                        {isMultiCity && group.city && (
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2 mt-1">{group.city}</p>
                         )}
+                        <div className="space-y-3">
+                          {group.hotels.map((h, i) => (
+                            <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
+                                {h.pricePerNight && (
+                                  <span className="flex-shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    ${h.pricePerNight}/night
+                                  </span>
+                                )}
+                              </div>
+                              {h.neighborhood && (
+                                <p className="text-[11px] text-amber-600 mb-1">{h.neighborhood}</p>
+                              )}
+                              {h.whyRecommended && (
+                                <p className="text-xs text-amber-700 leading-relaxed mb-2">{h.whyRecommended}</p>
+                              )}
+                              {h.bookingUrl && (
+                                <a
+                                  href={h.bookingUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors"
+                                >
+                                  Book on Booking.com →
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      {h.neighborhood && (
-                        <p className="text-[11px] text-amber-600 mb-1">{h.neighborhood}</p>
-                      )}
-                      {h.whyRecommended && (
-                        <p className="text-xs text-amber-700 leading-relaxed mb-2">{h.whyRecommended}</p>
-                      )}
-                      {h.bookingUrl && (
-                        <a
-                          href={h.bookingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors"
-                        >
-                          Book on Booking.com →
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-3 pt-2 border-t border-zinc-100">
+                    AI suggestions · May include affiliate links
+                  </p>
                 </div>
-                <p className="text-[10px] text-zinc-400 mt-3 pt-2 border-t border-zinc-100">
-                  AI suggestions · May include affiliate links
-                </p>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Hotel fallback — no pre-booked hotels AND no AI suggestions generated */}
             {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) &&
