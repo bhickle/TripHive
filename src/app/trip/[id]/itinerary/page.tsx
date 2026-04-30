@@ -56,6 +56,7 @@ import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { MapView } from '@/components/MapView';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { WeatherWidget } from '@/components/WeatherWidget';
 
 // ─── Transport helpers ────────────────────────────────────────────────────────
 
@@ -1962,17 +1963,17 @@ function ItineraryPageContent() {
 
           {/* Sidebar */}
           <aside className="w-full lg:w-72 flex flex-col gap-5">
-            {/* Weather Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">{weatherLabel}</p>
-              <div className="text-center py-2">
-                <p className="text-2xl mb-1">🌤️</p>
-                <p className="text-sm font-medium text-zinc-700">
-                  {(aiMeta?.destination ?? 'Your destination').split(',')[0]}
-                </p>
-                <p className="text-xs text-zinc-400 mt-1">Live weather coming soon</p>
-              </div>
-            </div>
+            {/* Weather Card — scoped to the day's city, falls back to trip destination */}
+            <WeatherWidget
+              destination={
+                currentDayData.city
+                ?? aiMeta?.destination?.split(/[,&\/]|\s+and\s+/i)[0]?.trim()
+                ?? 'your destination'
+              }
+              startDate={currentDayData.date}
+              endDate={currentDayData.date}
+              showPackingTip={false}
+            />
 
 
             {/* Photo Spots Card */}

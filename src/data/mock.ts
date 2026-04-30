@@ -156,6 +156,7 @@ export const itineraryDays: ItineraryDay[] = [
   {
     day: 1,
     date: '2026-09-15',
+    city: 'Reykjavik',
     theme: 'Arrival & Reykjavik',
     tracks: {
       shared: [
@@ -188,6 +189,7 @@ export const itineraryDays: ItineraryDay[] = [
   {
     day: 2,
     date: '2026-09-16',
+    city: 'Þingvellir',
     theme: 'Golden Circle',
     tracks: {
       shared: [
@@ -236,6 +238,7 @@ export const itineraryDays: ItineraryDay[] = [
   {
     day: 3,
     date: '2026-09-17',
+    city: 'Vík',
     theme: 'South Coast Adventures',
     tracks: {
       shared: [
@@ -288,6 +291,7 @@ export const itineraryDays: ItineraryDay[] = [
   {
     day: 4,
     date: '2026-09-18',
+    city: 'Grindavík',
     theme: 'Blue Lagoon & Reykjavik Nightlife',
     tracks: {
       shared: [
@@ -332,6 +336,7 @@ export const itineraryDays: ItineraryDay[] = [
   {
     day: 5,
     date: '2026-09-19',
+    city: 'Reykjavik',
     theme: 'Whale Watching & Departure',
     tracks: {
       shared: [

@@ -259,6 +259,8 @@ export interface PhotoSpot {
 export interface ItineraryDay {
   day: number;
   date: string;
+  /** Primary city/location for this day — used for per-day weather and localisation. */
+  city?: string;
   theme: string;
   tracks: {
     shared: Activity[];

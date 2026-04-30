@@ -751,6 +751,7 @@ ${hasShoppingPriority ? `
     "shoppingGuide": [ ... (day 1 only, shopping priority trips) ],` : ''}
     "day": 1,
     "date": "${startDate}",
+    "city": "Primary city or town for this day (e.g. 'Paris', 'Reykjavik', 'Kyoto') — used for per-day weather. For day trips from a base city, use the base city.",
     "theme": "Evocative 3-5 word theme for the day",
     "photoSpots": [
       {

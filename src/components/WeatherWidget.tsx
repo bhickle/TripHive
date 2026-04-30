@@ -18,6 +18,8 @@ export interface WeatherWidgetProps {
   startDate?: string;
   /** Trip end date in YYYY-MM-DD format. */
   endDate?: string;
+  /** Whether to show the packing nudge derived from the forecast. Default: true. */
+  showPackingTip?: boolean;
 }
 
 /** WMO weather interpretation codes → display info. */
@@ -64,7 +66,7 @@ function displayDate(dateStr: string): string {
 /** Open-Meteo forecast window: 16 days from today. */
 const MAX_FORECAST_DAYS = 16;
 
-export function WeatherWidget({ destination, startDate, endDate }: WeatherWidgetProps) {
+export function WeatherWidget({ destination, startDate, endDate, showPackingTip = true }: WeatherWidgetProps) {
   const [days, setDays] = useState<WeatherDay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -244,7 +246,7 @@ export function WeatherWidget({ destination, startDate, endDate }: WeatherWidget
           })}
 
           {/* ── Packing tip based on conditions ── */}
-          <PackingTip days={days} />
+          {showPackingTip && <PackingTip days={days} />}
         </div>
       )}
     </div>
