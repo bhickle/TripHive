@@ -18,14 +18,15 @@ import type { SubscriptionTier } from '@/lib/types';
 export function useCurrentUser() {
   const { user, profile, isDemo, isLoading } = useAuth();
 
-  // Auth state still resolving — don't commit to demo/mock yet.
-  // Pages guard against acting on this with `if (currentUser.isLoading) return;`
-  // IMPORTANT: override name so the mock user's hardcoded name never flashes
-  // on screen while a real user's profile is loading.
+  // Auth state still resolving — return a blank placeholder so no mock
+  // data (name, email, tier) ever flashes for a real user before auth resolves.
   if (isLoading) {
     return {
       ...mockUser,
       name: '',
+      email: '',
+      avatarUrl: undefined,
+      subscriptionTier: 'free' as SubscriptionTier,
       isDemo: false,
       isLoading: true,
     };

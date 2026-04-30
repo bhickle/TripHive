@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -115,6 +116,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const router = useRouter();
   const currentUser = useCurrentUser();
   const { user, profile: authProfile, isLoading: authLoading } = useAuth();
   const [activeSection, setActiveSection] = useState<ActiveSection>('profile');
@@ -147,21 +149,24 @@ export default function SettingsPage() {
     avatarUrl: undefined as string | undefined,
   });
 
-  // Populate profile from real auth data once it loads (bypasses mock user fallback)
+  // Settings is an authenticated page — redirect to login if auth resolves with no user.
+  // This prevents any mock/demo data (including hardcoded emails) from appearing.
   useEffect(() => {
-    if (!authLoading) {
-      if (user) {
-        setProfile({
-          name: authProfile?.name ?? (user.user_metadata as Record<string, string> | undefined)?.full_name ?? user.email?.split('@')[0] ?? '',
-          email: user.email ?? authProfile?.email ?? '',
-          avatarUrl: authProfile?.avatar_url ?? undefined,
-        });
-      } else {
-        // Not logged in — fall back to mock for demo experience
-        setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl });
-      }
+    if (!authLoading && !user) {
+      router.replace('/auth/login');
     }
-  }, [authLoading, user, authProfile, currentUser.name, currentUser.email, currentUser.avatarUrl]);
+  }, [authLoading, user, router]);
+
+  // Populate profile from real auth data once it loads
+  useEffect(() => {
+    if (!authLoading && user) {
+      setProfile({
+        name: authProfile?.name ?? (user.user_metadata as Record<string, string> | undefined)?.full_name ?? user.email?.split('@')[0] ?? '',
+        email: user.email ?? authProfile?.email ?? '',
+        avatarUrl: authProfile?.avatar_url ?? undefined,
+      });
+    }
+  }, [authLoading, user, authProfile]);
 
   // Load user uploaded trips for Downloads section
   useEffect(() => {
