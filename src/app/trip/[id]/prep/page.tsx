@@ -5,6 +5,7 @@ import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink,
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { WeatherWidget } from '@/components/WeatherWidget';
 
 // ─── Schengen Detection ───────────────────────────────────────────────────────
 const SCHENGEN_KEYWORDS = [
@@ -136,6 +137,9 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         const dest = tripRes.value.trip.destination;
         // Update state so all destination-dependent UI uses the correct trip destination
         setTripDestination(dest);
+        // Populate dates for the weather forecast widget
+        if (tripRes.value.trip.start_date) setTripStartDate(tripRes.value.trip.start_date);
+        if (tripRes.value.trip.end_date) setTripEndDate(tripRes.value.trip.end_date);
         // Also store for the phrasebook and discover features
         try {
           localStorage.setItem('currentTripId', params.id);
@@ -163,6 +167,15 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     } catch { /* ignore */ }
     return 'your destination';
   });
+
+  // Trip dates — used by WeatherWidget to show the forecast window for the trip.
+  // Mock trips use dates from mock data; real trips populate from API response below.
+  const [tripStartDate, setTripStartDate] = useState<string | undefined>(
+    isMockTrip ? trips[0]?.startDate : undefined
+  );
+  const [tripEndDate, setTripEndDate] = useState<string | undefined>(
+    isMockTrip ? trips[0]?.endDate : undefined
+  );
 
   // Schengen detection — recalculated whenever tripDestination updates
   const isSchengenDest = SCHENGEN_KEYWORDS.some(kw =>
@@ -530,17 +543,11 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {isMockTrip ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-            <p className="font-medium text-blue-900">Expected weather: <span className="font-semibold">5-12°C, rain likely</span></p>
-            <p className="text-sm text-blue-700 mt-1">Pack layers and waterproof gear!</p>
-          </div>
-        ) : (
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-            <p className="font-medium text-blue-900">Weather for <span className="font-semibold">{tripDestination}</span></p>
-            <p className="text-sm text-blue-700 mt-1">Check the forecast closer to your trip and pack accordingly. Add items below based on expected conditions.</p>
-          </div>
-        )}
+        <WeatherWidget
+          destination={tripDestination}
+          startDate={tripStartDate}
+          endDate={tripEndDate}
+        />
 
         {/* ── Manual add form — available to all tiers, always visible at the top ── */}
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
