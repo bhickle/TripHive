@@ -46,12 +46,41 @@ const AuthContext = createContext<AuthContextValue>({
 
 // ─── Profile cache helpers ─────────────────────────────────────────────────────
 const PROFILE_CACHE_KEY = 'tc_profile_cache';
+// Supabase persists the active session in localStorage under this key.
+// Reading it synchronously lets us validate the cache without an async round-trip.
+const SUPABASE_SESSION_KEY = 'sb-pqizuvmtertpxhhxyemj-auth-token';
+
+/** Read the current user ID out of Supabase's own localStorage session (synchronous). */
+function getSessionUserId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(SUPABASE_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Supabase stores the session as { access_token, user: { id, ... }, ... }
+    return parsed?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function readCachedProfile(): UserProfile | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(PROFILE_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as UserProfile) : null;
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as UserProfile;
+
+    // Guard against cross-user bleed: only return the cache when it belongs
+    // to whoever Supabase currently thinks is logged in.
+    const sessionUserId = getSessionUserId();
+    if (!sessionUserId || sessionUserId !== cached.id) {
+      // No active session, or a different user — drop the stale cache immediately.
+      try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
+      return null;
+    }
+
+    return cached;
   } catch {
     return null;
   }
