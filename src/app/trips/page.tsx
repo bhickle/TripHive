@@ -200,6 +200,30 @@ export default function TripsPage() {
           </div>
         </div>
 
+        {/* Loading skeleton — shown while trips are being fetched */}
+        {tripsLoading && (
+          <div className="space-y-12">
+            <section>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-2 h-2 bg-zinc-200 rounded-full animate-pulse" />
+                <div className="h-5 w-28 bg-zinc-200 rounded animate-pulse" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden animate-pulse">
+                    <div className="h-44 bg-zinc-200" />
+                    <div className="p-5 space-y-3">
+                      <div className="h-4 w-3/4 bg-zinc-200 rounded" />
+                      <div className="h-3 w-1/2 bg-zinc-100 rounded" />
+                      <div className="h-3 w-2/3 bg-zinc-100 rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+
         {/* No results */}
         {filteredTrips.length === 0 && !tripsLoading && (
           <div className="text-center py-20">
@@ -219,7 +243,7 @@ export default function TripsPage() {
         )}
 
         {/* Grid view */}
-        {viewMode === 'grid' && filteredTrips.length > 0 && (
+        {!tripsLoading && viewMode === 'grid' && filteredTrips.length > 0 && (
           <div className="space-y-12">
             {activeTrips.length > 0 && (
               <section>
@@ -266,7 +290,7 @@ export default function TripsPage() {
         )}
 
         {/* List view */}
-        {viewMode === 'list' && filteredTrips.length > 0 && (
+        {!tripsLoading && viewMode === 'list' && filteredTrips.length > 0 && (
           <div className="space-y-3">
             {sortedFilteredTrips.map((trip) => {
               const startDate = new Date(trip.startDate);

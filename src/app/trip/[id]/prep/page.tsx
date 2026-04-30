@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Schengen Detection ───────────────────────────────────────────────────────
 const SCHENGEN_KEYWORDS = [
@@ -54,6 +55,7 @@ interface PhrasebookData {
 export default function PrepPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
   const { hasAIPacking, hasAIPhrasebook } = useEntitlements(params.id);
+  const { user, isLoading: authLoading } = useAuth();
 
   // For real trips, prep tasks and packing items are loaded from Supabase
   const [prepTasks, setPrepTasks] = useState<PrepTask[]>(isMockTrip ? (mockPrepTasks as PrepTask[]) : []);
@@ -93,6 +95,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   // Load prep tasks and packing items from Supabase for real trips
   useEffect(() => {
     if (isMockTrip) return;
+    if (authLoading) return; // Wait for auth session to resolve before fetching
     const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
     if (!looksLikeUuid) return;
 
@@ -144,7 +147,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         } catch { /* ignore */ }
       }
     });
-  }, [isMockTrip, params.id]);
+  }, [isMockTrip, params.id, authLoading, user]);
 
   // Trip destination as state (not a one-time IIFE) so it updates when the API returns data.
   // For real trips the initial value reads from localStorage only when the stored trip ID matches
@@ -423,7 +426,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-semibold text-emerald-900 mb-1">Visa Status</h3>
-                  <p className="text-sm text-emerald-700">No visa required for US citizens visiting Iceland (Schengen area). Your passport and ETIAS (when available) will be sufficient.</p>
+                  <p className="text-sm text-emerald-700">No visa required for US citizens visiting Iceland (Schengen area). Your passport and ETIAS authorization will be sufficient.</p>
                 </div>
               </div>
             </div>

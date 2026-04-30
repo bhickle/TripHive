@@ -396,7 +396,24 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   const [aiLoading, setAiLoading] = useState(!isMockTrip);
   const [aiError, setAiError] = useState(false);
   const [aiErrorDetail, setAiErrorDetail] = useState<string>('');
-  const [aiDestination, setAiDestination] = useState<string>('');
+  // Pre-populate destination from localStorage so the title renders immediately
+  // rather than showing "Discover …" while the async fetch is in progress.
+  const [aiDestination, setAiDestination] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      // Try user trips registry first (covers upload_* and UUID trips)
+      const userTrips = JSON.parse(localStorage.getItem('tripcoord_user_trips') || '[]');
+      const found = userTrips.find((t: { id: string; destination?: string }) => t.id === params.id);
+      if (found?.destination) return found.destination;
+      // Fallback: generatedTripMeta (only if it belongs to this trip)
+      const storedId = localStorage.getItem('currentTripId');
+      if (storedId === params.id || params.id.startsWith('upload_')) {
+        const stored = localStorage.getItem('generatedTripMeta');
+        if (stored) return JSON.parse(stored).destination || '';
+      }
+    } catch { /* ignore */ }
+    return '';
+  });
 
   // Load existing wishlist votes from Supabase on mount (real trips only)
   useEffect(() => {
@@ -814,17 +831,19 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
             <div className="text-center py-16">
               <p className="text-3xl mb-3">{aiError ? '⚠️' : '🗺️'}</p>
               <p className="text-zinc-700 font-semibold">
-                {aiError ? 'Couldn\'t load recommendations' : 'No recommendations loaded yet.'}
+                {aiError ? 'Couldn\'t load recommendations' : 'No recommendations yet.'}
               </p>
               <p className="text-sm text-zinc-400 mt-1">
                 {aiError
                   ? 'Something went wrong generating AI picks. Try again below.'
-                  : 'Try navigating back to your itinerary and returning here.'}
+                  : aiDestination
+                    ? `We couldn't generate picks for ${aiDestination} right now.`
+                    : 'Destination not found — visit your itinerary first to set it up.'}
               </p>
               {aiErrorDetail && (
                 <p className="mt-2 text-xs text-zinc-400 font-mono bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 max-w-md mx-auto break-all">{aiErrorDetail}</p>
               )}
-              {aiError && aiDestination && (
+              {(aiError || (!aiError && aiDestination)) && aiDestination && (
                 <button
                   onClick={() => {
                     setAiError(false);
@@ -847,7 +866,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                   }}
                   className="mt-4 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors"
                 >
-                  Try Again
+                  {aiError ? 'Try Again' : `Generate recommendations for ${aiDestination}`}
                 </button>
               )}
             </div>

@@ -231,7 +231,7 @@ export const itineraryDays: ItineraryDay[] = [
     },
     transportLegs: transportDay2,
     meetupTime: '08:00',
-    meetupLocation: 'Hotel lobby',
+    meetupLocation: 'Hotel Borg lobby',
   },
   {
     day: 3,
@@ -373,7 +373,7 @@ export const itineraryDays: ItineraryDay[] = [
       ],
     },
     meetupTime: '18:30',
-    meetupLocation: 'Hotel lobby',
+    meetupLocation: 'Hotel Borg lobby',
   },
 ];
 

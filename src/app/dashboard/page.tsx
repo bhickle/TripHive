@@ -648,7 +648,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-sky-700" />
                 <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
-                  Where To Next?
+                  Where to next?
                 </h2>
               </div>
               <Link href="/wishlist" className="text-sm text-sky-700 hover:text-sky-900 font-semibold transition-colors">

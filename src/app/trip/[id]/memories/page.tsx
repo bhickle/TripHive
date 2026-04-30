@@ -84,7 +84,11 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         <div className="mb-12">
           <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">The Pics</h1>
-          <p className="text-zinc-600">Your {tripDestination} adventure through photos</p>
+          <p className="text-zinc-600">
+            {tripDestination === 'your trip'
+              ? 'Adventure captured in photos'
+              : `Your ${tripDestination} adventure through photos`}
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
@@ -165,20 +169,6 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                 </label>
               </div>
 
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-3 cursor-pointer flex-1">
-                  <input
-                    type="radio"
-                    checked={false}
-                    onChange={() => {}}
-                    className="w-4 h-4"
-                  />
-                  <div>
-                    <p className="font-medium text-zinc-900">Password Protected</p>
-                    <p className="text-sm text-zinc-500">Share with a password</p>
-                  </div>
-                </label>
-              </div>
             </div>
 
             <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">

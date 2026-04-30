@@ -44,10 +44,34 @@ const AuthContext = createContext<AuthContextValue>({
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
+// ─── Profile cache helpers ─────────────────────────────────────────────────────
+const PROFILE_CACHE_KEY = 'tc_profile_cache';
+
+function readCachedProfile(): UserProfile | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as UserProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedProfile(profile: UserProfile) {
+  try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile)); } catch { /* ignore */ }
+}
+
+function clearCachedProfile() {
+  try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Pre-populate profile from localStorage cache so auth-gated UI renders immediately
+  // on page load without waiting for the Supabase round-trip.
+  const [profile, setProfile] = useState<UserProfile | null>(() => readCachedProfile());
+  // Only show loading state if there is no cached profile to show
+  const [isLoading, setIsLoading] = useState(() => readCachedProfile() === null);
 
   // One stable Supabase browser client for the lifetime of the provider
   const supabase = createBrowserClient(
@@ -65,8 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
         if (data) {
           setProfile(data);
-          // Cache tier in localStorage to survive transient null fetches
-          // for the same user (network hiccup, RLS transient error).
+          // Cache the full profile for instant hydration on next page load,
+          // and also cache the tier separately for the existing tier-only fallback.
+          writeCachedProfile(data);
           try {
             localStorage.setItem(`tc_tier_${userId}`, data.subscription_tier);
           } catch {
@@ -138,13 +163,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    // Clear cached tier before signing out so it doesn't leak to the next user
+    // Clear cached profile and tier before signing out so they don't leak to the next user
     if (session?.user?.id) {
       try { localStorage.removeItem(`tc_tier_${session.user.id}`); } catch {}
     }
+    clearCachedProfile();
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    setIsLoading(false);
   };
 
   const refreshProfile = async () => {
