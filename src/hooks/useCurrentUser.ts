@@ -5,8 +5,9 @@
  * legacy `currentUser` mock object, so pages can switch over with minimal churn.
  *
  * Behaviour:
- *  - Not logged in          → mock user (nomad tier, full demo experience)
- *  - Logged in as demo acct → mock user  (full Iceland demo experience)
+ *  - Auth resolving        → blank placeholder (no mock data ever leaks)
+ *  - Not logged in         → blank placeholder (pages should redirect to login)
+ *  - Logged in as demo acct → mock user (full Iceland demo experience)
  *  - Logged in as real user → real profile from Supabase
  */
 
@@ -15,30 +16,47 @@ import { currentUser as mockUser } from '@/data/mock';
 import { TIER_LIMITS } from '@/lib/types';
 import type { SubscriptionTier } from '@/lib/types';
 
+/** Safe blank shape returned while auth is loading or user is not logged in. */
+const BLANK_USER = {
+  id: '',
+  email: '',
+  name: '',
+  avatarUrl: undefined as string | undefined,
+  subscriptionTier: 'free' as SubscriptionTier,
+  aiCredits: {
+    total: 10,
+    used: 0,
+    refreshAt: new Date(
+      new Date().getFullYear(),
+      new Date().getMonth() + 1,
+      1,
+    ).toISOString(),
+  },
+  tripPasses: [] as NonNullable<typeof mockUser.tripPasses>,
+  isDemo: false,
+  isLoading: false,
+} as const;
+
 export function useCurrentUser() {
   const { user, profile, isDemo, isLoading } = useAuth();
 
-  // Auth state still resolving — return a blank placeholder so no mock
-  // data (name, email, tier) ever flashes for a real user before auth resolves.
+  // Auth state still resolving — blank placeholder so no mock data ever
+  // flashes for a real user before auth resolves.
   if (isLoading) {
-    return {
-      ...mockUser,
-      name: '',
-      email: '',
-      avatarUrl: undefined,
-      subscriptionTier: 'free' as SubscriptionTier,
-      isDemo: false,
-      isLoading: true,
-    };
+    return { ...BLANK_USER, isLoading: true };
   }
 
-  // Not authenticated OR demo account → full mock experience
-  if (!user || isDemo) {
-    return {
-      ...mockUser,
-      isDemo: !!isDemo,
-      isLoading: false,
-    };
+  // Demo account → full mock experience (Iceland trip, all mock data).
+  // This is the ONLY path where mock user data (name/email/tier) is intentional.
+  if (isDemo) {
+    return { ...mockUser, isDemo: true, isLoading: false };
+  }
+
+  // Not authenticated — return blank so callers can redirect to login.
+  // Never fall back to mock data here; that's what caused Mallory/abby0936
+  // to see Brandon's name and email.
+  if (!user) {
+    return { ...BLANK_USER, isLoading: false };
   }
 
   // Real authenticated user — build from Supabase profile.

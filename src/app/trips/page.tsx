@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { TripCard } from '@/components/TripCard';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -34,6 +35,7 @@ function computeStatus(startDate?: string, endDate?: string): 'planning' | 'acti
 }
 
 export default function TripsPage() {
+  const router = useRouter();
   const currentUser = useCurrentUser();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +44,13 @@ export default function TripsPage() {
   const [userTrips, setUserTrips] = useState<any[]>([]);
   // Start in loading state so we never flash "No trips here yet" before fetch resolves
   const [tripsLoading, setTripsLoading] = useState(true);
+
+  // Redirect to login if auth resolves with no user
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace('/auth/login');
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
 
   useEffect(() => {
     if (currentUser.isLoading) return;

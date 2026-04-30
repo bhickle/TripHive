@@ -147,15 +147,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Hydrate from the stored session cookie.
-    // NOTE: getSession() reads the cookie without server validation, but the
-    // Next.js middleware already runs getUser() on every request and refreshes
-    // the token, so by the time this runs the cookie is guaranteed fresh.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    // getSession() reads the local cookie — fast but can return null if the
+    // middleware refreshed the token server-side before the browser propagated it.
+    // When that happens, fall back to getUser() which validates against the
+    // Supabase server and is authoritative. This prevents the race condition
+    // where a valid user (e.g. Mallory on a fresh browser tab) briefly sees
+    // null user and gets shown mock/demo data.
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
+        setSession(session);
         fetchProfile(session.user.id);
       } else {
-        setIsLoading(false);
+        // Cookie read came back empty — do a server-validated fallback.
+        const { data: { user: serverUser } } = await supabase.auth.getUser();
+        if (serverUser) {
+          // getUser() confirmed a valid session — re-read the (now propagated) cookie.
+          const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+          setSession(refreshedSession);
+          fetchProfile(serverUser.id);
+        } else {
+          // Genuinely not logged in.
+          setIsLoading(false);
+        }
       }
     });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Sidebar } from '@/components/Sidebar';
 import { TripCard } from '@/components/TripCard';
@@ -45,6 +46,7 @@ interface Notification {
 
 
 export default function DashboardPage() {
+  const router = useRouter();
   const currentUser = useCurrentUser();
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,6 +87,13 @@ export default function DashboardPage() {
       .catch(() => setTripsLoadError(true))
       .finally(() => setTripsLoading(false));
   };
+
+  // Redirect to login if auth resolves with no user
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace('/auth/login');
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
 
   // For real (non-demo) logged-in users, load trips from Supabase.
   // Fall back to localStorage for demo / unauthenticated visitors.
