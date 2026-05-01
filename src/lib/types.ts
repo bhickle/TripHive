@@ -276,6 +276,12 @@ export interface ItineraryDay {
   meetupLocation?: string;
   /** AI-curated photo opportunities for the day */
   photoSpots?: PhotoSpot[];
+  /** Bonus foodie finds for the day — only present when Food is a top priority */
+  foodieTips?: Array<{
+    name: string; type?: string; neighborhood?: string;
+    why?: string; bestFor?: string; orderThis?: string; priceRange?: string;
+    timeOfDay?: string; tip?: string;
+  }>;
   /** Punchy insider fact about the destination for this day */
   destinationTip?: string;
   /** For split-track days: restaurant name + address where both tracks reconvene for dinner */

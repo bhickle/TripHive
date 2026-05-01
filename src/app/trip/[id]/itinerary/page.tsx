@@ -2027,8 +2027,13 @@ function ItineraryPageContent() {
               </div>
             )}
 
-            {/* Foodie Finds — shown only when Food is a top priority AND foodieTips are present */}
-            {aiMeta?.preferences?.priorities?.includes('food') && aiMeta?.foodieTips && aiMeta.foodieTips.length > 0 && (
+            {/* Foodie Finds — shown when Food is a top priority AND foodieTips present for this day */}
+            {(() => {
+              // New trips: foodieTips live on each day. Old trips: Day 1 only in aiMeta (backward compat).
+              const dayFoodieTips = currentDayData?.foodieTips && currentDayData.foodieTips.length > 0
+                ? currentDayData.foodieTips
+                : (selectedDay === 1 && aiMeta?.foodieTips && aiMeta.foodieTips.length > 0 ? aiMeta.foodieTips : null);
+              return aiMeta?.preferences?.priorities?.includes('food') && dayFoodieTips ? (
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-base">🍜</span>
@@ -2037,7 +2042,7 @@ function ItineraryPageContent() {
                 <p className="text-[11px] text-zinc-400 mb-4">Off the beaten path · Locals only</p>
 
                 <div className="space-y-3">
-                  {aiMeta.foodieTips.map((tip, idx) => {
+                  {dayFoodieTips.map((tip, idx) => {
                     const timeColor =
                       tip.timeOfDay === 'morning'   ? 'bg-amber-50  text-amber-700  border-amber-100'  :
                       tip.timeOfDay === 'afternoon' ? 'bg-sky-50    text-sky-700    border-sky-100'    :
@@ -2091,7 +2096,8 @@ function ItineraryPageContent() {
                   </div>
                 )}
               </div>
-            )}
+              ) : null;
+            })()}
 
             {/* Nightlife Highlights — shown when nightlife is a priority */}
             {aiMeta?.preferences?.priorities?.includes('nightlife') && aiMeta?.nightlifeHighlights && aiMeta.nightlifeHighlights.length > 0 && (

@@ -409,8 +409,8 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
   - Include at least one bookable food experience across the trip — a hands-on cooking class, a guided food or market tour, a brewery or distillery tasting, a winery visit, or a drink-focused experience (cocktail masterclass, sake tasting, mezcal bar flight). These should feel like experiences, not just meals.
   - Locale-specific cuisines: highlight dishes and ingredients that are genuinely unique to this region or city — things that can't be replicated back home.
 
-  BONUS FOODIE TIPS (day 1 output):
-  In addition to the daily meals, generate the "foodieTips" array on day 1 (see OUTPUT FORMAT) with 6-8 bonus food finds spread across the full trip — things that don't fit neatly into a meal slot but are unmissable for a serious foodie. Think: the best coffee in the city, a legendary mid-afternoon snack stop, a specialty food shop worth browsing, a late-night dumpling stall, a local market worth an hour of browsing, or a food tour that covers multiple neighborhoods at once. Label each with the best time to visit so the group can slot them in naturally.`
+  BONUS FOODIE TIPS (every day):
+  Generate a "foodieTips" array on EVERY day with 3-4 bonus food finds specific to that day's neighborhoods and areas — things that don't fit neatly into a meal slot. Think: the best coffee near the morning's first activity, a legendary mid-afternoon snack stop in that neighborhood, a specialty food shop worth browsing on the way, or a late-night street food stall near the evening venue. Each day's tips must be geographically relevant to where the group actually is that day — not generic city-wide tips recycled across days. Label each with the best time to visit so the group can slot them in naturally.`
     : '';
 
   // Photography guidance — iconic spots always included; extra depth when photography is a priority
@@ -727,20 +727,20 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
       }
     ]
     Choose properties that are: (1) real and accurately named, (2) well-located — ideally central or near transport hubs, (3) highly regarded for their category.${destinations.length >= 2 ? ` For each city in the multi-city route, include 1-2 options — this helps the group plan where to base themselves in each leg of the trip.` : ' Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value.'} The bookingUrl should be a Booking.com search URL pre-filled with the property name and city.` : ''}${hasFoodPriority ? `
-  "foodieTips" — since food is a top priority, include an array of 6-8 bonus food finds spread across the trip (day 1 only, but tips cover the full trip):
+  "foodieTips" — since food is a top priority, include this array on EVERY day (not just day 1) with 3-4 bonus finds specific to that day's neighborhoods. Schema:
     [
       {
         "name": "Specific place, stall, or vendor name — be precise, not generic",
         "type": "coffee bar | street stall | food market | specialty shop | food hall | late-night spot | bakery | bar snack | tasting room | other",
         "neighborhood": "District or area name",
-        "why": "What makes this place legendary or worth a detour — the story, the reputation, the cult following. Be vivid and specific.",
-        "orderThis": "The 1-3 exact items to order — dish names, flavors, or products. Make it mouthwatering.",
+        "why": "What makes this place worth a detour — the story, reputation, or cult following. Vivid and specific.",
+        "orderThis": "The 1-3 exact items to order — dish names or products. Make it mouthwatering.",
         "timeOfDay": "morning | midday | afternoon | evening | late-night | any",
-        "priceRange": "$ | $$ | $$$ (rough cost per person for a snack or small purchase)",
-        "tip": "One practical insider tip — when to arrive, what to avoid, cash vs card, secret menu, etc."
+        "priceRange": "$ | $$ | $$$ (rough cost per person)",
+        "tip": "One practical insider tip — when to arrive, cash vs card, secret menu, etc."
       }
     ]
-    Rules: (1) Every tip must be DIFFERENT from the breakfast/lunch/dinner restaurants in the daily tracks — these are the bonus discoveries, the spontaneous stops, the things only a real food lover would seek out. (2) Vary the type widely — include at least one great coffee, one market or food hall, one late-night or post-dinner snack, and one specialty shop or tasting. (3) Must be real, specifically named establishments — no invented places. (4) Write each "why" like a food writer: opinionated, enthusiastic, and concrete. (5) Spread tips across different times of day so the group can slot them naturally into any day of the trip.` : ''}
+    Rules: (1) Tips must be DIFFERENT from the daily track restaurants — these are bonus discoveries, spontaneous stops. (2) Must be real, specifically named establishments. (3) Geographically anchored to where the group is that day — no recycled city-wide tips across days. (4) Write each "why" like a food writer: opinionated and concrete. (5) Vary the type each day — don't repeat the same category two days in a row.` : ''}
 ${hasNightlifePriority ? `
   "nightlifeHighlights" — since nightlife is a top priority, include an array of 5-7 evening venues curated for this destination (day 1 only, covers full trip):
     [
@@ -781,8 +781,7 @@ ${hasShoppingPriority ? `
 [
   {
     "title": "Evocative trip name here (day 1 only)",
-    "practicalNotes": { ... (day 1 only) },${hasFoodPriority ? `
-    "foodieTips": [ ... (day 1 only, food priority trips) ],` : ''}${hasNightlifePriority ? `
+    "practicalNotes": { ... (day 1 only) },${hasNightlifePriority ? `
     "nightlifeHighlights": [ ... (day 1 only, nightlife priority trips) ],` : ''}${hasShoppingPriority ? `
     "shoppingGuide": [ ... (day 1 only, shopping priority trips) ],` : ''}
     "day": 1,
@@ -795,7 +794,19 @@ ${hasShoppingPriority ? `
         "timeOfDay": "golden hour",
         "tip": "One-sentence tip on what to capture and how"
       }
-    ],
+    ],${hasFoodPriority ? `
+    "foodieTips": [
+      {
+        "name": "Specific place or stall name near today's area",
+        "type": "coffee bar | street stall | food market | specialty shop | bakery | late-night spot | other",
+        "neighborhood": "District or area name",
+        "why": "What makes it worth a detour — vivid and specific",
+        "orderThis": "1-3 exact items to order",
+        "timeOfDay": "morning | afternoon | evening | late-night | any",
+        "priceRange": "$ | $$ | $$$",
+        "tip": "One practical insider tip"
+      }
+    ],` : ''}
     "destinationTip": "One punchy, specific insider sentence about something this city or region is distinctly known for — a food, drink, tradition, or quirk tied to the day's location. E.g. 'Bavaria is famous for its weisswurst — order it before noon, never after, at any traditional beer hall.' Rotate the topic across days (food one day, drink another, local tradition another).",
     "trackALabel": null,
     "trackBLabel": null,
@@ -1202,16 +1213,15 @@ export async function POST(request: NextRequest) {
                       title: dayObj.title ?? null,
                       practicalNotes: dayObj.practicalNotes ?? null,
                       hotelSuggestions: dayObj.hotelSuggestions ?? null,
-                      foodieTips: dayObj.foodieTips ?? null,
                       nightlifeHighlights: dayObj.nightlifeHighlights ?? null,
                       shoppingGuide: dayObj.shoppingGuide ?? null,
                     });
                     delete dayObj.title;
                     delete dayObj.practicalNotes;
                     delete dayObj.hotelSuggestions;
-                    delete dayObj.foodieTips;
                     delete dayObj.nightlifeHighlights;
                     delete dayObj.shoppingGuide;
+                    // foodieTips intentionally NOT extracted — stays on each day object
                   }
 
                   send({ type: 'day', index: dayIndex, data: dayObj });
