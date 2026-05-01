@@ -95,7 +95,8 @@ export async function PATCH(
     const { days, metaPatch, tripPatch } = body as {
       days?: any[];
       metaPatch?: Record<string, any>;
-      tripPatch?: { destination?: string; title?: string; start_date?: string; end_date?: string; itinerary_generated_at?: string };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tripPatch?: { destination?: string; title?: string; start_date?: string; end_date?: string; itinerary_generated_at?: string; booked_hotels?: any[] };
     };
 
     if (!Array.isArray(days) && !metaPatch && !tripPatch) {

@@ -760,6 +760,21 @@ function ItineraryPageContent() {
   const [newActivityIsPrivate, setNewActivityIsPrivate] = useState(false);
   const [newActivityDay, setNewActivityDay] = useState(1);
 
+  // Sidebar-add: tracks Foodie tips added to itinerary this session so they disappear
+  const [isSidebarAdd, setIsSidebarAdd] = useState(false);
+  const [addedFoodieTipNames, setAddedFoodieTipNames] = useState<Set<string>>(new Set());
+
+  // Collapsible sidebar sections — priority panels start collapsed, utility panels open
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
+    foodie: true, nightlife: true, shopping: true,
+  });
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`sidebarSections_${params.id}`);
+      if (stored) setCollapsedSections(JSON.parse(stored));
+    } catch {}
+  }, [params.id]);
+
   // Place enrichment state
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -820,6 +835,7 @@ function ItineraryPageContent() {
     setNewActivityIsPrivate(false);
     setNewActivityDay(selectedDay);
     setSelectedPlace(null);
+    setIsSidebarAdd(false);
     clearSearch();
     setShowSuggestions(false);
   };
@@ -828,6 +844,48 @@ function ItineraryPageContent() {
     setShowAddActivityModal(false);
     setEditingActivity(null);
     resetModal();
+  };
+
+  // Toggle a sidebar section open/closed and persist to localStorage
+  const toggleSidebarSection = (key: string) => {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem(`sidebarSections_${params.id}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  // Open the Add Activity modal pre-filled from a Foodie Finds tip
+  const handleAddFoodieToItinerary = (tip: { name: string; neighborhood?: string; timeOfDay?: string }) => {
+    resetModal();
+    setNewActivityName(tip.name);
+    setNewActivityAddress(tip.neighborhood ?? '');
+    setNewActivityIsRestaurant(true);
+    // Suggest a sensible time based on the tip's timeOfDay field
+    const startTime = tip.timeOfDay === 'morning' ? '09:00' : tip.timeOfDay === 'afternoon' ? '13:00' : '19:00';
+    const endTime   = tip.timeOfDay === 'morning' ? '10:30' : tip.timeOfDay === 'afternoon' ? '14:30' : '21:00';
+    setNewActivityStartTime(startTime);
+    setNewActivityEndTime(endTime);
+    setNewActivityDay(selectedDay);
+    setIsSidebarAdd(true);
+    setShowAddActivityModal(true);
+  };
+
+  // Move a hotel suggestion into bookedHotels (persists to Supabase trips row)
+  const handleBookHotel = (hotel: { name: string; neighborhood?: string }) => {
+    const newBooked = [
+      ...(aiMeta?.bookedHotels ?? []),
+      { name: hotel.name, address: hotel.neighborhood },
+    ];
+    setAiMeta(prev => prev ? { ...prev, bookedHotels: newBooked } : prev);
+    const tripId = params.id;
+    if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
+      fetch(`/api/trips/${tripId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripPatch: { booked_hotels: newBooked } }),
+      }).catch(() => {});
+    }
   };
 
   // ─── Derived state — declared early so callbacks below can reference them ────
@@ -872,7 +930,7 @@ function ItineraryPageContent() {
       ? `${newActivityStartTime}–${newActivityStartTime}`
       : '12:00–13:00';
 
-    const targetDay = editingActivity ? newActivityDay : selectedDay;
+    const targetDay = (editingActivity || isSidebarAdd) ? newActivityDay : selectedDay;
 
     const savedActivity: Activity = {
       id: editingActivity?.id ?? `act_d${targetDay}_${Date.now()}`,
@@ -935,6 +993,10 @@ function ItineraryPageContent() {
     });
 
     persistDays(updatedDays as ItineraryDay[]);
+    // If this add came from a Foodie Finds tip, mark the tip as added so it disappears
+    if (isSidebarAdd && newActivityName) {
+      setAddedFoodieTipNames(prev => new Set(Array.from(prev).concat(newActivityName)));
+    }
     setShowAddActivityModal(false);
     setEditingActivity(null);
     setActivityAdded(true);
@@ -2034,155 +2096,258 @@ function ItineraryPageContent() {
               </div>
             )}
 
-            {/* Foodie Finds — shown when Food is a top priority AND foodieTips present for this day */}
+            {/* ── Foodie Finds — collapsible, shown when Food priority + tips present ── */}
             {(() => {
               // New trips: foodieTips live on each day. Old trips: Day 1 only in aiMeta (backward compat).
-              const dayFoodieTips = currentDayData?.foodieTips && currentDayData.foodieTips.length > 0
+              const rawFoodieTips = currentDayData?.foodieTips && currentDayData.foodieTips.length > 0
                 ? currentDayData.foodieTips
                 : (selectedDay === 1 && aiMeta?.foodieTips && aiMeta.foodieTips.length > 0 ? aiMeta.foodieTips : null);
-              return aiMeta?.preferences?.priorities?.includes('food') && dayFoodieTips ? (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">🍜</span>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Foodie Finds</p>
-                </div>
-                <p className="text-[11px] text-zinc-400 mb-4">Off the beaten path · Locals only</p>
+              // Filter out tips already added to the itinerary this session
+              const dayFoodieTips = rawFoodieTips?.filter(t => !addedFoodieTipNames.has(t.name)) ?? null;
+              const hasAnyTips = !!rawFoodieTips && rawFoodieTips.length > 0;
+              if (!aiMeta?.preferences?.priorities?.includes('food') || !hasAnyTips) return null;
+              const isCollapsed = collapsedSections.foodie;
+              return (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                  {/* Collapsible header */}
+                  <button
+                    onClick={() => toggleSidebarSection('foodie')}
+                    className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
+                  >
+                    <span className="text-base flex-shrink-0">🍜</span>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Foodie Finds</p>
+                      {isCollapsed && (
+                        <p className="text-[11px] text-zinc-300 mt-0.5">
+                          {rawFoodieTips!.length} spot{rawFoodieTips!.length !== 1 ? 's' : ''} · tap to expand
+                        </p>
+                      )}
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
 
-                <div className="space-y-3">
-                  {dayFoodieTips.map((tip, idx) => {
-                    const timeColor =
-                      tip.timeOfDay === 'morning'   ? 'bg-amber-50  text-amber-700  border-amber-100'  :
-                      tip.timeOfDay === 'afternoon' ? 'bg-sky-50    text-sky-700    border-sky-100'    :
-                      tip.timeOfDay === 'evening'   ? 'bg-violet-50 text-violet-700 border-violet-100' :
-                                                      'bg-zinc-50   text-zinc-600   border-zinc-100';
-                    return (
-                      <div key={idx} className="p-3 bg-orange-50 rounded-xl border border-orange-100">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-sm font-semibold text-orange-900 leading-snug">{tip.name}</p>
-                          {tip.priceRange && (
-                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-orange-100 text-orange-600 border-orange-200">
-                            {tip.priceRange}
-                          </span>
-                        )}
-                        {tip.timeOfDay && tip.timeOfDay !== 'any' && (
-                            <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${timeColor}`}>
-                              {tip.timeOfDay}
-                            </span>
-                          )}
+                  {!isCollapsed && (
+                    <div className="px-5 pb-5">
+                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Off the beaten path · Locals only</p>
+
+                      {dayFoodieTips && dayFoodieTips.length > 0 ? (
+                        <div className="space-y-3">
+                          {dayFoodieTips.map((tip, idx) => {
+                            const timeColor =
+                              tip.timeOfDay === 'morning'   ? 'bg-amber-50  text-amber-700  border-amber-100'  :
+                              tip.timeOfDay === 'afternoon' ? 'bg-sky-50    text-sky-700    border-sky-100'    :
+                              tip.timeOfDay === 'evening'   ? 'bg-violet-50 text-violet-700 border-violet-100' :
+                                                              'bg-zinc-50   text-zinc-600   border-zinc-100';
+                            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${tip.name} ${tip.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
+                            return (
+                              <div key={idx} className="p-3 bg-orange-50 rounded-xl border border-orange-100">
+                                <div className="flex items-start justify-between gap-2 mb-1">
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-orange-900 leading-snug">{tip.name}</p>
+                                    <a
+                                      href={mapsUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="View on Google Maps"
+                                      className="flex-shrink-0 text-orange-400 hover:text-orange-600 transition-colors"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <MapPin className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    {tip.priceRange && (
+                                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-orange-100 text-orange-600 border-orange-200">
+                                        {tip.priceRange}
+                                      </span>
+                                    )}
+                                    {tip.timeOfDay && tip.timeOfDay !== 'any' && (
+                                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${timeColor}`}>
+                                        {tip.timeOfDay}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {tip.type && (
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-orange-400 mb-1">{tip.type}</p>
+                                )}
+                                {tip.neighborhood && (
+                                  <p className="text-[11px] text-orange-600 mb-1">{tip.neighborhood}</p>
+                                )}
+                                {tip.why && (
+                                  <p className="text-xs text-orange-800 leading-relaxed mb-1">{tip.why}</p>
+                                )}
+                                {(tip.orderThis || tip.bestFor) && (
+                                  <p className="text-[11px] text-orange-700 font-medium mb-1">
+                                    <span className="text-orange-400 mr-1">{tip.orderThis ? 'Order:' : 'Best for:'}</span>
+                                    {tip.orderThis ?? tip.bestFor}
+                                  </p>
+                                )}
+                                {tip.tip && (
+                                  <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-orange-100">
+                                    <span className="text-xs flex-shrink-0">💡</span>
+                                    <p className="text-[11px] text-orange-700 leading-relaxed italic">{tip.tip}</p>
+                                  </div>
+                                )}
+                                {/* Add to Day button */}
+                                <button
+                                  onClick={() => handleAddFoodieToItinerary(tip)}
+                                  className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-800 text-[11px] font-semibold rounded-lg transition-colors"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add to Day
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
-                        {tip.type && (
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-orange-400 mb-1">{tip.type}</p>
-                        )}
-                        {tip.neighborhood && (
-                          <p className="text-[11px] text-orange-600 mb-1">{tip.neighborhood}</p>
-                        )}
-                        {tip.why && (
-                          <p className="text-xs text-orange-800 leading-relaxed mb-1">{tip.why}</p>
-                        )}
-                        {(tip.orderThis || tip.bestFor) && (
-                          <p className="text-[11px] text-orange-700 font-medium mb-1">
-                            <span className="text-orange-400 mr-1">{tip.orderThis ? 'Order:' : 'Best for:'}</span>
-                            {tip.orderThis ?? tip.bestFor}
-                          </p>
-                        )}
-                        {tip.tip && (
-                          <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-orange-100">
-                            <span className="text-xs flex-shrink-0">💡</span>
-                            <p className="text-[11px] text-orange-700 leading-relaxed italic">{tip.tip}</p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      ) : (
+                        <p className="text-xs text-zinc-400 text-center py-2">All tips added to your itinerary ✓</p>
+                      )}
 
-                {aiMeta.practicalNotes?.tipping && (
-                  <div className="mt-3 pt-3 border-t border-zinc-100 flex items-start gap-2">
-                    <span className="text-xs flex-shrink-0 mt-0.5">💸</span>
-                    <p className="text-[11px] text-zinc-500 leading-relaxed">{aiMeta.practicalNotes.tipping}</p>
-                  </div>
-                )}
-              </div>
-              ) : null;
+                      {aiMeta.practicalNotes?.tipping && (
+                        <div className="mt-3 pt-3 border-t border-zinc-100 flex items-start gap-2">
+                          <span className="text-xs flex-shrink-0 mt-0.5">💸</span>
+                          <p className="text-[11px] text-zinc-500 leading-relaxed">{aiMeta.practicalNotes.tipping}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
             })()}
 
-            {/* Nightlife Highlights — shown when nightlife is a priority */}
-            {aiMeta?.preferences?.priorities?.includes('nightlife') && aiMeta?.nightlifeHighlights && aiMeta.nightlifeHighlights.length > 0 && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">🎶</span>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Nightlife Guide</p>
-                </div>
-                <p className="text-[11px] text-zinc-400 mb-4">Local spots · After dark</p>
-                <div className="space-y-3">
-                  {aiMeta.nightlifeHighlights.map((spot, idx) => (
-                    <div key={idx} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-semibold text-violet-900 leading-snug">{spot.name}</p>
-                        {spot.openFrom && (
-                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-violet-100 text-violet-600 border-violet-200 whitespace-nowrap">
-                            {spot.openFrom}
-                          </span>
-                        )}
-                      </div>
-                      {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-violet-400 mb-1">{spot.type}</p>}
-                      {spot.neighborhood && <p className="text-[11px] text-violet-600 mb-1">{spot.neighborhood}</p>}
-                      {spot.vibe && <p className="text-xs text-violet-800 leading-relaxed mb-1">{spot.vibe}</p>}
-                      {spot.bestNight && (
-                        <p className="text-[11px] text-violet-700 font-medium mb-1">
-                          <span className="text-violet-400 mr-1">Best:</span>{spot.bestNight}
+            {/* ── Nightlife Highlights — collapsible, shown when nightlife priority ── */}
+            {aiMeta?.preferences?.priorities?.includes('nightlife') && aiMeta?.nightlifeHighlights && aiMeta.nightlifeHighlights.length > 0 && (() => {
+              const isCollapsed = collapsedSections.nightlife;
+              return (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                  <button
+                    onClick={() => toggleSidebarSection('nightlife')}
+                    className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
+                  >
+                    <span className="text-base flex-shrink-0">🎶</span>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Nightlife Guide</p>
+                      {isCollapsed && (
+                        <p className="text-[11px] text-zinc-300 mt-0.5">
+                          {aiMeta.nightlifeHighlights!.length} spot{aiMeta.nightlifeHighlights!.length !== 1 ? 's' : ''} · tap to expand
                         </p>
                       )}
-                      {spot.tip && (
-                        <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-violet-100">
-                          <span className="text-xs flex-shrink-0">💡</span>
-                          <p className="text-[11px] text-violet-700 leading-relaxed italic">{spot.tip}</p>
-                        </div>
-                      )}
                     </div>
-                  ))}
+                    <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
+                  {!isCollapsed && (
+                    <div className="px-5 pb-5">
+                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Local spots · After dark</p>
+                      <div className="space-y-3">
+                        {aiMeta.nightlifeHighlights.map((spot, idx) => {
+                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
+                          return (
+                            <div key={idx} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-violet-900 leading-snug">{spot.name}</p>
+                                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                                    className="flex-shrink-0 text-violet-400 hover:text-violet-600 transition-colors" onClick={e => e.stopPropagation()}>
+                                    <MapPin className="w-3 h-3" />
+                                  </a>
+                                </div>
+                                {spot.openFrom && (
+                                  <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-violet-100 text-violet-600 border-violet-200 whitespace-nowrap">
+                                    {spot.openFrom}
+                                  </span>
+                                )}
+                              </div>
+                              {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-violet-400 mb-1">{spot.type}</p>}
+                              {spot.neighborhood && <p className="text-[11px] text-violet-600 mb-1">{spot.neighborhood}</p>}
+                              {spot.vibe && <p className="text-xs text-violet-800 leading-relaxed mb-1">{spot.vibe}</p>}
+                              {spot.bestNight && (
+                                <p className="text-[11px] text-violet-700 font-medium mb-1">
+                                  <span className="text-violet-400 mr-1">Best:</span>{spot.bestNight}
+                                </p>
+                              )}
+                              {spot.tip && (
+                                <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-violet-100">
+                                  <span className="text-xs flex-shrink-0">💡</span>
+                                  <p className="text-[11px] text-violet-700 leading-relaxed italic">{spot.tip}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {/* Shopping Guide — shown when shopping is a priority */}
-            {aiMeta?.preferences?.priorities?.includes('shopping') && aiMeta?.shoppingGuide && aiMeta.shoppingGuide.length > 0 && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">🛍️</span>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Shopping Guide</p>
-                </div>
-                <p className="text-[11px] text-zinc-400 mb-4">Markets · Boutiques · Local finds</p>
-                <div className="space-y-3">
-                  {aiMeta.shoppingGuide.map((spot, idx) => (
-                    <div key={idx} className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-semibold text-emerald-900 leading-snug">{spot.name}</p>
-                        {spot.openDays && (
-                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-600 border-emerald-200 whitespace-nowrap">
-                            {spot.openDays}
-                          </span>
-                        )}
-                      </div>
-                      {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400 mb-1">{spot.type}</p>}
-                      {spot.neighborhood && <p className="text-[11px] text-emerald-600 mb-1">{spot.neighborhood}</p>}
-                      {spot.what && <p className="text-xs text-emerald-800 leading-relaxed mb-1">{spot.what}</p>}
-                      {spot.bestFor && (
-                        <p className="text-[11px] text-emerald-700 font-medium mb-1">
-                          <span className="text-emerald-400 mr-1">Best for:</span>{spot.bestFor}
+            {/* ── Shopping Guide — collapsible, shown when shopping priority ── */}
+            {aiMeta?.preferences?.priorities?.includes('shopping') && aiMeta?.shoppingGuide && aiMeta.shoppingGuide.length > 0 && (() => {
+              const isCollapsed = collapsedSections.shopping;
+              return (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                  <button
+                    onClick={() => toggleSidebarSection('shopping')}
+                    className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
+                  >
+                    <span className="text-base flex-shrink-0">🛍️</span>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Shopping Guide</p>
+                      {isCollapsed && (
+                        <p className="text-[11px] text-zinc-300 mt-0.5">
+                          {aiMeta.shoppingGuide!.length} spot{aiMeta.shoppingGuide!.length !== 1 ? 's' : ''} · tap to expand
                         </p>
                       )}
-                      {spot.tip && (
-                        <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-emerald-100">
-                          <span className="text-xs flex-shrink-0">💡</span>
-                          <p className="text-[11px] text-emerald-700 leading-relaxed italic">{spot.tip}</p>
-                        </div>
-                      )}
                     </div>
-                  ))}
+                    <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
+                  {!isCollapsed && (
+                    <div className="px-5 pb-5">
+                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Markets · Boutiques · Local finds</p>
+                      <div className="space-y-3">
+                        {aiMeta.shoppingGuide.map((spot, idx) => {
+                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
+                          return (
+                            <div key={idx} className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-emerald-900 leading-snug">{spot.name}</p>
+                                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                                    className="flex-shrink-0 text-emerald-400 hover:text-emerald-600 transition-colors" onClick={e => e.stopPropagation()}>
+                                    <MapPin className="w-3 h-3" />
+                                  </a>
+                                </div>
+                                {spot.openDays && (
+                                  <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-600 border-emerald-200 whitespace-nowrap">
+                                    {spot.openDays}
+                                  </span>
+                                )}
+                              </div>
+                              {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400 mb-1">{spot.type}</p>}
+                              {spot.neighborhood && <p className="text-[11px] text-emerald-600 mb-1">{spot.neighborhood}</p>}
+                              {spot.what && <p className="text-xs text-emerald-800 leading-relaxed mb-1">{spot.what}</p>}
+                              {spot.bestFor && (
+                                <p className="text-[11px] text-emerald-700 font-medium mb-1">
+                                  <span className="text-emerald-400 mr-1">Best for:</span>{spot.bestFor}
+                                </p>
+                              )}
+                              {spot.tip && (
+                                <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-emerald-100">
+                                  <span className="text-xs flex-shrink-0">💡</span>
+                                  <p className="text-[11px] text-emerald-700 leading-relaxed italic">{spot.tip}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Where to Stay Card — pre-booked hotels */}
             {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0 && (
@@ -2192,21 +2357,30 @@ function ItineraryPageContent() {
                   <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
                 </div>
                 <div className="space-y-3">
-                  {aiMeta.bookedHotels.map((h, i) => (
-                    <div key={i} className="p-3 bg-sky-50 rounded-xl border border-sky-100">
-                      <p className="text-sm font-semibold text-sky-900 leading-snug">{h.name}</p>
-                      {h.address && (
-                        <p className="text-xs text-sky-600 mt-0.5 leading-relaxed">{h.address}</p>
-                      )}
-                      {(h.checkIn || h.checkOut) && (
-                        <p className="text-[11px] text-zinc-400 mt-1.5">
-                          {h.checkIn && new Date(h.checkIn.length === 10 ? h.checkIn + 'T00:00:00' : h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          {h.checkIn && h.checkOut && ' → '}
-                          {h.checkOut && new Date(h.checkOut.length === 10 ? h.checkOut + 'T00:00:00' : h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                  {aiMeta.bookedHotels.map((h, i) => {
+                    const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.address ?? aiMeta?.destination ?? ''}`.trim())}`;
+                    return (
+                      <div key={i} className="p-3 bg-sky-50 rounded-xl border border-sky-100">
+                        <div className="flex items-start gap-1.5">
+                          <p className="text-sm font-semibold text-sky-900 leading-snug flex-1">{h.name}</p>
+                          <a href={hotelMapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                            className="flex-shrink-0 text-sky-400 hover:text-sky-600 transition-colors mt-0.5">
+                            <MapPin className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                        {h.address && (
+                          <p className="text-xs text-sky-600 mt-0.5 leading-relaxed">{h.address}</p>
+                        )}
+                        {(h.checkIn || h.checkOut) && (
+                          <p className="text-[11px] text-zinc-400 mt-1.5">
+                            {h.checkIn && new Date(h.checkIn.length === 10 ? h.checkIn + 'T00:00:00' : h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {h.checkIn && h.checkOut && ' → '}
+                            {h.checkOut && new Date(h.checkOut.length === 10 ? h.checkOut + 'T00:00:00' : h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -2236,10 +2410,18 @@ function ItineraryPageContent() {
                           <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2 mt-1">{group.city}</p>
                         )}
                         <div className="space-y-3">
-                          {group.hotels.map((h, i) => (
+                          {group.hotels.map((h, i) => {
+                            const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.neighborhood ?? ''} ${group.city ?? aiMeta?.destination ?? ''}`.trim())}`;
+                            return (
                             <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
                               <div className="flex items-start justify-between gap-2 mb-1">
-                                <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
+                                  <a href={hotelMapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                                    className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors">
+                                    <MapPin className="w-3 h-3" />
+                                  </a>
+                                </div>
                                 {h.pricePerNight && (
                                   <span className="flex-shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                                     ${h.pricePerNight}/night
@@ -2252,18 +2434,28 @@ function ItineraryPageContent() {
                               {h.whyRecommended && (
                                 <p className="text-xs text-amber-700 leading-relaxed mb-2">{h.whyRecommended}</p>
                               )}
-                              {h.bookingUrl && (
-                                <a
-                                  href={h.bookingUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors"
+                              <div className="flex items-center gap-3 mt-1">
+                                {h.bookingUrl && (
+                                  <a
+                                    href={h.bookingUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors"
+                                  >
+                                    Book on Booking.com →
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => handleBookHotel(h)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
                                 >
-                                  Book on Booking.com →
-                                </a>
-                              )}
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  I Booked This
+                                </button>
+                              </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -2507,8 +2699,8 @@ function ItineraryPageContent() {
                 </div>
               )}
 
-              {/* Day selector — only shown when editing an existing activity */}
-              {editingActivity && (
+              {/* Day selector — shown when editing OR adding from sidebar */}
+              {(editingActivity || isSidebarAdd) && (
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
                     Day
@@ -2524,7 +2716,7 @@ function ItineraryPageContent() {
                       </option>
                     ))}
                   </select>
-                  {newActivityDay !== editingActivity.dayNumber && (
+                  {editingActivity && newActivityDay !== editingActivity.dayNumber && (
                     <p className="mt-1.5 text-xs text-sky-600 font-medium">
                       Activity will be moved from Day {editingActivity.dayNumber} → Day {newActivityDay}
                     </p>
