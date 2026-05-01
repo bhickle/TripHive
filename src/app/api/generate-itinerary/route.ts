@@ -1070,14 +1070,17 @@ export async function POST(request: NextRequest) {
   }
 
   // Token budget scales with trip length.
-  // Real-world measurement: each day object uses 5,000–8,000 tokens of JSON
+  // Real-world measurement: each day object uses 8,000–12,000 tokens of JSON
   // (shared track 3-4 activities + track_a/b, 3 restaurants, transport legs,
-  //  photo spots, destination tip, meetup, weather, descriptions).
-  // The old estimate of 2,400/day + 32K cap caused hard truncation at 4–5 days
-  // for any trip 7 days or longer. New formula: 8,000 tokens × days, 64K cap.
-  // Trips longer than ~8 days get a server-side continuation call (see below).
+  //  photo spots, destination tip, meetup, descriptions).
+  // Multi-city trips run higher (~11K/day) due to inter-city transport legs,
+  // arrival/departure logistics, and richer city descriptions.
+  // Use 10,500 tokens × days, capped at 64K. For any 7-day trip this always
+  // hits the 64K cap, giving the first pass the maximum output budget.
   const modelId = 'claude-sonnet-4-6';
-  const maxTokens = Math.min(64000, Math.max(24000, requestedLength * 8000));
+  const isMultiCity = Array.isArray(body.destinations) && (body.destinations as string[]).length > 1;
+  const tokensPerDay = isMultiCity ? 11000 : 10000;
+  const maxTokens = Math.min(64000, Math.max(24000, requestedLength * tokensPerDay));
 
   // Use pre-fetched places from client if available (they were fetched on Step 8 / Review),
   // otherwise fall back to fetching here. This removes the ~10-15s wait before streaming starts.
@@ -1256,24 +1259,42 @@ export async function POST(request: NextRequest) {
 
           // Build a compact summary of already-generated days so the model
           // knows exactly what exists and won't regenerate any of it.
+          // For multi-city trips, include the city so the model knows the
+          // group's location at each point in the journey.
           const generatedSummary = collectedDays
-            .map((d) => `Day ${String(d.day ?? '')}: ${String(d.theme ?? 'generated')}`)
+            .map((d) => {
+              const cityNote = d.city ? ` (${String(d.city)})` : '';
+              return `Day ${String(d.day ?? '')}: ${String(d.theme ?? 'generated')}${cityNote}`;
+            })
             .join('\n');
+
+          // For multi-city continuations: tell the model the full route and
+          // which city the group is currently in, so it continues geographically.
+          const contDestinations = (body.destinations as string[] | undefined) ?? [];
+          const contDaysPerDest = (body.daysPerDestination as Record<string, number> | undefined) ?? {};
+          const isMultiCityCont = contDestinations.length > 1;
+          const multiCityContext = isMultiCityCont
+            ? `Multi-city route: ${contDestinations.join(' → ')}. ` +
+              `Day allocation: ${contDestinations.map(c => `${c}=${contDaysPerDest[c] ?? '?'} day${(contDaysPerDest[c] ?? 1) === 1 ? '' : 's'}`).join(', ')}.`
+            : '';
+          const lastCity = collectedDays.length > 0 ? (collectedDays[collectedDays.length - 1] as Record<string, unknown>).city as string | undefined : undefined;
 
           const contPrompt = [
             `CONTINUATION — ${requestedLength}-day trip to ${body.destination as string}.`,
+            multiCityContext,
             `Days already generated (DO NOT reproduce these — output ONLY what comes after):`,
             generatedSummary,
             ``,
+            lastCity ? `The group is currently in ${lastCity} at the end of Day ${dayIndex}.` : '',
             `Generate ONLY Day ${dayIndex + 1} through Day ${requestedLength} (${remaining} day${remaining === 1 ? '' : 's'}).`,
             `Use the EXACT same JSON object format (same fields, same structure as the original request).`,
             `Return a JSON array starting at "day": ${dayIndex + 1}. No preamble — output ONLY the JSON array.`,
-          ].join('\n');
+          ].filter(Boolean).join('\n');
 
           try {
             const contStream = await client.messages.create({
               model: modelId,
-              max_tokens: Math.min(64000, remaining * 8000),
+              max_tokens: Math.min(64000, remaining * tokensPerDay),
               stream: true,
               // Single valid user message: original context + continuation directive
               messages: [{ role: 'user', content: `${prompt}\n\n---\n\n${contPrompt}` }],
