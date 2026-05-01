@@ -48,6 +48,7 @@ import {
   Navigation,
   FileDown,
   Map,
+  AlignJustify,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -775,6 +776,15 @@ function ItineraryPageContent() {
     } catch {}
   }, [params.id]);
 
+  // Compact View — slim agenda rows instead of full cards
+  const [isCompactView, setIsCompactView] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`compactView_${params.id}`);
+      if (stored !== null) setIsCompactView(stored === 'true');
+    } catch {}
+  }, [params.id]);
+
   // Place enrichment state
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -1445,6 +1455,23 @@ function ItineraryPageContent() {
               Map
             </button>
 
+            <button
+              onClick={() => {
+                const next = !isCompactView;
+                setIsCompactView(next);
+                try { localStorage.setItem(`compactView_${params.id}`, String(next)); } catch {}
+              }}
+              title={isCompactView ? 'Switch to full view' : 'Switch to compact view'}
+              className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
+                isCompactView
+                  ? 'bg-zinc-900 border-zinc-900 text-white'
+                  : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700'
+              }`}
+            >
+              <AlignJustify className="w-4 h-4" />
+              <span className="hidden sm:inline">Compact</span>
+            </button>
+
             {/* Open day route in Google Maps */}
             {sortedActivities.length > 0 && (
               <a
@@ -1692,6 +1719,8 @@ function ItineraryPageContent() {
                     const isLast = index === timelineItems.length - 1;
 
                     if (item.kind === 'transport') {
+                      // Hide transport legs in compact view
+                      if (isCompactView) return null;
                       const leg = item.data;
                       const cfg = transportConfig[leg.type];
                       return (
@@ -1728,6 +1757,58 @@ function ItineraryPageContent() {
                     // Look ahead for the next activity's address (for Maps deep links)
                     const nextActItem = timelineItems.slice(index + 1).find(i => i.kind === 'activity');
                     const nextActAddress = (nextActItem?.data as Activity | undefined)?.address;
+
+                    // ── Compact View — slim agenda row ──────────────────────────
+                    if (isCompactView) {
+                      const trackDot =
+                        activity.track === 'track_a' ? 'bg-violet-400' :
+                        activity.track === 'track_b' ? 'bg-rose-400' :
+                        (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-400';
+                      return (
+                        <div
+                          key={activity.id}
+                          className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-zinc-50 transition-colors group/compact"
+                        >
+                          <span className="text-xs font-semibold text-zinc-400 w-16 text-right flex-shrink-0 tabular-nums">
+                            {startTime}
+                          </span>
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${trackDot}`} />
+                          {activity.isRestaurant
+                            ? <Utensils className="w-3.5 h-3.5 text-zinc-300 flex-shrink-0" />
+                            : <div className="w-3.5 flex-shrink-0" />
+                          }
+                          <a
+                            href={googleUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="flex-1 text-sm font-semibold text-zinc-800 hover:text-sky-700 transition-colors truncate"
+                            title={actName}
+                          >
+                            {actName}
+                          </a>
+                          {activity.isPrivate && (
+                            <span title="Private — only visible to you" className="text-xs flex-shrink-0">🔒</span>
+                          )}
+                          <div className="opacity-0 group-hover/compact:opacity-100 flex items-center gap-0.5 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={() => handleEditActivity(activity)}
+                              title="Edit"
+                              className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteActivity(activity.id)}
+                              title="Remove"
+                              className="p-1 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <React.Fragment key={activity.id}>
