@@ -33,18 +33,23 @@ interface TripLengthOption {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Priority tags matching Trip Builder exactly
+// Priority tags — keep in sync with trip/new/page.tsx priorityOptions
 const PRIORITY_TAGS: { id: string; label: string; emoji: string }[] = [
-  { id: 'nature',       label: 'Nature',       emoji: '🌿' },
-  { id: 'food',         label: 'Food',         emoji: '🍽️' },
-  { id: 'nightlife',    label: 'Nightlife',    emoji: '🎶' },
-  { id: 'history',      label: 'History',      emoji: '📜' },
-  { id: 'sports',       label: 'Sports',       emoji: '⛹️' },
-  { id: 'photography',  label: 'Photography',  emoji: '📷' },
-  { id: 'wellness',     label: 'Wellness',     emoji: '💆' },
-  { id: 'shopping',     label: 'Shopping',     emoji: '🛍️' },
-  { id: 'adventure',    label: 'Adventure',    emoji: '⚡' },
-  { id: 'culture',      label: 'Culture',      emoji: '🏛️' },
+  { id: 'nature',        label: 'Nature',        emoji: '🌿' },
+  { id: 'food',          label: 'Food',          emoji: '🍽️' },
+  { id: 'nightlife',     label: 'Nightlife',     emoji: '🎶' },
+  { id: 'history',       label: 'History',       emoji: '📜' },
+  { id: 'sports',        label: 'Sports',        emoji: '⛹️' },
+  { id: 'photography',   label: 'Photography',   emoji: '📷' },
+  { id: 'wellness',      label: 'Wellness',      emoji: '💆' },
+  { id: 'shopping',      label: 'Shopping',      emoji: '🛍️' },
+  { id: 'adventure',     label: 'Adventure',     emoji: '⚡' },
+  { id: 'culture',       label: 'Culture',       emoji: '🏛️' },
+  { id: 'beach',         label: 'Beach',         emoji: '🏖️' },
+  { id: 'themepark',     label: 'Theme Parks',   emoji: '🎢' },
+  { id: 'family',        label: 'Family/Kids',   emoji: '👨‍👩‍👧' },
+  { id: 'budget',        label: 'Budget',        emoji: '💰' },
+  { id: 'accessibility', label: 'Accessibility', emoji: '♿' },
 ];
 
 const VIBE_OPTIONS: { id: TravelVibe; label: string; icon: React.ReactNode }[] = [

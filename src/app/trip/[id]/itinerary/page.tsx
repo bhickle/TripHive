@@ -1551,24 +1551,29 @@ function ItineraryPageContent() {
                         <div className="flex flex-wrap gap-2">
                           {aiMeta.preferences.priorities.map((p: string) => {
                             const PRIORITY_MAP: Record<string, { icon: string; label: string }> = {
-                              food:        { icon: '🍽️', label: 'Food' },
-                              hiking:      { icon: '🥾', label: 'Hiking' },
-                              photography: { icon: '📷', label: 'Photography' },
-                              adventure:   { icon: '⚡', label: 'Adventure' },
-                              culture:     { icon: '🏛️', label: 'Culture' },
-                              nightlife:   { icon: '🎶', label: 'Nightlife' },
-                              relaxation:  { icon: '🧘', label: 'Relaxation' },
-                              shopping:    { icon: '🛍️', label: 'Shopping' },
-                              history:     { icon: '📜', label: 'History' },
-                              nature:      { icon: '🌿', label: 'Nature' },
-                              beaches:     { icon: '🏖️', label: 'Beaches' },
-                              sports:      { icon: '⛹️', label: 'Sports' },
-                              art:         { icon: '🎨', label: 'Art' },
-                              music:       { icon: '🎵', label: 'Music' },
-                              wellness:    { icon: '💆', label: 'Wellness' },
-                              family:      { icon: '👨‍👩‍👧', label: 'Family' },
-                              romance:     { icon: '❤️', label: 'Romance' },
-                              budget:      { icon: '💰', label: 'Budget-friendly' },
+                              // Canonical 15 priorities — keep in sync with trip/new/page.tsx
+                              nature:        { icon: '🌿', label: 'Nature' },
+                              food:          { icon: '🍽️', label: 'Food' },
+                              nightlife:     { icon: '🎶', label: 'Nightlife' },
+                              history:       { icon: '📜', label: 'History' },
+                              sports:        { icon: '⛹️', label: 'Sports' },
+                              photography:   { icon: '📷', label: 'Photography' },
+                              wellness:      { icon: '💆', label: 'Wellness' },
+                              shopping:      { icon: '🛍️', label: 'Shopping' },
+                              adventure:     { icon: '⚡', label: 'Adventure' },
+                              culture:       { icon: '🏛️', label: 'Culture' },
+                              beach:         { icon: '🏖️', label: 'Beach' },
+                              themepark:     { icon: '🎢', label: 'Theme Parks' },
+                              family:        { icon: '👨‍👩‍👧', label: 'Family/Kids' },
+                              budget:        { icon: '💰', label: 'Budget' },
+                              accessibility: { icon: '♿', label: 'Accessibility' },
+                              // Legacy aliases — kept for backward compatibility with older stored trips
+                              beaches:       { icon: '🏖️', label: 'Beach' },
+                              hiking:        { icon: '🥾', label: 'Hiking' },
+                              relaxation:    { icon: '🧘', label: 'Wellness' },
+                              art:           { icon: '🎨', label: 'Art' },
+                              music:         { icon: '🎵', label: 'Music' },
+                              romance:       { icon: '❤️', label: 'Romance' },
                             };
                             const entry = PRIORITY_MAP[p.toLowerCase()];
                             return (

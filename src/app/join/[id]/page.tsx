@@ -33,7 +33,24 @@ interface TripData {
   }>;
 }
 
-const priorityOptions = ['Food & Dining', 'Culture & History', 'Adventure & Sports', 'Nature & Outdoors', 'Shopping', 'Photography', 'Nightlife', 'Wellness'];
+// Keep in sync with trip/new/page.tsx priorityOptions
+const priorityOptions = [
+  { id: 'nature',        label: 'Nature',        icon: '🌿' },
+  { id: 'food',          label: 'Food',          icon: '🍽️' },
+  { id: 'nightlife',     label: 'Nightlife',     icon: '🎶' },
+  { id: 'history',       label: 'History',       icon: '📜' },
+  { id: 'sports',        label: 'Sports',        icon: '⛹️' },
+  { id: 'photography',   label: 'Photography',   icon: '📷' },
+  { id: 'wellness',      label: 'Wellness',      icon: '💆' },
+  { id: 'shopping',      label: 'Shopping',      icon: '🛍️' },
+  { id: 'adventure',     label: 'Adventure',     icon: '⚡' },
+  { id: 'culture',       label: 'Culture',       icon: '🏛️' },
+  { id: 'beach',         label: 'Beach',         icon: '🏖️' },
+  { id: 'themepark',     label: 'Theme Parks',   icon: '🎢' },
+  { id: 'family',        label: 'Family/Kids',   icon: '👨‍👩‍👧' },
+  { id: 'budget',        label: 'Budget',        icon: '💰' },
+  { id: 'accessibility', label: 'Accessibility', icon: '♿' },
+];
 const accommodationOptions = ['Luxury Hotels', 'Mid-Range Hotels', 'Boutique Stays', 'Hostels', 'Airbnb/Vacation Rentals'];
 const curiosityLevels = ['Exploring casually', 'Moderate pace', 'Packed schedule'];
 
@@ -369,15 +386,16 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {priorityOptions.map((priority) => (
                     <button
-                      key={priority}
-                      onClick={() => togglePriority(priority)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all text-left ${
-                        guestData.priorities.includes(priority)
+                      key={priority.id}
+                      onClick={() => togglePriority(priority.id)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all text-left flex items-center gap-2 ${
+                        guestData.priorities.includes(priority.id)
                           ? 'bg-sky-800 text-white'
                           : 'bg-slate-100 text-zinc-700 hover:bg-slate-200'
                       }`}
                     >
-                      {priority}
+                      <span>{priority.icon}</span>
+                      <span>{priority.label}</span>
                     </button>
                   ))}
                 </div>
@@ -480,11 +498,14 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   <div>
                     <p className="text-sm text-zinc-600">Interests</p>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {guestData.priorities.map((p) => (
-                        <span key={p} className="px-3 py-1 bg-sky-100 text-sky-900 rounded-full text-xs font-medium">
-                          {p}
-                        </span>
-                      ))}
+                      {guestData.priorities.map((p) => {
+                        const opt = priorityOptions.find(o => o.id === p);
+                        return (
+                          <span key={p} className="inline-flex items-center gap-1 px-3 py-1 bg-sky-100 text-sky-900 rounded-full text-xs font-medium">
+                            {opt ? <><span>{opt.icon}</span>{opt.label}</> : p}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
