@@ -100,16 +100,21 @@ interface TripWizardState {
 }
 
 const priorityOptions = [
-  { id: 'nature',       label: 'Nature',       icon: '🌿' },
-  { id: 'food',         label: 'Food',          icon: '🍽️' },
-  { id: 'nightlife',    label: 'Nightlife',     icon: '🎶' },
-  { id: 'history',      label: 'History',       icon: '📜' },
-  { id: 'sports',       label: 'Sports',        icon: '⛹️' },
-  { id: 'photography',  label: 'Photography',   icon: '📷' },
-  { id: 'wellness',     label: 'Wellness',      icon: '💆' },
-  { id: 'shopping',     label: 'Shopping',      icon: '🛍️' },
-  { id: 'adventure',    label: 'Adventure',     icon: '⚡' },
-  { id: 'culture',      label: 'Culture',       icon: '🏛️' },
+  { id: 'nature',       label: 'Nature',         icon: '🌿', tooltip: 'Parks, trails, wildlife & natural landscapes' },
+  { id: 'food',         label: 'Food',           icon: '🍽️', tooltip: 'Local restaurants, markets, food tours & tastings' },
+  { id: 'nightlife',    label: 'Nightlife',      icon: '🎶', tooltip: 'Bars, live music, shows & after-dark spots' },
+  { id: 'history',      label: 'History',        icon: '📜', tooltip: 'Landmarks, museums, walking tours & local lore' },
+  { id: 'sports',       label: 'Sports',         icon: '⛹️', tooltip: 'Stadiums, arenas, halls of fame & fan zones' },
+  { id: 'photography',  label: 'Photography',    icon: '📷', tooltip: 'Golden-hour spots, viewpoints & hidden gems' },
+  { id: 'wellness',     label: 'Wellness',       icon: '💆', tooltip: 'Spas, yoga, slow walks & restorative days' },
+  { id: 'shopping',     label: 'Shopping',       icon: '🛍️', tooltip: 'Markets, boutiques, workshops & local finds' },
+  { id: 'adventure',    label: 'Adventure',      icon: '⚡', tooltip: 'Thrills, high-energy outdoor activities & experiences' },
+  { id: 'culture',      label: 'Culture',        icon: '🏛️', tooltip: 'Arts, performances, immersive experiences & local traditions' },
+  { id: 'beach',        label: 'Beach',          icon: '🏖️', tooltip: 'Beaches, water activities & coastal views' },
+  { id: 'themepark',    label: 'Theme Parks',    icon: '🎢', tooltip: 'Parks, rides, strategy tips & entertainment' },
+  { id: 'family',       label: 'Family/Kids',    icon: '👨‍👩‍👧', tooltip: 'Kid-friendly picks, family pacing & activities' },
+  { id: 'budget',       label: 'Budget',         icon: '💰', tooltip: 'Free sights, local eats & money-saving tips' },
+  { id: 'accessibility', label: 'Accessibility', icon: '♿', tooltip: 'Accessible venues & mobility-friendly options' },
 ];
 
 const mockDestinations = [
@@ -2258,6 +2263,7 @@ function TripBuilderPage() {
                         <button
                           key={priority.id}
                           onClick={() => !isDisabled && togglePriority(priority.id)}
+                          title={priority.tooltip}
                           className={`py-3 px-4 rounded-lg border-2 transition-all text-center flex flex-col items-center justify-center gap-1 ${
                             isSelected
                               ? 'border-sky-600 bg-sky-50'

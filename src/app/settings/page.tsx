@@ -46,16 +46,21 @@ const GROUP_TYPE_OPTIONS = [
 
 // Keep in sync with trip/new/page.tsx priorityOptions
 const PRIORITY_OPTIONS = [
-  { id: 'nature',      label: 'Nature',       icon: '🌿' },
-  { id: 'food',        label: 'Food',         icon: '🍽️' },
-  { id: 'nightlife',   label: 'Nightlife',    icon: '🎶' },
-  { id: 'history',     label: 'History',      icon: '📜' },
-  { id: 'sports',      label: 'Sports',       icon: '⛹️' },
-  { id: 'photography', label: 'Photography',  icon: '📷' },
-  { id: 'wellness',    label: 'Wellness',     icon: '💆' },
-  { id: 'shopping',    label: 'Shopping',     icon: '🛍️' },
-  { id: 'adventure',   label: 'Adventure',    icon: '⚡' },
-  { id: 'culture',     label: 'Culture',      icon: '🏛️' },
+  { id: 'nature',        label: 'Nature',        icon: '🌿' },
+  { id: 'food',          label: 'Food',          icon: '🍽️' },
+  { id: 'nightlife',     label: 'Nightlife',     icon: '🎶' },
+  { id: 'history',       label: 'History',       icon: '📜' },
+  { id: 'sports',        label: 'Sports',        icon: '⛹️' },
+  { id: 'photography',   label: 'Photography',   icon: '📷' },
+  { id: 'wellness',      label: 'Wellness',      icon: '💆' },
+  { id: 'shopping',      label: 'Shopping',      icon: '🛍️' },
+  { id: 'adventure',     label: 'Adventure',     icon: '⚡' },
+  { id: 'culture',       label: 'Culture',       icon: '🏛️' },
+  { id: 'beach',         label: 'Beach',         icon: '🏖️' },
+  { id: 'themepark',     label: 'Theme Parks',   icon: '🎢' },
+  { id: 'family',        label: 'Family/Kids',   icon: '👨‍👩‍👧' },
+  { id: 'budget',        label: 'Budget',        icon: '💰' },
+  { id: 'accessibility', label: 'Accessibility', icon: '♿' },
 ];
 
 // ─── Subscription display helpers ─────────────────────────────────────────────

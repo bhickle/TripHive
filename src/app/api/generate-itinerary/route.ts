@@ -49,28 +49,35 @@ interface GooglePlace {
 }
 
 function getSuggestedTrackLabels(priorities: string[]): { a: string; b: string } | null {
-  const highEnergy = priorities.filter(p => ['adventure', 'sports', 'nightlife'].includes(p));
+  const highEnergy = priorities.filter(p => ['adventure', 'sports', 'nightlife', 'themepark'].includes(p));
   const hasNature = priorities.includes('nature');
-  const lowEnergy = priorities.filter(p => ['wellness', 'culture', 'history', 'food', 'shopping'].includes(p));
+  const hasBeach = priorities.includes('beach');
+  const lowEnergy = priorities.filter(p => ['wellness', 'culture', 'history', 'food', 'shopping', 'budget', 'family', 'accessibility'].includes(p));
 
   // Only suggest labels if there's a genuine split
-  if ((highEnergy.length === 0 && !hasNature) || lowEnergy.length === 0) return null;
+  if ((highEnergy.length === 0 && !hasNature && !hasBeach) || lowEnergy.length === 0) return null;
 
   let labelA = '';
   if (highEnergy.includes('adventure') && highEnergy.includes('sports')) labelA = 'Adventure & Sports';
+  else if (highEnergy.includes('themepark') && highEnergy.includes('adventure')) labelA = 'Thrills & Adventure';
+  else if (highEnergy.includes('themepark')) labelA = 'Parks & Thrills';
   else if (highEnergy.includes('adventure') || hasNature) labelA = 'Outdoors & Adventure';
+  else if (hasBeach && highEnergy.includes('adventure')) labelA = 'Beach & Adventure';
+  else if (hasBeach) labelA = 'Coast & Water';
   else if (highEnergy.includes('sports')) labelA = 'Active & Sporty';
   else if (highEnergy.includes('nightlife')) labelA = 'Nightlife & Energy';
   else labelA = 'Active & Outdoors';
 
   let labelB = '';
-  if (lowEnergy.includes('culture') && lowEnergy.includes('history')) labelB = 'Culture & History';
+  if (lowEnergy.includes('family')) labelB = 'Family Time';
+  else if (lowEnergy.includes('culture') && lowEnergy.includes('history')) labelB = 'Culture & History';
   else if (lowEnergy.includes('wellness') && lowEnergy.includes('culture')) labelB = 'Culture & Wellness';
   else if (lowEnergy.includes('culture') || lowEnergy.includes('history')) labelB = 'Culture & Sightseeing';
   else if (lowEnergy.includes('wellness')) labelB = 'Rest & Wellness';
   else if (lowEnergy.includes('food') && lowEnergy.includes('shopping')) labelB = 'Food & Shopping';
   else if (lowEnergy.includes('food')) labelB = 'Food & Slow Mornings';
   else if (lowEnergy.includes('shopping')) labelB = 'Shopping & Wandering';
+  else if (lowEnergy.includes('budget')) labelB = 'Local & Budget-Friendly';
   else labelB = 'Slow & Scenic';
 
   return { a: labelA, b: labelB };
@@ -373,7 +380,7 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
 
   // Sports-specific guidance (Item 12: no speculative event schedules)
   const sportsText = priorities.includes('sports')
-    ? `\n- SPORTS PRIORITY: This group loves sports. Include visits to major stadiums, arenas, and iconic sports venues in ${destination} — even if no game is scheduled, a stadium tour or visit to a sports hall of fame is worth doing. Include sports bars, fan zones, and local sports memorabilia shops where fans gather. For any venue description, mention the team(s) that play there and note that checking the official team website for match dates is recommended — do NOT invent or speculate on specific fixture dates, as this information can change.`
+    ? `\n- SPORTS PRIORITY: This group loves sports. Include visits to major stadiums, arenas, and iconic sports venues in ${destination} — even if no game is scheduled, a stadium tour is a must. If the destination has a notable sports hall of fame (baseball, football, basketball, hockey, soccer, golf, etc.), include it as a dedicated stop. Include sports bars and fan zones where locals actually watch games, and any neighborhoods where sports culture runs deep. For any venue where a live game could be scheduled, mention the team(s) that play there and remind travelers to check the official team website for game dates — do NOT invent or speculate on specific fixture dates, as schedules change.`
     : '';
 
   // Food priority — elevated foodie experience throughout the entire itinerary
@@ -398,48 +405,77 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
   DAY THEMES:
   - Each day's theme should reflect the food journey, not just the sights — e.g. "Morning Market & Rooftop Dinner", "Street Food Day & Night Market", "Old Quarter Tastings & Chef's Counter".
 
+  COOKING CLASSES & FOOD EXPERIENCES:
+  - Include at least one bookable food experience across the trip — a hands-on cooking class, a guided food or market tour, a brewery or distillery tasting, a winery visit, or a drink-focused experience (cocktail masterclass, sake tasting, mezcal bar flight). These should feel like experiences, not just meals.
+  - Locale-specific cuisines: highlight dishes and ingredients that are genuinely unique to this region or city — things that can't be replicated back home.
+
   BONUS FOODIE TIPS (day 1 output):
-  In addition to the daily meals, generate the "foodieTips" array on day 1 (see OUTPUT FORMAT) with 6-8 bonus food finds spread across the full trip — things that don't fit neatly into a meal slot but are unmissable for a serious foodie. Think: the best coffee in the city, a legendary mid-afternoon snack stop, a specialty food shop worth browsing, a late-night dumpling stall, or a market you should spend an hour in. Label each with the best time to visit so the group can slot them in naturally.`
+  In addition to the daily meals, generate the "foodieTips" array on day 1 (see OUTPUT FORMAT) with 6-8 bonus food finds spread across the full trip — things that don't fit neatly into a meal slot but are unmissable for a serious foodie. Think: the best coffee in the city, a legendary mid-afternoon snack stop, a specialty food shop worth browsing, a late-night dumpling stall, a local market worth an hour of browsing, or a food tour that covers multiple neighborhoods at once. Label each with the best time to visit so the group can slot them in naturally.`
     : '';
 
   // Photography guidance — iconic spots always included; extra depth when photography is a priority
   const photoText = priorities.includes('photography')
-    ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour timing, interesting angles, and any access restrictions. Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, murals, reflections, etc. Include at least one spot that most tourists miss.`
+    ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour and blue hour timing, the best angles, and any access restrictions (tripod rules, drone restrictions, flash prohibited). Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, street murals, market scenes, reflections, and neighborhood street photography gems. Include at least one spot that most tourists miss. Note the best time of day to shoot each key location.`
     : '';
 
   // Nature priority (Item 13)
   const natureText = priorities.includes('nature')
-    ? `\n- NATURE PRIORITY: This group prioritizes time outdoors and natural settings. Anchor at least one activity per day in nature — this includes beaches and coastlines (swimming, snorkeling, beach walks, cliff-top lookouts), national parks, botanical gardens, scenic coastal trails, rivers and waterfalls, viewpoints, forests, and wildlife areas. If the destination has beaches or a coastline, include at least one beach activity across the trip (morning swim, sunset beach walk, snorkeling spot, coastal bluff hike). For hiking or walking activities, specify the trail name and approximate difficulty. Mix quieter natural escapes with any urban sightseeing — never pack every hour with cities if the group chose nature.`
+    ? `\n- NATURE PRIORITY: This group prioritizes time outdoors and natural settings. Anchor at least one activity per day in nature — national parks, botanical gardens, scenic trails, rivers and waterfalls, viewpoints, forests, and wildlife areas. Include camping or picnic spots where the destination supports it (scenic overlooks, lakeside spots, park meadows). If the destination has winter landscapes, include skiing, snowshoeing, or glacier walks where applicable. For hiking or walking activities, specify the trail name and approximate difficulty level. Mix quieter natural escapes with any urban sightseeing — never pack every hour with city activities if the group chose nature. Note: if Beach/Coastline is also selected as a priority, coastal activities will be handled by that priority block.`
     : '';
 
   // Nightlife priority (Item 13)
   const nightlifeText = priorities.includes('nightlife')
-    ? `\n- NIGHTLIFE PRIORITY: This group wants to experience the local after-dark scene. Include a mix of: live music venues (jazz bars, indie stages, rooftop bars), cocktail lounges, neighborhood gastropubs, and any well-known nightlife districts. Dinner should flow naturally into the evening's nightlife activities. Note cover charges and opening times in descriptions where known. Avoid tourist-trap party strips — favor spots where locals actually go.`
+    ? `\n- NIGHTLIFE PRIORITY: This group wants to fully experience the local after-dark scene. Include a varied mix of: live music venues (jazz bars, indie stages, acoustic sets), craft cocktail bars and mixology lounges, speakeasies and hidden bars (where the destination has them), karaoke bars (especially in cities where this is a local institution), brewery or distillery tours with evening tastings, comedy clubs and magic shows, rooftop bars with views, and any well-known nightlife districts. Dinner should flow naturally into the evening's nightlife. Note cover charges and reservation recommendations where known. Favor spots where locals actually go — avoid tourist-trap party strips.`
     : '';
 
   // Shopping priority (Item 13)
   const shoppingText = priorities.includes('shopping')
-    ? `\n- SHOPPING PRIORITY: This group enjoys discovering local goods and markets. Include: a local artisan market or bazaar, one or two well-curated independent boutiques (not international chains), a food or produce market for local specialties, and any craft or design districts the destination is known for. Descriptions should highlight what makes each spot unique and what to look for — local crafts, fashion, ceramics, textiles, etc.`
+    ? `\n- SHOPPING PRIORITY: This group enjoys discovering local goods, markets, and one-of-a-kind finds. Include: a local artisan market or bazaar, well-curated independent boutiques (not international chains), a food or produce market for local specialties, craft and design districts the destination is known for, and — where available — design-your-own or make-your-own workshops (leather goods, ceramics, textiles, jewelry, spirits, or any local craft) where travelers can create something unique to take home. If the destination has a luxury or bespoke shopping scene, include at least one elevated experience. Descriptions should highlight what makes each spot special and what to look for.`
     : '';
 
   // History priority (Item 13)
   const historyText = priorities.includes('history')
-    ? `\n- HISTORY PRIORITY: This group is passionate about history and heritage. Beyond the obvious landmarks, include: lesser-known historic districts, guided walking tours of old quarters, significant archaeological or architectural sites, local history museums, and stories behind specific buildings or monuments. Activity descriptions should include historical context — when was it built, what happened here, why does it matter.`
+    ? `\n- HISTORY PRIORITY: This group is passionate about history and heritage. Beyond the obvious landmarks, include: lesser-known historic districts and old quarters, walking tours focused on specific eras or events, significant archaeological and architectural sites, local history museums and specialized collections, and the stories behind specific buildings and monuments. Where available, include ghost tours, historical reenactments, and darker or macabre history experiences (battle sites, crypts, prison tours, plague history, catacombs) — these are often the most memorable and undersold part of a destination's story. Activity descriptions should always include historical context: when it was built, what happened here, why it matters, and any legends or lesser-known facts that bring the history to life.`
     : '';
 
   // Wellness priority (Item 13)
   const wellnessText = priorities.includes('wellness')
-    ? `\n- WELLNESS PRIORITY: This group values rest and rejuvenation alongside exploration. Include: a spa or hammam visit, a morning yoga class or meditation session, a scenic slow walk or gentle nature activity, and a healthy or mindful dining experience. Pace the days with breathing room — don't pack every hour. At least one activity per day should be low-intensity or explicitly restorative.`
+    ? `\n- WELLNESS PRIORITY: This group values rest and rejuvenation alongside exploration. Include: a traditional spa, hammam, or bathhouse experience, a morning yoga or meditation session, scenic slow walks or gentle nature activities, and at least one healthy or mindful dining experience. Pace the days with intentional breathing room — avoid packing every hour. At least one activity per day should be low-intensity or explicitly restorative. Note any wellness experiences that are uniquely tied to the local culture (onsen in Japan, hammam in Morocco, sauna culture in Scandinavia, temazcal in Mexico, etc.) — these are must-dos for a wellness-focused traveler.`
     : '';
 
   // Adventure priority (Item 13)
   const adventureText = priorities.includes('adventure')
-    ? `\n- ADVENTURE PRIORITY: This group craves active, high-energy experiences. Include at least one adrenaline or physically demanding activity per day — hiking, cycling tours, water sports, ziplining, kayaking, rock climbing, surfing, or similar. For each adventure activity: include operator name if known, approximate duration, difficulty level, and any gear or booking requirements. Add packingTips for all adventure activities.`
+    ? `\n- ADVENTURE PRIORITY: This group craves active, high-energy, and adrenaline-fueled experiences. Include at least one physically demanding or thrill-seeking activity per day — hiking, cycling tours, water sports, ziplining, kayaking, rock climbing, surfing, skydiving, bungee jumping, white-water rafting, or similar. Also include unique immersive experiences where available: indoor skydiving, immersive challenge experiences, escape rooms with physical elements, or next-gen entertainment venues that push the envelope. For each adventure activity, include the operator name if known, approximate duration, difficulty level, and any gear or booking requirements. Add packingTips for all adventure activities.`
     : '';
 
   // Culture priority (Item 13)
   const cultureText = priorities.includes('culture')
-    ? `\n- CULTURE PRIORITY: This group is drawn to the arts, local traditions, and creative scene. Include: contemporary and classical art galleries, a live performance (theater, dance, music, or local festival if in season), a visit to a culturally significant neighborhood, and a cultural experience unique to this destination (local ceremony, artisan workshop, cooking class, community event). Descriptions should convey what makes each experience culturally meaningful.`
+    ? `\n- CULTURE PRIORITY: This group is drawn to the arts, local traditions, and creative scene. Include: contemporary and classical art museums and galleries, immersive or interactive art experiences (large-scale installations, experiential exhibitions, digital art museums), live performances (theater, dance, live music, or a local festival if in season), a visit to a culturally significant neighborhood or creative district, and a hands-on cultural experience unique to this destination (artisan workshop, cooking class, community market, local ceremony). Descriptions should convey what makes each experience culturally meaningful and what the group will take away from it.`
+    : '';
+
+  // Beach / Coastline priority
+  const beachText = priorities.includes('beach')
+    ? `\n- BEACH & COASTLINE PRIORITY: This group wants to fully embrace the coastal experience. Include: prime beach spots with notes on swimming conditions and crowd levels, coastal walking trails and cliff-top viewpoints, water activities (snorkeling, surfing, paddleboarding, kayaking, boat trips, sailing, whale or dolphin watching if in season), coastal seafood dining with ocean views, and sunset-watching spots along the water. At least one morning or afternoon block each day should be oriented around the coast or water. Note beach access tips (paid entry, parking, facilities). If the destination has multiple distinct beaches with different characters (lively beach vs. secluded cove vs. snorkeling reef), showcase the variety.`
+    : '';
+
+  // Theme Park priority
+  const themeParkText = priorities.includes('themepark')
+    ? `\n- THEME PARK PRIORITY: This group wants to make the most of world-class theme parks and entertainment complexes. Include: major theme parks near the destination with strategy tips (arrive early, which rides or areas to prioritize first, best days of the week for shorter queues), water parks and seasonal parks in the area, after-dark park experiences where available, and any dining within the parks that genuinely stands out. Note whether Express Pass, Lightning Lane, or equivalent skip-the-line options are recommended and worth the cost. If the destination has multiple parks, suggest the best order and pacing across the trip. Include at least one non-park day activity nearby for variety and park-fatigue recovery.`
+    : '';
+
+  // Family / Kids priority
+  const familyText = priorities.includes('family')
+    ? `\n- FAMILY & KIDS PRIORITY: This group is traveling with children — plan every day with this in mind. Include: age-appropriate attractions (zoos, aquariums, children's museums, interactive science centers, playgrounds, and parks), family-friendly dining where kids are welcome and the menu has options beyond chicken tenders, and activities with manageable durations (no more than 90 minutes per stop for younger children). Build each day with a rest window — avoid scheduling more than 3 activity blocks without a break. For each activity, note minimum age or height requirements, family ticket options or discount availability, and practical facilities (restrooms, stroller access, nursing areas). Include at least one genuine "wow moment" activity per day that will be memorable for kids of any age — something they'll still be talking about at dinner.`
+    : '';
+
+  // Budget-conscious priority
+  const budgetConsciousText = priorities.includes('budget')
+    ? `\n- BUDGET-CONSCIOUS PRIORITY: This group wants to experience the destination without overspending. Prioritize: free and low-cost attractions (public parks, free museum days, self-guided walking tours, public viewpoints, beaches, local markets), street food and affordable neighborhood restaurants over tourist-facing dining (with specific dish recommendations to order), free or cheap public transport options with day pass tips, and any destination-specific money-saving strategies (city tourism cards, combo tickets, happy hour windows, free entry days at major attractions). For each paid activity, note the approximate entry price. Suggest at least one free or lower-cost alternative for any high-cost activity. Flag common tourist traps where visitors routinely overpay for a mediocre experience.`
+    : '';
+
+  // Accessibility priority
+  const accessibilityPriorityText = priorities.includes('accessibility')
+    ? `\n- ACCESSIBILITY PRIORITY: This group includes travelers with mobility, sensory, or other accessibility needs — plan every activity with this as a baseline requirement. For every activity and venue, note: wheelchair and stroller accessibility (step-free entry, elevator or lift availability, accessible restrooms), availability of audio guides or assistive listening devices at museums and cultural sites, surface conditions for outdoor activities (paved paths vs. cobblestone vs. uneven terrain), and any alternatives for activities with limited accessibility. Prioritize venues with strong accessibility provisions. If the destination has known challenges (hilly terrain, cobblestone streets, limited elevator coverage), flag them explicitly and suggest practical workarounds. Include at least one activity per day that is fully accessible with no caveats.`
     : '';
 
   // Multi-city routing rules — injected when destinations array has 2+ cities
@@ -616,7 +652,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${dateNightText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
+- Travel style: ${travelStyleText}${localModeText}${dateNightText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${beachText}${themeParkText}${familyText}${budgetConsciousText}${accessibilityPriorityText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
