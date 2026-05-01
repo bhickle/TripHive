@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
           bookedFlight: tripMeta.bookedFlight,
           groupType: tripMeta.groupType,
           groupSize: tripMeta.groupSize,
+          preferences: tripMeta.preferences ?? {},
           practicalNotes: tripMeta.practicalNotes ?? null,
           hotelSuggestions: tripMeta.hotelSuggestions ?? null,
           isCruise: tripMeta.isCruise ?? false,

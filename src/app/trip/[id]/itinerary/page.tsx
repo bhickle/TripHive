@@ -558,7 +558,14 @@ function ItineraryPageContent() {
             if (itinerary && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
               syncAiDays(itinerary.days);
               setShowAiBanner(true);
-              if (itinerary.meta) setAiMeta(itinerary.meta);
+              if (itinerary.meta) {
+                // Merge tripRow.preferences into meta if missing — backward compat for trips
+                // saved before preferences was included in itinerary.meta
+                const metaWithPrefs = itinerary.meta.preferences
+                  ? itinerary.meta
+                  : { ...itinerary.meta, preferences: tripData?.preferences ?? {} };
+                setAiMeta(metaWithPrefs);
+              }
               seedVotesFromActivities(itinerary.days);
 
               // Load per-user votes from dedicated table
