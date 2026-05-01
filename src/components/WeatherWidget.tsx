@@ -24,30 +24,30 @@ export interface WeatherWidgetProps {
 
 /** WMO weather interpretation codes → display info. */
 const WMO: Record<number, { label: string; emoji: string }> = {
-  0:  { label: 'Clear sky',            emoji: '☀️' },
-  1:  { label: 'Mainly clear',         emoji: '🌤️' },
-  2:  { label: 'Partly cloudy',        emoji: '⛅' },
-  3:  { label: 'Overcast',             emoji: '☁️' },
-  45: { label: 'Foggy',                emoji: '🌫️' },
-  48: { label: 'Icy fog',              emoji: '🌫️' },
-  51: { label: 'Light drizzle',        emoji: '🌦️' },
-  53: { label: 'Drizzle',              emoji: '🌦️' },
-  55: { label: 'Heavy drizzle',        emoji: '🌦️' },
-  61: { label: 'Light rain',           emoji: '🌧️' },
-  63: { label: 'Rain',                 emoji: '🌧️' },
-  65: { label: 'Heavy rain',           emoji: '🌧️' },
-  71: { label: 'Light snow',           emoji: '🌨️' },
-  73: { label: 'Snow',                 emoji: '❄️' },
-  75: { label: 'Heavy snow',           emoji: '❄️' },
-  77: { label: 'Snow grains',          emoji: '🌨️' },
-  80: { label: 'Rain showers',         emoji: '🌦️' },
-  81: { label: 'Showers',              emoji: '🌦️' },
-  82: { label: 'Heavy showers',        emoji: '🌧️' },
-  85: { label: 'Snow showers',         emoji: '🌨️' },
-  86: { label: 'Heavy snow showers',   emoji: '❄️' },
-  95: { label: 'Thunderstorm',         emoji: '⛈️' },
-  96: { label: 'Thunderstorm + hail',  emoji: '⛈️' },
-  99: { label: 'Thunderstorm + hail',  emoji: '⛈️' },
+  0:  { label: 'Clear sky',           emoji: '☀️' },
+  1:  { label: 'Mainly clear',        emoji: '🌤️' },
+  2:  { label: 'Partly cloudy',       emoji: '⛅' },
+  3:  { label: 'Overcast',            emoji: '☁️' },
+  45: { label: 'Foggy',               emoji: '🌫️' },
+  48: { label: 'Icy fog',             emoji: '🌫️' },
+  51: { label: 'Light drizzle',       emoji: '🌦️' },
+  53: { label: 'Drizzle',             emoji: '🌦️' },
+  55: { label: 'Heavy drizzle',       emoji: '🌦️' },
+  61: { label: 'Light rain',          emoji: '🌧️' },
+  63: { label: 'Rain',                emoji: '🌧️' },
+  65: { label: 'Heavy rain',          emoji: '🌧️' },
+  71: { label: 'Light snow',          emoji: '🌨️' },
+  73: { label: 'Snow',                emoji: '❄️' },
+  75: { label: 'Heavy snow',          emoji: '❄️' },
+  77: { label: 'Snow grains',         emoji: '🌨️' },
+  80: { label: 'Rain showers',        emoji: '🌦️' },
+  81: { label: 'Showers',             emoji: '🌦️' },
+  82: { label: 'Heavy showers',       emoji: '🌧️' },
+  85: { label: 'Snow showers',        emoji: '🌨️' },
+  86: { label: 'Heavy snow showers',  emoji: '❄️' },
+  95: { label: 'Thunderstorm',        emoji: '⛈️' },
+  96: { label: 'Thunderstorm + hail', emoji: '⛈️' },
+  99: { label: 'Thunderstorm + hail', emoji: '⛈️' },
 };
 
 function getWeatherInfo(code: number) {
@@ -58,9 +58,23 @@ function fmt(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** "Fri 5/9" — short enough to fit in a narrow sidebar column. */
 function displayDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+  const month   = d.getMonth() + 1;
+  const day     = d.getDate();
+  return `${weekday} ${month}/${day}`;
+}
+
+/** Returns a Google weather search URL — always resolves for any destination. */
+function weatherSearchUrl(dest: string): string {
+  return `https://www.google.com/search?q=weather+${encodeURIComponent(primaryDest(dest))}`;
+}
+
+/** Returns the primary destination name (before any comma/& delimiter). */
+function primaryDest(dest: string): string {
+  return dest.split(/[,&/]|\band\b/i)[0].trim();
 }
 
 /** Open-Meteo forecast window: 16 days from today. */
@@ -86,10 +100,9 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
     (async () => {
       try {
         // ── 1. Geocode destination ────────────────────────────────────────────
-        // Extract first city/country name (handles "Paris, France & Rome, Italy" → "Paris")
-        const primaryDest = dest.split(/[,&/]|\band\b/i)[0].trim();
+        const primaryDestName = primaryDest(dest);
         const geoRes = await fetch(
-          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(primaryDest)}&count=1&language=en&format=json`
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(primaryDestName)}&count=1&language=en&format=json`
         );
         const geoData = await geoRes.json();
         if (cancelled) return;
@@ -166,13 +179,13 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
     <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-100">
-        <span className="text-2xl">🌤️</span>
+        <span className="text-2xl flex-shrink-0">🌤️</span>
         <div className="flex-1 min-w-0">
           <h4 className="font-semibold text-zinc-900 text-sm">Weather Forecast</h4>
           <p className="text-xs text-zinc-400 truncate">{locationName || dest}</p>
         </div>
         <a
-          href={`https://weather.com/weather/tenday/l/${encodeURIComponent(primaryDest(dest))}`}
+          href={weatherSearchUrl(dest)}
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-sky-700 hover:text-sky-800 font-medium whitespace-nowrap flex-shrink-0"
@@ -185,7 +198,7 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
       {loading && (
         <div className="flex items-center gap-3 px-5 py-5 text-sm text-zinc-500">
           <div className="w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-          Loading forecast for {locationName || dest}…
+          <span className="truncate">Loading forecast for {locationName || dest}…</span>
         </div>
       )}
 
@@ -194,7 +207,7 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
         <div className="px-5 py-4 text-sm text-zinc-500">
           {error}{' '}
           <a
-            href={`https://weather.com/weather/tenday/l/${encodeURIComponent(dest)}`}
+            href={weatherSearchUrl(dest)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sky-700 underline"
@@ -223,23 +236,28 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
             return (
               <div
                 key={day.date}
-                className="flex items-center gap-3 px-5 py-3 border-b border-zinc-50 last:border-b-0 hover:bg-zinc-50/50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-50 last:border-b-0 hover:bg-zinc-50/50 transition-colors"
               >
-                <p className="text-xs text-zinc-500 w-28 flex-shrink-0">
+                {/* Date — abbreviated to fit narrow containers */}
+                <p className="text-xs text-zinc-400 w-14 flex-shrink-0 font-medium">
                   {isToday ? 'Today' : displayDate(day.date)}
                 </p>
-                <span className="text-xl flex-shrink-0" title={info.label}>{info.emoji}</span>
+                {/* Condition emoji */}
+                <span className="text-base flex-shrink-0" title={info.label}>{info.emoji}</span>
+                {/* Condition label — fills remaining space, truncates if needed */}
                 <p className="text-xs text-zinc-600 flex-1 min-w-0 truncate">{info.label}</p>
+                {/* Precipitation probability */}
                 {day.precipProb > 0 && (
-                  <div className="flex items-center gap-1 text-xs text-zinc-400 flex-shrink-0">
+                  <div className="flex items-center gap-0.5 text-xs text-zinc-400 flex-shrink-0">
                     <Droplets className="w-3 h-3 text-sky-400" />
                     <span>{day.precipProb}%</span>
                   </div>
                 )}
-                <div className="text-xs font-semibold flex-shrink-0 w-20 text-right">
+                {/* High / low temps — no fixed width, let content size it */}
+                <div className="text-xs font-semibold flex-shrink-0 text-right">
                   <span className="text-rose-500">{day.tempMax}°</span>
-                  <span className="text-zinc-300 mx-1">/</span>
-                  <span className="text-sky-600">{day.tempMin}°C</span>
+                  <span className="text-zinc-300 mx-0.5">/</span>
+                  <span className="text-sky-600">{day.tempMin}°</span>
                 </div>
               </div>
             );
@@ -253,11 +271,6 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
   );
 }
 
-/** Returns the primary destination name (before any comma/& delimiter). */
-function primaryDest(dest: string): string {
-  return dest.split(/[,&/]|\band\b/i)[0].trim();
-}
-
 /** Simple packing nudge derived from the forecast data. */
 function PackingTip({ days }: { days: WeatherDay[] }) {
   const avgMax = days.reduce((s, d) => s + d.tempMax, 0) / days.length;
@@ -266,16 +279,16 @@ function PackingTip({ days }: { days: WeatherDay[] }) {
   const hasStorm = days.some(d => [95, 96, 99].includes(d.weatherCode));
 
   let tip = '';
-  if (hasStorm)         tip = '⛈️ Thunderstorms likely — pack a compact umbrella and avoid outdoor plans in the evenings.';
-  else if (hasSnow)     tip = '❄️ Snow expected — waterproof boots, a warm coat, and layers are essential.';
+  if (hasStorm)            tip = '⛈️ Thunderstorms likely — pack a compact umbrella and avoid outdoor plans in the evenings.';
+  else if (hasSnow)        tip = '❄️ Snow expected — waterproof boots, a warm coat, and layers are essential.';
   else if (maxPrecip > 60) tip = '🌧️ High chance of rain — a good waterproof jacket and packable umbrella will save the day.';
-  else if (avgMax < 10) tip = '🧥 Cold ahead — pack thermal layers, a windproof outer layer, and warm accessories.';
-  else if (avgMax < 20) tip = '🧣 Mild but cool — light layers and a versatile jacket should cover it.';
-  else if (avgMax > 30) tip = '☀️ Hot trip — lightweight breathable clothing, sunscreen, and a reusable water bottle.';
-  else                  tip = '👌 Comfortable weather — mix of light layers should work well.';
+  else if (avgMax < 10)    tip = '🧥 Cold ahead — pack thermal layers, a windproof outer layer, and warm accessories.';
+  else if (avgMax < 20)    tip = '🧣 Mild but cool — light layers and a versatile jacket should cover it.';
+  else if (avgMax > 30)    tip = '☀️ Hot trip — lightweight breathable clothing, sunscreen, and a reusable water bottle.';
+  else                     tip = '👌 Comfortable weather — mix of light layers should work well.';
 
   return (
-    <div className="mx-5 my-3 px-4 py-3 bg-sky-50 rounded-xl border border-sky-100">
+    <div className="mx-4 my-3 px-4 py-3 bg-sky-50 rounded-xl border border-sky-100">
       <p className="text-xs text-sky-800 leading-relaxed">{tip}</p>
     </div>
   );
