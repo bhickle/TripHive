@@ -5,6 +5,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
 
+// Extend Vercel function timeout to 5 minutes (300s).
+// Itinerary generation streams 64K tokens per pass; a 10-day trip with two
+// continuation passes can take 3–4 minutes of wall-clock time. Without this
+// the default 60s limit kills the stream mid-day, causing truncation.
+// Requires Vercel Pro or higher (Hobby plan max is 60s).
+export const maxDuration = 300;
+
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const SYSTEM_PROMPT = `You are an expert travel planner with deep local knowledge of destinations worldwide.
