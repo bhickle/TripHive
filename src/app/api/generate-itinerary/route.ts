@@ -1245,11 +1245,11 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Continuation loop for trips where a pass ran short ───────────────
-        // Each pass may produce fewer days than requested (common for 9+ day trips
-        // even at 64K tokens). We retry up to MAX_CONTINUATIONS times, each time
-        // passing a summary of already-generated days so the model never repeats.
-        // We stop as soon as all days are present or we exhaust the retry budget.
-        const MAX_CONTINUATIONS = 3;
+        // Each pass may produce fewer days than requested (common for 7+ day trips
+        // that exceed the 64K output token cap). We retry up to MAX_CONTINUATIONS
+        // times using a self-contained compact prompt that avoids conflicting with
+        // the original "generate N days from day 1" instruction.
+        const MAX_CONTINUATIONS = 4;
         let contAttempt = 0;
 
         while (dayIndex < requestedLength && contAttempt < MAX_CONTINUATIONS) {
@@ -1259,8 +1259,6 @@ export async function POST(request: NextRequest) {
 
           // Build a compact summary of already-generated days so the model
           // knows exactly what exists and won't regenerate any of it.
-          // For multi-city trips, include the city so the model knows the
-          // group's location at each point in the journey.
           const generatedSummary = collectedDays
             .map((d) => {
               const cityNote = d.city ? ` (${String(d.city)})` : '';
@@ -1268,36 +1266,88 @@ export async function POST(request: NextRequest) {
             })
             .join('\n');
 
-          // For multi-city continuations: tell the model the full route and
-          // which city the group is currently in, so it continues geographically.
           const contDestinations = (body.destinations as string[] | undefined) ?? [];
           const contDaysPerDest = (body.daysPerDestination as Record<string, number> | undefined) ?? {};
           const isMultiCityCont = contDestinations.length > 1;
-          const multiCityContext = isMultiCityCont
-            ? `Multi-city route: ${contDestinations.join(' → ')}. ` +
-              `Day allocation: ${contDestinations.map(c => `${c}=${contDaysPerDest[c] ?? '?'} day${(contDaysPerDest[c] ?? 1) === 1 ? '' : 's'}`).join(', ')}.`
-            : '';
-          const lastCity = collectedDays.length > 0 ? (collectedDays[collectedDays.length - 1] as Record<string, unknown>).city as string | undefined : undefined;
+          const lastCity = collectedDays.length > 0
+            ? (collectedDays[collectedDays.length - 1] as Record<string, unknown>).city as string | undefined
+            : undefined;
 
-          const contPrompt = [
-            `CONTINUATION — ${requestedLength}-day trip to ${body.destination as string}.`,
-            multiCityContext,
-            `Days already generated (DO NOT reproduce these — output ONLY what comes after):`,
+          // Compute the date for the next day to generate
+          const contStartDate = (() => {
+            if (collectedDays.length > 0) {
+              const lastDay = collectedDays[collectedDays.length - 1] as Record<string, unknown>;
+              const lastDate = lastDay.date as string | undefined;
+              if (lastDate) {
+                const d = new Date(lastDate + 'T12:00:00');
+                d.setDate(d.getDate() + 1);
+                return d.toISOString().split('T')[0];
+              }
+            }
+            return body.startDate as string;
+          })();
+
+          // Brief top-10 venue hints so continuation days use real places too
+          const placesHint = (() => {
+            const src = isMultiCityCont && lastCity
+              ? (multiCityPlaces?.[lastCity] ?? realPlaces)
+              : realPlaces;
+            if (!src) return '';
+            const rList = src.restaurants.slice(0, 10).map(r => `${r.name} (${r.address})`).join('; ');
+            const aList = src.attractions.slice(0, 10).map(a => `${a.name} (${a.address})`).join('; ');
+            return `\nREAL VENUES — use these for remaining days:\nRestaurants: ${rList}\nActivities: ${aList}\n`;
+          })();
+
+          const multiCityNote = isMultiCityCont
+            ? `Multi-city route: ${contDestinations.join(' → ')}. ` +
+              `Allocation: ${contDestinations.map(c => `${c}=${contDaysPerDest[c] ?? '?'}d`).join(', ')}. `
+            : '';
+
+          // ── Self-contained continuation prompt ────────────────────────────
+          // CRITICAL: Do NOT append the full original prompt here.
+          // The original prompt contains "generate a ${tripLength}-day itinerary
+          // starting from Day 1" which conflicts with the continuation directive
+          // and causes the model to regenerate from Day 1 instead of continuing.
+          const compactContPrompt = [
+            `You are an expert travel planner. Continue an in-progress ${requestedLength}-day itinerary.`,
+            ``,
+            `TRIP: ${body.destination as string} | ${body.startDate as string} to ${body.endDate as string} | ${requestedLength} days total`,
+            `GROUP: ${body.groupType as string} | Priorities: ${(body.priorities as string[]).join(', ')}`,
+            `Budget: $${body.budget as number} total`,
+            multiCityNote ? multiCityNote.trim() : '',
+            ``,
+            `ALREADY COMPLETE — do NOT regenerate these ${dayIndex} days:`,
             generatedSummary,
             ``,
-            lastCity ? `The group is currently in ${lastCity} at the end of Day ${dayIndex}.` : '',
-            `Generate ONLY Day ${dayIndex + 1} through Day ${requestedLength} (${remaining} day${remaining === 1 ? '' : 's'}).`,
-            `Use the EXACT same JSON object format (same fields, same structure as the original request).`,
-            `Return a JSON array starting at "day": ${dayIndex + 1}. No preamble — output ONLY the JSON array.`,
+            lastCity ? `The group ended Day ${dayIndex} in ${lastCity}.` : '',
+            placesHint,
+            `YOUR TASK: Output ONLY day objects ${dayIndex + 1} through ${requestedLength} (${remaining} day${remaining === 1 ? '' : 's'}), starting from ${contStartDate}.`,
+            ``,
+            `Day schema (use exact field names):`,
+            `{"day":<N>,"date":"YYYY-MM-DD","city":"<city>","theme":"<3-5 word theme>","photoSpots":[{"name":"...","timeOfDay":"...","tip":"..."}],"destinationTip":"<one insider fact>","trackALabel":null,"trackBLabel":null,"dinnerMeetupLocation":null,"tracks":{"shared":[<activities>],"track_a":[],"track_b":[]},"meetupTime":"<HH:MM>","meetupLocation":"Hotel lobby"}`,
+            ``,
+            `Activity schema:`,
+            `{"id":"act_d<N>_<i>","dayNumber":<N>,"timeSlot":"HH:MM–HH:MM","name":"venue","title":"venue","address":"full address","website":"https://...","isRestaurant":<bool>,"mealType":<null|"breakfast"|"lunch"|"dinner">,"track":"shared","priceLevel":<0-4>,"description":"why visit","costEstimate":<USD>,"confidence":0.9,"verified":true,"packingTips":[],"transportToNext":{"mode":"walk|rideshare|metro|taxi|train","durationMins":<N>,"distanceMiles":<N>,"notes":"to next place"}|null}`,
+            ``,
+            `Rules:`,
+            `- Every day: breakfast (07:30–09:00, mealType:"breakfast"), lunch (12:30–14:00, mealType:"lunch"), dinner (19:00–21:00, mealType:"dinner") + 2-3 non-meal activities`,
+            `- All activities go in shared track; track_a and track_b stay as empty arrays []`,
+            `- transportToNext is null on the LAST activity of each day only`,
+            `- Use REAL venue names and full street addresses in ${body.destination as string}`,
+            `- Day ${requestedLength} is the departure day — light schedule ending at airport/station`,
+            `- "meetupTime" must equal the start time of the first activity that day`,
+            ``,
+            `Return ONLY the JSON array for days ${dayIndex + 1}–${requestedLength}. No markdown. No explanation. Start with [ and end with ].`,
           ].filter(Boolean).join('\n');
 
           try {
             const contStream = await client.messages.create({
               model: modelId,
-              max_tokens: Math.min(64000, remaining * tokensPerDay),
+              // Give at least 16K tokens even for 1 remaining day (descriptions are verbose)
+              max_tokens: Math.min(64000, Math.max(remaining * tokensPerDay, 16000)),
               stream: true,
-              // Single valid user message: original context + continuation directive
-              messages: [{ role: 'user', content: `${prompt}\n\n---\n\n${contPrompt}` }],
+              system: SYSTEM_PROMPT, // enforce JSON-only output
+              messages: [{ role: 'user', content: compactContPrompt }],
             });
 
             let contBuf = '';
@@ -1328,11 +1378,21 @@ export async function POST(request: NextRequest) {
                     const rawObj = contBuf.slice(contStart);
                     try {
                       const dayObj = JSON.parse(cleanJson(rawObj)) as Record<string, unknown>;
-                      send({ type: 'day', index: dayIndex, data: dayObj });
-                      collectedDays.push(dayObj);
-                      dayIndex++;
-                      contBuf = '';
-                      contStart = -1;
+
+                      // Deduplication guard: skip any day number we already have.
+                      // The model occasionally restarts from Day 1 — reject those.
+                      const parsedDayNum = typeof dayObj.day === 'number' ? dayObj.day : (dayIndex + 1);
+                      if (parsedDayNum <= dayIndex) {
+                        console.warn(`[generate-itinerary] Cont pass ${contAttempt}: skipping duplicate day ${parsedDayNum} (already have ${dayIndex} days)`);
+                        contBuf = '';
+                        contStart = -1;
+                      } else {
+                        send({ type: 'day', index: dayIndex, data: dayObj });
+                        collectedDays.push(dayObj);
+                        dayIndex++;
+                        contBuf = '';
+                        contStart = -1;
+                      }
                     } catch {
                       contStart = -1;
                     }
