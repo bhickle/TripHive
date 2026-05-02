@@ -1155,6 +1155,22 @@ function TripBuilderPage() {
                           setDestQuery(val);
                           setShowDestinationSuggestions(val.length >= 2);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            // Select the first suggestion or confirm current text
+                            const first = destSuggestions[0];
+                            if (first) {
+                              const fullDest = first.address ? `${first.name}, ${first.address}` : first.name;
+                              setState((prev) => ({ ...prev, destination: fullDest }));
+                              setDestQuery('');
+                            }
+                            setShowDestinationSuggestions(false);
+                            e.preventDefault();
+                          } else if (e.key === 'Escape') {
+                            setShowDestinationSuggestions(false);
+                          }
+                        }}
+                        onBlur={() => setTimeout(() => setShowDestinationSuggestions(false), 150)}
                         placeholder="Type a city, country, or region…"
                         className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
                       />
@@ -2248,17 +2264,17 @@ function TripBuilderPage() {
                       Travel Priorities
                     </label>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      state.priorities.length >= 4
+                      state.priorities.length >= 3
                         ? 'bg-green-100 text-green-700'
                         : 'bg-slate-100 text-zinc-500'
                     }`}>
-                      {state.priorities.length}/4 selected
+                      {state.priorities.length}/8 selected
                     </span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {priorityOptions.map((priority) => {
                       const isSelected = state.priorities.includes(priority.id);
-                      const isDisabled = !isSelected && state.priorities.length >= 4;
+                      const isDisabled = !isSelected && state.priorities.length >= 8;
                       return (
                         <button
                           key={priority.id}
@@ -2898,6 +2914,12 @@ function TripBuilderPage() {
                     onClick={handleNext}
                     disabled={
                       (currentStep === 2 && !state.destination.trim()) ||
+                      // Step 3: must have valid dates OR flexible dates checked
+                      (currentStep === 3 && !state.flexibleDates && (
+                        !state.startDate ||
+                        !state.endDate ||
+                        new Date(state.endDate) < new Date(state.startDate)
+                      )) ||
                       (currentStep === 5 && (state.priorities.length === 0 || state.ageRanges.length === 0)) ||
                       (currentStep === 6 && state.modality.length === 0)
                     }
@@ -2909,6 +2931,15 @@ function TripBuilderPage() {
                 )}
               </div>
             </div>
+            {currentStep === 3 && !state.flexibleDates && !state.startDate && (
+              <p className="text-xs text-zinc-400">Add your travel dates or check &quot;I have flexible dates&quot; to continue</p>
+            )}
+            {currentStep === 3 && !state.flexibleDates && state.startDate && !state.endDate && (
+              <p className="text-xs text-zinc-400">Please add an end date to continue</p>
+            )}
+            {currentStep === 3 && !state.flexibleDates && state.startDate && state.endDate && new Date(state.endDate) < new Date(state.startDate) && (
+              <p className="text-xs text-rose-500">End date must be after start date</p>
+            )}
             {currentStep === 5 && state.priorities.length === 0 && (
               <p className="text-xs text-zinc-400">Select at least one travel priority to continue</p>
             )}

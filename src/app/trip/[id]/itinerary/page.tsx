@@ -768,6 +768,7 @@ function ItineraryPageContent() {
   // Collapsible sidebar sections — priority panels start collapsed, utility panels open
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     foodie: true, nightlife: true, shopping: true,
+    photoSpots: false, hotel: false,
   });
   useEffect(() => {
     try {
@@ -1444,18 +1445,6 @@ function ItineraryPageContent() {
             </div>
 
             <button
-              onClick={() => setShowMapView(!showMapView)}
-              className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
-                showMapView
-                  ? 'bg-sky-700 border-sky-700 text-white'
-                  : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700'
-              }`}
-            >
-              <Map className="w-4 h-4" />
-              Map
-            </button>
-
-            <button
               onClick={() => {
                 const next = !isCompactView;
                 setIsCompactView(next);
@@ -1470,6 +1459,18 @@ function ItineraryPageContent() {
             >
               <AlignJustify className="w-4 h-4" />
               <span className="hidden sm:inline">Compact</span>
+            </button>
+
+            <button
+              onClick={() => setShowMapView(!showMapView)}
+              className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
+                showMapView
+                  ? 'bg-sky-700 border-sky-700 text-white'
+                  : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700'
+              }`}
+            >
+              <Map className="w-4 h-4" />
+              Map
             </button>
 
             {/* Open day route in Google Maps */}
@@ -2154,26 +2155,39 @@ function ItineraryPageContent() {
             />
 
 
-            {/* Photo Spots Card */}
+            {/* Photo Spots Card — collapsible */}
             {currentDayData.photoSpots && currentDayData.photoSpots.length > 0 && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Camera className="w-4 h-4 text-violet-500" />
-                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Photo Spots</p>
-                </div>
-                <div className="space-y-3">
-                  {currentDayData.photoSpots.map((spot, i) => (
-                    <div key={i} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-semibold text-violet-900 leading-snug min-w-0 break-words">{spot.name}</p>
-                        <span className="flex-shrink-0 text-[10px] font-semibold text-violet-500 bg-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                          {spot.timeOfDay}
-                        </span>
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                <button
+                  onClick={() => toggleSidebarSection('photoSpots')}
+                  className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
+                >
+                  <Camera className="w-4 h-4 text-violet-500 flex-shrink-0" />
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Photo Spots</p>
+                    {collapsedSections.photoSpots && (
+                      <p className="text-[11px] text-zinc-300 mt-0.5">
+                        {currentDayData.photoSpots.length} spot{currentDayData.photoSpots.length !== 1 ? 's' : ''} · tap to expand
+                      </p>
+                    )}
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${collapsedSections.photoSpots ? '' : 'rotate-180'}`} />
+                </button>
+                {!collapsedSections.photoSpots && (
+                  <div className="px-5 pb-5 space-y-3">
+                    {currentDayData.photoSpots.map((spot, i) => (
+                      <div key={i} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="text-sm font-semibold text-violet-900 leading-snug min-w-0 break-words">{spot.name}</p>
+                          <span className="flex-shrink-0 text-[10px] font-semibold text-violet-500 bg-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {spot.timeOfDay}
+                          </span>
+                        </div>
+                        <p className="text-xs text-violet-700 leading-relaxed break-words">{spot.tip}</p>
                       </div>
-                      <p className="text-xs text-violet-700 leading-relaxed break-words">{spot.tip}</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -2430,47 +2444,65 @@ function ItineraryPageContent() {
               );
             })()}
 
-            {/* Where to Stay Card — pre-booked hotels */}
-            {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0 && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-base">🏨</span>
+            {/* Where to Stay — collapsible wrapper */}
+            {aiMeta?.destination && (
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+              <button
+                onClick={() => toggleSidebarSection('hotel')}
+                className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
+              >
+                <span className="text-base flex-shrink-0">🏨</span>
+                <div className="flex-1 text-left min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
+                  {collapsedSections.hotel && (
+                    <p className="text-[11px] text-zinc-300 mt-0.5">
+                      {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0
+                        ? `${aiMeta.bookedHotels.length} hotel${aiMeta.bookedHotels.length !== 1 ? 's' : ''} booked`
+                        : aiMeta?.hotelSuggestions && aiMeta.hotelSuggestions.length > 0
+                        ? 'AI suggestions available'
+                        : 'tap to view options'} · tap to expand
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-3">
-                  {aiMeta.bookedHotels.map((h, i) => {
-                    const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.address ?? aiMeta?.destination ?? ''}`.trim())}`;
-                    return (
-                      <div key={i} className="p-3 bg-sky-50 rounded-xl border border-sky-100">
-                        <div className="flex items-start gap-1.5">
-                          <p className="text-sm font-semibold text-sky-900 leading-snug flex-1">{h.name}</p>
-                          <a href={hotelMapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
-                            className="flex-shrink-0 text-sky-400 hover:text-sky-600 transition-colors mt-0.5">
-                            <MapPin className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
-                        {h.address && (
-                          <p className="text-xs text-sky-600 mt-0.5 leading-relaxed">{h.address}</p>
-                        )}
-                        {(h.checkIn || h.checkOut) && (
-                          <p className="text-[11px] text-zinc-400 mt-1.5">
-                            {h.checkIn && new Date(h.checkIn.length === 10 ? h.checkIn + 'T00:00:00' : h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {h.checkIn && h.checkOut && ' → '}
-                            {h.checkOut && new Date(h.checkOut.length === 10 ? h.checkOut + 'T00:00:00' : h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                        )}
+                <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${collapsedSections.hotel ? '' : 'rotate-180'}`} />
+              </button>
+              {!collapsedSections.hotel && (
+              <div className="px-5 pb-5 space-y-4">
+
+            {/* ── Booked hotels ── */}
+            {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0 && (
+              <div className="space-y-3">
+                {aiMeta.bookedHotels.map((h, i) => {
+                  const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.address ?? aiMeta?.destination ?? ''}`.trim())}`;
+                  return (
+                    <div key={i} className="p-3 bg-sky-50 rounded-xl border border-sky-100">
+                      <div className="flex items-start gap-1.5">
+                        <p className="text-sm font-semibold text-sky-900 leading-snug flex-1">{h.name}</p>
+                        <a href={hotelMapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                          className="flex-shrink-0 text-sky-400 hover:text-sky-600 transition-colors mt-0.5">
+                          <MapPin className="w-3.5 h-3.5" />
+                        </a>
                       </div>
-                    );
-                  })}
-                </div>
+                      {h.address && (
+                        <p className="text-xs text-sky-600 mt-0.5 leading-relaxed">{h.address}</p>
+                      )}
+                      {(h.checkIn || h.checkOut) && (
+                        <p className="text-[11px] text-zinc-400 mt-1.5">
+                          {h.checkIn && new Date(h.checkIn.length === 10 ? h.checkIn + 'T00:00:00' : h.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {h.checkIn && h.checkOut && ' → '}
+                          {h.checkOut && new Date(h.checkOut.length === 10 ? h.checkOut + 'T00:00:00' : h.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
-            {/* Where to Stay Card — AI hotel suggestions (only when no hotel pre-booked) */}
+            {/* ── AI hotel suggestions ── */}
             {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) && aiMeta?.hotelSuggestions && aiMeta.hotelSuggestions.length > 0 && (() => {
               const suggestions = aiMeta.hotelSuggestions!;
               const isMultiCity = suggestions.some(h => h.city);
-              // Group by city when tagged, otherwise treat as a single flat list.
               const groups: { city?: string; hotels: typeof suggestions }[] = isMultiCity
                 ? Array.from(new Set(suggestions.map(h => h.city))).map(city => ({
                     city,
@@ -2478,12 +2510,8 @@ function ItineraryPageContent() {
                   }))
                 : [{ hotels: suggestions }];
               return (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-base">🏨</span>
-                    <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
-                  </div>
-                  <p className="text-[11px] text-zinc-400 mb-4">AI lodging suggestions for your trip</p>
+                <div>
+                  <p className="text-[11px] text-zinc-400 mb-3">AI lodging suggestions for your trip</p>
                   <div className="space-y-4">
                     {groups.map((group, gi) => (
                       <div key={gi}>
@@ -2494,47 +2522,43 @@ function ItineraryPageContent() {
                           {group.hotels.map((h, i) => {
                             const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.neighborhood ?? ''} ${group.city ?? aiMeta?.destination ?? ''}`.trim())}`;
                             return (
-                            <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
-                                  <a href={hotelMapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
-                                    className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors">
-                                    <MapPin className="w-3 h-3" />
-                                  </a>
+                              <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                <div className="flex items-start justify-between gap-2 mb-1">
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
+                                    <a href={hotelMapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                                      className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors">
+                                      <MapPin className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                  {h.pricePerNight && (
+                                    <span className="flex-shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                      ${h.pricePerNight}/night
+                                    </span>
+                                  )}
                                 </div>
-                                {h.pricePerNight && (
-                                  <span className="flex-shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                    ${h.pricePerNight}/night
-                                  </span>
+                                {h.neighborhood && (
+                                  <p className="text-[11px] text-amber-600 mb-1">{h.neighborhood}</p>
                                 )}
-                              </div>
-                              {h.neighborhood && (
-                                <p className="text-[11px] text-amber-600 mb-1">{h.neighborhood}</p>
-                              )}
-                              {h.whyRecommended && (
-                                <p className="text-xs text-amber-700 leading-relaxed mb-2">{h.whyRecommended}</p>
-                              )}
-                              <div className="flex items-center gap-3 mt-1">
-                                {h.bookingUrl && (
-                                  <a
-                                    href={h.bookingUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors"
+                                {h.whyRecommended && (
+                                  <p className="text-xs text-amber-700 leading-relaxed mb-2">{h.whyRecommended}</p>
+                                )}
+                                <div className="flex items-center gap-3 mt-1">
+                                  {h.bookingUrl && (
+                                    <a href={h.bookingUrl} target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors">
+                                      Book on Booking.com →
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => handleBookHotel(h)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
                                   >
-                                    Book on Booking.com →
-                                  </a>
-                                )}
-                                <button
-                                  onClick={() => handleBookHotel(h)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
-                                >
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  I Booked This
-                                </button>
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    I Booked This
+                                  </button>
+                                </div>
                               </div>
-                            </div>
                             );
                           })}
                         </div>
@@ -2548,39 +2572,38 @@ function ItineraryPageContent() {
               );
             })()}
 
-            {/* Hotel fallback — no pre-booked hotels AND no AI suggestions generated */}
+            {/* ── Hotel fallback — no pre-booked hotels AND no AI suggestions ── */}
             {(!aiMeta?.bookedHotels || aiMeta.bookedHotels.length === 0) &&
-             (!aiMeta?.hotelSuggestions || aiMeta.hotelSuggestions.length === 0) &&
-             aiMeta?.destination && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">🏨</span>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
-                </div>
-                <p className="text-[11px] text-zinc-400 mb-4">No hotel booked yet — search for options</p>
-                <div className="space-y-2">
-                  <a
-                    href={`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(aiMeta.destination)}${aiMeta.startDate ? `&checkin=${aiMeta.startDate}` : ''}${aiMeta.endDate ? `&checkout=${aiMeta.endDate}` : ''}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-xl transition-all"
-                  >
-                    Browse Hotels on Booking.com →
-                  </a>
-                  <button
-                    onClick={handleGenerateHotels}
-                    disabled={generatingHotels}
-                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
-                  >
-                    {generatingHotels ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                    {generatingHotels ? 'Finding hotels…' : 'Get AI Suggestions'}
-                  </button>
-                  {hotelGenError && (
-                    <p className="text-xs text-rose-600 mt-2 text-center">{hotelGenError}</p>
-                  )}
-                </div>
+             (!aiMeta?.hotelSuggestions || aiMeta.hotelSuggestions.length === 0) && (
+              <div className="space-y-2">
+                <p className="text-[11px] text-zinc-400 mb-3">No hotel booked yet — search for options</p>
+                <a
+                  href={`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(aiMeta?.destination ?? '')}${aiMeta?.startDate ? `&checkin=${aiMeta.startDate}` : ''}${aiMeta?.endDate ? `&checkout=${aiMeta.endDate}` : ''}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-xl transition-all"
+                >
+                  Browse Hotels on Booking.com →
+                </a>
+                <button
+                  onClick={handleGenerateHotels}
+                  disabled={generatingHotels}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+                >
+                  {generatingHotels ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {generatingHotels ? 'Finding hotels…' : 'Get AI Suggestions'}
+                </button>
+                {hotelGenError && (
+                  <p className="text-xs text-rose-600 mt-2 text-center">{hotelGenError}</p>
+                )}
               </div>
             )}
+
+              </div>
+              )}
+            </div>
+            )}
+
           </aside>
         </div>
       </div>
@@ -2805,33 +2828,32 @@ function ItineraryPageContent() {
                 </div>
               )}
 
-              {/* Track */}
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
-                  Track
-                </label>
-                <div className="flex gap-2">
-                  {[
-                    { id: 'shared' as const, label: 'Shared', active: 'bg-sky-500 text-white', dot: 'bg-sky-500' },
-                    { id: 'track_a' as const, label: 'Track A', active: 'bg-violet-500 text-white', dot: 'bg-violet-500' },
-                    { id: 'track_b' as const, label: 'Track B', active: 'bg-rose-500 text-white', dot: 'bg-rose-500' },
-                  ].filter(t =>
-                    // Solo/couple trips never have split tracks — hide Shared since everything is personal
-                    !(t.id === 'shared' && (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple'))
-                  ).map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => setNewActivityTrack(t.id)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                        newActivityTrack === t.id ? t.active : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                      }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${newActivityTrack === t.id ? 'bg-white/70' : t.dot}`} />
-                      {t.label}
-                    </button>
-                  ))}
+              {/* Track — hidden for solo/couple trips (split tracks don't apply) */}
+              {aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple' && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
+                    Track
+                  </label>
+                  <div className="flex gap-2">
+                    {[
+                      { id: 'shared' as const, label: 'Shared', active: 'bg-sky-500 text-white', dot: 'bg-sky-500' },
+                      { id: 'track_a' as const, label: 'Track A', active: 'bg-violet-500 text-white', dot: 'bg-violet-500' },
+                      { id: 'track_b' as const, label: 'Track B', active: 'bg-rose-500 text-white', dot: 'bg-rose-500' },
+                    ].map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setNewActivityTrack(t.id)}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                          newActivityTrack === t.id ? t.active : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${newActivityTrack === t.id ? 'bg-white/70' : t.dot}`} />
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Modal Footer */}

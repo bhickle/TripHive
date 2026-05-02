@@ -75,7 +75,10 @@ export async function POST(request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
   const joinUrl = `${appUrl}/join/${tripId}`;
   const subject = `${inviterName || 'Someone'} invited you to join ${tripName || 'a trip'} on TripCoord`;
-  const body = message || `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on TripCoord — AI-powered group travel planning.`;
+  const bodyHtml = message
+    ? message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    : `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on TripCoord — AI-powered group travel planning.`;
+  const bodyText = message || `${inviterName || 'A friend'} has invited you to join ${tripName || 'a trip'} on TripCoord.\n\nJoin here: ${joinUrl}`;
 
   try {
     const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -87,30 +90,52 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         personalizations: [{ to: [{ email }] }],
         from: { email: fromEmail, name: 'TripCoord' },
+        reply_to: { email: fromEmail, name: 'TripCoord' },
         subject,
+        // Plain text version helps avoid spam filters
         content: [
           {
+            type: 'text/plain',
+            value: `${bodyText}\n\nJoin the trip: ${joinUrl}\n\n---\nTripCoord · group travel made easy\n${appUrl}`,
+          },
+          {
             type: 'text/html',
-            value: `
-              <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#fafaf9;border-radius:16px;">
-                <div style="text-align:center;margin-bottom:28px;">
-                  <span style="font-size:32px;">✈️</span>
-                  <h1 style="color:#0c4a6e;font-size:26px;margin:12px 0 4px;">You're invited!</h1>
-                  <p style="color:#71717a;font-size:14px;margin:0;">TripCoord · group travel made easy</p>
-                </div>
-                <div style="background:white;border-radius:12px;padding:24px;border:1px solid #e4e4e7;margin-bottom:24px;">
-                  <p style="color:#3f3f46;font-size:16px;line-height:1.6;margin:0 0 20px;">${body}</p>
-                  <a href="${joinUrl}"
-                    style="display:inline-block;background:#0c4a6e;color:white;padding:14px 28px;border-radius:100px;text-decoration:none;font-weight:700;font-size:15px;">
-                    Join the Trip →
-                  </a>
-                </div>
-                <p style="color:#a1a1aa;font-size:12px;text-align:center;">
-                  Can't click the button? Copy this link:<br/>
-                  <a href="${joinUrl}" style="color:#0c4a6e;">${joinUrl}</a>
-                </p>
-              </div>
-            `,
+            value: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;max-width:600px;width:100%;">
+        <!-- Header -->
+        <tr><td style="background:#0c4a6e;padding:32px 32px 24px;text-align:center;">
+          <p style="font-size:36px;margin:0 0 8px;">✈️</p>
+          <h1 style="color:#ffffff;font-size:24px;margin:0 0 4px;font-weight:700;">You're invited!</h1>
+          <p style="color:#7dd3fc;font-size:13px;margin:0;">TripCoord · group travel made easy</p>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:32px;">
+          <p style="color:#3f3f46;font-size:16px;line-height:1.7;margin:0 0 28px;">${bodyHtml}</p>
+          <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+            <tr><td style="background:#0c4a6e;border-radius:100px;">
+              <a href="${joinUrl}" style="display:inline-block;color:#ffffff;padding:14px 32px;text-decoration:none;font-weight:700;font-size:15px;border-radius:100px;">Join the Trip →</a>
+            </td></tr>
+          </table>
+          <p style="color:#a1a1aa;font-size:12px;margin:0;">Can't click the button? Copy this link into your browser:<br>
+          <a href="${joinUrl}" style="color:#0c4a6e;word-break:break-all;">${joinUrl}</a></p>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="background:#f9fafb;padding:20px 32px;border-top:1px solid #e4e4e7;text-align:center;">
+          <p style="color:#a1a1aa;font-size:11px;margin:0;">
+            You received this because someone invited you to a TripCoord trip.<br>
+            <a href="${appUrl}" style="color:#0c4a6e;">tripcoord.ai</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
           },
         ],
       }),

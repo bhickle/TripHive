@@ -117,34 +117,30 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
 
         // Check if it's a UUID (36 chars with dashes)
         if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tripId)) {
-          const supabase = createBrowserClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-          );
+          // Use the public API endpoint (admin client) to bypass RLS — the join
+          // page is publicly accessible and the anon Supabase key may be blocked
+          // by RLS policies, causing "Trip not found" for valid invite links.
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          let tripRes: Response | null = null;
+          try {
+            tripRes = await fetch(`/api/trips/${tripId}/public`, { signal: controller.signal });
+          } catch {
+            // Timeout or network error — fall through to notFound
+          } finally {
+            clearTimeout(timeoutId);
+          }
 
-          // Race the Supabase query against a 10s timeout so a hung connection
-          // doesn't leave the user staring at the spinner indefinitely.
-          const queryPromise = supabase
-            .from('trips')
-            .select('id, title, destination, start_date, end_date, group_size, cover_image')
-            .eq('id', tripId)
-            .single();
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), 10000)
-          );
-
-          const { data, error } = await Promise.race([queryPromise, timeoutPromise]).catch(
-            () => ({ data: null, error: new Error('timeout') })
-          );
-
-          if (error || !data) {
+          if (!tripRes || !tripRes.ok) {
             setNotFound(true);
             setLoading(false);
             return;
           }
 
-          const startDate = new Date(data.start_date);
-          const endDate = new Date(data.end_date);
+          const data = await tripRes.json();
+
+          const startDate = new Date(data.startDate);
+          const endDate = new Date(data.endDate);
           const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
           const itineraryPreview = Array.from({ length: dayCount }, (_, i) => ({
@@ -157,11 +153,11 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
           setTripData({
             title: data.title,
             destination: data.destination,
-            startDate: data.start_date,
-            endDate: data.end_date,
-            travelerCount: data.group_size || 0,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            travelerCount: data.groupSize || 0,
             organizerName: 'Trip Organizer',
-            coverImage: data.cover_image || '',
+            coverImage: data.coverImage || '',
             itineraryPreview,
           });
           setLoading(false);

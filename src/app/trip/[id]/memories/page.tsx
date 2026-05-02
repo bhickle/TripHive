@@ -349,14 +349,28 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                 const supabase = createBrowserClient(supabaseUrl, supabaseKey);
                 for (let i = 0; i < fileArray.length; i++) {
                   const file = fileArray[i];
-                  // Update progress per file: spread evenly from 0–100
-                  setUploadProgress(Math.round(((i) / fileArray.length) * 100));
+                  // Simulate smooth per-file progress with a ticker so the bar
+                  // visibly advances even for large single-file uploads where the
+                  // Supabase client doesn't expose upload progress events.
+                  const fileStart = Math.round((i / fileArray.length) * 100);
+                  const fileEnd = Math.round(((i + 1) / fileArray.length) * 100);
+                  setUploadProgress(fileStart);
+                  // Ticker: advance from fileStart to ~90% of the file's share while waiting
+                  const fileRange = fileEnd - fileStart;
+                  const tickTarget = fileStart + Math.round(fileRange * 0.88);
+                  const ticker = setInterval(() => {
+                    setUploadProgress(prev => {
+                      if (prev >= tickTarget) { clearInterval(ticker); return prev; }
+                      return Math.min(prev + 1, tickTarget);
+                    });
+                  }, 60);
                   try {
                     const timestamp = Date.now() + i;
                     const path = `${params.id}/${timestamp}-${file.name}`;
                     const { error: uploadError, data } = await supabase.storage
                       .from('trip-photos')
                       .upload(path, file, { upsert: true });
+                    clearInterval(ticker);
                     if (!uploadError && data) {
                       const { data: urlData } = supabase.storage.from('trip-photos').getPublicUrl(path);
                       if (urlData?.publicUrl) {
@@ -387,11 +401,12 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                         }).then(({ error }) => { if (error) console.warn('trip_photos insert:', error.message); });
                       }
                     }
-                    // Update progress after each completed file
-                    setUploadProgress(Math.round(((i + 1) / fileArray.length) * 100));
+                    // Snap to file-end percentage after upload finishes
+                    setUploadProgress(fileEnd);
                   } catch (err) {
+                    clearInterval(ticker);
                     console.warn('Background upload failed for', file.name, err);
-                    setUploadProgress(Math.round(((i + 1) / fileArray.length) * 100));
+                    setUploadProgress(fileEnd);
                   }
                 }
               }
