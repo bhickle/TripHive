@@ -185,9 +185,12 @@ function extractDestinationFromUrl(rawUrl: string): string | null {
 function AddDestinationModal({
   onClose,
   onSave,
+  aiPreviewEnabled = true,
 }: {
   onClose: () => void;
   onSave: (item: WishlistItem) => void;
+  /** When false, skips the AI generation step and saves with static vibe highlights */
+  aiPreviewEnabled?: boolean;
 }) {
   const [stage, setStage] = useState<ModalStage>('search');
   const [destination, setDestination] = useState('');
@@ -224,6 +227,28 @@ function AddDestinationModal({
 
   const handleGenerate = useCallback(async () => {
     if (!destination.trim()) return;
+
+    // Free users: skip AI entirely — save immediately with static vibe highlights
+    if (!aiPreviewEnabled) {
+      const estimatedCost = Math.round((600 + tripDays * 350) / 50) * 50;
+      const city = destination.split(',')[0].trim();
+      const country = destination.includes(',') ? destination.split(',').slice(-1)[0].trim() : '';
+      onSave({
+        id: `wish_${Date.now()}`,
+        destination: city,
+        country,
+        coverImage: getCoverImage(destination),
+        bestSeason: 'Year-round',
+        estimatedCost,
+        tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
+        highlights: VIBE_HIGHLIGHTS[vibes[0]],
+        aiGenerated: false,
+        tripDays,
+      });
+      onClose();
+      return;
+    }
+
     setStage('generating');
     setMsgIdx(0);
 
@@ -560,10 +585,15 @@ function AddDestinationModal({
               disabled={!destination.trim()}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-semibold shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
-              <Sparkles className="w-4 h-4" />
-              Preview This Destination
+              {aiPreviewEnabled ? <Sparkles className="w-4 h-4" /> : <Heart className="w-4 h-4" />}
+              {aiPreviewEnabled ? 'Preview This Destination' : 'Save to Wishlist'}
               <ArrowRight className="w-4 h-4" />
             </button>
+            {!aiPreviewEnabled && (
+              <p className="text-center text-xs text-slate-400">
+                <Link href="/pricing" className="text-sky-600 hover:underline">Upgrade to Explorer</Link> for AI-powered destination previews.
+              </p>
+            )}
           </div>
         )}
 
@@ -704,7 +734,10 @@ export default function WishlistPage() {
     }
   }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
 
-  const { hasWishlist, getUpgradePrompt } = useEntitlements();
+  const { hasWishlist, getUpgradePrompt, tier } = useEntitlements();
+  // AI preview (calls /api/generate-itinerary) is only for Explorer+ to avoid
+  // burning free users' 10-credit monthly allowance on wishlist highlights
+  const aiPreviewEnabled = tier === 'explorer' || tier === 'nomad';
 
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [sortType, setSortType] = useState<SortType>('name');
@@ -868,6 +901,7 @@ export default function WishlistPage() {
         <AddDestinationModal
           onClose={() => setShowModal(false)}
           onSave={handleSaveNew}
+          aiPreviewEnabled={aiPreviewEnabled}
         />
       )}
 
@@ -936,11 +970,7 @@ export default function WishlistPage() {
                 <Plus className="w-7 h-7 text-sky-700 group-hover:text-sky-800 transition-colors" />
               </div>
               <p className="font-semibold text-sky-900">Add Destination</p>
-              <p className="text-sm text-sky-700 mt-1 text-center">Search anywhere and get an AI-powered preview</p>
-              <div className="mt-4 flex items-center gap-1.5 text-xs text-sky-600 font-medium">
-                <Sparkles className="w-3.5 h-3.5" />
-                AI highlights included
-              </div>
+              <p className="text-sm text-sky-700 mt-1 text-center">Search anywhere and save for later</p>
             </button>
 
             {/* Wishlist Cards */}

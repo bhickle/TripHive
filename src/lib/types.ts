@@ -73,7 +73,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canUseSplitTracks: false,
     canAddCoOrganizer: false,
     canUseTransportParser: false,
-    canUseWishlist: false,
+    canUseWishlist: true,    // basic wishlist (no AI preview) — good retention + affiliate hook
     canUseAIPacking: false,
     canUseAIPhrasebook: false,
     canUseExpenses: false,
@@ -89,8 +89,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canUseAI: true,
     canUseTripStory: true,
     canUseYearInReview: false,
-    canUseSplitTracks: false,
-    canAddCoOrganizer: false,
+    canUseSplitTracks: true,    // group trips benefit from split tracks; no ongoing AI cost
+    canAddCoOrganizer: true,    // co-organiser is core to group trip planning — no AI cost
     canUseTransportParser: true,
     canUseWishlist: false,
     canUseAIPacking: false,
