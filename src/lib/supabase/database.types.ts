@@ -297,6 +297,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          reactions: Json | null
           sender_id: string | null
           sender_name: string
           trip_id: string
@@ -305,6 +306,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          reactions?: Json | null
           sender_id?: string | null
           sender_name: string
           trip_id: string
@@ -313,6 +315,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          reactions?: Json | null
           sender_id?: string | null
           sender_name?: string
           trip_id?: string

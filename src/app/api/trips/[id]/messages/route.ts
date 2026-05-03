@@ -53,7 +53,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     const { data: messages, error } = await supabase
       .from('group_messages')
-      .select('id, sender_id, sender_name, content, created_at')
+      .select('id, sender_id, sender_name, content, created_at, reactions')
       .eq('trip_id', params.id)
       .order('created_at', { ascending: true })
       .limit(200);
@@ -67,6 +67,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         senderId: m.sender_id,
         content: m.content,
         createdAt: m.created_at,
+        reactions: m.reactions ?? {},
         isOwn: false, // client sets this based on auth user
       })),
     });

@@ -32,7 +32,7 @@ import {
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 
-type TabType = 'overview' | 'chat' | 'votes';
+type TabType = 'overview' | 'expenses' | 'chat' | 'votes';
 
 type SettlementTransaction = {
   from: string;
@@ -88,13 +88,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     const loadAll = async () => {
       setDataLoading(true);
       try {
-        // Fetch trip title, members, votes, messages, wishlist in parallel
-        const [tripRes, membersRes, votesRes, messagesRes, wishlistRes] = await Promise.allSettled([
+        // Fetch trip title, members, votes, messages, wishlist, expenses in parallel
+        const [tripRes, membersRes, votesRes, messagesRes, wishlistRes, expensesRes] = await Promise.allSettled([
           fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
           fetch(`/api/trips/${params.id}/members`).then(r => r.ok ? r.json() : null),
           fetch(`/api/trips/${params.id}/group-votes`).then(r => r.ok ? r.json() : null),
           fetch(`/api/trips/${params.id}/messages`).then(r => r.ok ? r.json() : null),
           fetch(`/api/trips/${params.id}/discover-wishlist`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/trips/${params.id}/expenses`).then(r => r.ok ? r.json() : null),
         ]);
 
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.title) {
@@ -142,6 +143,33 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             isOwn: currentUserId ? m.senderId === currentUserId : false,
           }));
           setChatMessages(msgs);
+          // Populate reactions from DB
+          const initialReactions: Record<string, Record<string, string[]>> = {};
+          for (const m of messagesRes.value.messages) {
+            if (m.reactions && typeof m.reactions === 'object') {
+              const normalized: Record<string, string[]> = {};
+              for (const [emoji, val] of Object.entries(m.reactions as Record<string, unknown>)) {
+                normalized[emoji] = Array.isArray(val) ? (val as string[]) : [];
+              }
+              initialReactions[m.id] = normalized;
+            }
+          }
+          setReactions(initialReactions);
+        }
+        if (expensesRes.status === 'fulfilled' && expensesRes.value?.expenses) {
+          const mapped = expensesRes.value.expenses.map((e: any) => ({
+            id: e.id,
+            name: e.description,
+            amount: e.amount,
+            paidBy: e.paidByName,
+            splitType: e.splitType,
+            category: e.category,
+            splitAmong: [],
+            customAmounts: e.customAmounts ?? {},
+            lineItems: e.lineItems ?? [],
+            settled: e.settled ?? false,
+          }));
+          setLocalExpenses(mapped);
         }
         if (wishlistRes.status === 'fulfilled' && wishlistRes.value?.items) {
           // Sort by total engagement (up + down) descending, then by yay-heavy first
@@ -393,21 +421,40 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [uploadedReceipt, setUploadedReceipt] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<ScannedReceipt | null>(null);
-  // Emoji reactions: keyed by messageId → emoji → count
-  const [reactions, setReactions] = useState<Record<string, Record<string, number>>>({});
+  // Emoji reactions: keyed by messageId → emoji → userId[]
+  const [reactions, setReactions] = useState<Record<string, Record<string, string[]>>>({});
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
   const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '🎉', '✈️'];
 
-  const toggleReaction = (messageId: string, emoji: string) => {
-    setReactions(prev => {
-      const msgReactions = prev[messageId] || {};
-      const current = msgReactions[emoji] || 0;
-      return {
-        ...prev,
-        [messageId]: { ...msgReactions, [emoji]: current > 0 ? current - 1 : current + 1 },
-      };
-    });
+  const toggleReaction = async (messageId: string, emoji: string) => {
     setShowReactionPicker(null);
+    if (!currentUserId && !isMockTrip) return;
+
+    // Optimistic update
+    setReactions(prev => {
+      const msgReactions = { ...(prev[messageId] || {}) };
+      const users = [...(msgReactions[emoji] || [])];
+      const uid = currentUserId ?? 'mock_user';
+      const idx = users.indexOf(uid);
+      if (idx >= 0) {
+        users.splice(idx, 1);
+      } else {
+        users.push(uid);
+      }
+      msgReactions[emoji] = users;
+      return { ...prev, [messageId]: msgReactions };
+    });
+
+    // Persist for real trips
+    if (!isMockTrip) {
+      try {
+        await fetch(`/api/trips/${params.id}/messages/${messageId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji }),
+        });
+      } catch { /* optimistic already shown */ }
+    }
   };
 
   const [memberInvited, setMemberInvited] = useState(false);
@@ -488,50 +535,63 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [newExpenseSplitAmong, setNewExpenseSplitAmong] = useState<string[]>(groupMembers.map(m => m.name));
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [itemizedBreakdown, setItemizedBreakdown] = useState<Record<string, { items: string; amount: string }>>({});
-  const [localExpenses, setLocalExpenses] = useState<Array<{id: string; name: string; amount: number; paidBy: string; splitType: string}>>([]);
+  const [localExpenses, setLocalExpenses] = useState<Array<{id: string; name: string; amount: number; paidBy: string; splitType: string; category?: string; splitAmong?: string[]; customAmounts?: Record<string, number>; lineItems?: string[]; settled?: boolean}>>([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Load expenses from Supabase for non-mock trips
+  // Supabase Realtime subscription for chat messages + reaction updates
   useEffect(() => {
     if (isMockTrip) return;
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
     if (!supabaseUrl || !supabaseKey) return;
 
     const supabase = createBrowserClient(supabaseUrl, supabaseKey);
 
-    supabase
-      .from('expenses')
-      .select('*')
-      .eq('trip_id', params.id)
-      .order('created_at', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('Failed to load expenses:', error);
-          return;
+    const channel = supabase
+      .channel(`group-chat-${params.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `trip_id=eq.${params.id}` },
+        (payload) => {
+          const msg = payload.new as any;
+          // Skip own messages (already added optimistically)
+          if (currentUserId && msg.sender_id === currentUserId) return;
+          setChatMessages(prev => {
+            if (prev.some((m: any) => m.id === msg.id)) return prev;
+            return [...prev, {
+              id: msg.id,
+              senderName: msg.sender_name,
+              senderId: msg.sender_id,
+              content: msg.content,
+              createdAt: msg.created_at,
+              isOwn: false,
+            }];
+          });
         }
-        if (data && data.length > 0) {
-          // Map Supabase expenses to local state format
-          const mappedExpenses = data.map((exp: any) => ({
-            id: exp.id || `exp_${Date.now()}_${Math.random()}`,
-            name: exp.description || exp.category || 'Expense',
-            amount: exp.amount || 0,
-            paidBy: exp.paid_by_name || 'Unknown',
-            splitType: exp.split_type || 'equal',
-            category: exp.category,
-            splitAmong: exp.split_among || [],
-            customAmounts: exp.custom_amounts || {},
-            lineItems: exp.line_items || [],
-          }));
-          setLocalExpenses(mappedExpenses);
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'group_messages', filter: `trip_id=eq.${params.id}` },
+        (payload) => {
+          const msg = payload.new as any;
+          if (msg.reactions && typeof msg.reactions === 'object') {
+            const normalized: Record<string, string[]> = {};
+            for (const [emoji, val] of Object.entries(msg.reactions as Record<string, unknown>)) {
+              normalized[emoji] = Array.isArray(val) ? (val as string[]) : [];
+            }
+            setReactions(prev => ({ ...prev, [msg.id]: normalized }));
+          }
         }
-      });
-  }, [params.id, isMockTrip]);
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isMockTrip, params.id, currentUserId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -764,8 +824,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 flex gap-1 mb-8 inline-flex">
-        {(['overview', 'chat', 'votes'] as TabType[]).map((tab) => (
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 flex gap-1 mb-8 inline-flex flex-wrap">
+        {(['overview', 'expenses', 'chat', 'votes'] as TabType[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as TabType)}
@@ -775,7 +835,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 font-medium'
             }`}
           >
-            {tab === 'overview' ? 'The Crew' : tab === 'chat' ? 'Chat 💬' : 'Yay/Nay 🗳️'}
+            {tab === 'overview' ? 'The Crew' : tab === 'expenses' ? 'Who Owes Who 💸' : tab === 'chat' ? 'Chat 💬' : 'Yay/Nay 🗳️'}
           </button>
         ))}
       </div>
@@ -909,6 +969,386 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
+
+        {activeTab === 'expenses' && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Who Owes Who</h2>
+              <button
+                onClick={() => setShowAddExpenseModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm rounded-full transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Expense
+              </button>
+            </div>
+
+            {/* Summary bar */}
+            {allExpenses.length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-zinc-700">Total Spent</p>
+                  <p className="font-script italic text-2xl font-bold text-zinc-900">${expenseData.totalSpent.toFixed(2)}</p>
+                </div>
+                {groupMembers.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {groupMembers.map(m => {
+                      const paid = expenseData.paidByName[m.name] ?? 0;
+                      const owed = expenseData.owedByName[m.name] ?? 0;
+                      const net = paid - owed;
+                      return (
+                        <div key={m.id} className="flex items-center justify-between px-3 py-2 bg-zinc-50 rounded-xl">
+                          <span className="text-sm font-medium text-zinc-700 truncate">{m.name}</span>
+                          <span className={`text-xs font-bold ml-2 flex-shrink-0 ${net > 0.01 ? 'text-emerald-600' : net < -0.01 ? 'text-rose-600' : 'text-zinc-400'}`}>
+                            {net > 0.01 ? `+$${net.toFixed(2)}` : net < -0.01 ? `-$${Math.abs(net).toFixed(2)}` : 'Even'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Settlement suggestions */}
+            {allExpenses.length > 0 && (() => {
+              const settlements = calculateSettlements();
+              if (settlements.length === 0) return (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+                  <p className="text-emerald-700 font-semibold">All settled up! 🎉</p>
+                </div>
+              );
+              return (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 bg-sky-800 text-white">
+                    <h3 className="font-bold text-sm">Suggested Payments</h3>
+                    <p className="text-xs text-sky-200 mt-0.5">Minimum transactions to settle up</p>
+                  </div>
+                  <div className="divide-y divide-zinc-50">
+                    {settlements.map((txn, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-zinc-900">{txn.from}</span>
+                          <span className="text-zinc-400 text-xs">→</span>
+                          <span className="text-sm font-semibold text-zinc-900">{txn.to}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-bold text-zinc-900">${txn.amount.toFixed(2)}</span>
+                          {!isMockTrip && (
+                            <button
+                              onClick={async () => {
+                                setPaidTransactions(prev => new Set(Array.from(prev).concat(idx)));
+                                // Mark all expenses as settled
+                                for (const exp of localExpenses.filter(e => !e.settled)) {
+                                  try {
+                                    await fetch(`/api/trips/${params.id}/expenses`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ expenseId: exp.id, settled: true }),
+                                    });
+                                  } catch { /* ignore */ }
+                                }
+                                setLocalExpenses(prev => prev.map(e => ({ ...e, settled: true })));
+                                setSettledUp(true);
+                                setTimeout(() => setSettledUp(false), 3000);
+                              }}
+                              disabled={paidTransactions.has(idx)}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                                paidTransactions.has(idx)
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                              }`}
+                            >
+                              {paidTransactions.has(idx) ? '✓ Paid' : 'Mark Paid'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Expense list */}
+            <div className="space-y-3">
+              <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-400">All Expenses</h3>
+              {allExpenses.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-10 text-center">
+                  <Receipt className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
+                  <p className="text-zinc-500 font-medium">No expenses yet</p>
+                  <p className="text-sm text-zinc-400 mt-1">Add one to start tracking who paid what</p>
+                  <button
+                    onClick={() => setShowAddExpenseModal(true)}
+                    className="mt-4 px-5 py-2 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors"
+                  >
+                    + Add First Expense
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                  {allExpenses.map((rawExp, idx) => {
+                    const exp = rawExp as any;
+                    const CATEGORY_ICONS: Record<string, string> = {
+                      dining: '🍽️', transport: '🚗', accommodation: '🏨', activity: '🎯',
+                      shopping: '🛍️', nightlife: '🍸', other: '📌',
+                    };
+                    const icon = CATEGORY_ICONS[exp.category ?? ''] ?? '💳';
+                    const displayName = exp.name ?? exp.description ?? exp.title ?? 'Expense';
+                    return (
+                      <div key={exp.id ?? idx} className={`flex items-center gap-4 px-5 py-4 ${idx < allExpenses.length - 1 ? 'border-b border-zinc-50' : ''} ${exp.settled ? 'opacity-50' : ''}`}>
+                        <div className="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center text-lg flex-shrink-0">
+                          {icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-zinc-900 truncate">{displayName}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5">Paid by {exp.paidBy}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-bold text-zinc-900">${exp.amount.toFixed(2)}</p>
+                          {exp.settled && <p className="text-[10px] text-emerald-600 font-semibold">Settled</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Add Expense Modal */}
+            {showAddExpenseModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); }}>
+                <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                  <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-5">Add Expense</h3>
+
+                  {/* Receipt Scanner */}
+                  <div className="mb-5 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ScanLine className="w-4 h-4 text-sky-700" />
+                      <span className="text-sm font-semibold text-zinc-700">AI Receipt Scan</span>
+                      <span className="text-xs text-zinc-400 ml-auto">Optional</span>
+                    </div>
+                    {!uploadedReceipt ? (
+                      <div
+                        className="border-2 border-dashed border-zinc-200 rounded-xl p-5 text-center cursor-pointer hover:border-sky-400 transition-colors"
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={handleReceiptDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="w-6 h-6 text-zinc-300 mx-auto mb-2" />
+                        <p className="text-sm text-zinc-500">Drop receipt image here or click to upload</p>
+                        <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleReceiptFileSelect} />
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-zinc-200">
+                          <FileText className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                          <span className="text-sm text-zinc-700 truncate flex-1">{uploadedReceipt.name}</span>
+                          <button onClick={() => { setUploadedReceipt(null); setScannedData(null); }} className="text-zinc-400 hover:text-zinc-600 text-xs">✕</button>
+                        </div>
+                        {!scannedData ? (
+                          <button
+                            onClick={handleScanReceipt}
+                            disabled={isScanning}
+                            className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            {isScanning ? (
+                              <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scanning…</>
+                            ) : (
+                              <><Camera className="w-4 h-4" />Scan with AI</>
+                            )}
+                          </button>
+                        ) : (
+                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <p className="text-xs font-bold text-emerald-700 mb-1">✓ Receipt scanned!</p>
+                            <p className="text-xs text-emerald-600">
+                              {scannedData.merchant} · ${scannedData.total.toFixed(2)}
+                              {scannedData.items.length > 0 && ` · ${scannedData.items.length} items`}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Form fields */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Description</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Dinner at Nobu"
+                        value={newExpenseName}
+                        onChange={e => setNewExpenseName(e.target.value)}
+                        className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Amount ($)</label>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={newExpenseAmount}
+                          onChange={e => setNewExpenseAmount(e.target.value)}
+                          min="0"
+                          step="0.01"
+                          className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Category</label>
+                        <select
+                          value={newExpenseCategory}
+                          onChange={e => setNewExpenseCategory(e.target.value)}
+                          className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm bg-white"
+                        >
+                          <option value="dining">🍽️ Dining</option>
+                          <option value="transport">🚗 Transport</option>
+                          <option value="accommodation">🏨 Hotel</option>
+                          <option value="activity">🎯 Activity</option>
+                          <option value="shopping">🛍️ Shopping</option>
+                          <option value="nightlife">🍸 Nightlife</option>
+                          <option value="other">📌 Other</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Paid by</label>
+                      <input
+                        type="text"
+                        placeholder="Who paid?"
+                        value={newExpensePaidBy}
+                        onChange={e => setNewExpensePaidBy(e.target.value)}
+                        className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Split</label>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setNewExpenseSplit('equal')}
+                          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${newExpenseSplit === 'equal' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'}`}
+                        >
+                          Equal
+                        </button>
+                        <button
+                          onClick={() => setNewExpenseSplit('custom')}
+                          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${newExpenseSplit === 'custom' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'}`}
+                        >
+                          Custom
+                        </button>
+                      </div>
+                    </div>
+                    {newExpenseSplit === 'custom' && groupMembers.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="block text-xs font-semibold text-zinc-600 uppercase tracking-wide">Custom amounts</label>
+                        {groupMembers.map(m => (
+                          <div key={m.id} className="flex items-center gap-3">
+                            <span className="text-sm text-zinc-700 flex-1">{m.name}</span>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={customAmounts[m.name] ?? ''}
+                                onChange={e => setCustomAmounts(prev => ({ ...prev, [m.name]: e.target.value }))}
+                                className="pl-7 pr-3 py-2 w-28 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); setNewExpenseName(''); setNewExpenseAmount(''); setCustomAmounts({}); }}
+                      className="flex-1 py-2.5 border border-zinc-200 text-zinc-700 rounded-lg font-medium text-sm hover:bg-zinc-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!newExpenseName.trim() || !newExpenseAmount || !newExpensePaidBy.trim()) return;
+                        const amt = parseFloat(newExpenseAmount);
+                        if (isNaN(amt) || amt <= 0) return;
+
+                        const custom = newExpenseSplit === 'custom'
+                          ? Object.fromEntries(
+                              Object.entries(customAmounts)
+                                .map(([k, v]) => [k, parseFloat(v)])
+                                .filter(([, v]) => !isNaN(v as number) && (v as number) > 0)
+                            )
+                          : {};
+
+                        const newExp = {
+                          id: `exp_opt_${Date.now()}`,
+                          name: newExpenseName.trim(),
+                          amount: amt,
+                          paidBy: newExpensePaidBy.trim(),
+                          splitType: newExpenseSplit,
+                          category: newExpenseCategory,
+                          splitAmong: groupMembers.map(m => m.name),
+                          customAmounts: custom,
+                          lineItems: scannedData?.items ?? [],
+                          settled: false,
+                        };
+
+                        // Optimistic
+                        setLocalExpenses(prev => [...prev, newExp]);
+                        setShowAddExpenseModal(false);
+                        setUploadedReceipt(null);
+                        setScannedData(null);
+                        setNewExpenseName('');
+                        setNewExpenseAmount('');
+                        setCustomAmounts({});
+
+                        // Persist for real trips
+                        if (!isMockTrip) {
+                          try {
+                            const res = await fetch(`/api/trips/${params.id}/expenses`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                description: newExp.name,
+                                amount: newExp.amount,
+                                paidByName: newExp.paidBy,
+                                splitType: newExp.splitType,
+                                category: newExp.category,
+                                customAmounts: Object.keys(custom).length > 0 ? custom : null,
+                                lineItems: newExp.lineItems.length > 0 ? newExp.lineItems : null,
+                              }),
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              // Replace optimistic with real ID
+                              setLocalExpenses(prev => prev.map(e => e.id === newExp.id ? { ...e, id: data.expense.id } : e));
+                            }
+                          } catch { /* optimistic already shown */ }
+                        }
+                      }}
+                      disabled={!newExpenseName.trim() || !newExpenseAmount || !newExpensePaidBy.trim()}
+                      className="flex-1 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg font-semibold text-sm transition-colors"
+                    >
+                      Add Expense
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {settledUp && (
+              <div className="fixed bottom-6 right-6 bg-emerald-700 text-white px-5 py-3 rounded-2xl shadow-lg font-semibold text-sm z-50">
+                ✓ All settled up!
+              </div>
+            )}
+          </div>
+        )}
 
         {activeTab === 'votes' && (
           <div className="space-y-6">
@@ -1407,7 +1847,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             <div className="flex-1 overflow-y-auto p-6 bg-parchment" onClick={() => setShowReactionPicker(null)}>
               {chatMessages.map((message) => {
                 const msgReactions = reactions[message.id] || {};
-                const activeReactions = Object.entries(msgReactions).filter(([, count]) => count > 0);
+                const activeReactions = Object.entries(msgReactions).filter(([, users]) => users.length > 0);
                 return (
                   <div key={message.id} className={`mb-5 flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-xs ${message.isOwn ? 'order-2' : 'order-1'} relative group/msg`}>
@@ -1436,31 +1876,41 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           className={`absolute bottom-6 ${message.isOwn ? 'right-0' : 'left-0'} bg-white border border-zinc-200 rounded-2xl shadow-lg px-2 py-1.5 flex gap-1 z-10`}
                           onClick={e => e.stopPropagation()}
                         >
-                          {QUICK_EMOJIS.map(emoji => (
-                            <button
-                              key={emoji}
-                              onClick={() => toggleReaction(message.id, emoji)}
-                              className="text-base hover:scale-125 transition-transform w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
+                          {QUICK_EMOJIS.map(emoji => {
+                            const alreadyReacted = (msgReactions[emoji] ?? []).includes(currentUserId ?? '');
+                            return (
+                              <button
+                                key={emoji}
+                                onClick={() => toggleReaction(message.id, emoji)}
+                                className={`text-base hover:scale-125 transition-transform w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 ${alreadyReacted ? 'bg-sky-50 ring-1 ring-sky-300' : ''}`}
+                              >
+                                {emoji}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
 
                       {/* Active reactions */}
                       {activeReactions.length > 0 && (
                         <div className={`flex gap-1 mt-1 flex-wrap ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
-                          {activeReactions.map(([emoji, count]) => (
-                            <button
-                              key={emoji}
-                              onClick={() => toggleReaction(message.id, emoji)}
-                              className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white border border-zinc-200 rounded-full text-xs hover:bg-zinc-50 shadow-sm"
-                            >
-                              <span>{emoji}</span>
-                              <span className="text-zinc-600 font-medium">{count}</span>
-                            </button>
-                          ))}
+                          {activeReactions.map(([emoji, users]) => {
+                            const isMine = users.includes(currentUserId ?? '');
+                            return (
+                              <button
+                                key={emoji}
+                                onClick={() => toggleReaction(message.id, emoji)}
+                                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs shadow-sm transition-colors ${
+                                  isMine
+                                    ? 'bg-sky-100 border border-sky-300 text-sky-800'
+                                    : 'bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-600'
+                                }`}
+                              >
+                                <span>{emoji}</span>
+                                <span className="font-medium">{users.length}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
 
