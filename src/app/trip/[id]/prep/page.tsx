@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info, Gift, Trash2, Users } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -28,6 +28,7 @@ import Link from 'next/link';
 
 interface PrepTask { id: string; category: string; title: string; dueDate?: string; completed: boolean; urgent?: boolean; }
 interface PackingItem { id: string; name: string; category: string; packed: boolean; affiliateUrl?: string; }
+interface SouvenirItem { id: string; person: string; idea: string; purchased: boolean; }
 
 interface TranslationPhrase {
   id: string;
@@ -77,10 +78,37 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   // Trip data load error state
   const [prepLoadError, setPrepLoadError] = useState(false);
 
-  // Packing generation state
+  // Packing generation state (legacy — used for mock trips + overall progress)
   const [packingGenerating, setPackingGenerating] = useState(false);
   const [packingGenError, setPackingGenError] = useState<string | null>(null);
   const [packingLoaded, setPackingLoaded] = useState(false);
+
+  // Pack This sub-tab state
+  const [packSubTab, setPackSubTab] = useState<'group' | 'mine' | 'gifts'>('group');
+
+  // Group Pack (shared, user_id = null)
+  const [groupPackItems, setGroupPackItems] = useState<PackingItem[]>([]);
+  const [groupPackedItems, setGroupPackedItems] = useState<Set<string>>(new Set());
+  const [groupPackLoaded, setGroupPackLoaded] = useState(false);
+  const [groupPackGenerating, setGroupPackGenerating] = useState(false);
+  const [groupPackGenError, setGroupPackGenError] = useState<string | null>(null);
+  const [newGroupPackItem, setNewGroupPackItem] = useState('');
+  const [newGroupPackCategory, setNewGroupPackCategory] = useState('');
+
+  // My Pack (private, user_id = userId)
+  const [myPackItems, setMyPackItems] = useState<PackingItem[]>([]);
+  const [myPackedItems, setMyPackedItems] = useState<Set<string>>(new Set());
+  const [myPackLoaded, setMyPackLoaded] = useState(false);
+  const [myPackGenerating, setMyPackGenerating] = useState(false);
+  const [myPackGenError, setMyPackGenError] = useState<string | null>(null);
+  const [newMyPackItem, setNewMyPackItem] = useState('');
+  const [newMyPackCategory, setNewMyPackCategory] = useState('');
+
+  // Souvenirs / Gifts
+  const [souvenirItems, setSouvenirItems] = useState<SouvenirItem[]>([]);
+  const [souvenirLoaded, setSouvenirLoaded] = useState(false);
+  const [newSouvenirPerson, setNewSouvenirPerson] = useState('');
+  const [newSouvenirIdea, setNewSouvenirIdea] = useState('');
 
   // Phrases tab state
   const [phrasebooks, setPhrasebooks] = useState<PhrasebookData[]>([]);
@@ -102,9 +130,11 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
     Promise.allSettled([
       fetch(`/api/trips/${params.id}/prep`).then(r => r.ok ? r.json() : Promise.reject(new Error(`prep ${r.status}`))),
-      fetch(`/api/trips/${params.id}/packing`).then(r => r.ok ? r.json() : Promise.reject(new Error(`packing ${r.status}`))),
+      fetch(`/api/trips/${params.id}/packing?scope=group`).then(r => r.ok ? r.json() : Promise.reject(new Error(`packing-group ${r.status}`))),
+      fetch(`/api/trips/${params.id}/packing?scope=mine`).then(r => r.ok ? r.json() : Promise.reject(new Error(`packing-mine ${r.status}`))),
+      fetch(`/api/trips/${params.id}/souvenirs`).then(r => r.ok ? r.json() : Promise.reject(new Error(`souvenirs ${r.status}`))),
       fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : Promise.reject(new Error(`trip ${r.status}`))),
-    ]).then(([prepRes, packingRes, tripRes]) => {
+    ]).then(([prepRes, groupPackingRes, myPackingRes, souvenirsRes, tripRes]) => {
       // If the critical trip fetch failed, surface an error rather than silently showing mock data
       if (tripRes.status === 'rejected') {
         console.error('[prep] Failed to load trip data:', tripRes.reason);
@@ -122,17 +152,35 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         setPrepTasks(tasks);
         setCompletedTasks(new Set(tasks.filter(t => t.completed).map(t => t.id)));
       }
-      if (packingRes.status === 'fulfilled' && packingRes.value?.items) {
-        const items: PackingItem[] = packingRes.value.items.map((i: any) => ({
-          id: i.id,
-          name: i.name,
-          category: i.category,
-          packed: i.packed,
+      // Group Pack items
+      if (groupPackingRes.status === 'fulfilled' && groupPackingRes.value?.items) {
+        const items: PackingItem[] = groupPackingRes.value.items.map((i: any) => ({
+          id: i.id, name: i.name, category: i.category, packed: i.packed,
         }));
+        setGroupPackItems(items);
+        setGroupPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
+        // Also update legacy packingItems for overall progress
         setPackingItems(items);
         setPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
       }
+      setGroupPackLoaded(true);
       setPackingLoaded(true);
+      // My Pack items
+      if (myPackingRes.status === 'fulfilled' && myPackingRes.value?.items) {
+        const items: PackingItem[] = myPackingRes.value.items.map((i: any) => ({
+          id: i.id, name: i.name, category: i.category, packed: i.packed,
+        }));
+        setMyPackItems(items);
+        setMyPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
+      }
+      setMyPackLoaded(true);
+      // Souvenirs
+      if (souvenirsRes.status === 'fulfilled' && souvenirsRes.value?.items) {
+        setSouvenirItems(souvenirsRes.value.items.map((i: any) => ({
+          id: i.id, person: i.person, idea: i.idea, purchased: i.purchased,
+        })));
+      }
+      setSouvenirLoaded(true);
       if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
         const dest = tripRes.value.trip.destination;
         // Update state so all destination-dependent UI uses the correct trip destination
@@ -319,6 +367,171 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     } finally {
       setPackingGenerating(false);
     }
+  };
+
+  // ─── Group Pack handlers ───────────────────────────────────────────────────
+  const addGroupPackItem = (name: string, category: string) => {
+    if (!name.trim() || !category) return;
+    const tempId = `temp_${Date.now()}`;
+    setGroupPackItems(prev => [...prev, { id: tempId, name: name.trim(), category, packed: false }]);
+    fetch(`/api/trips/${params.id}/packing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), category, scope: 'group' }),
+    }).then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.item) setGroupPackItems(prev => prev.map(i => i.id === tempId ? { id: data.item.id, name: data.item.name, category: data.item.category, packed: data.item.packed } : i));
+    }).catch(() => setGroupPackItems(prev => prev.filter(i => i.id !== tempId)));
+    setNewGroupPackItem('');
+  };
+
+  const toggleGroupPackedItem = (itemId: string) => {
+    const wasPacked = groupPackedItems.has(itemId);
+    const next = new Set(groupPackedItems);
+    if (wasPacked) next.delete(itemId); else next.add(itemId);
+    setGroupPackedItems(next);
+    fetch(`/api/trips/${params.id}/packing`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId, packed: !wasPacked }),
+    }).catch(() => setGroupPackedItems(groupPackedItems));
+  };
+
+  const deleteGroupPackItem = (itemId: string) => {
+    const removed = groupPackItems.find(i => i.id === itemId);
+    setGroupPackItems(prev => prev.filter(i => i.id !== itemId));
+    fetch(`/api/trips/${params.id}/packing`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId }),
+    }).catch(() => {
+      if (removed) setGroupPackItems(prev => [...prev, removed]);
+    });
+  };
+
+  const generateGroupPackingList = async () => {
+    setGroupPackGenerating(true);
+    setGroupPackGenError(null);
+    try {
+      const res = await fetch('/api/generate-packing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId: params.id, destination: tripDestination, scope: 'group' }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.message || 'Generation failed');
+      const reloadRes = await fetch(`/api/trips/${params.id}/packing?scope=group`);
+      if (reloadRes.ok) {
+        const reloadData = await reloadRes.json();
+        const items: PackingItem[] = (reloadData.items ?? []).map((i: any) => ({ id: i.id, name: i.name, category: i.category, packed: i.packed }));
+        setGroupPackItems(items);
+        setGroupPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
+      }
+    } catch (err) {
+      setGroupPackGenError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setGroupPackGenerating(false);
+    }
+  };
+
+  // ─── My Pack handlers ──────────────────────────────────────────────────────
+  const addMyPackItem = (name: string, category: string) => {
+    if (!name.trim() || !category) return;
+    const tempId = `temp_${Date.now()}`;
+    setMyPackItems(prev => [...prev, { id: tempId, name: name.trim(), category, packed: false }]);
+    fetch(`/api/trips/${params.id}/packing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), category, scope: 'mine' }),
+    }).then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.item) setMyPackItems(prev => prev.map(i => i.id === tempId ? { id: data.item.id, name: data.item.name, category: data.item.category, packed: data.item.packed } : i));
+    }).catch(() => setMyPackItems(prev => prev.filter(i => i.id !== tempId)));
+    setNewMyPackItem('');
+  };
+
+  const toggleMyPackedItem = (itemId: string) => {
+    const wasPacked = myPackedItems.has(itemId);
+    const next = new Set(myPackedItems);
+    if (wasPacked) next.delete(itemId); else next.add(itemId);
+    setMyPackedItems(next);
+    fetch(`/api/trips/${params.id}/packing`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId, packed: !wasPacked }),
+    }).catch(() => setMyPackedItems(myPackedItems));
+  };
+
+  const deleteMyPackItem = (itemId: string) => {
+    const removed = myPackItems.find(i => i.id === itemId);
+    setMyPackItems(prev => prev.filter(i => i.id !== itemId));
+    fetch(`/api/trips/${params.id}/packing`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId }),
+    }).catch(() => {
+      if (removed) setMyPackItems(prev => [...prev, removed]);
+    });
+  };
+
+  const generateMyPackingList = async () => {
+    setMyPackGenerating(true);
+    setMyPackGenError(null);
+    try {
+      const res = await fetch('/api/generate-packing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId: params.id, destination: tripDestination, scope: 'personal' }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.message || 'Generation failed');
+      const reloadRes = await fetch(`/api/trips/${params.id}/packing?scope=mine`);
+      if (reloadRes.ok) {
+        const reloadData = await reloadRes.json();
+        const items: PackingItem[] = (reloadData.items ?? []).map((i: any) => ({ id: i.id, name: i.name, category: i.category, packed: i.packed }));
+        setMyPackItems(items);
+        setMyPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
+      }
+    } catch (err) {
+      setMyPackGenError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setMyPackGenerating(false);
+    }
+  };
+
+  // ─── Souvenir / Gift handlers ─────────────────────────────────────────────
+  const addSouvenirItem = async () => {
+    if (!newSouvenirPerson.trim()) return;
+    const tempId = `temp_${Date.now()}`;
+    const optimistic: SouvenirItem = { id: tempId, person: newSouvenirPerson.trim(), idea: newSouvenirIdea.trim(), purchased: false };
+    setSouvenirItems(prev => [...prev, optimistic]);
+    setNewSouvenirPerson('');
+    setNewSouvenirIdea('');
+    try {
+      const res = await fetch(`/api/trips/${params.id}/souvenirs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person: optimistic.person, idea: optimistic.idea }),
+      });
+      const data = await res.json();
+      if (data?.item) setSouvenirItems(prev => prev.map(i => i.id === tempId ? { id: data.item.id, person: data.item.person, idea: data.item.idea, purchased: data.item.purchased } : i));
+    } catch { setSouvenirItems(prev => prev.filter(i => i.id !== tempId)); }
+  };
+
+  const toggleSouvenirPurchased = (itemId: string, purchased: boolean) => {
+    setSouvenirItems(prev => prev.map(i => i.id === itemId ? { ...i, purchased: !purchased } : i));
+    fetch(`/api/trips/${params.id}/souvenirs`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId, purchased: !purchased }),
+    }).catch(() => setSouvenirItems(prev => prev.map(i => i.id === itemId ? { ...i, purchased } : i)));
+  };
+
+  const deleteSouvenirItem = (itemId: string) => {
+    setSouvenirItems(prev => prev.filter(i => i.id !== itemId));
+    fetch(`/api/trips/${params.id}/souvenirs`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId }),
+    }).catch(() => {});
   };
 
   const toggleCategory = (category: string) => {
@@ -535,12 +748,159 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   };
 
   const renderPackingTab = () => {
-    const categories = ['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'];
-    const totalCustomPacked = customPackItems.filter(i => i.packed).length;
-    const totalPacked = packedItems.size + totalCustomPacked;
-    const totalItems = packingItems.length + customPackItems.length;
+    const PACK_CATEGORIES = ['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'];
+
+    // ── Reusable category list renderer ──────────────────────────────────────
+    const renderPackList = (
+      items: PackingItem[],
+      packedSet: Set<string>,
+      toggleFn: (id: string) => void,
+      deleteFn: (id: string) => void,
+    ) => {
+      const usedCategories = PACK_CATEGORIES.filter(cat => items.some(i => i.category === cat));
+      if (usedCategories.length === 0) return null;
+      return (
+        <div className="space-y-3">
+          {usedCategories.map(category => {
+            const catItems = items.filter(i => i.category === category);
+            const catPacked = catItems.filter(i => packedSet.has(i.id)).length;
+            const isExpanded = expandedCategories.has(category);
+            return (
+              <div key={category} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                <button onClick={() => toggleCategory(category)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-zinc-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-zinc-900">{category}</span>
+                    <span className="text-xs font-medium px-2 py-1 bg-zinc-100 text-zinc-700 rounded-full">{catPacked}/{catItems.length}</span>
+                  </div>
+                  <div className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}><ChevronDown className="w-5 h-5 text-zinc-600" /></div>
+                </button>
+                {isExpanded && (
+                  <div className="divide-y divide-zinc-100">
+                    {catItems.map((item) => {
+                      const isPacked = packedSet.has(item.id);
+                      return (
+                        <div key={item.id} className="flex items-center gap-4 px-6 py-4 hover:bg-zinc-50 transition-colors group">
+                          <button onClick={() => toggleFn(item.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+                            {isPacked ? <CheckboxChecked /> : <CheckboxEmpty />}
+                          </button>
+                          <div className="flex-1">
+                            <p className={`font-medium ${isPacked ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{item.name}</p>
+                          </div>
+                          {item.affiliateUrl && (
+                            <a href={item.affiliateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 bg-sky-100 text-sky-800 hover:bg-sky-200 text-xs font-semibold rounded transition-all">
+                              <ExternalLink className="w-3 h-3" /> Shop
+                            </a>
+                          )}
+                          <button onClick={() => deleteFn(item.id)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-zinc-300 hover:text-rose-400 transition-all flex-shrink-0">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // ── AI generate card ──────────────────────────────────────────────────────
+    const renderAICard = (
+      scope: 'group' | 'personal',
+      loaded: boolean,
+      items: PackingItem[],
+      generating: boolean,
+      genError: string | null,
+      onGenerate: () => void,
+    ) => {
+      if (isMockTrip || !loaded || items.length > 0) return null;
+      const label = scope === 'group' ? 'group packing list' : 'personal packing list';
+      const subLabel = scope === 'group'
+        ? 'Shared gear, group electronics, documents, and trip essentials.'
+        : 'Your personal clothing, toiletries, medications, and comfort items.';
+      return (
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-center">
+          <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            {scope === 'group' ? <Users className="w-6 h-6 text-sky-700" /> : <Backpack className="w-6 h-6 text-sky-700" />}
+          </div>
+          <h3 className="font-semibold text-zinc-900 mb-1">Let AI build your {label}</h3>
+          <p className="text-sm text-zinc-500 mb-4">{subLabel}</p>
+          {genError && <p className="text-xs text-rose-600 mb-3">{genError}</p>}
+          {hasAIPacking ? (
+            <button onClick={onGenerate} disabled={generating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-xl font-semibold text-sm transition-colors">
+              {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Sparkles className="w-4 h-4" /> Generate AI List</>}
+            </button>
+          ) : (
+            <div className="inline-flex flex-col items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-100 text-zinc-400 rounded-xl font-semibold text-sm cursor-not-allowed">
+                <Lock className="w-4 h-4" /> Generate AI List
+              </div>
+              <p className="text-xs text-zinc-500">
+                <Crown className="w-3 h-3 inline text-amber-400 mr-1" />
+                AI packing lists are a <Link href="/pricing" className="text-sky-700 font-semibold hover:underline">Nomad</Link> feature
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ── Regenerate button ─────────────────────────────────────────────────────
+    const renderRegenBtn = (items: PackingItem[], generating: boolean, onGenerate: () => void) => {
+      if (isMockTrip || items.length === 0) return null;
+      return (
+        <div className="flex justify-end">
+          <button onClick={hasAIPacking ? onGenerate : undefined} disabled={generating || !hasAIPacking}
+            title={hasAIPacking ? undefined : 'AI packing list is a Nomad feature'}
+            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border border-zinc-200 rounded-lg transition-colors ${hasAIPacking ? 'text-zinc-500 hover:bg-zinc-50 disabled:opacity-50' : 'text-zinc-300 cursor-not-allowed'}`}>
+            {generating ? <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</> : <><RefreshCw className="w-3 h-3" /> Regenerate AI List</>}
+          </button>
+        </div>
+      );
+    };
+
+    // ── Add item form ─────────────────────────────────────────────────────────
+    const renderAddForm = (
+      value: string, onValueChange: (v: string) => void,
+      category: string, onCatChange: (v: string) => void,
+      onAdd: () => void,
+      placeholder: string,
+    ) => (
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Add item</p>
+        <div className="flex gap-2">
+          <select value={category} onChange={(e) => onCatChange(e.target.value)}
+            className="px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
+            <option value="" disabled>Category</option>
+            {PACK_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+          <input type="text" placeholder={placeholder} value={value} onChange={(e) => onValueChange(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); }}
+            className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
+          <button onClick={onAdd} disabled={!category || !value.trim()}
+            className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    );
+
+    // Combined packed count for header progress bar
+    const totalGroupPacked = groupPackedItems.size;
+    const totalGroupItems = groupPackItems.length;
+    const totalMyPacked = myPackedItems.size;
+    const totalMyItems = myPackItems.length;
+    const totalGiftsBought = souvenirItems.filter(i => i.purchased).length;
+    const totalGifts = souvenirItems.length;
+    const totalPacked = totalGroupPacked + totalMyPacked + totalGiftsBought;
+    const totalItems = (totalGroupItems || 0) + (totalMyItems || 0) + (totalGifts || 0);
+
     return (
       <div className="space-y-6">
+        {/* ── Header card ── */}
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
           <div className="flex items-start gap-4 mb-4">
             <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0">
@@ -564,130 +924,140 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        <WeatherWidget
-          destination={tripDestination}
-          startDate={tripStartDate}
-          endDate={tripEndDate}
-        />
+        <WeatherWidget destination={tripDestination} startDate={tripStartDate} endDate={tripEndDate} />
 
-        {/* ── Manual add form — available to all tiers, always visible at the top ── */}
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Add item</p>
-          <div className="flex gap-2">
-            <select value={newPackCategory} onChange={(e) => setNewPackCategory(e.target.value)} className="px-4 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
-              <option value="" disabled>Category</option>
-              {['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            <input type="text" placeholder="Add packing item..." value={newPackItem} onChange={(e) => setNewPackItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addPackItem(newPackItem, newPackCategory); }}
-              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => addPackItem(newPackItem, newPackCategory)}
-              disabled={!newPackCategory}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* ── AI generation — Nomad-gated, shown for real trips only ── */}
-        {!isMockTrip && packingLoaded && packingItems.length === 0 && customPackItems.length === 0 && (
-          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-center">
-            <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Backpack className="w-6 h-6 text-sky-700" />
-            </div>
-            <h3 className="font-semibold text-zinc-900 mb-1">Or let AI build your list</h3>
-            <p className="text-sm text-zinc-500 mb-4">
-              Generate a destination-specific packing list for <span className="font-medium text-zinc-700">{tripDestination}</span> in seconds.
-            </p>
-            {packingGenError && (
-              <p className="text-xs text-rose-600 mb-3">{packingGenError}</p>
-            )}
-            {hasAIPacking ? (
-              <button
-                onClick={generatePackingList}
-                disabled={packingGenerating}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-xl font-semibold text-sm transition-colors"
-              >
-                {packingGenerating ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
-                ) : (
-                  <><Sparkles className="w-4 h-4" /> Generate AI Packing List</>
+        {/* ── Sub-tab selector ── */}
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 inline-flex gap-1">
+          {([
+            { id: 'group', label: 'Group Pack', icon: Users, count: totalGroupItems, packed: totalGroupPacked },
+            { id: 'mine', label: 'My Pack', icon: Backpack, count: totalMyItems, packed: totalMyPacked },
+            { id: 'gifts', label: 'Gifts 🎁', icon: Gift, count: totalGifts, packed: totalGiftsBought },
+          ] as const).map(tab => {
+            const Icon = tab.icon;
+            const isActive = packSubTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => { setPackSubTab(tab.id); setExpandedCategories(new Set(['Clothing'])); }}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${isActive ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100'}`}>
+                <Icon className="w-4 h-4" />
+                {tab.label}
+                {tab.count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-500'}`}>
+                    {tab.packed}/{tab.count}
+                  </span>
                 )}
               </button>
-            ) : (
-              <div className="inline-flex flex-col items-center gap-2">
-                <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-100 text-zinc-400 rounded-xl font-semibold text-sm cursor-not-allowed">
-                  <Lock className="w-4 h-4" /> Generate AI Packing List
-                </div>
-                <p className="text-xs text-zinc-500">
-                  <Crown className="w-3 h-3 inline text-amber-400 mr-1" />
-                  AI packing lists are a <Link href="/pricing" className="text-sky-700 font-semibold hover:underline">Nomad</Link> feature
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Regenerate button — shown when AI-generated items exist on a real trip */}
-        {!isMockTrip && packingLoaded && packingItems.length > 0 && (
-          <div className="flex justify-end">
-            <button
-              onClick={hasAIPacking ? generatePackingList : undefined}
-              disabled={packingGenerating || !hasAIPacking}
-              title={hasAIPacking ? undefined : 'AI packing list is a Nomad feature'}
-              className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border border-zinc-200 rounded-lg transition-colors ${hasAIPacking ? 'text-zinc-500 hover:bg-zinc-50 disabled:opacity-50' : 'text-zinc-300 cursor-not-allowed'}`}
-            >
-              {packingGenerating ? (
-                <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</>
-              ) : (
-                <><RefreshCw className="w-3 h-3" /> Regenerate AI List</>
-              )}
-            </button>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {categories.map(category => {
-            const categoryItems = [...packingItems.filter((i: PackingItem) => i.category === category), ...customPackItems.filter(i => i.category === category)];
-            const categoryPacked = categoryItems.filter((i: any) => packedItems.has(i.id) || (customPackItems.some(cp => cp.id === i.id) && customPackItems.find(cp => cp.id === i.id)?.packed)).length;
-            const isExpanded = expandedCategories.has(category);
-            return (
-              <div key={category} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-                <button onClick={() => toggleCategory(category)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-zinc-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-zinc-900">{category}</span>
-                    <span className="text-xs font-medium px-2 py-1 bg-zinc-100 text-zinc-700 rounded-full">{categoryPacked}/{categoryItems.length}</span>
-                  </div>
-                  <div className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}><ChevronDown className="w-5 h-5 text-zinc-600" /></div>
-                </button>
-                {isExpanded && (
-                  <div className="divide-y divide-zinc-100">
-                    {categoryItems.map((item: any) => {
-                      const isCustom = customPackItems.some(cp => cp.id === item.id);
-                      const isPacked = isCustom ? customPackItems.find(cp => cp.id === item.id)?.packed : packedItems.has(item.id);
-                      return (
-                        <div key={item.id} className="flex items-center gap-4 px-6 py-4 hover:bg-zinc-50 transition-colors">
-                          <button onClick={() => { if (isCustom) { setCustomPackItems(prev => prev.map(p => p.id === item.id ? {...p, packed: !p.packed} : p)); } else { togglePackedItem(item.id); } }} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
-                            {isPacked ? <CheckboxChecked /> : <CheckboxEmpty />}
-                          </button>
-                          <div className="flex-1">
-                            <p className={`font-medium ${isPacked ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{item.name}</p>
-                          </div>
-                          {!isCustom && item.affiliateUrl && (
-                            <a href={item.affiliateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 bg-sky-100 text-sky-800 hover:bg-sky-200 text-xs font-semibold rounded transition-all">
-                              <ExternalLink className="w-3 h-3" /> Shop
-                            </a>
-                          )}
-                          {isCustom && <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">Custom</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             );
           })}
         </div>
+
+        {/* ── Group Pack sub-tab ── */}
+        {packSubTab === 'group' && (
+          <>
+            <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-3">
+              <p className="text-xs text-sky-700"><span className="font-semibold">Group Pack</span> — items everyone can see. Perfect for shared gear: portable speaker, first aid kit, group snacks, and travel docs.</p>
+            </div>
+            {renderAddForm(newGroupPackItem, setNewGroupPackItem, newGroupPackCategory, setNewGroupPackCategory, () => addGroupPackItem(newGroupPackItem, newGroupPackCategory), 'Add shared item…')}
+            {renderAICard('group', groupPackLoaded, groupPackItems, groupPackGenerating, groupPackGenError, generateGroupPackingList)}
+            {renderRegenBtn(groupPackItems, groupPackGenerating, generateGroupPackingList)}
+            {isMockTrip
+              ? renderPackList(packingItems, packedItems, togglePackedItem, () => {})
+              : renderPackList(groupPackItems, groupPackedItems, toggleGroupPackedItem, deleteGroupPackItem)
+            }
+          </>
+        )}
+
+        {/* ── My Pack sub-tab ── */}
+        {packSubTab === 'mine' && (
+          <>
+            <div className="bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
+              <p className="text-xs text-violet-700"><span className="font-semibold">My Pack</span> — your private list. Only you can see this: personal clothing, toiletries, medications, and anything you don't want to share with the group.</p>
+            </div>
+            {user ? (
+              <>
+                {renderAddForm(newMyPackItem, setNewMyPackItem, newMyPackCategory, setNewMyPackCategory, () => addMyPackItem(newMyPackItem, newMyPackCategory), 'Add personal item…')}
+                {renderAICard('personal', myPackLoaded, myPackItems, myPackGenerating, myPackGenError, generateMyPackingList)}
+                {renderRegenBtn(myPackItems, myPackGenerating, generateMyPackingList)}
+                {renderPackList(myPackItems, myPackedItems, toggleMyPackedItem, deleteMyPackItem)}
+                {myPackLoaded && myPackItems.length === 0 && !myPackGenerating && (
+                  <div className="text-center py-8 text-zinc-400 text-sm">No personal items yet.</div>
+                )}
+              </>
+            ) : (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 text-center">
+                <Lock className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+                <h3 className="font-semibold text-zinc-700 mb-1">Sign in to use My Pack</h3>
+                <p className="text-sm text-zinc-400">Your personal packing list is private and saved to your account.</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Gifts sub-tab ── */}
+        {packSubTab === 'gifts' && (
+          <>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+              <p className="text-xs text-amber-700"><span className="font-semibold">Gifts 🎁</span> — your private souvenir list. Track who you want to buy for and what to get them. Only you can see this.</p>
+            </div>
+            {user ? (
+              <>
+                {/* Add souvenir form */}
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Add to gift list</p>
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="Person (e.g. Mom)" value={newSouvenirPerson}
+                      onChange={(e) => setNewSouvenirPerson(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') addSouvenirItem(); }}
+                      className="w-32 flex-shrink-0 px-3 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
+                    <input type="text" placeholder="Gift idea (optional)" value={newSouvenirIdea}
+                      onChange={(e) => setNewSouvenirIdea(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') addSouvenirItem(); }}
+                      className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
+                    <button onClick={addSouvenirItem} disabled={!newSouvenirPerson.trim()}
+                      className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Souvenir list */}
+                {souvenirLoaded && souvenirItems.length === 0 ? (
+                  <div className="text-center py-10 text-zinc-400 text-sm">
+                    <Gift className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
+                    No one on your gift list yet. Add names above!
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                    {souvenirItems.map((item, idx) => (
+                      <div key={item.id} className={`flex items-center gap-4 px-5 py-4 hover:bg-zinc-50 transition-colors group ${idx > 0 ? 'border-t border-zinc-100' : ''}`}>
+                        <button onClick={() => toggleSouvenirPurchased(item.id, item.purchased)}
+                          className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+                          {item.purchased ? <CheckboxChecked /> : <CheckboxEmpty />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-semibold text-sm ${item.purchased ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{item.person}</p>
+                          {item.idea && <p className={`text-xs mt-0.5 truncate ${item.purchased ? 'text-zinc-300 line-through' : 'text-zinc-500'}`}>{item.idea}</p>}
+                        </div>
+                        {item.purchased && (
+                          <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-semibold flex-shrink-0">Bought ✓</span>
+                        )}
+                        <button onClick={() => deleteSouvenirItem(item.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-zinc-300 hover:text-rose-400 transition-all flex-shrink-0">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 text-center">
+                <Lock className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+                <h3 className="font-semibold text-zinc-700 mb-1">Sign in to use Gifts</h3>
+                <p className="text-sm text-zinc-400">Your souvenir list is private and saved to your account.</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
   };
