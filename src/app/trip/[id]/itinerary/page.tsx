@@ -280,6 +280,8 @@ function ItineraryPageContent() {
   const [selectedDay, setSelectedDay] = useState(1);
   const [activityAdded, setActivityAdded] = useState(false);
   const [activityDeleted, setActivityDeleted] = useState(false);
+  const [bookingSaved, setBookingSaved] = useState<string | null>(null);
+  const [storyLocked, setStoryLocked] = useState(false);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [suggestingActivityId, setSuggestingActivityId] = useState<string | null>(null);
@@ -1395,6 +1397,18 @@ function ItineraryPageContent() {
             <span className="text-sm font-semibold">{suggestError}</span>
           </div>
         )}
+        {bookingSaved && (
+          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <span className="text-sm font-semibold">{bookingSaved}</span>
+          </div>
+        )}
+        {storyLocked && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-zinc-800 text-white px-4 py-2.5 rounded-full shadow-lg text-sm font-medium">
+            <BookOpen className="w-4 h-4 text-zinc-400" />
+            Available the day after your trip ends
+          </div>
+        )}
 
         {/* Day Header */}
         <div className="mb-8 flex items-start justify-between gap-4">
@@ -1555,7 +1569,11 @@ function ItineraryPageContent() {
                 <button
                   onClick={() => {
                     if (!hasTripStory) { setUpgradePromptKey('feature_locked'); return; }
-                    if (!tripEnded) return; // button is visually disabled but we guard here too
+                    if (!tripEnded) {
+                      setStoryLocked(true);
+                      setTimeout(() => setStoryLocked(false), 2500);
+                      return;
+                    }
                     setShowStoryModal(true);
                   }}
                   title={hasTripStory && !tripEnded ? 'Available the day after your trip ends' : undefined}
@@ -2510,7 +2528,9 @@ function ItineraryPageContent() {
               >
                 <span className="text-base flex-shrink-0">🏨</span>
                 <div className="flex-1 text-left min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Where to Stay</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                    {(aiMeta?.bookedHotels ?? []).length > 0 ? "Where We're Crashing 🛏️" : "Where to Stay"}
+                  </p>
                   {collapsedSections.hotel && (
                     <p className="text-[11px] text-zinc-300 mt-0.5">
                       {aiMeta?.bookedHotels && aiMeta.bookedHotels.length > 0
@@ -3009,10 +3029,13 @@ function ItineraryPageContent() {
                       body: JSON.stringify({ tripPatch: { booked_hotels: [...existing, newHotel] } }),
                     });
                     if (!res.ok) throw new Error('Save failed');
-                    // Update local tripRow
+                    // Update local tripRow AND aiMeta so sidebar reflects immediately
                     setTripRow(prev => prev ? { ...prev, booked_hotels: [...existing, newHotel] } : prev);
+                    setAiMeta(prev => prev ? { ...prev, bookedHotels: [...(prev.bookedHotels ?? []), newHotel] } : prev);
                     setShowAddHotelModal(false);
                     setHotelFormName(''); setHotelFormCity(''); setHotelFormAddress(''); setHotelFormCheckIn(''); setHotelFormCheckOut('');
+                    setBookingSaved('Hotel saved ✓');
+                    setTimeout(() => setBookingSaved(null), 2500);
                   } catch {
                     setBookingError('Could not save. Please try again.');
                   } finally {
@@ -3124,6 +3147,8 @@ function ItineraryPageContent() {
                     setTripRow(prev => prev ? { ...prev, booked_flight: newFlight } : prev);
                     setShowAddFlightModal(false);
                     setFlightFormAirline(''); setFlightFormNumber(''); setFlightFormDep(''); setFlightFormArr(''); setFlightFormDepTime(''); setFlightFormArrTime(''); setFlightFormRetDepTime(''); setFlightFormRetArrTime('');
+                    setBookingSaved('Flight saved ✓');
+                    setTimeout(() => setBookingSaved(null), 2500);
                   } catch {
                     setBookingError('Could not save. Please try again.');
                   } finally {

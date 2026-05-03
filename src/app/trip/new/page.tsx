@@ -2230,7 +2230,9 @@ function TripBuilderPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Pickup Location</label>
+                        <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
+                          Pickup Location <span className="text-emerald-500 font-medium normal-case tracking-normal">(recommended)</span>
+                        </label>
                         <input
                           type="text"
                           placeholder="e.g. Keflavik Airport (KEF), Downtown Chicago"
