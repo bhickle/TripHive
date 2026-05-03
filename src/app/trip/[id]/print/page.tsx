@@ -117,6 +117,17 @@ export default function PrintItineraryPage() {
         // Collect photo spots for this day
         const photoSpots: any[] = day.photoSpots ?? [];
 
+        // Find tonight's hotel(s) — same date-range logic as the itinerary page
+        const bookedHotels: any[] = meta?.bookedHotels ?? [];
+        const todaysHotels = bookedHotels.filter((h: any) => {
+          if (!h.checkIn && !h.checkOut) return true;
+          const dayDate = day.date ?? null;
+          if (!dayDate) return true;
+          if (h.checkIn && dayDate < h.checkIn) return false;
+          if (h.checkOut && dayDate >= h.checkOut) return false;
+          return true;
+        });
+
         return (
           <div key={di} className={di > 0 ? 'mt-10 pt-8 border-t border-zinc-200' : ''}>
             {showCityBanner && (
@@ -194,6 +205,26 @@ export default function PrintItineraryPage() {
                       {(tip.orderThis || tip.bestFor) && (
                         <p className="text-[10px] text-orange-600 mt-0.5">
                           {tip.orderThis ? `Order: ${tip.orderThis}` : `Best for: ${tip.bestFor}`}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tonight's Stay */}
+            {todaysHotels.length > 0 && (
+              <div className="mt-6 pl-24">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-2">🛏️ Tonight's Stay</p>
+                <div className="space-y-2">
+                  {todaysHotels.map((h: any, hi: number) => (
+                    <div key={hi} className="pl-4 border-l-2 border-amber-100">
+                      <p className="text-xs font-semibold text-amber-800">{h.name}</p>
+                      {h.address && <p className="text-[10px] text-amber-600">{h.address}</p>}
+                      {(h.checkIn || h.checkOut) && (
+                        <p className="text-[10px] text-amber-500 mt-0.5">
+                          {h.checkIn && `Check-in: ${h.checkIn}`}{h.checkIn && h.checkOut ? ' · ' : ''}{h.checkOut && `Check-out: ${h.checkOut}`}
                         </p>
                       )}
                     </div>

@@ -49,6 +49,7 @@ import {
   FileDown,
   Map,
   AlignJustify,
+  UserPlus,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -282,6 +283,19 @@ function ItineraryPageContent() {
   const [activityDeleted, setActivityDeleted] = useState(false);
   const [bookingSaved, setBookingSaved] = useState<string | null>(null);
   const [storyLocked, setStoryLocked] = useState(false);
+  // Undo delete
+  const [undoSnapshot, setUndoSnapshot] = useState<{ days: ItineraryDay[]; label: string } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Hotel edit
+  const [editingHotelIndex, setEditingHotelIndex] = useState<number | null>(null);
+  // Invite modal (ported from group page — trip ID already known, no selector needed)
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'text' | 'link'>('email');
+  const [inviteContact, setInviteContact] = useState('');
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+  const [inviteSent, setInviteSent] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [suggestingActivityId, setSuggestingActivityId] = useState<string | null>(null);
@@ -911,21 +925,43 @@ function ItineraryPageContent() {
     setShowAddActivityModal(true);
   };
 
-  // Move a hotel suggestion into bookedHotels (persists to Supabase trips row)
-  const handleBookHotel = (hotel: { name: string; neighborhood?: string }) => {
-    const newBooked = [
-      ...(aiMeta?.bookedHotels ?? []),
-      { name: hotel.name, address: hotel.neighborhood },
-    ];
-    setAiMeta(prev => prev ? { ...prev, bookedHotels: newBooked } : prev);
+  // "I Booked This" on AI suggestions — opens Add Hotel modal pre-filled so user can confirm dates
+  const handleBookHotel = (hotel: { name: string; neighborhood?: string; city?: string }) => {
+    const tripStart = tripRow?.start_date ?? aiMeta?.startDate ?? '';
+    const tripEnd = tripRow?.end_date ?? aiMeta?.endDate ?? '';
+    setHotelFormName(hotel.name);
+    setHotelFormCity(hotel.city ?? '');
+    setHotelFormAddress(hotel.neighborhood ?? '');
+    setHotelFormCheckIn(tripStart);
+    setHotelFormCheckOut(tripEnd);
+    setEditingHotelIndex(null); // new booking, not an edit
+    setShowAddHotelModal(true);
+  };
+
+  // Delete a booked hotel by index
+  const handleDeleteHotel = (index: number) => {
+    const updated = (aiMeta?.bookedHotels ?? []).filter((_, i) => i !== index);
+    setAiMeta(prev => prev ? { ...prev, bookedHotels: updated } : prev);
+    setTripRow(prev => prev ? { ...prev, booked_hotels: updated } : prev);
     const tripId = params.id;
     if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
       fetch(`/api/trips/${tripId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tripPatch: { booked_hotels: newBooked } }),
+        body: JSON.stringify({ tripPatch: { booked_hotels: updated } }),
       }).catch(() => {});
     }
+  };
+
+  // Edit a booked hotel — opens Add Hotel modal pre-filled at the given index
+  const handleEditHotel = (hotel: { name: string; city?: string; address?: string; checkIn?: string; checkOut?: string }, index: number) => {
+    setHotelFormName(hotel.name);
+    setHotelFormCity(hotel.city ?? '');
+    setHotelFormAddress(hotel.address ?? '');
+    setHotelFormCheckIn(hotel.checkIn ?? '');
+    setHotelFormCheckOut(hotel.checkOut ?? '');
+    setEditingHotelIndex(index);
+    setShowAddHotelModal(true);
   };
 
   // ─── Derived state — declared early so callbacks below can reference them ────
@@ -1060,8 +1096,17 @@ function ItineraryPageContent() {
     setShowAddActivityModal(true);
   }, [selectedDay]);
 
-  // ─── Delete activity ──────────────────────────────────────────────────────────
+  // ─── Delete activity (with 5-second undo) ────────────────────────────────────
   const handleDeleteActivity = useCallback((activityId: string) => {
+    // Find activity name for the undo toast label
+    const dayData = (activeDays as ItineraryDay[]).find(d => d.day === selectedDay);
+    const allActs: Activity[] = [
+      ...(dayData?.tracks?.shared ?? []),
+      ...(dayData?.tracks?.track_a ?? []),
+      ...(dayData?.tracks?.track_b ?? []),
+    ];
+    const deletedAct = allActs.find(a => a.id === activityId);
+
     const updatedDays = (activeDays as ItineraryDay[]).map(day => {
       if (day.day !== selectedDay) return day;
       return {
@@ -1073,10 +1118,32 @@ function ItineraryPageContent() {
         },
       };
     });
-    persistDays(updatedDays as ItineraryDay[]);
-    setActivityDeleted(true);
-    setTimeout(() => setActivityDeleted(false), 2500);
+
+    // Optimistically update display immediately (no Supabase yet)
+    syncAiDays(updatedDays as ItineraryDay[]);
+
+    // Store snapshot so undo can restore
+    const snapshot = activeDays as ItineraryDay[];
+    setUndoSnapshot({ days: snapshot, label: deletedAct?.name ?? deletedAct?.title ?? 'Activity' });
+
+    // Cancel any existing undo timer
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+
+    // Persist to Supabase + localStorage after 5s (if not undone)
+    undoTimerRef.current = setTimeout(() => {
+      persistDays(updatedDays as ItineraryDay[]);
+      setUndoSnapshot(null);
+      undoTimerRef.current = null;
+    }, 5000);
   }, [activeDays, selectedDay, persistDays]);
+
+  const handleUndoDelete = useCallback(() => {
+    if (undoSnapshot) {
+      if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
+      syncAiDays(undoSnapshot.days);
+      setUndoSnapshot(null);
+    }
+  }, [undoSnapshot]);
 
   // ─── AI: suggest a replacement activity ──────────────────────────────────────
   const handleSuggestAnother = useCallback(async (activity: Activity) => {
@@ -1342,6 +1409,27 @@ function ItineraryPageContent() {
   const effectiveMeetupTime = currentDayData.meetupTime ?? inlineMeetupActivity?.timeSlot?.split(/–|—/)[0]?.trim();
   const effectiveMeetupLocation = currentDayData.meetupLocation ?? inlineMeetupActivity?.address ?? inlineMeetupActivity?.description?.split('.')[0] ?? inlineMeetupActivity?.title;
 
+  // If the meetup location mentions "Hotel Lobby" generically, substitute the actual hotel name
+  // for today so the card reads "Lobby of The Marriott" instead of just "Hotel Lobby".
+  const todayHotelForMeetup = (aiMeta?.bookedHotels ?? []).find(h => {
+    if (!h.checkIn && !h.checkOut) return true;
+    const dayDate = currentDayData.date;
+    if (!dayDate) return true;
+    const checkIn = h.checkIn ?? null;
+    const checkOut = h.checkOut ?? null;
+    if (checkIn && dayDate < checkIn) return false;
+    if (checkOut && dayDate >= checkOut) return false;
+    return true;
+  });
+  const meetupDisplayLocation = (() => {
+    if (!effectiveMeetupLocation) return effectiveMeetupLocation;
+    const isGenericLobby = /^hotel\s+lobby$/i.test(effectiveMeetupLocation.trim());
+    if (isGenericLobby && todayHotelForMeetup) {
+      return `Lobby of ${todayHotelForMeetup.name}`;
+    }
+    return effectiveMeetupLocation;
+  })();
+
   const timelineItems: TimelineItem[] = [
     ...sortedActivities
       // Exclude the inline meetup activity — it's shown in the dedicated meetup block
@@ -1416,6 +1504,22 @@ function ItineraryPageContent() {
           </div>
         )}
 
+        {/* Undo delete toast — shown for 5s after an activity is deleted */}
+        {undoSnapshot && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3 rounded-full shadow-xl">
+            <Trash2 className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+            <span className="text-sm font-medium">
+              <span className="text-zinc-300">{undoSnapshot.label}</span> removed
+            </span>
+            <button
+              onClick={handleUndoDelete}
+              className="ml-1 text-sm font-bold text-sky-400 hover:text-sky-300 transition-colors underline underline-offset-2"
+            >
+              Undo
+            </button>
+          </div>
+        )}
+
         {/* Day Header */}
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
@@ -1453,6 +1557,16 @@ function ItineraryPageContent() {
             const isTripCompleted = tripRow?.status === 'completed';
             return (
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
+            {/* Add Someone button — opens invite modal (trip ID already in context, no selector needed) */}
+            <button
+              onClick={() => setShowInviteModal(true)}
+              title="Invite someone to this trip"
+              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add</span>
+            </button>
+
             {/* Combined + Add dropdown */}
             <div className="relative" ref={addMenuRef}>
               <button
@@ -1784,7 +1898,7 @@ function ItineraryPageContent() {
                   )}
 
                   {/* Meetup — shown for group trips; handles both structured meetupTime and legacy inline "Group Meetup" activities */}
-                  {effectiveMeetupTime && effectiveMeetupLocation &&
+                  {effectiveMeetupTime && meetupDisplayLocation &&
                    aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple' && (
                     <div className="flex gap-4">
                       <div className="w-20 flex-shrink-0 text-right pt-3.5">
@@ -1798,7 +1912,7 @@ function ItineraryPageContent() {
                         <div className="bg-sky-50 border border-sky-100 rounded-2xl px-4 py-3 flex items-center gap-3">
                           <div>
                             <p className="text-[10px] font-bold uppercase tracking-wide text-sky-500 mb-0.5">Group Meetup</p>
-                            <p className="text-sm font-semibold text-sky-900">{effectiveMeetupLocation}</p>
+                            <p className="text-sm font-semibold text-sky-900">{meetupDisplayLocation}</p>
                           </div>
                         </div>
                       </div>
@@ -2256,11 +2370,39 @@ function ItineraryPageContent() {
                           <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
                           {h.address && <p className="text-xs text-amber-600 mt-0.5">{h.address}</p>}
                         </div>
-                        <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-                          title="View on Google Maps"
-                          className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors mt-0.5">
-                          <MapPin className="w-3.5 h-3.5" />
-                        </a>
+                        <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                            title="View on Google Maps"
+                            className="p-1 rounded-lg text-amber-400 hover:text-amber-600 transition-colors">
+                            <MapPin className="w-3.5 h-3.5" />
+                          </a>
+                          {/* Find the real index of this hotel in bookedHotels so edits/deletes target the right entry */}
+                          {(() => {
+                            const realIdx = (aiMeta?.bookedHotels ?? []).findIndex((bh, bi) => {
+                              // Match by name + checkIn; fall back to positional index within todaysHotels
+                              return bh.name === h.name && bh.checkIn === h.checkIn;
+                            });
+                            const idx = realIdx >= 0 ? realIdx : i;
+                            return (
+                              <>
+                                <button
+                                  onClick={() => handleEditHotel(h, idx)}
+                                  title="Edit hotel"
+                                  className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteHotel(idx)}
+                                  title="Remove hotel"
+                                  className="p-1 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500 transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
+                            );
+                          })()}
+                        </div>
                       </div>
                     );
                   })}
@@ -3020,14 +3162,14 @@ function ItineraryPageContent() {
       {showAddHotelModal && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => { setShowAddHotelModal(false); setBookingError(null); }}
+          onClick={() => { setShowAddHotelModal(false); setBookingError(null); setEditingHotelIndex(null); }}
         >
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
-                <span className="text-2xl">🏨</span> Add Hotel
+                <span className="text-2xl">🏨</span> {editingHotelIndex !== null ? 'Edit Hotel' : 'Add Hotel'}
               </h2>
-              <button onClick={() => { setShowAddHotelModal(false); setBookingError(null); }} className="p-1.5 rounded-full hover:bg-zinc-100">
+              <button onClick={() => { setShowAddHotelModal(false); setBookingError(null); setEditingHotelIndex(null); }} className="p-1.5 rounded-full hover:bg-zinc-100">
                 <X className="w-4 h-4 text-zinc-500" />
               </button>
             </div>
@@ -3075,20 +3217,26 @@ function ItineraryPageContent() {
                   if (!hotelFormName.trim()) return;
                   setSavingBooking(true); setBookingError(null);
                   try {
-                    const existing: unknown[] = Array.isArray(tripRow?.booked_hotels) ? tripRow.booked_hotels : [];
+                    const currentHotels: { name: string; city?: string; address?: string; checkIn?: string; checkOut?: string }[] =
+                      Array.isArray(aiMeta?.bookedHotels) ? aiMeta.bookedHotels : [];
                     const newHotel = { name: hotelFormName.trim(), city: hotelFormCity.trim(), address: hotelFormAddress.trim(), checkIn: hotelFormCheckIn, checkOut: hotelFormCheckOut };
+                    // Replace at index for edits, append for new
+                    const updatedHotels = editingHotelIndex !== null
+                      ? currentHotels.map((h, i) => i === editingHotelIndex ? newHotel : h)
+                      : [...currentHotels, newHotel];
                     const res = await fetch(`/api/trips/${tripPageId}`, {
                       method: 'PATCH',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ tripPatch: { booked_hotels: [...existing, newHotel] } }),
+                      body: JSON.stringify({ tripPatch: { booked_hotels: updatedHotels } }),
                     });
                     if (!res.ok) throw new Error('Save failed');
-                    // Update local tripRow AND aiMeta so sidebar reflects immediately
-                    setTripRow(prev => prev ? { ...prev, booked_hotels: [...existing, newHotel] } : prev);
-                    setAiMeta(prev => prev ? { ...prev, bookedHotels: [...(prev.bookedHotels ?? []), newHotel] } : prev);
+                    // Update local tripRow AND aiMeta so Tonight's Stay card reflects immediately
+                    setTripRow(prev => prev ? { ...prev, booked_hotels: updatedHotels } : prev);
+                    setAiMeta(prev => prev ? { ...prev, bookedHotels: updatedHotels } : prev);
                     setShowAddHotelModal(false);
+                    setEditingHotelIndex(null);
                     setHotelFormName(''); setHotelFormCity(''); setHotelFormAddress(''); setHotelFormCheckIn(''); setHotelFormCheckOut('');
-                    setBookingSaved('Hotel saved ✓');
+                    setBookingSaved(editingHotelIndex !== null ? 'Hotel updated ✓' : 'Hotel saved ✓');
                     setTimeout(() => setBookingSaved(null), 2500);
                   } catch {
                     setBookingError('Could not save. Please try again.');
@@ -3098,7 +3246,7 @@ function ItineraryPageContent() {
                 }}
                 className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
               >
-                {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Hotel'}
+                {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : editingHotelIndex !== null ? 'Update Hotel' : 'Save Hotel'}
               </button>
             </div>
           </div>
@@ -3318,6 +3466,166 @@ function ItineraryPageContent() {
                 }
                 {savingTripEdit ? 'Saving…' : 'Save Changes'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Invite Modal — ported from group page, trip ID already known ─── */}
+      {showInviteModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => { setShowInviteModal(false); setInviteContact(''); setInviteSent(false); setInviteError(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">Invite Someone</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {aiMeta?.destination || trip.destination} trip
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowInviteModal(false); setInviteContact(''); setInviteSent(false); setInviteError(null); }}
+                className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors"
+              >
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+
+            {/* Method tabs */}
+            <div className="flex gap-2 mb-5">
+              {(['email', 'text', 'link'] as const).map(method => (
+                <button
+                  key={method}
+                  onClick={() => setInviteMethod(method)}
+                  className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors capitalize ${
+                    inviteMethod === method ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                  }`}
+                >
+                  {method === 'link' ? 'Copy Link' : method.charAt(0).toUpperCase() + method.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {inviteMethod === 'link' ? (
+              /* Copy Link UI */
+              <div className="mb-4">
+                <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-xl border border-zinc-200">
+                  <p className="flex-1 text-xs font-mono text-zinc-600 truncate">
+                    {typeof window !== 'undefined' ? window.location.origin : 'tripcoord.ai'}/join/{tripPageId}
+                  </p>
+                  <button
+                    onClick={async () => {
+                      const link = `${window.location.origin}/join/${tripPageId}`;
+                      await navigator.clipboard.writeText(link).catch(() => {});
+                      setInviteLinkCopied(true);
+                      setTimeout(() => setInviteLinkCopied(false), 2000);
+                    }}
+                    className="px-3 py-1.5 bg-zinc-900 text-white rounded-lg text-xs font-semibold whitespace-nowrap hover:bg-zinc-800 transition-colors"
+                  >
+                    {inviteLinkCopied ? '✓ Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Email / SMS input */
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                  {inviteMethod === 'email' ? 'Email Address' : 'Phone Number'}
+                </label>
+                <input
+                  type={inviteMethod === 'email' ? 'email' : 'tel'}
+                  placeholder={inviteMethod === 'email' ? 'friend@example.com' : '+1 (555) 123-4567'}
+                  value={inviteContact}
+                  onChange={e => setInviteContact(e.target.value)}
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
+                />
+              </div>
+            )}
+
+            {/* Preview */}
+            {inviteMethod !== 'link' && (
+              <div className="mb-4 p-3 bg-zinc-50 rounded-lg border border-zinc-200">
+                <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1">Preview</p>
+                <p className="text-sm text-zinc-700">
+                  {inviteMethod === 'email'
+                    ? `Hey! You're invited to join our ${aiMeta?.destination || trip.destination} trip on tripcoord. Click the link to join the group and start planning together!`
+                    : `You're invited to ${aiMeta?.destination || trip.destination} on tripcoord! Join here: ${typeof window !== 'undefined' ? window.location.origin : 'tripcoord.ai'}/join/${tripPageId}`
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* Success */}
+            {inviteSent && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center mb-4">
+                <p className="text-sm font-semibold text-emerald-700">
+                  {inviteMethod === 'email' ? '✓ Invite sent! They\'ll see it in their email or tripcoord dashboard.' : `✓ Invite sent via ${inviteMethod}!`}
+                </p>
+              </div>
+            )}
+
+            {/* Error */}
+            {inviteError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg mb-4">
+                <p className="text-sm text-rose-700">{inviteError}</p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowInviteModal(false); setInviteContact(''); setInviteSent(false); setInviteError(null); }}
+                className="flex-1 px-4 py-2.5 border border-zinc-200 text-zinc-700 rounded-lg font-medium text-sm hover:bg-zinc-50 transition-colors"
+              >
+                {inviteMethod === 'link' ? 'Done' : 'Cancel'}
+              </button>
+              {inviteMethod !== 'link' && (
+                <button
+                  onClick={async () => {
+                    if (!inviteContact.trim()) return;
+                    setIsSendingInvite(true);
+                    setInviteError(null);
+                    const tripName = aiMeta?.destination || trip.destination;
+                    const inviterName = currentUser?.name || currentUser?.email || 'Your friend';
+                    try {
+                      const endpoint = inviteMethod === 'email' ? '/api/invite/email' : '/api/invite/sms';
+                      const payload = inviteMethod === 'email'
+                        ? { email: inviteContact, tripId: tripPageId, tripName, inviterName }
+                        : { phone: inviteContact, tripId: tripPageId, tripName, inviterName };
+                      const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                      });
+                      if (!res.ok) throw new Error('Failed to send invite');
+                      const data = await res.json();
+                      if (data.noService) {
+                        const link = `${window.location.origin}/join/${tripPageId}`;
+                        await navigator.clipboard.writeText(link).catch(() => {});
+                        setInviteMethod('link');
+                        setInviteError('Email isn\'t set up yet — invite link copied to clipboard!');
+                        return;
+                      }
+                      setInviteSent(true);
+                      setTimeout(() => {
+                        setShowInviteModal(false);
+                        setInviteSent(false);
+                        setInviteContact('');
+                      }, 2000);
+                    } catch {
+                      setInviteError('Failed to send invite. Please try again.');
+                    } finally {
+                      setIsSendingInvite(false);
+                    }
+                  }}
+                  disabled={isSendingInvite || !inviteContact.trim()}
+                  className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white rounded-lg font-medium text-sm transition-colors"
+                >
+                  {isSendingInvite ? 'Sending…' : 'Send Invite'}
+                </button>
+              )}
             </div>
           </div>
         </div>
