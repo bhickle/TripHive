@@ -497,6 +497,12 @@ function ItineraryPageContent() {
       setAiDays(null);
     }
   };
+  // ⚠️  SYNC WARNING: aiMeta and tripRow are two separate state trees.
+  // tripRow mirrors the Supabase `trips` row; aiMeta holds AI/itinerary metadata.
+  // When you PATCH trips.booked_hotels (or any field that aiMeta also tracks),
+  // you MUST call setAiMeta() in the same handler to keep the UI in sync —
+  // the sidebar, "Tonight's Stay" card, and other UI components read from aiMeta,
+  // not directly from tripRow. Forgetting this causes stale UI until page reload.
   const [aiMeta, setAiMeta] = useState<{
     destination?: string; startDate?: string; endDate?: string;
     budget?: number; budgetBreakdown?: Record<string, number>;
@@ -1479,7 +1485,15 @@ function ItineraryPageContent() {
                   </button>
                   <div className="my-1 border-t border-zinc-100" />
                   <button
-                    onClick={() => { setShowAddHotelModal(true); setShowAddMenu(false); }}
+                    onClick={() => {
+                      // Pre-fill dates from trip start/end so users don't have to type them
+                      const tripStart = tripRow?.start_date ?? aiMeta?.startDate ?? '';
+                      const tripEnd = tripRow?.end_date ?? aiMeta?.endDate ?? '';
+                      setHotelFormCheckIn(tripStart);
+                      setHotelFormCheckOut(tripEnd);
+                      setShowAddHotelModal(true);
+                      setShowAddMenu(false);
+                    }}
                     className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
                   >
                     <span className="text-base leading-none">🏨</span> Hotel
@@ -2213,6 +2227,46 @@ function ItineraryPageContent() {
                 </div>
               </div>
             )}
+
+            {/* Tonight's Stay — shown when a booked hotel covers this day */}
+            {(() => {
+              const todaysHotels = (aiMeta?.bookedHotels ?? []).filter(h => {
+                // No dates = show on every day
+                if (!h.checkIn && !h.checkOut) return true;
+                const dayDate = currentDayData.date
+                  ? new Date(currentDayData.date.length === 10 ? currentDayData.date + 'T00:00:00' : currentDayData.date)
+                  : null;
+                if (!dayDate) return true;
+                const checkIn = h.checkIn ? new Date(h.checkIn.length === 10 ? h.checkIn + 'T00:00:00' : h.checkIn) : null;
+                const checkOut = h.checkOut ? new Date(h.checkOut.length === 10 ? h.checkOut + 'T00:00:00' : h.checkOut) : null;
+                if (checkIn && dayDate < checkIn) return false;
+                if (checkOut && dayDate >= checkOut) return false; // checkout day — already departed
+                return true;
+              });
+              if (todaysHotels.length === 0) return null;
+              return (
+                <div className="mt-4 space-y-2">
+                  {todaysHotels.map((h, i) => {
+                    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.address ?? aiMeta?.destination ?? ''}`.trim())}`;
+                    return (
+                      <div key={i} className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                        <span className="text-base flex-shrink-0 mt-0.5">🛏️</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-amber-500 mb-0.5">Tonight's Stay</p>
+                          <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>
+                          {h.address && <p className="text-xs text-amber-600 mt-0.5">{h.address}</p>}
+                        </div>
+                        <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                          title="View on Google Maps"
+                          className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors mt-0.5">
+                          <MapPin className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Sidebar */}
@@ -2519,8 +2573,8 @@ function ItineraryPageContent() {
               );
             })()}
 
-            {/* Where to Stay — collapsible wrapper */}
-            {aiMeta?.destination && (
+            {/* Where to Stay — collapsible wrapper. Hidden once hotels are booked (they show inline on the day timeline instead). */}
+            {aiMeta?.destination && (aiMeta?.bookedHotels ?? []).length === 0 && (
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
               <button
                 onClick={() => toggleSidebarSection('hotel')}
