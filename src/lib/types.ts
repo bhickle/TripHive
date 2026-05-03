@@ -52,6 +52,10 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   canUseWishlist: boolean;
   canUseAIPacking: boolean;
   canUseAIPhrasebook: boolean;
+  /** Manual group expense tracking (equal/custom splits, settlement calc) */
+  canUseExpenses: boolean;
+  /** AI receipt scanning via vision API — Nomad only */
+  canUseAIReceiptScan: boolean;
   supportLevel: 'community' | 'email' | 'priority';
   earlyAccess: boolean;
 }> = {
@@ -72,6 +76,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canUseWishlist: false,
     canUseAIPacking: false,
     canUseAIPhrasebook: false,
+    canUseExpenses: false,
+    canUseAIReceiptScan: false,
     supportLevel: 'community',
     earlyAccess: false,
   },
@@ -89,6 +95,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canUseWishlist: false,
     canUseAIPacking: false,
     canUseAIPhrasebook: false,
+    canUseExpenses: true,
+    canUseAIReceiptScan: false,
     supportLevel: 'email',
     earlyAccess: false,
   },
@@ -106,6 +114,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canUseWishlist: true,
     canUseAIPacking: false,
     canUseAIPhrasebook: false,
+    canUseExpenses: true,
+    canUseAIReceiptScan: false,
     supportLevel: 'email',
     earlyAccess: false,
   },
@@ -123,6 +133,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     canUseWishlist: true,
     canUseAIPacking: true,
     canUseAIPhrasebook: true,
+    canUseExpenses: true,
+    canUseAIReceiptScan: true,
     supportLevel: 'priority',
     earlyAccess: true,
   },

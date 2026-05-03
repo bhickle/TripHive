@@ -243,6 +243,8 @@ export function useEntitlements(tripId?: string) {
     hasWishlist: !entitlementsReady || limits.canUseWishlist,
     hasAIPacking: !entitlementsReady || limits.canUseAIPacking,
     hasAIPhrasebook: !entitlementsReady || limits.canUseAIPhrasebook,
+    hasExpenses: !entitlementsReady || limits.canUseExpenses,
+    hasAIReceiptScan: !entitlementsReady || limits.canUseAIReceiptScan,
     hasEarlyAccess: !entitlementsReady || limits.earlyAccess,
     maxTripDays: limits.maxTripDays,
   };

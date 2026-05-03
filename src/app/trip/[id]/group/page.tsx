@@ -189,7 +189,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     loadAll();
   }, [isMockTrip, params.id, currentUserId]);
 
-  const { canAddTraveler, getUpgradePrompt, hasCoOrganizer } = useEntitlements(params.id);
+  const { canAddTraveler, getUpgradePrompt, hasCoOrganizer, hasExpenses, hasAIReceiptScan } = useEntitlements(params.id);
   const [showTravelerUpgrade, setShowTravelerUpgrade] = useState(false);
 
   // Co-organizer role state
@@ -972,8 +972,22 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
         {activeTab === 'expenses' && (
           <div className="space-y-6">
+            {/* Tier gate for free users */}
+            {!hasExpenses && (
+              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-8 text-center">
+                <Lock className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+                <h3 className="font-semibold text-zinc-800 mb-1">Expense tracking is a paid feature</h3>
+                <p className="text-sm text-zinc-500 mb-5 max-w-xs mx-auto">
+                  Split costs, track who paid, and settle up with your group. Available on Trip Pass and above.
+                </p>
+                <a href="/pricing" className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm rounded-full transition-colors">
+                  See plans
+                </a>
+              </div>
+            )}
+
             {/* Header */}
-            <div className="flex items-center justify-between">
+            {hasExpenses && <div className="flex items-center justify-between">
               <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Who Owes Who</h2>
               <button
                 onClick={() => setShowAddExpenseModal(true)}
@@ -982,7 +996,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 <Plus className="w-4 h-4" />
                 Add Expense
               </button>
-            </div>
+            </div>}
 
             {/* Summary bar */}
             {allExpenses.length > 0 && (
@@ -1071,8 +1085,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               );
             })()}
 
-            {/* Expense list */}
-            <div className="space-y-3">
+            {/* Expense list — only visible to paid tiers */}
+            {hasExpenses && <div className="space-y-3">
               <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-400">All Expenses</h3>
               {allExpenses.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-10 text-center">
@@ -1114,7 +1128,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   })}
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Add Expense Modal */}
             {showAddExpenseModal && (
@@ -1127,9 +1141,18 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     <div className="flex items-center gap-2 mb-3">
                       <ScanLine className="w-4 h-4 text-sky-700" />
                       <span className="text-sm font-semibold text-zinc-700">AI Receipt Scan</span>
-                      <span className="text-xs text-zinc-400 ml-auto">Optional</span>
+                      {hasAIReceiptScan
+                        ? <span className="text-xs text-zinc-400 ml-auto">Optional</span>
+                        : <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5"><Crown className="w-3 h-3" />Nomad</span>
+                      }
                     </div>
-                    {!uploadedReceipt ? (
+                    {!hasAIReceiptScan ? (
+                      <div className="border-2 border-dashed border-zinc-200 rounded-xl p-5 text-center opacity-60">
+                        <Lock className="w-5 h-5 text-zinc-300 mx-auto mb-2" />
+                        <p className="text-sm text-zinc-400">AI receipt scanning is a Nomad feature</p>
+                        <a href="/pricing" className="text-xs text-sky-700 underline mt-1 inline-block">Upgrade to Nomad →</a>
+                      </div>
+                    ) : !uploadedReceipt ? (
                       <div
                         className="border-2 border-dashed border-zinc-200 rounded-xl p-5 text-center cursor-pointer hover:border-sky-400 transition-colors"
                         onDragOver={e => e.preventDefault()}

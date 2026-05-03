@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
   CalendarDays, Map, Camera, Shield, Star, ChevronDown,
-  ChevronUp, Lock, Crown, Loader2,
+  ChevronUp, Lock, Crown, Loader2, Receipt,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
@@ -40,6 +40,8 @@ const featureRows: {
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   // Group & trips
   { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Group expense tracking', icon: <Receipt className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
+  { label: 'AI receipt scanning', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
   { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
   { label: 'Wishlist & destination discovery', icon: <Globe className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
@@ -263,6 +265,7 @@ export default function PricingPage() {
                 '30 AI credits for this trip',
                 'AI itinerary generation',
                 'Transport confirmation parser',
+                'Group expense tracking (manual splits)',
                 'Trip Story (shareable)',
                 'Group invite & member management',
                 'Packing & prep checklists',
@@ -315,6 +318,8 @@ export default function PricingPage() {
                 '100 AI credits / month',
                 'AI itinerary generation — up to 10 days',
                 'Transport confirmation parser',
+                'Group expense tracking (manual splits)',
+                'Group chat',
                 'Split-track itineraries (Track A/B)',
                 'Co-organizer role — share edit access',
                 'Wishlist & destination discovery',
@@ -368,6 +373,7 @@ export default function PricingPage() {
                 { text: 'Up to 15 travelers per trip', highlight: false },
                 { text: 'AI itineraries up to 14 days', highlight: true },
                 { text: '350 AI credits / month', highlight: true },
+                { text: 'AI receipt scanning (scan to split)', highlight: true },
                 { text: 'AI packing list (destination-specific)', highlight: true },
                 { text: 'AI travel phrasebook', highlight: true },
                 { text: 'Early access to new features', highlight: true },
