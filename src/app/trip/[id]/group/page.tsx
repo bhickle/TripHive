@@ -497,6 +497,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const handleCastVote = async (voteId: string, optionId: string) => {
     const prevOptionId = userVotes[voteId];
     if (prevOptionId === optionId) return; // already voted this option
+
+    // Capture pre-update state for rollback
+    const prevVotes = votes;
+    const prevUserVotes = userVotes;
+
+    // Optimistic update
     setUserVotes(prev => ({ ...prev, [voteId]: optionId }));
     setVotes(prev => prev.map(v => {
       if (v.id !== voteId) return v;
@@ -511,12 +517,17 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     }));
     if (!isMockTrip) {
       try {
-        await fetch(`/api/trips/${params.id}/group-votes`, {
+        const res = await fetch(`/api/trips/${params.id}/group-votes`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ voteId, optionId, prevOptionId: prevOptionId ?? null }),
         });
-      } catch { /* optimistic already shown */ }
+        if (!res.ok) throw new Error('Vote failed');
+      } catch {
+        // Rollback optimistic update on failure
+        setVotes(prevVotes);
+        setUserVotes(prevUserVotes);
+      }
     }
   };
 

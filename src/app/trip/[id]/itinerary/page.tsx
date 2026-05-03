@@ -377,9 +377,11 @@ function ItineraryPageContent() {
     // Compute new vote counts using the current votes state via functional updater
     // (captures prev synchronously so next is available immediately after)
     let next: { up: number; down: number; myVote: 'up' | 'down' | null } = { up: 0, down: 0, myVote: null };
+    let prevVoteState: { up: number; down: number; myVote: 'up' | 'down' | null } = { up: 0, down: 0, myVote: null };
 
     setVotes(prev => {
       const current = prev[activityId] ?? { up: 0, down: 0, myVote: null };
+      prevVoteState = current; // capture before update for rollback
       if (current.myVote === direction) {
         // Toggle off
         next = {
@@ -423,7 +425,10 @@ function ItineraryPageContent() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ days: updated }),
-      }).catch(() => {});
+      }).catch(() => {
+        // Rollback aiDays to pre-vote state on failure
+        syncAiDays(days);
+      });
     }
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
 
@@ -439,7 +444,10 @@ function ItineraryPageContent() {
           const { up, down } = await res.json();
           setVotes(prev => ({ ...prev, [activityId]: { ...prev[activityId], up, down } }));
         }
-      }).catch(() => {});
+      }).catch(() => {
+        // Rollback vote indicator to pre-vote state on failure
+        setVotes(prev => ({ ...prev, [activityId]: prevVoteState }));
+      });
     }
   }, [params.id]);
 
@@ -971,7 +979,13 @@ function ItineraryPageContent() {
         budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown']) ?? trips[0].budgetBreakdown,
         budgetTotal: aiMeta.budget ?? trips[0].budgetTotal }
     : (trips.find(t => t.id === 'trip_1') || trips[0]);
-  const currentDayData: ItineraryDay = (activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0]) as ItineraryDay;
+  // Guard: if activeDays is empty, currentDayData will never be rendered (the
+  // "no itinerary" empty state gate below returns early before any access).
+  // Cast is safe because every render path that uses currentDayData is gated on
+  // activeDays.length > 0 via the hasDays check.
+  const currentDayData: ItineraryDay = (
+    activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0] || {}
+  ) as ItineraryDay;
 
   // ─── Persist updated days to state + localStorage + Supabase ─────────────────
   const persistDays = useCallback((updated: ItineraryDay[]) => {
@@ -1333,8 +1347,8 @@ function ItineraryPageContent() {
     return isWithinTripWindow ? 'Weather Today' : 'Avg. Weather';
   })();
 
-  const hasTrackA = currentDayData.tracks.track_a.length > 0;
-  const hasTrackB = currentDayData.tracks.track_b.length > 0;
+  const hasTrackA = (currentDayData.tracks?.track_a?.length ?? 0) > 0;
+  const hasTrackB = (currentDayData.tracks?.track_b?.length ?? 0) > 0;
   const hasSplitTracks = hasTrackA || hasTrackB;
 
   const budgetCategories = [

@@ -138,6 +138,7 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState(false);
   const [pwResetSending, setPwResetSending] = useState(false);
   const [pwResetSent, setPwResetSent] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
@@ -145,6 +146,8 @@ export default function SettingsPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  // Stores the last Supabase-fetched persona so Cancel can restore it correctly
+  const lastSavedPersonaRef = useRef<{ vibes: string[]; groupType: string; priorities: string[] } | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userTrips, setUserTrips] = useState<any[]>([]);
 
@@ -197,11 +200,13 @@ export default function SettingsPage() {
         .then(data => {
           if (data?.travelPersona) {
             const p = data.travelPersona;
-            setPersona({
+            const loaded = {
               vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
               groupType:  p.groupType  ?? 'friends',
               priorities: Array.isArray(p.priorities) ? p.priorities : [],
-            });
+            };
+            setPersona(loaded);
+            lastSavedPersonaRef.current = loaded;
           } else {
             // Fall back to localStorage if Supabase has nothing yet
             try {
@@ -285,19 +290,27 @@ export default function SettingsPage() {
 
   const saveProfile = async () => {
     setProfileSaving(true);
+    setProfileSaveError(false);
+    let savedOk = true;
     if (user) {
       try {
-        await fetch('/api/auth/me', {
+        const res = await fetch('/api/auth/me', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: profile.name }),
         });
-      } catch { /* ignore network errors */ }
+        if (!res.ok) savedOk = false;
+      } catch { savedOk = false; }
     }
     setProfileSaving(false);
-    setEditingProfile(false);
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2000);
+    if (savedOk) {
+      setEditingProfile(false);
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } else {
+      setProfileSaveError(true);
+      setTimeout(() => setProfileSaveError(false), 3000);
+    }
   };
 
   const savePersona = async () => {
@@ -335,18 +348,22 @@ export default function SettingsPage() {
   };
 
   const cancelPersona = () => {
-    // Reload from localStorage
-    try {
-      const stored = localStorage.getItem('tripcoord_profile');
-      if (stored) {
-        const p = JSON.parse(stored);
-        setPersona({
-          vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
-          groupType:  p.groupType  ?? 'friends',
-          priorities: Array.isArray(p.priorities) ? p.priorities : [],
-        });
-      }
-    } catch { /* ignore */ }
+    // Restore from the last Supabase-fetched state if available; otherwise fall back to localStorage
+    if (lastSavedPersonaRef.current) {
+      setPersona(lastSavedPersonaRef.current);
+    } else {
+      try {
+        const stored = localStorage.getItem('tripcoord_profile');
+        if (stored) {
+          const p = JSON.parse(stored);
+          setPersona({
+            vibes:      Array.isArray(p.vibes)      ? p.vibes      : [],
+            groupType:  p.groupType  ?? 'friends',
+            priorities: Array.isArray(p.priorities) ? p.priorities : [],
+          });
+        }
+      } catch { /* ignore */ }
+    }
     setEditingPersona(false);
   };
 
@@ -375,8 +392,10 @@ export default function SettingsPage() {
   const plan = PLAN_DISPLAY[tier];
   const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
 
+  // Credit totals derived from tier — not from the mock currentUser hook which has no real data for paid tiers
+  const AI_CREDIT_TOTALS: Record<string, number> = { free: 10, explorer: 100, nomad: 350, trip_pass: 30 };
   const aiUsed  = authLoading ? 0 : (user ? (authProfile?.ai_credits_used ?? 0) : (currentUser.aiCredits?.used ?? 0));
-  const aiTotal = authLoading ? 0 : (currentUser.aiCredits?.total ?? 0);
+  const aiTotal = authLoading ? 0 : (AI_CREDIT_TOTALS[tier] ?? 10);
   const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : '0 / 10';
   const aiPct     = aiTotal > 0 ? Math.min(100, Math.round((aiUsed / aiTotal) * 100)) : 0;
 
@@ -708,9 +727,9 @@ export default function SettingsPage() {
                         <button
                           onClick={saveProfile}
                           disabled={profileSaving}
-                          className={`px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${profileSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                          className={`px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${profileSaved ? 'bg-green-600 text-white' : profileSaveError ? 'bg-rose-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                         >
-                          {profileSaved ? '✓ Saved!' : profileSaving ? 'Saving…' : 'Save Changes'}
+                          {profileSaved ? '✓ Saved!' : profileSaving ? 'Saving…' : profileSaveError ? '✕ Save failed' : 'Save Changes'}
                         </button>
                         <button
                           onClick={() => { setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl }); setEditingProfile(false); }}
