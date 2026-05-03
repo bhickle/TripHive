@@ -255,6 +255,7 @@ function buildPrompt(params: {
   bookedFlight?: BookedFlight | null;
   bookedHotel?: BookedHotel | null;    // legacy single-hotel (kept for backward compat)
   bookedHotels?: BookedHotel[];        // preferred: array of hotels for multi-hotel trips
+  bookedCar?: { company?: string; pickupLocation?: string; carClass?: string; confirmationRef?: string } | null;
   mustHaves?: string[];                // user's non-negotiable places/experiences
   destinations?: string[];             // ordered city list for multi-city trips
   daysPerDestination?: Record<string, number>; // optional day allocation per city
@@ -277,6 +278,7 @@ function buildPrompt(params: {
   const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
   const multiCityPlaces = params.multiCityPlaces ?? null;
+  const bookedCar = params.bookedCar ?? null;
   const organizerPersona = params.organizerPersona ?? null;
   const memberPersonas = params.memberPersonas ?? [];
   const groupSize = params.groupSize ?? 2;
@@ -377,9 +379,12 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
     ? '\n- DATE NIGHT: On the most fitting evening of the trip (typically mid-trip, not the first or last night), reserve the dinner slot for a romantic, special experience — a candlelit restaurant, a scenic rooftop, a private tasting, or something the destination is known for that feels intimate and memorable. Label the dinner on that day as "Date Night 🌙" and write the description in a warm, romantic tone. All other evenings should be planned normally.'
     : '';
 
-  const modalityText = modality && modality !== 'mix'
-    ? `\n- Primary transport: ${modality} — build routes and day plans around this mode`
-    : '';
+  // If a confirmed rental car is declared, it overrides the modality preference entirely
+  const modalityText = bookedCar
+    ? '' // car rental rule will be injected in preBookingText below
+    : (modality && modality !== 'mix'
+        ? `\n- Primary transport: ${modality} — build routes and day plans around this mode`
+        : '');
 
   const accommodationText = accommodationType
     ? `\n- Staying in: ${accommodationType} — factor this into meeting points and daily logistics`
@@ -598,6 +603,25 @@ You MUST follow ALL of these rules:
     - meetupLocation each day should reference the active morning hotel lobby or nearest landmark
   → All hotel costs are already paid; exclude hotel from budget recommendations.`;
     }
+  }
+
+  // Pre-booked rental car — overrides modality and locks transport mode for the trip
+  if (bookedCar) {
+    const carDetails = [
+      bookedCar.company ? `Rental company: ${bookedCar.company}` : null,
+      bookedCar.carClass ? `Vehicle class: ${bookedCar.carClass}` : null,
+      bookedCar.pickupLocation ? `Pickup: ${bookedCar.pickupLocation}` : null,
+      bookedCar.confirmationRef ? `Confirmation: ${bookedCar.confirmationRef}` : null,
+    ].filter(Boolean).join('. ');
+    preBookingText += `\nPRE-BOOKED RENTAL CAR (CONFIRMED):
+  ${carDetails}
+  → CRITICAL: This group has a confirmed rental car for the entire trip. Apply these rules without exception:
+    - Use "car_rental" as the transportToNext mode for ALL inter-activity legs longer than 15 minutes
+    - Do NOT suggest taxis, rideshares, buses, trains, or any other transport for city-to-city or inter-area legs
+    - Park-and-walk is fine within dense urban cores (walkable distances <1km) — note "Street parking near X" in the transport leg
+    - Day routes should be circular or logically sequential to minimize backtracking — think road-trip logic, not point-to-point public transit
+    - For multi-city trips: the car enables flexible departure times — no need to match train/bus schedules
+    - Car rental cost is already paid; exclude car hire from budget recommendations`;
   }
 
   // Hotel recommendation context (only when no hotel is pre-booked)
@@ -1146,6 +1170,7 @@ export async function POST(request: NextRequest) {
     bookedFlight: body.bookedFlight as BookedFlight | null,
     bookedHotel: body.bookedHotel as BookedHotel | null,   // legacy
     bookedHotels: body.bookedHotels as BookedHotel[],      // preferred
+    bookedCar: body.bookedCar as { company?: string; pickupLocation?: string; carClass?: string; confirmationRef?: string } | null,
     mustHaves: (body.mustHaves as string[] | undefined) ?? [],
     destinations: (body.destinations as string[] | undefined) ?? [],
     daysPerDestination: (body.daysPerDestination as Record<string, number> | undefined) ?? {},

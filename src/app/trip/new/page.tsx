@@ -58,6 +58,13 @@ interface BookedHotel {
   checkOut: string;
 }
 
+interface BookedCar {
+  company: string;         // e.g. "Hertz", "Enterprise", "Sixt"
+  pickupLocation: string;  // e.g. "Keflavik Airport (KEF)"
+  carClass: string;        // e.g. "Compact SUV", "Economy"
+  confirmationRef: string; // booking / confirmation code
+}
+
 interface TripWizardState {
   groupType: string;
   groupSize: number;
@@ -85,8 +92,10 @@ interface TripWizardState {
   difficultyPrefs: Record<string, string>;
   bookedFlight: BookedFlight | null;
   bookedHotels: BookedHotel[];
+  bookedCar: BookedCar | null;
   hasPreBookedFlight: boolean;
   hasPreBookedHotel: boolean;
+  hasPreBookedCar: boolean;
   /** Nomad only: return flight departs from a different airport */
   isOpenJaw: boolean;
   /** Places or experiences the user absolutely must have in the itinerary */
@@ -398,8 +407,10 @@ function TripBuilderPage() {
     difficultyPrefs: {},
     bookedFlight: null,
     bookedHotels: [],
+    bookedCar: null,
     hasPreBookedFlight: false,
     hasPreBookedHotel: false,
+    hasPreBookedCar: false,
     isOpenJaw: false,
     mustHaves: [],
     destinations: [],
@@ -682,6 +693,7 @@ function TripBuilderPage() {
       accommodationType: state.accommodationType.join(', '),
       bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
       bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+      bookedCar: state.hasPreBookedCar ? state.bookedCar : null,
       // Pass pre-fetched places if available — backend will skip its own fetch
       ...(placesCache ? {
         preFetchedRealPlaces: placesCache.realPlaces,
@@ -708,6 +720,7 @@ function TripBuilderPage() {
         curiosityLevel: state.curiosityLevel,
         ageRanges: state.ageRanges,
         accessibilityNeeds: state.accessibilityNeeds,
+        ...(state.hasPreBookedCar && state.bookedCar ? { bookedCar: state.bookedCar } : {}),
       },
     };
 
@@ -2161,7 +2174,86 @@ function TripBuilderPage() {
                   )}
                 </div>
 
-                {!state.hasPreBookedFlight && !state.hasPreBookedHotel && (
+                {/* Rental Car Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🚗</span>
+                      <span className="font-semibold text-zinc-900">Rental Car</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-sm text-zinc-600">Already booked</span>
+                      <button
+                        onClick={() => setState(prev => ({
+                          ...prev,
+                          hasPreBookedCar: !prev.hasPreBookedCar,
+                          bookedCar: !prev.hasPreBookedCar
+                            ? { company: '', pickupLocation: '', carClass: '', confirmationRef: '' }
+                            : null,
+                        }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          state.hasPreBookedCar ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          state.hasPreBookedCar ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </label>
+                  </div>
+
+                  {state.hasPreBookedCar && state.bookedCar && (
+                    <div className="p-5 bg-amber-50 border border-amber-100 rounded-xl space-y-4">
+                      <p className="text-xs text-amber-700 font-medium -mb-1">
+                        The AI will route all inter-destination legs around your confirmed car rental.
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Rental Company</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Hertz, Enterprise, Sixt"
+                            value={state.bookedCar.company}
+                            onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, company: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Car Class</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Compact SUV, Economy"
+                            value={state.bookedCar.carClass}
+                            onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, carClass: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Pickup Location</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Keflavik Airport (KEF), Downtown Chicago"
+                          value={state.bookedCar.pickupLocation}
+                          onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, pickupLocation: e.target.value } }))}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Confirmation # (optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. HZ-4821993"
+                          value={state.bookedCar.confirmationRef}
+                          onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, confirmationRef: e.target.value } }))}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {!state.hasPreBookedFlight && !state.hasPreBookedHotel && !state.hasPreBookedCar && (
                   <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
                     <p className="text-sm text-zinc-500">No pre-bookings? No problem — your AI itinerary will include hotel and flight suggestions that fit your budget.</p>
                   </div>

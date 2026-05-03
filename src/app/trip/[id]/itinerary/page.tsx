@@ -304,6 +304,27 @@ function ItineraryPageContent() {
   const [editEndDate, setEditEndDate] = useState('');
   const [savingTripEdit, setSavingTripEdit] = useState(false);
 
+  // Add Hotel / Add Flight modals
+  const [showAddHotelModal, setShowAddHotelModal] = useState(false);
+  const [showAddFlightModal, setShowAddFlightModal] = useState(false);
+  const [savingBooking, setSavingBooking] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  // Hotel form state
+  const [hotelFormName, setHotelFormName] = useState('');
+  const [hotelFormCity, setHotelFormCity] = useState('');
+  const [hotelFormAddress, setHotelFormAddress] = useState('');
+  const [hotelFormCheckIn, setHotelFormCheckIn] = useState('');
+  const [hotelFormCheckOut, setHotelFormCheckOut] = useState('');
+  // Flight form state
+  const [flightFormAirline, setFlightFormAirline] = useState('');
+  const [flightFormNumber, setFlightFormNumber] = useState('');
+  const [flightFormDep, setFlightFormDep] = useState('');
+  const [flightFormArr, setFlightFormArr] = useState('');
+  const [flightFormDepTime, setFlightFormDepTime] = useState('');
+  const [flightFormArrTime, setFlightFormArrTime] = useState('');
+  const [flightFormRetDepTime, setFlightFormRetDepTime] = useState('');
+  const [flightFormRetArrTime, setFlightFormRetArrTime] = useState('');
+
   const { tier, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements();
   const currentUser = useCurrentUser();
   const router = useRouter();
@@ -1407,18 +1428,27 @@ function ItineraryPageContent() {
               })()}
             </p>
           </div>
+          {/* Add menu is disabled once the trip is completed */}
+          {(() => {
+            const isTripCompleted = tripRow?.status === 'completed';
+            return (
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
             {/* Combined + Add dropdown */}
             <div className="relative" ref={addMenuRef}>
               <button
-                onClick={() => setShowAddMenu(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-sky-800 hover:bg-sky-900 text-white text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+                onClick={() => !isTripCompleted && setShowAddMenu(v => !v)}
+                title={isTripCompleted ? 'Trip is completed — viewing only' : undefined}
+                className={`flex items-center gap-1.5 px-3 py-2 md:px-4 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
+                  isTripCompleted
+                    ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+                    : 'bg-sky-800 hover:bg-sky-900 text-white'
+                }`}
               >
                 <Plus className="w-4 h-4" />
                 Add
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} />
               </button>
-              {showAddMenu && (
+              {showAddMenu && !isTripCompleted && (
                 <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-zinc-100 py-1.5 min-w-[190px] z-30">
                   <button
                     onClick={() => { setShowAddActivityModal(true); setShowAddMenu(false); }}
@@ -1434,11 +1464,17 @@ function ItineraryPageContent() {
                     {!hasTransportParser && <LockBadge />}
                   </button>
                   <div className="my-1 border-t border-zinc-100" />
-                  <button disabled className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-300 flex items-center gap-2.5 cursor-not-allowed">
-                    <span className="text-base leading-none">🏨</span> Hotel <span className="text-xs text-zinc-300 ml-auto">soon</span>
+                  <button
+                    onClick={() => { setShowAddHotelModal(true); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <span className="text-base leading-none">🏨</span> Hotel
                   </button>
-                  <button disabled className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-300 flex items-center gap-2.5 cursor-not-allowed">
-                    <span className="text-base leading-none">✈️</span> Flight <span className="text-xs text-zinc-300 ml-auto">soon</span>
+                  <button
+                    onClick={() => { setShowAddFlightModal(true); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <span className="text-base leading-none">✈️</span> Flight
                   </button>
                 </div>
               )}
@@ -1508,15 +1544,36 @@ function ItineraryPageContent() {
               <span className="hidden sm:inline">Export</span>
             </a>
 
-            <button
-              onClick={() => hasTripStory ? setShowStoryModal(true) : setUpgradePromptKey('feature_locked')}
-              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
-            >
-              <BookOpen className="w-4 h-4 text-sky-600" />
-              <span className="hidden sm:inline">Trip </span>Story
-              {!hasTripStory && <LockBadge />}
-            </button>
+            {(() => {
+              // Trip Story is available only after the trip's end date has passed (next day)
+              const endDateStr = tripRow?.end_date || aiMeta?.endDate;
+              const tripEnded = endDateStr
+                ? new Date() > new Date(new Date(endDateStr).getTime() + 24 * 60 * 60 * 1000)
+                : false;
+              const storyAvailable = hasTripStory && tripEnded;
+              return (
+                <button
+                  onClick={() => {
+                    if (!hasTripStory) { setUpgradePromptKey('feature_locked'); return; }
+                    if (!tripEnded) return; // button is visually disabled but we guard here too
+                    setShowStoryModal(true);
+                  }}
+                  title={hasTripStory && !tripEnded ? 'Available the day after your trip ends' : undefined}
+                  className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
+                    storyAvailable
+                      ? 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700'
+                      : 'bg-white border-zinc-200 text-zinc-400 cursor-not-allowed'
+                  }`}
+                >
+                  <BookOpen className={`w-4 h-4 ${storyAvailable ? 'text-sky-600' : 'text-zinc-300'}`} />
+                  <span className="hidden sm:inline">Trip </span>Story
+                  {!hasTripStory && <LockBadge />}
+                </button>
+              );
+            })()}
           </div>
+          );
+        })()}
         </div>
 
         {/* AI accuracy disclaimer — shown on AI-generated itineraries */}
@@ -2883,6 +2940,203 @@ function ItineraryPageContent() {
           prompt={getUpgradePrompt(upgradePromptKey)}
           onClose={() => setUpgradePromptKey(null)}
         />
+      )}
+
+      {/* ─── Add Hotel Modal ─── */}
+      {showAddHotelModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => { setShowAddHotelModal(false); setBookingError(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
+                <span className="text-2xl">🏨</span> Add Hotel
+              </h2>
+              <button onClick={() => { setShowAddHotelModal(false); setBookingError(null); }} className="p-1.5 rounded-full hover:bg-zinc-100">
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Hotel Name</label>
+                <input type="text" placeholder="e.g. Marriott Downtown" value={hotelFormName}
+                  onChange={e => setHotelFormName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">City</label>
+                  <input type="text" placeholder="e.g. Vienna" value={hotelFormCity}
+                    onChange={e => setHotelFormCity(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Address (optional)</label>
+                  <input type="text" placeholder="e.g. 44 Main St" value={hotelFormAddress}
+                    onChange={e => setHotelFormAddress(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Check-in</label>
+                  <input type="date" value={hotelFormCheckIn}
+                    onChange={e => setHotelFormCheckIn(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Check-out</label>
+                  <input type="date" value={hotelFormCheckOut}
+                    onChange={e => setHotelFormCheckOut(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+              </div>
+              {bookingError && (
+                <p className="text-xs text-rose-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{bookingError}</p>
+              )}
+              <button
+                disabled={savingBooking || !hotelFormName.trim()}
+                onClick={async () => {
+                  if (!hotelFormName.trim()) return;
+                  setSavingBooking(true); setBookingError(null);
+                  try {
+                    const existing: unknown[] = Array.isArray(tripRow?.booked_hotels) ? tripRow.booked_hotels : [];
+                    const newHotel = { name: hotelFormName.trim(), city: hotelFormCity.trim(), address: hotelFormAddress.trim(), checkIn: hotelFormCheckIn, checkOut: hotelFormCheckOut };
+                    const res = await fetch(`/api/trips/${tripPageId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ tripPatch: { booked_hotels: [...existing, newHotel] } }),
+                    });
+                    if (!res.ok) throw new Error('Save failed');
+                    // Update local tripRow
+                    setTripRow(prev => prev ? { ...prev, booked_hotels: [...existing, newHotel] } : prev);
+                    setShowAddHotelModal(false);
+                    setHotelFormName(''); setHotelFormCity(''); setHotelFormAddress(''); setHotelFormCheckIn(''); setHotelFormCheckOut('');
+                  } catch {
+                    setBookingError('Could not save. Please try again.');
+                  } finally {
+                    setSavingBooking(false);
+                  }
+                }}
+                className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+              >
+                {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Hotel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Add Flight Modal ─── */}
+      {showAddFlightModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => { setShowAddFlightModal(false); setBookingError(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
+                <span className="text-2xl">✈️</span> Add Flight
+              </h2>
+              <button onClick={() => { setShowAddFlightModal(false); setBookingError(null); }} className="p-1.5 rounded-full hover:bg-zinc-100">
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Airline</label>
+                  <input type="text" placeholder="e.g. Delta, United" value={flightFormAirline}
+                    onChange={e => setFlightFormAirline(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Flight #</label>
+                  <input type="text" placeholder="e.g. DL1234" value={flightFormNumber}
+                    onChange={e => setFlightFormNumber(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">From Airport</label>
+                  <input type="text" placeholder="e.g. JFK" value={flightFormDep}
+                    onChange={e => setFlightFormDep(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">To Airport</label>
+                  <input type="text" placeholder="e.g. CDG" value={flightFormArr}
+                    onChange={e => setFlightFormArr(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Outbound Departure</label>
+                  <input type="datetime-local" value={flightFormDepTime}
+                    onChange={e => setFlightFormDepTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Outbound Arrival</label>
+                  <input type="datetime-local" value={flightFormArrTime}
+                    onChange={e => setFlightFormArrTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departure</label>
+                  <input type="datetime-local" value={flightFormRetDepTime}
+                    onChange={e => setFlightFormRetDepTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Arrival</label>
+                  <input type="datetime-local" value={flightFormRetArrTime}
+                    onChange={e => setFlightFormRetArrTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
+                </div>
+              </div>
+              {bookingError && (
+                <p className="text-xs text-rose-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{bookingError}</p>
+              )}
+              <button
+                disabled={savingBooking || !flightFormAirline.trim()}
+                onClick={async () => {
+                  if (!flightFormAirline.trim()) return;
+                  setSavingBooking(true); setBookingError(null);
+                  try {
+                    const newFlight = {
+                      airline: flightFormAirline.trim(), flightNumber: flightFormNumber.trim(),
+                      departureAirport: flightFormDep.trim(), arrivalAirport: flightFormArr.trim(),
+                      departureTime: flightFormDepTime, arrivalTime: flightFormArrTime,
+                      returnDepartureTime: flightFormRetDepTime, returnArrivalTime: flightFormRetArrTime,
+                    };
+                    const res = await fetch(`/api/trips/${tripPageId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ tripPatch: { booked_flight: newFlight } }),
+                    });
+                    if (!res.ok) throw new Error('Save failed');
+                    setTripRow(prev => prev ? { ...prev, booked_flight: newFlight } : prev);
+                    setShowAddFlightModal(false);
+                    setFlightFormAirline(''); setFlightFormNumber(''); setFlightFormDep(''); setFlightFormArr(''); setFlightFormDepTime(''); setFlightFormArrTime(''); setFlightFormRetDepTime(''); setFlightFormRetArrTime('');
+                  } catch {
+                    setBookingError('Could not save. Please try again.');
+                  } finally {
+                    setSavingBooking(false);
+                  }
+                }}
+                className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+              >
+                {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Flight'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Trip Story Modal */}
