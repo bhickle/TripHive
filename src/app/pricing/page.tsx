@@ -39,8 +39,8 @@ const featureRows: {
   { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   // Group & trips
-  { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Group chat', icon: <Users className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Group chat', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   { label: 'Group expense tracking', icon: <Receipt className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'AI receipt scanning', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
@@ -232,8 +232,10 @@ export default function PricingPage() {
                 'Up to 4 travelers',
                 'Manual itinerary builder',
                 '10 AI credits / month',
+                'Group chat',
+                'Photo gallery',
                 'Join trips via invite link',
-                'Activity voting (view only)',
+                'Activity voting',
                 'Community support',
               ].map(f => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-zinc-600">
@@ -267,11 +269,9 @@ export default function PricingPage() {
                 'AI itinerary generation',
                 'Transport confirmation parser',
                 'Group expense tracking (manual splits)',
-                'Group chat',
                 'Trip Story (shareable)',
                 'Group invite & member management',
                 'Packing & prep checklists',
-                'Photo gallery',
                 'Email support',
               ].map(f => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-amber-900">
@@ -321,12 +321,10 @@ export default function PricingPage() {
                 'AI itinerary generation — up to 10 days',
                 'Transport confirmation parser',
                 'Group expense tracking (manual splits)',
-                'Group chat',
                 'Split-track itineraries (Track A/B)',
                 'Co-organizer role — share edit access',
                 'Wishlist & destination discovery',
                 'Year in Review',
-                'Photo gallery',
                 'Trip Story for every trip',
                 'Packing & prep checklists',
                 'Email support',

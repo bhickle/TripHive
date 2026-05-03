@@ -640,11 +640,11 @@ export default function DashboardPage() {
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold text-sm rounded-full transition-all border border-white/20 group-hover:border-white/40 flex-shrink-0 self-start sm:self-auto">
                   <Sparkles className="w-4 h-4" />
-                  {hasYearInReview ? 'See Your Year' : 'Nomad Only'}
+                  {hasYearInReview ? 'See Your Year' : 'Explorer+'}
                 </button>
                 {!hasYearInReview && (
                   <div className="absolute top-3 right-3 flex items-center gap-1 bg-amber-400/90 text-amber-900 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">
-                    <span>🔒</span> Nomad
+                    <span>🔒</span> Explorer+
                   </div>
                 )}
               </div>
