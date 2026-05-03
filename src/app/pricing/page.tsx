@@ -40,6 +40,7 @@ const featureRows: {
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   // Group & trips
   { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Group chat', icon: <Users className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'Group expense tracking', icon: <Receipt className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'AI receipt scanning', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
@@ -266,6 +267,7 @@ export default function PricingPage() {
                 'AI itinerary generation',
                 'Transport confirmation parser',
                 'Group expense tracking (manual splits)',
+                'Group chat',
                 'Trip Story (shareable)',
                 'Group invite & member management',
                 'Packing & prep checklists',
