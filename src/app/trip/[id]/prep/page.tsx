@@ -182,6 +182,25 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     tripDestination.toLowerCase().includes(kw)
   );
 
+  // Domestic US detection — suppress international travel tips (SIM, currency, Embassy)
+  // and hide the Phrases tab (English-only destination)
+  const US_STATE_ABBREVIATIONS = [
+    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+    'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+    'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+    'VA','WA','WV','WI','WY','DC',
+  ];
+  const destLower = tripDestination.toLowerCase();
+  const isDomesticUS = (
+    destLower.includes('united states') ||
+    destLower.includes(' usa') || destLower.endsWith('usa') ||
+    destLower.includes('u.s.a') ||
+    // Match "City, ST" pattern — e.g. "Pittsburgh, PA" or "New York, NY"
+    US_STATE_ABBREVIATIONS.some(abbr =>
+      new RegExp(`,\\s*${abbr}\\b`, 'i').test(tripDestination)
+    )
+  );
+
   // For multi-country trips (cruises, road trips), extract individual port/country names
   // so we can generate a phrasebook per distinct language region
   const parseDestinations = (dest: string): string[] => {
@@ -519,7 +538,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     const categories = ['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'];
     const totalCustomPacked = customPackItems.filter(i => i.packed).length;
     const totalPacked = packedItems.size + totalCustomPacked;
-    const totalItems = packingItems.length + customPackItems.length || 1;
+    const totalItems = packingItems.length + customPackItems.length;
     return (
       <div className="space-y-6">
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
@@ -532,15 +551,17 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <p className="text-sm text-zinc-600 mt-0.5">{isMockTrip ? 'AI-curated for Iceland in September' : `Packing list for ${tripDestination}`}</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${Math.round((totalPacked / totalItems) * 100)}%` }} />
+          {totalItems > 0 && (
+            <div className="space-y-2">
+              <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${Math.round((totalPacked / totalItems) * 100)}%` }} />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-zinc-900">{totalPacked}/{totalItems} packed</span>
+                <span className="text-xs text-zinc-500">{totalItems - totalPacked} remaining</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-semibold text-zinc-900">{totalPacked}/{totalItems} packed</span>
-              <span className="text-xs text-zinc-500">{totalItems - totalPacked} remaining</span>
-            </div>
-          </div>
+          )}
         </div>
 
         <WeatherWidget
@@ -780,32 +801,38 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </>
         ) : (
           <>
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-              <div className="flex gap-3">
-                <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="font-semibold text-blue-900 mb-1">SIM Card & Data Plan</h3>
-                  <p className="text-sm text-blue-700">Research local SIM options for {tripDestination} before you fly. Airport SIMs are convenient but often pricier — compare at a local carrier store on arrival if you have time.</p>
+            {!isDomesticUS && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                <div className="flex gap-3">
+                  <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-blue-900 mb-1">SIM Card & Data Plan</h3>
+                    <p className="text-sm text-blue-700">Research local SIM options for {tripDestination} before you fly. Airport SIMs are convenient but often pricier — compare at a local carrier store on arrival if you have time.</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
-              <div className="flex gap-3">
-                <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="font-semibold text-sky-900 mb-1">Currency & Payments</h3>
-                  <p className="text-sm text-sky-800">Check the local currency for {tripDestination} and whether cards are widely accepted. Notify your bank of travel dates to avoid card blocks. Airport ATMs are usually the safest withdrawal option.</p>
+            )}
+            {!isDomesticUS && (
+              <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
+                <div className="flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-sky-900 mb-1">Currency & Payments</h3>
+                    <p className="text-sm text-sky-800">Check the local currency for {tripDestination} and whether cards are widely accepted. Notify your bank of travel dates to avoid card blocks. Airport ATMs are usually the safest withdrawal option.</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
               <div className="flex gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-semibold text-red-900 mb-1">Emergency Information</h3>
                   <ul className="text-sm text-red-700 space-y-1 mt-2">
-                    <li><span className="font-semibold">Emergency Number:</span> 911 (US) · 112 (Europe) · 999 (UK) — or check local number for {tripDestination}</li>
-                    <li><span className="font-semibold">US Embassy:</span> Find the nearest embassy at <a href="https://www.usembassy.gov" target="_blank" rel="noopener noreferrer" className="underline">usembassy.gov</a></li>
+                    <li><span className="font-semibold">Emergency Number:</span> 911</li>
+                    {!isDomesticUS && (
+                      <li><span className="font-semibold">US Embassy:</span> Find the nearest embassy at <a href="https://www.usembassy.gov" target="_blank" rel="noopener noreferrer" className="underline">usembassy.gov</a></li>
+                    )}
                   </ul>
                 </div>
               </div>
@@ -1058,7 +1085,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             { id: 'documents', label: 'Important Stuff', icon: FileText },
             { id: 'logistics', label: 'Admin', icon: Briefcase },
             { id: 'packing', label: 'Pack This', icon: Backpack },
-            { id: 'phrases', label: 'Phrases', icon: Globe },
+            // Hide Phrases tab for domestic US trips — no foreign language needed
+            ...(!isDomesticUS ? [{ id: 'phrases', label: 'Phrases', icon: Globe }] : []),
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

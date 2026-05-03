@@ -96,11 +96,13 @@ function clearCachedProfile() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  // Pre-populate profile from localStorage cache so auth-gated UI renders immediately
-  // on page load without waiting for the Supabase round-trip.
+  // Pre-populate profile from localStorage cache so auth-gated UI has data the moment
+  // the session confirms — no waiting for the Supabase profile fetch round-trip.
   const [profile, setProfile] = useState<UserProfile | null>(() => readCachedProfile());
-  // Only show loading state if there is no cached profile to show
-  const [isLoading, setIsLoading] = useState(() => readCachedProfile() === null);
+  // Always start loading until the session check completes.
+  // The profile cache is used to hydrate data immediately once the session confirms,
+  // but we never expose isLoading=false before we know whether a session exists.
+  const [isLoading, setIsLoading] = useState(true);
 
   // One stable Supabase browser client for the lifetime of the provider
   const supabase = createBrowserClient(
@@ -156,6 +158,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setSession(session);
+        // If we already have this user's profile cached, clear loading immediately
+        // so the UI shows real data without waiting for the full Supabase profile fetch.
+        const cached = readCachedProfile();
+        if (cached?.id === session.user.id) {
+          setIsLoading(false);
+        }
         fetchProfile(session.user.id);
       } else {
         // Cookie read came back empty — do a server-validated fallback.

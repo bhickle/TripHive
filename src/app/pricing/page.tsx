@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
   CalendarDays, Map, Camera, Shield, Star, ChevronDown,
-  ChevronUp, Lock, Crown, Loader2, AlertCircle,
+  ChevronUp, Lock, Crown, Loader2,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
@@ -30,7 +30,7 @@ const featureRows: {
   { label: 'Manual itinerary builder', icon: <CalendarDays className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   { label: 'Packing & prep checklists', icon: <CheckCircle className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   { label: 'Activity voting', icon: <Star className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Group chat & expense splitting', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Group invite & member management', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   // AI
   { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
@@ -66,7 +66,7 @@ const faqs = [
   },
   {
     q: 'What happens if I use all my AI credits?',
-    a: "Free credits reset on the 1st of each month. Paid plan credits reset on your monthly renewal date. If you need more immediately, upgrading to Nomad gives you 350 credits — enough for even the most enthusiastic planner.",
+    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you 350 credits — enough for even the most enthusiastic planner.",
   },
   {
     q: 'Can I switch plans?',
@@ -115,27 +115,6 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-
-// Isolated component so useSearchParams is inside its own Suspense boundary
-function CreditsBanner() {
-  const searchParams = useSearchParams();
-  const reason = searchParams.get('reason');
-  if (reason !== 'credits') return null;
-  return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-4">
-      <div className="max-w-2xl mx-auto flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-semibold text-amber-900">You&apos;ve used all your AI credits for this billing period</p>
-          <p className="text-sm text-amber-700 mt-0.5">
-            Free credits reset at the start of each month; paid plan credits reset on your renewal date.
-            Upgrade below to get more right now — Explorer gives you 100 credits/month, Nomad gives you 350.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function PricingPage() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
@@ -193,11 +172,6 @@ export default function PricingPage() {
         </div>
       </nav>
 
-      {/* Credits-exhausted banner — shown when arriving from the generating page */}
-      <Suspense fallback={null}>
-        <CreditsBanner />
-      </Suspense>
-
       {/* Hero */}
       <section className="pt-20 pb-10 px-4 text-center">
         <p className="text-sky-700 text-xs font-bold uppercase tracking-widest mb-4">Pricing</p>
@@ -251,9 +225,10 @@ export default function PricingPage() {
             </Link>
             <ul className="space-y-3 flex-1">
               {[
-                '1 active trip',
+                'Unlimited active trips',
                 'Up to 4 travelers',
                 'Manual itinerary builder',
+                '10 AI credits / month',
                 'Join trips via invite link',
                 'Activity voting (view only)',
                 'Community support',
@@ -263,10 +238,6 @@ export default function PricingPage() {
                   {f}
                 </li>
               ))}
-              <li className="flex items-start gap-2.5 text-sm text-zinc-400">
-                <X className="w-4 h-4 text-zinc-200 flex-shrink-0 mt-0.5" />
-                No AI features
-              </li>
             </ul>
           </div>
           )}
@@ -293,7 +264,7 @@ export default function PricingPage() {
                 'AI itinerary generation',
                 'Transport confirmation parser',
                 'Trip Story (shareable)',
-                'Group chat & expense splitting',
+                'Group invite & member management',
                 'Packing & prep checklists',
                 'Photo gallery',
                 'Email support',
@@ -344,11 +315,13 @@ export default function PricingPage() {
                 '100 AI credits / month',
                 'AI itinerary generation — up to 10 days',
                 'Transport confirmation parser',
-                'Trip Story for every trip',
-                'Group chat & expense splitting',
-                'Packing & prep checklists',
+                'Split-track itineraries (Track A/B)',
+                'Co-organizer role — share edit access',
                 'Wishlist & destination discovery',
+                'Year in Review',
                 'Photo gallery',
+                'Trip Story for every trip',
+                'Packing & prep checklists',
                 'Email support',
               ].map(f => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-sky-100">
@@ -395,8 +368,6 @@ export default function PricingPage() {
                 { text: 'Up to 15 travelers per trip', highlight: false },
                 { text: 'AI itineraries up to 14 days', highlight: true },
                 { text: '350 AI credits / month', highlight: true },
-                { text: 'Split-track itineraries (Track A/B)', highlight: true },
-                { text: 'Co-organizer role — share edit access', highlight: true },
                 { text: 'AI packing list (destination-specific)', highlight: true },
                 { text: 'AI travel phrasebook', highlight: true },
                 { text: 'Early access to new features', highlight: true },

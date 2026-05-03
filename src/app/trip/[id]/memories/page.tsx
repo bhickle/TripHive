@@ -118,10 +118,10 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                 setTimeout(() => setAlbumShared(false), 3000);
               }
             }}
-            className={`rounded-lg p-6 hover:shadow-lg transition-all flex flex-col items-start justify-between ${
+            className={`rounded-lg p-6 hover:shadow-lg transition-all flex flex-col items-start justify-between border ${
               albumShared
-                ? 'bg-green-600 text-white'
-                : 'bg-gradient-to-r from-sky-800 to-green-800 text-white'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-gradient-to-br from-sky-50 to-sky-100 border-sky-200 text-sky-800'
             }`}
           >
             <Share2 className="w-8 h-8 mb-2" />

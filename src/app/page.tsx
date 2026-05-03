@@ -58,7 +58,7 @@ export default function HomePage() {
             Plan trips your whole group will love
           </h1>
           <p className="text-xl sm:text-2xl text-blue-50 mb-10 max-w-3xl mx-auto leading-relaxed">
-            AI-powered itineraries that keep everyone happy. Split expenses, vote on activities, and explore together—all in one beautiful platform.
+            AI-powered itineraries that keep everyone happy. Vote on activities, build split tracks, and explore together—all in one beautiful platform.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -125,20 +125,20 @@ export default function HomePage() {
                 Group Planning Tools
               </h3>
               <p className="text-slate-600 mb-6 leading-relaxed">
-                Vote on activities, manage decisions, split expenses, and communicate with your group seamlessly in one place.
+                Vote on activities, manage decisions, and keep your whole group aligned—without the endless back-and-forth.
               </p>
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Activity voting system</span>
+                  <span className="text-slate-700">Activity voting & Yay/Nay polls</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Expense splitting & settlements</span>
+                  <span className="text-slate-700">Invite your crew & manage the group</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Group chat & collaboration</span>
+                  <span className="text-slate-700">Packing checklists & prep hub</span>
                 </li>
               </ul>
             </div>
@@ -216,7 +216,7 @@ export default function HomePage() {
                 Plan & Enjoy
               </h3>
               <p className="text-slate-600">
-                Manage logistics, split expenses, stay synced, and enjoy your trip knowing everything is organized.
+                Manage logistics, stay synced with your group, and enjoy your trip knowing everything is organized.
               </p>
             </div>
           </div>
