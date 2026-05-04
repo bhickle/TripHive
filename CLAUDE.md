@@ -19,36 +19,22 @@ TripCoord is an AI-powered travel planning app. Users describe a trip (destinati
 **Vercel project ID:** `prj_CXOmPJ4ffTCbxR4lurg3jho7pEsW`  
 **Team ID:** `team_aXNtbEj1uZq70pRXyemRnhx5`
 
-### ⚠️ Git Lock Workaround (Windows mount issue)
-The `.git/index.lock` file frequently gets stuck on the Windows-mounted folder. **Never try to delete it directly — it won't work.** Instead, always commit via a temp clone:
+### Dev Environment
+Working directly on the Windows-native filesystem (`C:\Users\brand\OneDrive\Documents\Claude\Projects\Travel App\wayfare`) via Claude Code. Default shell is **PowerShell**; Bash is also available via the Bash tool. Git operations run directly against the local repo — no temp clone needed.
 
-```bash
-TEMP="/sessions/exciting-gifted-edison/tripcoord-deploy"
-TOKEN=$(cat "/sessions/exciting-gifted-edison/mnt/.claude/github_token.txt")
-rm -rf "$TEMP" && mkdir -p "$TEMP"
-rsync -a --exclude='.git' --exclude='node_modules' --exclude='.next' \
-  "/sessions/exciting-gifted-edison/mnt/Travel App/wayfare/" "$TEMP/"
-cd "$TEMP"
-git init -q
-git remote add origin "https://bhickle:${TOKEN}@github.com/bhickle/TripHive.git"
-git fetch origin -q && git reset --hard origin/master -q
-git config user.email "brandon.hickle@gmail.com"
-git config user.name "Brandon Hickle"
-# Copy changed files in, then:
-git add <files>
-git commit -m "message"
-git push origin master
-```
+### ⚠️ Stale Git Lock Files (OneDrive issue)
+OneDrive sync occasionally leaves stale `.git/index.lock`, `.git/HEAD.lock`, or `.git/index2.lock` files when a git process is interrupted. Symptom: `fatal: Unable to create '.../.git/index.lock': File exists`.
 
-After pushing, copy changed files back to the workspace so they stay in sync:
-```bash
-cp "$TEMP/src/path/to/file.tsx" "/sessions/exciting-gifted-edison/mnt/Travel App/wayfare/src/path/to/file.tsx"
+**Fix:** verify no git process is actually running, then delete the stale locks:
+```powershell
+Remove-Item .git/index.lock, .git/HEAD.lock, .git/index2.lock -ErrorAction SilentlyContinue
 ```
+Or via Bash: `rm -f .git/index.lock .git/HEAD.lock .git/index2.lock`
 
 ### TypeScript Check
-Always run before committing:
-```bash
-cd "/sessions/exciting-gifted-edison/mnt/Travel App/wayfare" && npx tsc --noEmit 2>&1
+Always run before committing (working directory is already the repo root):
+```
+npx tsc --noEmit
 ```
 
 ---
@@ -286,7 +272,6 @@ Before every `git push`:
 2. Check declaration order (hooks before their deps)
 3. Check type shapes match `types.ts` and `database.types.ts`
 4. Check cross-file response shapes (API route → caller)
-5. After pushing from temp clone, sync files back to workspace mount
 
 ### Mock Data Scope
 `src/data/mock.ts` is **only** for the demo/preview experience (unauthenticated users). All authenticated user flows must use real Supabase data. Never fall back to mock data for logged-in users.
