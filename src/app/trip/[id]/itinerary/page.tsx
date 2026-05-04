@@ -708,16 +708,17 @@ function ItineraryPageContent() {
       }
 
       // 2. Build per-city segment list (multi-city) or empty list (single-city)
+      // NOTE: daysPerDestination is Record<string, number> keyed by city name, NOT an array
       type Segment = { cityName: string; dayStart: number; dayCount: number };
       const destinations = payload.destinations as string[] | null | undefined;
-      const daysPerDest  = payload.daysPerDestination as number[] | null | undefined;
+      const daysPerDest  = payload.daysPerDestination as Record<string, number> | null | undefined;
       const segments: Segment[] = [];
-      if (destinations && destinations.length > 1 && daysPerDest && daysPerDest.length === destinations.length) {
+      if (destinations && destinations.length > 1 && daysPerDest) {
         let dayStart = 1;
-        for (let i = 0; i < destinations.length; i++) {
-          const dayCount = daysPerDest[i] ?? 0;
+        for (const cityName of destinations) {
+          const dayCount = daysPerDest[cityName] ?? 0;
           if (dayCount > 0) {
-            segments.push({ cityName: destinations[i], dayStart, dayCount });
+            segments.push({ cityName, dayStart, dayCount });
             dayStart += dayCount;
           }
         }
