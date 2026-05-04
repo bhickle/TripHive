@@ -57,6 +57,21 @@ export default function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [wishlistPreview, setWishlistPreview] = useState<any[]>([]);
 
+  /** Derive trip status from dates so the counter stays accurate without
+   *  relying on the stored DB column (which may lag behind reality). */
+  function computeStatus(startDate?: string, endDate?: string): 'planning' | 'active' | 'completed' {
+    if (!startDate) return 'planning';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    if (today < start) return 'planning';
+    if (!endDate) return 'active';
+    const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
+    return today <= end ? 'active' : 'completed';
+  }
+
   const loadTrips = () => {
     if (!currentUser.id || currentUser.isDemo) return;
     setTripsLoading(true);
@@ -73,7 +88,9 @@ export default function DashboardPage() {
             startDate: t.start_date,
             endDate: t.end_date,
             tripLength: t.trip_length,
-            status: t.status ?? 'planning',
+            // Compute status from dates — don't trust the stored column which
+            // can lag and cause completed trips to be missed in totalDays.
+            status: computeStatus(t.start_date, t.end_date),
             groupType: t.group_type,
             groupSize: Math.max(1, t.group_size ?? 1),
             coverImage: t.cover_image ?? null,
