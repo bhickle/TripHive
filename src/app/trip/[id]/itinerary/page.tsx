@@ -830,8 +830,39 @@ function ItineraryPageContent() {
             const { days, meta } = await streamSegment(seg, prevContext);
             if (i === 0) firstMeta = meta;
 
+            // Gap-fill: if the API's internal retry still came up short,
+            // request the missing days before advancing to the next city.
+            // Cap at 2 retries to avoid infinite loops on persistent failures.
+            let segDaysReceived = days.length;
+            const MAX_SEG_RETRIES = 2;
+            let segRetry = 0;
+            while (segDaysReceived < seg.dayCount && segRetry < MAX_SEG_RETRIES) {
+              segRetry++;
+              const gapSeg = {
+                cityName: seg.cityName,
+                dayStart: seg.dayStart + segDaysReceived,
+                dayCount: seg.dayCount - segDaysReceived,
+              };
+              const { days: retryDays } = await streamSegment(gapSeg, prevContext);
+              if (retryDays.length === 0) break; // AI stuck — give up
+              segDaysReceived += retryDays.length;
+              // Update prevContext from the last retry day
+              const lastRetry = retryDays[retryDays.length - 1] as Record<string, unknown> | undefined;
+              if (lastRetry) {
+                const rTheme  = (lastRetry.theme as string) || '';
+                const rShared = (lastRetry.tracks as Record<string, unknown>)?.shared as Array<Record<string, unknown>> | undefined;
+                const rAct    = rShared?.find(a => !(a.isRestaurant));
+                const rName   = rAct ? ((rAct.name as string) || (rAct.title as string) || '') : '';
+                prevContext = [rTheme, rName].filter(Boolean).join(', ').slice(0, 80) || null;
+              }
+            }
+
             // Build prevContext from last received day for continuity handoff
-            const lastDay = days[days.length - 1] as Record<string, unknown> | undefined;
+            const allSegDays = (aiDaysRef.current ?? []).filter(d => {
+              const dn = (d.day as number | undefined) ?? 0;
+              return dn >= seg.dayStart && dn < seg.dayStart + seg.dayCount;
+            });
+            const lastDay = (allSegDays.length > 0 ? allSegDays[allSegDays.length - 1] : days[days.length - 1]) as Record<string, unknown> | undefined;
             if (lastDay) {
               const theme   = (lastDay.theme as string) || '';
               const shared  = (lastDay.tracks as Record<string, unknown>)?.shared as Array<Record<string, unknown>> | undefined;

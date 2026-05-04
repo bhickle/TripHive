@@ -1423,7 +1423,9 @@ export async function POST(request: NextRequest) {
             `- All activities go in shared track; track_a and track_b stay as empty arrays []`,
             `- transportToNext is null on the LAST activity of each day only`,
             `- Use REAL venue names and full street addresses in ${resolvedDestination}`,
-            `- Day ${contToDay} is the final day — light schedule ending at airport/station`,
+            citySegment
+              ? `- Day ${contToDay} is the last day in ${citySegment.cityName} — full normal day, the group travels to the next city after checkout`
+              : `- Day ${contToDay} is the final day — light schedule ending at airport/station`,
             `- "meetupTime" must equal the start time of the first activity that day`,
             ``,
             `Return ONLY the JSON array for days ${contFromDay}–${contToDay}. No markdown. No explanation. Start with [ and end with ].`,
