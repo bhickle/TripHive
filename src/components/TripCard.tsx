@@ -153,7 +153,11 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
 
   const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
-  const daysCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  // Prefer the builder-selected trip length over date-diff.
+  // For flexible-date trips the stored dates span the availability window
+  // (e.g. "anytime in June"), making date-diff much larger than the actual trip.
+  const dateDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const daysCount = (trip.tripLength && trip.tripLength > 0) ? trip.tripLength : dateDiff;
   const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const status = statusConfig[trip.status];
 

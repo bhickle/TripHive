@@ -264,10 +264,15 @@ export default function DashboardPage() {
   const countriesVisited = new Set(
     allTrips.map((t) => t.destination.split(',')[1]?.trim()).filter(Boolean)
   ).size;
-  // Only count days from trips you've actually completed — not planning/future trips
+  // Only count days from trips you've actually completed — not planning/future trips.
+  // Prefer the builder-selected trip length over date-diff: for flexible-date trips
+  // the stored dates span the availability window, not the actual trip duration.
   const totalDays = allTrips
     .filter(t => t.status === 'completed')
     .reduce((sum, trip) => {
+      // Use the canonical trip length first (set in Step 3 of the builder)
+      if (trip.tripLength && trip.tripLength > 0) return sum + trip.tripLength;
+      // Fall back to date-diff for older trips that pre-date the tripLength field
       if (!trip.startDate || !trip.endDate) return sum;
       const start = new Date(trip.startDate);
       const end = new Date(trip.endDate);

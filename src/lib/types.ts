@@ -165,6 +165,11 @@ export interface Trip {
   coverImage: string;
   startDate: string;
   endDate: string;
+  /** The user-selected trip length in days (from the trip builder button).
+   *  Use this as the canonical day count — it's correct for both fixed-date
+   *  and flexible-date trips. For flexible trips the date range spans the
+   *  whole availability window, so date-diff would be wrong. */
+  tripLength?: number;
   status: 'planning' | 'active' | 'completed';
   budgetTotal: number;
   budgetBreakdown: BudgetBreakdown;
