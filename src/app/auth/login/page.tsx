@@ -18,16 +18,20 @@ export default function LoginPage() {
     setIsLoading(true);
     setError('');
 
-    // signInAction runs server-side: it calls Supabase, sets the auth cookie
-    // in the HTTP response, then redirects to /dashboard — all in one round trip.
-    // This avoids the client-side cookie timing issue where window.location.href
-    // would navigate before the browser had reliably stored the session cookie.
+    // signInAction runs server-side: calls Supabase and sets the auth cookies
+    // in the HTTP response. On success it returns { success: true } — we then
+    // do a hard navigation so the page fully reloads and AuthContext is
+    // re-initialised from scratch. A client-side router.push() would keep
+    // AuthContext mounted with its stale session=null state, causing the
+    // dashboard to immediately bounce back to /auth/login.
     const result = await signInAction(email.trim(), password);
 
-    // If signInAction returned, it means there was an error (redirect never returns).
-    if (result?.error) {
+    if ('error' in result) {
       setError(result.error);
       setIsLoading(false);
+    } else {
+      // Hard redirect — forces a full page reload so auth cookies are picked up
+      window.location.href = '/dashboard';
     }
   };
 

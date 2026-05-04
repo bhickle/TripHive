@@ -2,18 +2,24 @@
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 
 /**
  * Server action for email/password login.
  * Running sign-in server-side guarantees the auth cookies are set in the
- * HTTP response before the browser sees the redirect — no client-side cookie
- * timing issues, no session lost on page reload.
+ * HTTP response before the browser sees the navigation.
+ *
+ * NOTE: We intentionally do NOT call redirect() here. If we did, Next.js
+ * performs a client-side navigation which keeps AuthContext mounted with its
+ * old state (session = null, isLoading = false). The dashboard then sees no
+ * user and immediately bounces back to /auth/login before onAuthStateChange
+ * fires. Returning { success: true } and doing window.location.href on the
+ * client forces a full browser reload — AuthContext re-initialises from
+ * scratch, reads the freshly-set session cookies, and the auth check passes.
  */
 export async function signInAction(
   email: string,
   password: string,
-): Promise<{ error: string } | never> {
+): Promise<{ error: string } | { success: true }> {
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
@@ -39,7 +45,7 @@ export async function signInAction(
     return { error: error.message };
   }
 
-  // redirect() throws internally — Next.js sends a 303 to the browser.
-  // The auth cookies are already in the Set-Cookie headers at this point.
-  redirect('/dashboard');
+  // Auth cookies are now in the Set-Cookie response headers.
+  // The client will do a full hard navigation to /dashboard.
+  return { success: true };
 }
