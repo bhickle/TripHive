@@ -2991,7 +2991,7 @@ function TripBuilderPage() {
                         }
                         handleGenerateItinerary();
                       }}
-                      disabled={isGenerating || !entitlementsReady || !state.destination.trim()}
+                      disabled={isGenerating || !state.destination.trim()}
                       className="w-full flex items-center justify-center gap-2 py-4 text-base font-semibold rounded-full transition-all bg-sky-800 hover:bg-sky-900 text-white disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed shadow-sm"
                     >
                       {isGenerating ? (
