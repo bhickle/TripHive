@@ -39,13 +39,8 @@ export default function PrintItineraryPage() {
     load();
   }, [tripId]);
 
-  useEffect(() => {
-    if (!loading && days.length > 0) {
-      // Small delay to ensure render is complete
-      const t = setTimeout(() => window.print(), 500);
-      return () => clearTimeout(t);
-    }
-  }, [loading, days]);
+  // Removed auto-print: previously window.print() fired automatically,
+  // trapping users with no way to review before printing.
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen">
@@ -73,6 +68,17 @@ export default function PrintItineraryPage() {
         body { font-family: Georgia, serif; }
         .print-container { font-family: Georgia, serif; }
       `}</style>
+
+      {/* Print action bar — hidden when printing */}
+      <div className="no-print flex items-center justify-between mb-6 pb-4 border-b border-zinc-200">
+        <p className="text-sm text-zinc-500">Review your itinerary, then print or save as PDF.</p>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-sm font-semibold rounded-full hover:bg-zinc-700 transition-colors"
+        >
+          🖨️ Print / Save PDF
+        </button>
+      </div>
 
       {/* Header */}
       <div className="mb-8 pb-6 border-b-2 border-zinc-900">

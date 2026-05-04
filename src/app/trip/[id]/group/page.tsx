@@ -1312,6 +1312,18 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         const amt = parseFloat(newExpenseAmount);
                         if (isNaN(amt) || amt <= 0) return;
 
+                        // Validate custom split sums to the total
+                        if (newExpenseSplit === 'custom') {
+                          const customTotal = Object.values(customAmounts)
+                            .map(v => parseFloat(v))
+                            .filter(v => !isNaN(v))
+                            .reduce((a, b) => a + b, 0);
+                          if (Math.abs(customTotal - amt) > 0.01) {
+                            alert(`Custom split amounts ($${customTotal.toFixed(2)}) must add up to the total ($${amt.toFixed(2)}).`);
+                            return;
+                          }
+                        }
+
                         const custom = newExpenseSplit === 'custom'
                           ? Object.fromEntries(
                               Object.entries(customAmounts)

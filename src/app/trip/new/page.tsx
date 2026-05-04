@@ -605,11 +605,12 @@ function TripBuilderPage() {
   };
 
   const handleSurpriseMe = () => {
-    const randomIndex = Math.floor(Math.random() * mockDestinations.length);
-    const randomDestination = mockDestinations[randomIndex];
+    // Pull from the full REGION_DESTINATIONS pool for a diverse pick
+    const allCities = Object.values(REGION_DESTINATIONS).flatMap(r => r.cities);
+    const randomCity = allCities[Math.floor(Math.random() * allCities.length)];
     setState((prev) => ({
       ...prev,
-      destination: randomDestination.name,
+      destination: randomCity.name,
     }));
     setShowDestinationSuggestions(false);
   };
@@ -2954,7 +2955,7 @@ function TripBuilderPage() {
                         }
                         handleGenerateItinerary();
                       }}
-                      disabled={isGenerating || !state.destination.trim()}
+                      disabled={isGenerating || !entitlementsReady || !state.destination.trim()}
                       className="w-full flex items-center justify-center gap-2 py-4 text-base font-semibold rounded-full transition-all bg-sky-800 hover:bg-sky-900 text-white disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed shadow-sm"
                     >
                       {isGenerating ? (
@@ -3008,6 +3009,13 @@ function TripBuilderPage() {
                     onClick={handleNext}
                     disabled={
                       (currentStep === 2 && !state.destination.trim()) ||
+                      // Multi-city: require at least 2 destinations before proceeding
+                      (currentStep === 2 && state.destinations.length === 1) ||
+                      // Multi-city: hard block if total days-per-city exceeds trip length
+                      (currentStep === 2 && state.destinations.length >= 2 && (() => {
+                        const total = Object.values(state.daysPerDestination).reduce((a: number, b: number) => a + b, 0);
+                        return total > state.tripLength;
+                      })()) ||
                       // Step 3: must have valid dates OR flexible dates checked
                       (currentStep === 3 && !state.flexibleDates && (
                         !state.startDate ||
@@ -3025,6 +3033,15 @@ function TripBuilderPage() {
                 )}
               </div>
             </div>
+            {currentStep === 2 && state.destinations.length === 1 && (
+              <p className="text-xs text-zinc-400">Add at least one more city to continue with a multi-city trip</p>
+            )}
+            {currentStep === 2 && state.destinations.length >= 2 && (() => {
+              const total = Object.values(state.daysPerDestination).reduce((a: number, b: number) => a + b, 0);
+              return total > state.tripLength ? (
+                <p className="text-xs text-rose-500">Total nights exceed your trip length — trim days or extend your trip to continue</p>
+              ) : null;
+            })()}
             {currentStep === 3 && !state.flexibleDates && !state.startDate && (
               <p className="text-xs text-zinc-400">Add your travel dates or check &quot;I have flexible dates&quot; to continue</p>
             )}

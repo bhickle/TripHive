@@ -542,10 +542,10 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/stripe/portal', { method: 'POST' });
       const data = await res.json();
-      if (data.url) {
+      if (data.url && /^https:\/\/(checkout\.stripe\.com|billing\.stripe\.com)\//.test(data.url)) {
         window.location.href = data.url;
       } else {
-        console.error('Billing portal error:', data.error);
+        console.error('Billing portal error:', data.error ?? 'Invalid redirect URL');
       }
     } catch (err) {
       console.error('Billing portal failed:', err);
@@ -1223,13 +1223,19 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium text-slate-900">Analytics Cookies</p>
-                              <p className="text-xs text-slate-500">Help us understand how the app is used</p>
+                              <p className="text-xs text-slate-500">Help us understand how the app is used. Your preference is saved and respected on this device.</p>
                             </div>
                             <button
                               onClick={() => {
                                 const next = !analyticsEnabled;
                                 setAnalyticsEnabled(next);
-                                try { localStorage.setItem('tc_analytics', String(next)); } catch { /* ignore */ }
+                                try {
+                                  localStorage.setItem('tc_analytics', String(next));
+                                  // Expose opt-out to any analytics scripts running in this window
+                                  if (typeof window !== 'undefined') {
+                                    (window as unknown as Record<string, unknown>)['tc_analytics_enabled'] = next;
+                                  }
+                                } catch { /* ignore */ }
                               }}
                               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all ${analyticsEnabled ? 'bg-sky-800' : 'bg-slate-300'}`}
                             >

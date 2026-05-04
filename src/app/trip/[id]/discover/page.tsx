@@ -430,12 +430,15 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         if (!data?.items) return;
         const newVotes: Record<string, 'up' | 'down' | null> = {};
         const newCounts: Record<string, { up: number; down: number }> = {};
+        const newSaved = new Set<string>();
         for (const item of data.items) {
           newVotes[item.itemId] = item.myVote ?? null;
           newCounts[item.itemId] = { up: item.upVotes, down: item.downVotes };
+          if (item.mySaved) newSaved.add(item.itemId);
         }
         setVotes(newVotes);
         setVoteCounts(newCounts);
+        setSavedItems(newSaved);
       })
       .catch(() => {});
   }, [isMockTrip, params.id]);
@@ -690,14 +693,45 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const toggleSavedItem = (id: string) => {
+  const toggleSavedItem = (id: string, item?: DiscoverItem) => {
     const newSaved = new Set(savedItems);
-    if (newSaved.has(id)) {
-      newSaved.delete(id);
-    } else {
+    const isSaving = !newSaved.has(id);
+    if (isSaving) {
       newSaved.add(id);
+    } else {
+      newSaved.delete(id);
     }
     setSavedItems(newSaved);
+
+    // Persist to Supabase for real trips
+    if (!isMockTrip && /^[0-9a-f-]{36}$/i.test(params.id)) {
+      const itemData = item ? {
+        name: item.name,
+        category: item.category,
+        rating: item.rating,
+        priceRange: item.priceRange,
+        description: item.description,
+        duration: item.duration,
+        location: item.location,
+        imageUrl: item.imageUrl,
+        imageGradient: item.imageGradient,
+        bookable: item.bookable,
+        affiliatePartner: item.affiliatePartner,
+        affiliateDeepUrl: item.affiliateDeepUrl,
+        matchScore: item.matchScore,
+      } : {};
+      const currentVote = votes[id] ?? null;
+      fetch(`/api/trips/${params.id}/discover-wishlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemId: id,
+          itemData,
+          vote: currentVote,
+          saved: isSaving,
+        }),
+      }).catch(() => {});
+    }
   };
 
   const categories: Array<{ value: FilterCategory; label: string }> = [
@@ -1148,7 +1182,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                             <Plus className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleSavedItem(item.id)}
+                            onClick={() => toggleSavedItem(item.id, item)}
                             className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
                               savedItems.has(item.id)
                                 ? 'bg-zinc-200 text-zinc-700 border border-zinc-300 hover:bg-zinc-300'

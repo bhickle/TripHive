@@ -141,10 +141,10 @@ export default function PricingPage() {
         body: JSON.stringify({ priceId, mode }),
       });
       const data = await res.json();
-      if (data.url) {
+      if (data.url && /^https:\/\/(checkout\.stripe\.com|billing\.stripe\.com)\//.test(data.url)) {
         window.location.href = data.url;
       } else {
-        console.error('Checkout error:', data.error);
+        console.error('Checkout error:', data.error ?? 'Invalid redirect URL');
         setCheckingOut(null);
       }
     } catch (err) {

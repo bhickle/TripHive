@@ -143,7 +143,7 @@ function formatDuration(mins: number): string {
 
 function TransportCard({ leg }: { leg: TransportLeg }) {
   const [expanded, setExpanded] = useState(false);
-  const cfg = transportConfig[leg.type];
+  const cfg = transportConfig[leg.type] ?? transportConfig['car_rental'];
   const hasDetails = !!(leg.operator || leg.confirmationRef || leg.notes || leg.carClass || leg.fromStation || leg.toStation || leg.platform || leg.seatInfo || leg.costPerPerson);
 
   return (
@@ -284,7 +284,7 @@ function ItineraryPageContent() {
   const [bookingSaved, setBookingSaved] = useState<string | null>(null);
   const [storyLocked, setStoryLocked] = useState(false);
   // Undo delete
-  const [undoSnapshot, setUndoSnapshot] = useState<{ days: ItineraryDay[]; label: string } | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<{ activity: Activity; dayNumber: number; track: 'shared' | 'track_a' | 'track_b'; label: string } | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Hotel edit
   const [editingHotelIndex, setEditingHotelIndex] = useState<number | null>(null);
@@ -1112,14 +1112,14 @@ function ItineraryPageContent() {
 
   // ─── Delete activity (with 5-second undo) ────────────────────────────────────
   const handleDeleteActivity = useCallback((activityId: string) => {
-    // Find activity name for the undo toast label
+    // Find the activity and which track it lives in
     const dayData = (activeDays as ItineraryDay[]).find(d => d.day === selectedDay);
-    const allActs: Activity[] = [
-      ...(dayData?.tracks?.shared ?? []),
-      ...(dayData?.tracks?.track_a ?? []),
-      ...(dayData?.tracks?.track_b ?? []),
-    ];
-    const deletedAct = allActs.find(a => a.id === activityId);
+    let deletedAct: Activity | undefined;
+    let deletedTrack: 'shared' | 'track_a' | 'track_b' = 'shared';
+    for (const track of ['shared', 'track_a', 'track_b'] as const) {
+      const found = dayData?.tracks?.[track]?.find((a: Activity) => a.id === activityId);
+      if (found) { deletedAct = found; deletedTrack = track; break; }
+    }
 
     const updatedDays = (activeDays as ItineraryDay[]).map(day => {
       if (day.day !== selectedDay) return day;
@@ -1136,9 +1136,11 @@ function ItineraryPageContent() {
     // Optimistically update display immediately (no Supabase yet)
     syncAiDays(updatedDays as ItineraryDay[]);
 
-    // Store snapshot so undo can restore
-    const snapshot = activeDays as ItineraryDay[];
-    setUndoSnapshot({ days: snapshot, label: deletedAct?.name ?? deletedAct?.title ?? 'Activity' });
+    // Store only the deleted activity so undo re-inserts into the live state
+    // (avoids clobbering any edits made during the 5-second undo window)
+    if (deletedAct) {
+      setUndoSnapshot({ activity: deletedAct, dayNumber: selectedDay, track: deletedTrack, label: deletedAct.name ?? deletedAct.title ?? 'Activity' });
+    }
 
     // Cancel any existing undo timer
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -1152,12 +1154,22 @@ function ItineraryPageContent() {
   }, [activeDays, selectedDay, persistDays]);
 
   const handleUndoDelete = useCallback(() => {
-    if (undoSnapshot) {
-      if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
-      syncAiDays(undoSnapshot.days);
-      setUndoSnapshot(null);
-    }
-  }, [undoSnapshot]);
+    if (!undoSnapshot) return;
+    if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
+    // Re-insert the deleted activity into the current live state
+    const restoredDays = (activeDays as ItineraryDay[]).map(day => {
+      if (day.day !== undoSnapshot.dayNumber) return day;
+      return {
+        ...day,
+        tracks: {
+          ...day.tracks,
+          [undoSnapshot.track]: [...(day.tracks[undoSnapshot.track] ?? []), undoSnapshot.activity],
+        },
+      };
+    });
+    syncAiDays(restoredDays as ItineraryDay[]);
+    setUndoSnapshot(null);
+  }, [undoSnapshot, activeDays]);
 
   // ─── AI: suggest a replacement activity ──────────────────────────────────────
   const handleSuggestAnother = useCallback(async (activity: Activity) => {
@@ -1573,7 +1585,7 @@ function ItineraryPageContent() {
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
             {/* Add Someone button — opens invite modal (trip ID already in context, no selector needed) */}
             <button
-              onClick={() => setShowInviteModal(true)}
+              onClick={() => { setInviteSent(false); setInviteError(null); setShowInviteModal(true); }}
               title="Invite someone to this trip"
               className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
             >
@@ -1940,7 +1952,7 @@ function ItineraryPageContent() {
                       // Hide transport legs in compact view
                       if (isCompactView) return null;
                       const leg = item.data;
-                      const cfg = transportConfig[leg.type];
+                      const cfg = transportConfig[leg.type] ?? transportConfig['car_rental'];
                       return (
                         <div key={leg.id} className="flex gap-4">
                           {/* Time column */}
@@ -3532,9 +3544,13 @@ function ItineraryPageContent() {
                   <button
                     onClick={async () => {
                       const link = `${window.location.origin}/join/${tripPageId}`;
-                      await navigator.clipboard.writeText(link).catch(() => {});
-                      setInviteLinkCopied(true);
-                      setTimeout(() => setInviteLinkCopied(false), 2000);
+                      try {
+                        await navigator.clipboard.writeText(link);
+                        setInviteLinkCopied(true);
+                        setTimeout(() => setInviteLinkCopied(false), 2000);
+                      } catch {
+                        setInviteError('Could not copy — please copy the link manually.');
+                      }
                     }}
                     className="px-3 py-1.5 bg-zinc-900 text-white rounded-lg text-xs font-semibold whitespace-nowrap hover:bg-zinc-800 transition-colors"
                   >
