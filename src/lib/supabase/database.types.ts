@@ -128,6 +128,7 @@ export type Database = {
           id: string
           item_data: Json
           item_id: string
+          saved: boolean
           trip_id: string
           updated_at: string
           user_id: string
@@ -138,6 +139,7 @@ export type Database = {
           id?: string
           item_data?: Json
           item_id: string
+          saved?: boolean
           trip_id: string
           updated_at?: string
           user_id: string
@@ -148,6 +150,7 @@ export type Database = {
           id?: string
           item_data?: Json
           item_id?: string
+          saved?: boolean
           trip_id?: string
           updated_at?: string
           user_id?: string
@@ -644,6 +647,47 @@ export type Database = {
           title?: string
         }
         Relationships: []
+      }
+      souvenir_items: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          idea: string
+          person: string
+          purchased: boolean
+          trip_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          idea?: string
+          person: string
+          purchased?: boolean
+          trip_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          idea?: string
+          person?: string
+          purchased?: boolean
+          trip_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "souvenir_items_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trip_invites: {
         Row: {
