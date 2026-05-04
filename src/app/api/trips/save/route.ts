@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       destination: tripMeta.destination,
       start_date: tripMeta.startDate || null,
       end_date: tripMeta.endDate || null,
-      trip_length: isDraft ? (tripMeta.tripLength ?? 0) : (itinerary as unknown[]).length,
+      trip_length: (isDraft || isSkeleton) ? (tripMeta.tripLength ?? 0) : (itinerary as unknown[]).length,
       group_size: tripMeta.groupSize ?? 1,
       group_type: tripMeta.groupType ?? null,
       budget_total: tripMeta.budget ?? 0,

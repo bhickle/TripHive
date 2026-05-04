@@ -268,11 +268,14 @@ function buildPrompt(params: {
 }) {
   const {
     destination, startDate, endDate, tripLength,
-    groupType, priorities, budget, budgetBreakdown,
-    ageRanges, accessibilityNeeds,
+    groupType, budget, budgetBreakdown,
     localMode, dateNight, curiosityLevel, modality, accommodationType,
     bookedFlight, realPlaces,
   } = params;
+  // Guard optional/potentially-missing array fields against undefined at runtime
+  const priorities       = params.priorities       ?? [];
+  const ageRanges        = params.ageRanges        ?? [];
+  const accessibilityNeeds = params.accessibilityNeeds ?? [];
   const mustHaves = params.mustHaves ?? [];
   const destinations = params.destinations ?? [];
   const daysPerDestination = params.daysPerDestination ?? {};
