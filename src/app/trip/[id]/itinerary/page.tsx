@@ -50,6 +50,9 @@ import {
   Map,
   AlignJustify,
   UserPlus,
+  CalendarPlus,
+  PlusSquare,
+  Wand2,
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -320,6 +323,14 @@ function ItineraryPageContent() {
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [savingTripEdit, setSavingTripEdit] = useState(false);
+
+  // Add Day modal
+  const [showAddDayModal, setShowAddDayModal] = useState(false);
+  const [addDayPosition, setAddDayPosition] = useState<'before' | 'after' | 'end'>('end');
+  const [addDayRelativeTo, setAddDayRelativeTo] = useState<number>(1); // day number to insert before/after
+  const [addDayMode, setAddDayMode] = useState<'ai' | 'manual'>('ai');
+  const [addDayGenerating, setAddDayGenerating] = useState(false);
+  const [addDayError, setAddDayError] = useState<string | null>(null);
 
   // Add Hotel / Add Flight modals
   const [showAddHotelModal, setShowAddHotelModal] = useState(false);
@@ -607,6 +618,18 @@ function ItineraryPageContent() {
 
   useEffect(() => {
     const load = async () => {
+      // When arriving in generating mode, wipe any stale localStorage data immediately
+      // so we never show a previous trip's Iceland/Reykjavik content during the new build.
+      if (searchParams.get('mode') === 'generating') {
+        try {
+          localStorage.removeItem('generatedItinerary');
+          localStorage.removeItem('generatedTripMeta');
+          localStorage.removeItem('currentTripId');
+        } catch { /* ignore */ }
+        // Skip loading — the live-build effect will populate data as it streams in
+        return;
+      }
+
       // 1. Try Supabase first using the CURRENT PAGE's trip ID (from the URL)
       const looksLikeUuid = tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId);
       if (looksLikeUuid) {
@@ -680,7 +703,7 @@ function ItineraryPageContent() {
       }
     };
     load();
-  }, [tripPageId, seedVotesFromActivities]);
+  }, [tripPageId, seedVotesFromActivities, searchParams]);
 
   // ── Live-build: drive city-by-city SSE generation when arriving with ?mode=generating ──
   useEffect(() => {
@@ -1076,7 +1099,7 @@ function ItineraryPageContent() {
   // Collapsible sidebar sections — priority panels start collapsed, utility panels open
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     foodie: true, nightlife: true, shopping: true,
-    photoSpots: false, hotel: false,
+    photoSpots: true, hotel: true,
   });
   useEffect(() => {
     try {
@@ -1594,6 +1617,100 @@ function ItineraryPageContent() {
 
   // activeDays / trip / currentDayData declared earlier (above persistDays) so callbacks can use them
 
+  // ─── Add Day handler ─────────────────────────────────────────────────────────
+  const handleAddDay = useCallback(async () => {
+    setAddDayGenerating(true);
+    setAddDayError(null);
+
+    const days = activeDays as import('@/lib/types').ItineraryDay[];
+    const totalDays = days.length;
+
+    // Determine insert index (0-based into the sorted array)
+    let insertIndex: number;
+    if (addDayPosition === 'end') {
+      insertIndex = totalDays;
+    } else if (addDayPosition === 'before') {
+      insertIndex = Math.max(0, addDayRelativeTo - 1);
+    } else {
+      // 'after'
+      insertIndex = Math.min(totalDays, addDayRelativeTo);
+    }
+
+    const newDayNumber = insertIndex + 1; // 1-based day number at insertion point
+
+    // Compute new day's date by offsetting from the day before (if any)
+    const sortedDays = [...days].sort((a, b) => a.day - b.day);
+    let newDate = '';
+    if (sortedDays.length > 0) {
+      if (insertIndex === 0) {
+        // Before day 1 — subtract 1 day from day 1's date
+        const d = new Date(sortedDays[0].date + 'T12:00:00');
+        d.setDate(d.getDate() - 1);
+        newDate = d.toISOString().slice(0, 10);
+      } else {
+        // After insertIndex-1 — add 1 day to that day's date
+        const prevDay = sortedDays[Math.min(insertIndex - 1, sortedDays.length - 1)];
+        const d = new Date(prevDay.date + 'T12:00:00');
+        d.setDate(d.getDate() + 1);
+        newDate = d.toISOString().slice(0, 10);
+      }
+    }
+
+    // Shift all days at or after newDayNumber up by 1 (day number + date)
+    const shiftedDays = sortedDays.map(d => {
+      if (d.day >= newDayNumber) {
+        const oldDate = new Date(d.date + 'T12:00:00');
+        oldDate.setDate(oldDate.getDate() + 1);
+        return { ...d, day: d.day + 1, date: oldDate.toISOString().slice(0, 10) };
+      }
+      return d;
+    });
+
+    const destination = aiMeta?.destination || trip.destination || 'the destination';
+    const existingThemes = sortedDays.map(d => d.theme).filter(Boolean);
+    const priorities = (aiMeta?.preferences?.priorities as string[] | undefined) || [];
+
+    if (addDayMode === 'manual') {
+      // Insert a blank day
+      const blankDay: import('@/lib/types').ItineraryDay = {
+        day: newDayNumber,
+        date: newDate,
+        city: destination,
+        theme: 'Free Day',
+        tracks: { shared: [], track_a: [], track_b: [] },
+        meetupTime: '7:00 PM',
+        meetupLocation: 'Hotel lobby',
+      };
+      shiftedDays.splice(insertIndex, 0, blankDay);
+      const finalDays = shiftedDays.sort((a, b) => a.day - b.day);
+      persistDays(finalDays);
+      setSelectedDay(newDayNumber);
+      setShowAddDayModal(false);
+      setAddDayGenerating(false);
+      return;
+    }
+
+    // AI mode — call the add-day API
+    try {
+      const res = await fetch(`/api/trips/${params.id}/add-day`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination, dayNumber: newDayNumber, date: newDate, existingThemes, priorities }),
+      });
+      if (!res.ok) throw new Error('Generation failed');
+      const { day: generatedDay } = await res.json() as { day: import('@/lib/types').ItineraryDay };
+      shiftedDays.splice(insertIndex, 0, { ...generatedDay, day: newDayNumber, date: newDate });
+      const finalDays = shiftedDays.sort((a, b) => a.day - b.day);
+      persistDays(finalDays);
+      setSelectedDay(newDayNumber);
+      setShowAddDayModal(false);
+    } catch {
+      setAddDayError('Could not generate day. Please try again or use Manual mode.');
+    } finally {
+      setAddDayGenerating(false);
+    }
+  }, [activeDays, addDayPosition, addDayRelativeTo, addDayMode, aiMeta, trip, params.id, persistDays, setSelectedDay]);
+
   const weatherData: Record<number, { icon: React.ReactNode; temp: number; condition: string }> = {
     1: { icon: <Cloud className="w-8 h-8" />, temp: 54, condition: 'Partly Cloudy' },
     2: { icon: <Sun className="w-8 h-8" />, temp: 57, condition: 'Sunny' },
@@ -1863,16 +1980,6 @@ function ItineraryPageContent() {
             const isTripCompleted = tripRow?.status === 'completed';
             return (
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
-            {/* Add Someone button — opens invite modal (trip ID already in context, no selector needed) */}
-            <button
-              onClick={() => { setInviteSent(false); setInviteError(null); setShowInviteModal(true); }}
-              title="Invite someone to this trip"
-              className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span className="hidden sm:inline">Add</span>
-            </button>
-
             {/* Combined + Add dropdown */}
             <div className="relative" ref={addMenuRef}>
               <button
@@ -1889,12 +1996,26 @@ function ItineraryPageContent() {
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} />
               </button>
               {showAddMenu && !isTripCompleted && (
-                <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-zinc-100 py-1.5 min-w-[190px] z-30">
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-zinc-100 py-1.5 min-w-[200px] z-30">
+                  {/* Invite someone — moved from standalone toolbar button */}
+                  <button
+                    onClick={() => { setInviteSent(false); setInviteError(null); setShowInviteModal(true); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <UserPlus className="w-4 h-4 text-sky-600" /> Invite Someone
+                  </button>
+                  <div className="my-1 border-t border-zinc-100" />
                   <button
                     onClick={() => { setShowAddActivityModal(true); setShowAddMenu(false); }}
                     className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
                   >
-                    <Plus className="w-4 h-4 text-sky-600" /> Activity
+                    <CalendarPlus className="w-4 h-4 text-sky-600" /> Activity
+                  </button>
+                  <button
+                    onClick={() => { setShowAddDayModal(true); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <PlusSquare className="w-4 h-4 text-sky-600" /> Day
                   </button>
                   <button
                     onClick={() => { hasTransportParser ? setShowParseModal(true) : setUpgradePromptKey('feature_locked'); setShowAddMenu(false); }}
@@ -3553,6 +3674,124 @@ function ItineraryPageContent() {
                 className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
               >
                 {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : editingHotelIndex !== null ? 'Update Hotel' : 'Save Hotel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Add Day Modal ─── */}
+      {showAddDayModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => { if (!addDayGenerating) { setShowAddDayModal(false); setAddDayError(null); } }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
+                <PlusSquare className="w-5 h-5 text-sky-600" /> Add a Day
+              </h2>
+              <button
+                onClick={() => { if (!addDayGenerating) { setShowAddDayModal(false); setAddDayError(null); } }}
+                className="p-1.5 rounded-full hover:bg-zinc-100"
+              >
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {/* Placement picker */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600 mb-2">Where to insert</label>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="addDayPos" value="end" checked={addDayPosition === 'end'}
+                      onChange={() => setAddDayPosition('end')}
+                      className="accent-sky-600" />
+                    <span className="text-sm text-zinc-700">At the end (Day {(activeDays as {day:number}[]).length + 1})</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="addDayPos" value="before" checked={addDayPosition === 'before'}
+                      onChange={() => setAddDayPosition('before')}
+                      className="accent-sky-600" />
+                    <span className="text-sm text-zinc-700 flex items-center gap-2">
+                      Before Day
+                      <select
+                        value={addDayRelativeTo}
+                        onChange={e => { setAddDayPosition('before'); setAddDayRelativeTo(Number(e.target.value)); }}
+                        className="border border-zinc-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-sky-400"
+                      >
+                        {(activeDays as {day:number}[]).map(d => (
+                          <option key={d.day} value={d.day}>{d.day}</option>
+                        ))}
+                      </select>
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="addDayPos" value="after" checked={addDayPosition === 'after'}
+                      onChange={() => setAddDayPosition('after')}
+                      className="accent-sky-600" />
+                    <span className="text-sm text-zinc-700 flex items-center gap-2">
+                      After Day
+                      <select
+                        value={addDayRelativeTo}
+                        onChange={e => { setAddDayPosition('after'); setAddDayRelativeTo(Number(e.target.value)); }}
+                        className="border border-zinc-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-sky-400"
+                      >
+                        {(activeDays as {day:number}[]).map(d => (
+                          <option key={d.day} value={d.day}>{d.day}</option>
+                        ))}
+                      </select>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* AI vs Manual toggle */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600 mb-2">Content</label>
+                <div className="flex rounded-xl overflow-hidden border border-zinc-200">
+                  <button
+                    onClick={() => setAddDayMode('ai')}
+                    className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+                      addDayMode === 'ai' ? 'bg-sky-700 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50'
+                    }`}
+                  >
+                    <Wand2 className="w-4 h-4" /> AI-generated
+                  </button>
+                  <button
+                    onClick={() => setAddDayMode('manual')}
+                    className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+                      addDayMode === 'manual' ? 'bg-sky-700 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50'
+                    }`}
+                  >
+                    <CalendarPlus className="w-4 h-4" /> Blank day
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-400 mt-2">
+                  {addDayMode === 'ai'
+                    ? 'Claude will generate a full day of activities, a theme, and photo spots for this destination.'
+                    : 'Insert an empty day — add activities manually afterwards.'}
+                </p>
+              </div>
+
+              {addDayError && (
+                <p className="text-xs text-rose-600 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{addDayError}
+                </p>
+              )}
+
+              <button
+                disabled={addDayGenerating}
+                onClick={handleAddDay}
+                className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+              >
+                {addDayGenerating
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating day…</>
+                  : addDayMode === 'ai'
+                    ? <><Wand2 className="w-4 h-4" /> Generate Day</>
+                    : <><CalendarPlus className="w-4 h-4" /> Insert Blank Day</>
+                }
               </button>
             </div>
           </div>
