@@ -1800,7 +1800,7 @@ function ItineraryPageContent() {
           <div>
             <div className="flex items-center gap-2 mb-1 group/dest">
               <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                {aiMeta?.destination || trip.destination}
+                {currentDayData?.city || aiMeta?.destination || trip.destination}
               </p>
               {aiDays && (
                 <button
