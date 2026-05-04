@@ -13,7 +13,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tripMeta, itinerary } = body as {
+    const { tripMeta, itinerary, skeleton } = body as {
       tripMeta: {
         destination: string;
         title: string;
@@ -33,13 +33,17 @@ export async function POST(request: NextRequest) {
         cruiseLine?: string;
       };
       itinerary: unknown[] | null;
+      /** skeleton=true: create trip + empty itinerary row immediately, before generation starts.
+       *  Used by the live-build flow so the itinerary page has a real trip ID to work with. */
+      skeleton?: boolean;
     };
 
     // itinerary may be null for draft saves (Option B: invite-first flow)
     if (!tripMeta?.destination) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    const isDraft = !itinerary || itinerary.length === 0;
+    const isSkeleton = skeleton === true;
+    const isDraft = !isSkeleton && (!itinerary || itinerary.length === 0);
 
     // Identify the current user (cookie-based auth) — optional, anon saves are allowed
     let userId: string | null = null;
@@ -71,9 +75,9 @@ export async function POST(request: NextRequest) {
       booked_hotels: tripMeta.bookedHotels ?? [],
       booked_flight: tripMeta.bookedFlight ?? null,
       preferences: tripMeta.preferences ?? {},
-      status: isDraft ? 'draft' : 'planning',
-      // Stamp the generation time when an itinerary is included
-      itinerary_generated_at: isDraft ? null : new Date().toISOString(),
+      status: isDraft ? 'draft' : (isSkeleton ? 'planning' : 'planning'),
+      // Stamp the generation time when an itinerary is included (not for skeleton or draft)
+      itinerary_generated_at: (!isDraft && !isSkeleton) ? new Date().toISOString() : null,
     };
 
     const { data: trip, error: tripError } = await supabase
@@ -87,12 +91,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save trip', detail: tripError?.message }, { status: 500 });
     }
 
-    // ── 2. Insert the itinerary row (skip for draft saves) ───────────────────
+    // ── 2. Insert the itinerary row ───────────────────────────────────────────
+    // For full saves: insert complete days. For skeleton saves: insert empty days
+    // so the PATCH route can update them incrementally during live-build generation.
+    // For draft saves (invite-first flow): skip the itinerary row entirely.
     if (!isDraft) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const itinInsert: any = {
         trip_id: trip.id,
-        days: itinerary,
+        days: isSkeleton ? [] : itinerary,
         meta: {
           destination: tripMeta.destination,
           title: tripMeta.title,

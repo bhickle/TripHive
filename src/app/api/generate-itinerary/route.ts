@@ -1100,6 +1100,36 @@ export async function POST(request: NextRequest) {
     }, { status: 403 });
   }
 
+  // ── City segment mode — generate one city's days at a time ─────────────────
+  // When citySegment is provided, we focus this call on a single city's portion
+  // of a multi-city trip (e.g. days 4–6 in Rome of an 8-day Paris → Rome trip).
+  // This breaks long multi-city trips into smaller API calls, each well under
+  // the 300s Vercel limit, while allowing the UI to show days as they arrive.
+  const citySegment = body.citySegment as {
+    cityName: string;
+    dayStart: number;
+    dayCount: number;
+    prevContext?: string;
+  } | undefined;
+
+  // Resolve effective params — citySegment overrides some body fields
+  const resolvedDestination = citySegment?.cityName ?? (body.destination as string);
+  const resolvedTripLength  = citySegment ? citySegment.dayCount : requestedLength;
+  const resolvedStartDate   = (() => {
+    if (!citySegment || citySegment.dayStart <= 1) return body.startDate as string;
+    const d = new Date((body.startDate as string) + 'T12:00:00');
+    d.setDate(d.getDate() + citySegment.dayStart - 1);
+    return d.toISOString().split('T')[0];
+  })();
+  const resolvedEndDate = (() => {
+    if (!citySegment) return body.endDate as string;
+    const d = new Date((body.startDate as string) + 'T12:00:00');
+    d.setDate(d.getDate() + citySegment.dayStart - 1 + citySegment.dayCount - 1);
+    return d.toISOString().split('T')[0];
+  })();
+  // dayOffset: how many days to add to AI-returned day numbers (0-indexed segment → full-trip numbering)
+  const dayOffset = citySegment ? citySegment.dayStart - 1 : 0;
+
   // Token budget scales with trip length.
   // Real-world measurement: each day object uses 8,000–12,000 tokens of JSON
   // (shared track 3-4 activities + track_a/b, 3 restaurants, transport legs,
@@ -1111,7 +1141,7 @@ export async function POST(request: NextRequest) {
   const modelId = 'claude-sonnet-4-6';
   const isMultiCity = Array.isArray(body.destinations) && (body.destinations as string[]).length > 1;
   const tokensPerDay = isMultiCity ? 11000 : 10000;
-  const maxTokens = Math.min(64000, Math.max(24000, requestedLength * tokensPerDay));
+  const maxTokens = Math.min(64000, Math.max(citySegment ? 12000 : 24000, resolvedTripLength * tokensPerDay));
 
   // Use pre-fetched places from client if available (they were fetched on Step 8 / Review),
   // otherwise fall back to fetching here. This removes the ~10-15s wait before streaming starts.
@@ -1151,11 +1181,17 @@ export async function POST(request: NextRequest) {
     console.log('[generate-itinerary] Using pre-fetched places from client — skipping Google Places fetch');
   }
 
+  // In city-segment mode, narrow places to only the segment's city and disable multi-city routing
+  const resolvedRealPlaces = citySegment
+    ? (multiCityPlaces?.[citySegment.cityName] ?? realPlaces)
+    : realPlaces;
+  const resolvedMultiCityPlaces = citySegment ? null : multiCityPlaces;
+
   const prompt = buildPrompt({
-    destination: body.destination as string,
-    startDate: body.startDate as string,
-    endDate: body.endDate as string,
-    tripLength: body.tripLength as number,
+    destination: resolvedDestination,
+    startDate: resolvedStartDate,
+    endDate: resolvedEndDate,
+    tripLength: resolvedTripLength,
     groupType: body.groupType as string,
     priorities: body.priorities as string[],
     budget: body.budget as number,
@@ -1172,15 +1208,30 @@ export async function POST(request: NextRequest) {
     bookedHotels: body.bookedHotels as BookedHotel[],      // preferred
     bookedCar: body.bookedCar as { company?: string; pickupLocation?: string; carClass?: string; confirmationRef?: string } | null,
     mustHaves: (body.mustHaves as string[] | undefined) ?? [],
-    destinations: (body.destinations as string[] | undefined) ?? [],
-    daysPerDestination: (body.daysPerDestination as Record<string, number> | undefined) ?? {},
+    // In city-segment mode, suppress multi-city routing — each city is generated standalone
+    destinations: citySegment ? [] : ((body.destinations as string[] | undefined) ?? []),
+    daysPerDestination: citySegment ? {} : ((body.daysPerDestination as Record<string, number> | undefined) ?? {}),
     additionalContext: (body.additionalContext as string | undefined) ?? '',
-    realPlaces,
-    multiCityPlaces,
+    realPlaces: resolvedRealPlaces,
+    multiCityPlaces: resolvedMultiCityPlaces,
     organizerPersona,
     memberPersonas,
     groupSize: Number(body.groupSize) || 2,
   });
+
+  // ── City-segment post-processing: inject day-numbering override + continuity ──
+  // The prompt above generates days 1–N for the city (correct dates, correct city).
+  // For segments that aren't the first city, we add a critical instruction to offset
+  // the day numbers so they're correct in the full trip context (e.g. start at 4 not 1).
+  let finalPrompt = prompt;
+  if (citySegment) {
+    if (dayOffset > 0) {
+      finalPrompt += `\n\nCRITICAL DAY NUMBERING: This segment covers days ${citySegment.dayStart}–${citySegment.dayStart + citySegment.dayCount - 1} of the full trip. Every "day" field MUST start at ${citySegment.dayStart}, not at 1. The first day object is {"day": ${citySegment.dayStart}, "date": "${resolvedStartDate}", ...} and the last is {"day": ${citySegment.dayStart + citySegment.dayCount - 1}, ...}. Do NOT include "title" or "practicalNotes" fields — those belong to the full trip's day 1 only.`;
+    }
+    if (citySegment.prevContext) {
+      finalPrompt += `\n\nCONTINUITY — arriving from previous destination: ${citySegment.prevContext} Reference this naturally in Day ${citySegment.dayStart}'s morning (e.g. just checked in, settling into the new city). Do not repeat any venues or activities mentioned in the continuity context.`;
+    }
+  }
 
   // ── Open SSE stream ──────────────────────────────────────────────────────────
   const encoder = new TextEncoder();
@@ -1201,7 +1252,7 @@ export async function POST(request: NextRequest) {
           stream: true,
           system: SYSTEM_PROMPT,
           messages: [
-            { role: 'user', content: prompt },
+            { role: 'user', content: finalPrompt },
           ],
         });
 
@@ -1284,10 +1335,12 @@ export async function POST(request: NextRequest) {
         const MAX_CONTINUATIONS = 4;
         let contAttempt = 0;
 
-        while (dayIndex < requestedLength && contAttempt < MAX_CONTINUATIONS) {
+        while (dayIndex < resolvedTripLength && contAttempt < MAX_CONTINUATIONS) {
           contAttempt++;
-          const remaining = requestedLength - dayIndex;
-          console.log(`[generate-itinerary] Pass ${contAttempt}: have ${dayIndex}/${requestedLength} days — requesting days ${dayIndex + 1}–${requestedLength}`);
+          const remaining = resolvedTripLength - dayIndex;
+          const contFromDay = dayOffset + dayIndex + 1;
+          const contToDay   = dayOffset + resolvedTripLength;
+          console.log(`[generate-itinerary] Pass ${contAttempt}: have ${dayIndex}/${resolvedTripLength} days — requesting days ${contFromDay}–${contToDay}`);
 
           // Build a compact summary of already-generated days so the model
           // knows exactly what exists and won't regenerate any of it.
@@ -1298,8 +1351,9 @@ export async function POST(request: NextRequest) {
             })
             .join('\n');
 
-          const contDestinations = (body.destinations as string[] | undefined) ?? [];
-          const contDaysPerDest = (body.daysPerDestination as Record<string, number> | undefined) ?? {};
+          // In city-segment mode, contDestinations is empty (suppress multi-city routing)
+          const contDestinations = citySegment ? [] : ((body.destinations as string[] | undefined) ?? []);
+          const contDaysPerDest = citySegment ? {} : ((body.daysPerDestination as Record<string, number> | undefined) ?? {});
           const isMultiCityCont = contDestinations.length > 1;
           const lastCity = collectedDays.length > 0
             ? (collectedDays[collectedDays.length - 1] as Record<string, unknown>).city as string | undefined
@@ -1316,14 +1370,14 @@ export async function POST(request: NextRequest) {
                 return d.toISOString().split('T')[0];
               }
             }
-            return body.startDate as string;
+            return resolvedStartDate;
           })();
 
           // Brief top-10 venue hints so continuation days use real places too
           const placesHint = (() => {
             const src = isMultiCityCont && lastCity
               ? (multiCityPlaces?.[lastCity] ?? realPlaces)
-              : realPlaces;
+              : (resolvedRealPlaces ?? realPlaces);
             if (!src) return '';
             const rList = src.restaurants.slice(0, 10).map(r => `${r.name} (${r.address})`).join('; ');
             const aList = src.attractions.slice(0, 10).map(a => `${a.name} (${a.address})`).join('; ');
@@ -1341,9 +1395,9 @@ export async function POST(request: NextRequest) {
           // starting from Day 1" which conflicts with the continuation directive
           // and causes the model to regenerate from Day 1 instead of continuing.
           const compactContPrompt = [
-            `You are an expert travel planner. Continue an in-progress ${requestedLength}-day itinerary.`,
+            `You are an expert travel planner. Continue an in-progress itinerary.`,
             ``,
-            `TRIP: ${body.destination as string} | ${body.startDate as string} to ${body.endDate as string} | ${requestedLength} days total`,
+            `TRIP: ${resolvedDestination} | ${resolvedStartDate} to ${resolvedEndDate} | ${resolvedTripLength} days total`,
             `GROUP: ${body.groupType as string} | Priorities: ${(body.priorities as string[]).join(', ')}`,
             `Budget: $${body.budget as number} total`,
             multiCityNote ? multiCityNote.trim() : '',
@@ -1351,9 +1405,9 @@ export async function POST(request: NextRequest) {
             `ALREADY COMPLETE — do NOT regenerate these ${dayIndex} days:`,
             generatedSummary,
             ``,
-            lastCity ? `The group ended Day ${dayIndex} in ${lastCity}.` : '',
+            lastCity ? `The group ended Day ${dayOffset + dayIndex} in ${lastCity}.` : '',
             placesHint,
-            `YOUR TASK: Output ONLY day objects ${dayIndex + 1} through ${requestedLength} (${remaining} day${remaining === 1 ? '' : 's'}), starting from ${contStartDate}.`,
+            `YOUR TASK: Output ONLY day objects ${contFromDay} through ${contToDay} (${remaining} day${remaining === 1 ? '' : 's'}), starting from ${contStartDate}.`,
             ``,
             `Day schema (use exact field names):`,
             `{"day":<N>,"date":"YYYY-MM-DD","city":"<city>","theme":"<3-5 word theme>","photoSpots":[{"name":"...","timeOfDay":"...","tip":"..."}],"destinationTip":"<one insider fact>","trackALabel":null,"trackBLabel":null,"dinnerMeetupLocation":null,"tracks":{"shared":[<activities>],"track_a":[],"track_b":[]},"meetupTime":"<HH:MM>","meetupLocation":"Hotel lobby"}`,
@@ -1365,11 +1419,11 @@ export async function POST(request: NextRequest) {
             `- Every day: breakfast (07:30–09:00, mealType:"breakfast"), lunch (12:30–14:00, mealType:"lunch"), dinner (19:00–21:00, mealType:"dinner") + 2-3 non-meal activities`,
             `- All activities go in shared track; track_a and track_b stay as empty arrays []`,
             `- transportToNext is null on the LAST activity of each day only`,
-            `- Use REAL venue names and full street addresses in ${body.destination as string}`,
-            `- Day ${requestedLength} is the departure day — light schedule ending at airport/station`,
+            `- Use REAL venue names and full street addresses in ${resolvedDestination}`,
+            `- Day ${contToDay} is the final day — light schedule ending at airport/station`,
             `- "meetupTime" must equal the start time of the first activity that day`,
             ``,
-            `Return ONLY the JSON array for days ${dayIndex + 1}–${requestedLength}. No markdown. No explanation. Start with [ and end with ].`,
+            `Return ONLY the JSON array for days ${contFromDay}–${contToDay}. No markdown. No explanation. Start with [ and end with ].`,
           ].filter(Boolean).join('\n');
 
           try {

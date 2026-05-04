@@ -656,7 +656,7 @@ function TripBuilderPage() {
     return s.destination;
   }
 
-  const handleGenerateItinerary = () => {
+  const handleGenerateItinerary = async () => {
     // Build the canonical destination string for multi-city trips
     const canonicalDestination = canonicalDestinationFor(state);
 
@@ -725,18 +725,49 @@ function TripBuilderPage() {
       },
     };
 
-    // ── Store in sessionStorage and hand off to /trip/generating ─────────────
+    // ── Create a skeleton trip in Supabase, then redirect to the itinerary page ──
+    // The itinerary page detects ?mode=generating and drives the live-build loop.
+    // This pre-creates the trip so: (a) we have a real tripId before generation starts,
+    // (b) the URL is stable from the beginning, (c) partial results are persisted per city
+    // so closing the browser doesn't lose everything.
+    let skeletonTripId: string | null = null;
     try {
-      sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payload));
+      const skeletonRes = await fetch('/api/trips/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripMeta: { ...metaBase, title: `${state.destination} Trip`, tripLength: state.tripLength },
+          itinerary: null,
+          skeleton: true,
+        }),
+      });
+      if (skeletonRes.ok) {
+        const { tripId } = await skeletonRes.json();
+        skeletonTripId = tripId ?? null;
+      }
+    } catch {
+      console.warn('[trip/new] Skeleton trip creation failed — falling back to /trip/generating');
+    }
+
+    // Store payload + meta in sessionStorage for the generation loop
+    try {
+      const payloadWithId = skeletonTripId
+        ? { ...payload, existingTripId: skeletonTripId }
+        : payload;
+      sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payloadWithId));
       sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(metaBase));
     } catch {
       // sessionStorage unavailable (e.g. private browsing with strict settings)
-      // Fall back to the old inline loading screen
       console.warn('[trip/new] sessionStorage unavailable — cannot use generating page');
       return;
     }
 
-    router.push('/trip/generating');
+    if (skeletonTripId) {
+      router.push(`/trip/${skeletonTripId}/itinerary?mode=generating`);
+    } else {
+      // Fallback: use the dedicated generating page (no live-build, but still works)
+      router.push('/trip/generating');
+    }
   };
 
   // Option B: Trip Pass "invite first" — saves a draft trip (no itinerary) then goes to the group page

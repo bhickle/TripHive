@@ -51,7 +51,7 @@ import {
   AlignJustify,
   UserPlus,
 } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
@@ -277,6 +277,7 @@ function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: num
 
 function ItineraryPageContent() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const tripPageId = params?.id ?? '';
   const [selectedDay, setSelectedDay] = useState(1);
   const [activityAdded, setActivityAdded] = useState(false);
@@ -344,6 +345,14 @@ function ItineraryPageContent() {
   const { tier, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements();
   const currentUser = useCurrentUser();
   const router = useRouter();
+
+  // ── Live-build state (used when arriving with ?mode=generating) ─────────────
+  const [isLiveBuilding, setIsLiveBuilding]       = useState(false);
+  const [liveBuildStatus, setLiveBuildStatus]     = useState('');
+  const [liveBuildDone, setLiveBuildDone]         = useState(0);   // days generated so far
+  const [liveBuildTotal, setLiveBuildTotal]       = useState(0);   // total expected days
+  const [liveBuildError, setLiveBuildError]       = useState<string | null>(null);
+  const liveBuildStarted                          = useRef(false);  // prevent double-run in StrictMode
 
   // Extra transport legs added live via the parser (keyed by day number)
   const [addedTransport, setAddedTransport] = useState<Record<number, TransportLeg[]>>({});
@@ -672,6 +681,222 @@ function ItineraryPageContent() {
     };
     load();
   }, [tripPageId, seedVotesFromActivities]);
+
+  // ── Live-build: drive city-by-city SSE generation when arriving with ?mode=generating ──
+  useEffect(() => {
+    if (searchParams.get('mode') !== 'generating') return;
+    if (liveBuildStarted.current) return;
+    liveBuildStarted.current = true;
+
+    const run = async () => {
+      setIsLiveBuilding(true);
+      setLiveBuildError(null);
+
+      // 1. Read generation params from sessionStorage
+      let payload: Record<string, unknown>;
+      let metaBase: Record<string, unknown>;
+      try {
+        const raw     = sessionStorage.getItem('tripcoord_gen_payload');
+        const rawMeta = sessionStorage.getItem('tripcoord_gen_meta');
+        if (!raw || !rawMeta) throw new Error('Session expired');
+        payload  = JSON.parse(raw);
+        metaBase = JSON.parse(rawMeta);
+      } catch {
+        setLiveBuildError('Generation session expired — please go back and try again.');
+        setIsLiveBuilding(false);
+        return;
+      }
+
+      // 2. Build per-city segment list (multi-city) or empty list (single-city)
+      type Segment = { cityName: string; dayStart: number; dayCount: number };
+      const destinations = payload.destinations as string[] | null | undefined;
+      const daysPerDest  = payload.daysPerDestination as number[] | null | undefined;
+      const segments: Segment[] = [];
+      if (destinations && destinations.length > 1 && daysPerDest && daysPerDest.length === destinations.length) {
+        let dayStart = 1;
+        for (let i = 0; i < destinations.length; i++) {
+          const dayCount = daysPerDest[i] ?? 0;
+          if (dayCount > 0) {
+            segments.push({ cityName: destinations[i], dayStart, dayCount });
+            dayStart += dayCount;
+          }
+        }
+      }
+      const totalDays = segments.reduce((s, c) => s + c.dayCount, 0)
+        || (payload.tripLength as number) || 7;
+      setLiveBuildTotal(totalDays);
+
+      // 3. Inner helper: stream one segment (or the full trip when no segments)
+      const streamSegment = async (
+        seg: Segment | null,
+        prevContext: string | null,
+      ): Promise<{ days: unknown[]; meta: Record<string, unknown> | null }> => {
+        const body: Record<string, unknown> = { ...payload };
+        if (seg) {
+          body.citySegment = {
+            cityName: seg.cityName,
+            dayStart: seg.dayStart,
+            dayCount: seg.dayCount,
+            ...(prevContext ? { prevContext } : {}),
+          };
+        }
+
+        const res = await fetch('/api/generate-itinerary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok || !res.body) {
+          let msg = `Generation failed (${res.status})`;
+          try { const d = await res.json(); msg = d.message || d.error || msg; } catch { /* ignore */ }
+          throw new Error(msg);
+        }
+
+        const reader    = res.body.getReader();
+        const decoder   = new TextDecoder();
+        let sseBuffer   = '';
+        const collectedDays: unknown[] = [];
+        let meta: Record<string, unknown> | null = null;
+
+        outer: while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          sseBuffer += decoder.decode(value, { stream: true });
+          const events = sseBuffer.split('\n\n');
+          sseBuffer = events.pop() ?? '';
+
+          for (const rawEvent of events) {
+            for (const line of rawEvent.split('\n')) {
+              if (!line.startsWith('data: ')) continue;
+              let parsed: Record<string, unknown>;
+              try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
+
+              switch (parsed.type) {
+                case 'meta':
+                  meta = parsed;
+                  break;
+
+                case 'day': {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const dayData = parsed.data as any;
+                  collectedDays.push(dayData);
+
+                  // Merge into live view — sort by day number
+                  const current = aiDaysRef.current ?? [];
+                  const merged  = [...current];
+                  const dayNum  = typeof dayData.day === 'number' ? dayData.day : 0;
+                  const existing = merged.findIndex(d => d.day === dayNum);
+                  if (existing >= 0) merged[existing] = dayData as ItineraryDay;
+                  else merged.push(dayData as ItineraryDay);
+                  merged.sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+                  syncAiDays(merged);
+                  setShowAiBanner(true);
+                  setLiveBuildDone(prev => prev + 1);
+                  setLiveBuildStatus(
+                    seg ? `Building ${seg.cityName}…` : `Building day ${dayNum}…`
+                  );
+                  break;
+                }
+
+                case 'done':
+                  break outer;
+
+                case 'error':
+                  throw new Error((parsed.message as string) || 'Generation failed');
+              }
+            }
+          }
+        }
+
+        return { days: collectedDays, meta };
+      };
+
+      // 4. Run all segments (or single call for single-city trips)
+      let firstMeta: Record<string, unknown> | null = null;
+
+      try {
+        if (segments.length === 0) {
+          // Single-city or unspecified: one full call, no citySegment
+          setLiveBuildStatus('Building your itinerary…');
+          const { meta } = await streamSegment(null, null);
+          firstMeta = meta;
+        } else {
+          let prevContext: string | null = null;
+          for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i];
+            const { days, meta } = await streamSegment(seg, prevContext);
+            if (i === 0) firstMeta = meta;
+
+            // Build prevContext from last received day for continuity handoff
+            const lastDay = days[days.length - 1] as Record<string, unknown> | undefined;
+            if (lastDay) {
+              const theme   = (lastDay.theme as string) || '';
+              const shared  = (lastDay.tracks as Record<string, unknown>)?.shared as Array<Record<string, unknown>> | undefined;
+              const firstAct = shared?.find(a => !(a.isRestaurant));
+              const actName  = firstAct ? ((firstAct.name as string) || (firstAct.title as string) || '') : '';
+              prevContext = [theme, actName].filter(Boolean).join(', ').slice(0, 80) || null;
+            }
+
+            // Partial-persist: PATCH Supabase after each city completes
+            if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+              const currentDays = aiDaysRef.current ?? [];
+              fetch(`/api/trips/${tripPageId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: currentDays }),
+              }).catch(() => { /* silent — final PATCH below is authoritative */ });
+            }
+          }
+        }
+      } catch (e) {
+        setLiveBuildError(e instanceof Error ? e.message : 'Something went wrong');
+        setIsLiveBuilding(false);
+        return;
+      }
+
+      // 5. Final PATCH — complete days + meta + stamp itinerary_generated_at
+      setLiveBuildStatus('Saving your trip…');
+      const finalDays = aiDaysRef.current ?? [];
+      const metaFull: Record<string, unknown> = {
+        ...metaBase,
+        title:               (firstMeta?.title as string)               || null,
+        practicalNotes:      firstMeta?.practicalNotes                   || null,
+        hotelSuggestions:    firstMeta?.hotelSuggestions                 || null,
+        foodieTips:          firstMeta?.foodieTips                       || null,
+        nightlifeHighlights: firstMeta?.nightlifeHighlights              || null,
+        shoppingGuide:       firstMeta?.shoppingGuide                    || null,
+      };
+      if (firstMeta) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAiMeta(metaFull as any);
+      }
+
+      if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+        try {
+          await fetch(`/api/trips/${tripPageId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              days:     finalDays,
+              metaPatch: metaFull,
+              tripPatch: { itinerary_generated_at: new Date().toISOString() },
+            }),
+          });
+        } catch { /* silent */ }
+      }
+
+      // 6. Cleanup: clear sessionStorage, strip ?mode=generating from URL
+      sessionStorage.removeItem('tripcoord_gen_payload');
+      sessionStorage.removeItem('tripcoord_gen_meta');
+      setLiveBuildStatus('');
+      setIsLiveBuilding(false);
+      window.history.replaceState({}, '', window.location.pathname);
+    };
+
+    run();
+  }, [searchParams, tripPageId, syncAiDays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime: subscribe to itinerary updates for live vote sync
   useEffect(() => {
@@ -1482,6 +1707,29 @@ function ItineraryPageContent() {
   return (
     <div className="min-h-screen bg-parchment p-3 md:p-6">
       <div className="max-w-5xl mx-auto">
+
+        {/* Live-build progress banner — shown while city-by-city generation is running */}
+        {isLiveBuilding && (
+          <div className="mb-4 flex items-center justify-between px-5 py-3 bg-sky-700 text-white rounded-2xl shadow-md">
+            <div className="flex items-center gap-3 min-w-0">
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+              <span className="text-sm font-medium truncate">
+                {liveBuildStatus || 'Building your itinerary…'}
+              </span>
+            </div>
+            {liveBuildTotal > 0 && (
+              <span className="text-xs font-semibold opacity-80 flex-shrink-0 ml-4">
+                {liveBuildDone}/{liveBuildTotal} days
+              </span>
+            )}
+          </div>
+        )}
+        {liveBuildError && (
+          <div className="mb-4 flex items-center gap-3 px-5 py-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
+            <span className="text-sm font-medium">{liveBuildError}</span>
+          </div>
+        )}
 
         {/* AI Generated Banner — demo only (not shown for real uploaded/generated trips) */}
         {showAiBanner && !aiMeta && (
