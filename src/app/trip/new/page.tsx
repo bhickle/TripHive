@@ -1538,7 +1538,9 @@ function TripBuilderPage() {
                       <p className="text-xs text-zinc-400 mb-3">How many days are you thinking?</p>
                       <div className="grid grid-cols-5 gap-2">
                         {[3, 5, 7, 10, 14].map((days) => {
-                          const isLocked = days > maxTripDays;
+                          // Only lock buttons once we know the real tier — never
+                          // lock during the loading window (entitlementsReady=false).
+                          const isLocked = entitlementsReady && days > maxTripDays;
                           const upgradeTo = maxTripDays <= 7 ? 'Explorer' : 'Nomad';
                           return (
                             <div key={days} className="relative group">
@@ -1568,7 +1570,7 @@ function TripBuilderPage() {
                         })}
                       </div>
                       {/* Tier disclaimer for locked days (Item 6) */}
-                      {maxTripDays < 14 && (
+                      {entitlementsReady && maxTripDays < 14 && (
                         <p className="text-xs text-zinc-400 mt-2 flex items-center gap-1">
                           <Lock className="w-3 h-3" />
                           Your {tier} plan supports up to {maxTripDays}-day trips.{' '}
@@ -1618,34 +1620,37 @@ function TripBuilderPage() {
                           />
                         </div>
                       </div>
-                      {/* Trip length confirmation — prominent summary when both dates are set */}
+                      {/* Trip length confirmation — prominent summary when both dates are set.
+                          Only show the tier-limit error once entitlements have loaded so
+                          paid users don't see a false "exceeds free plan" flash while the
+                          Supabase profile fetch is still in flight. */}
                       {state.startDate && state.endDate && (
                         <div className={`mt-3 px-4 py-3 rounded-xl border ${
                           state.tripLength < 2
                             ? 'bg-amber-50 border-amber-200'
-                            : state.tripLength > maxTripDays
+                            : entitlementsReady && state.tripLength > maxTripDays
                             ? 'bg-rose-50 border-rose-200'
                             : 'bg-green-50 border-green-200'
                         }`}>
                           <p className={`text-sm font-semibold ${
                             state.tripLength < 2
                               ? 'text-amber-800'
-                              : state.tripLength > maxTripDays
+                              : entitlementsReady && state.tripLength > maxTripDays
                               ? 'text-rose-800'
                               : 'text-green-800'
                           }`}>
                             {state.tripLength < 2
                               ? `⚠️ Only ${state.tripLength} day${state.tripLength === 1 ? '' : 's'} — check your dates`
-                              : state.tripLength > maxTripDays
+                              : entitlementsReady && state.tripLength > maxTripDays
                               ? `🔒 ${state.tripLength} days exceeds your ${tier} plan limit (${maxTripDays} days)`
                               : `✓ ${state.tripLength}-day trip`}
                           </p>
-                          {state.tripLength >= 2 && state.tripLength <= maxTripDays && (
+                          {(state.tripLength >= 2 && (!entitlementsReady || state.tripLength <= maxTripDays)) && (
                             <p className="text-xs text-green-700 mt-0.5">
                               {new Date(state.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {new Date(state.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </p>
                           )}
-                          {state.tripLength > maxTripDays && (
+                          {entitlementsReady && state.tripLength > maxTripDays && (
                             <p className="text-xs text-rose-700 mt-0.5">
                               <Link href="/pricing" className="underline font-medium">Upgrade to {maxTripDays <= 7 ? 'Explorer' : 'Nomad'}</Link> to unlock longer trips.
                             </p>

@@ -37,13 +37,38 @@ const BLANK_USER = {
   isLoading: false,
 } as const;
 
+/**
+ * During the initial auth-loading window, read the Supabase session from
+ * localStorage to get the user ID, then look up the cached tier key
+ * (`tc_tier_${userId}`). This prevents paid users from briefly seeing
+ * `free`-tier gates while the Supabase profile fetch is in flight.
+ *
+ * Falls back to null (→ 'free') if no session or cache exists.
+ */
+function getLoadingPhaseTier(): SubscriptionTier | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('sb-pqizuvmtertpxhhxyemj-auth-token');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const userId = parsed?.user?.id as string | undefined;
+    if (!userId) return null;
+    return (localStorage.getItem(`tc_tier_${userId}`) as SubscriptionTier | null);
+  } catch {
+    return null;
+  }
+}
+
 export function useCurrentUser() {
   const { user, profile, isDemo, isLoading } = useAuth();
 
   // Auth state still resolving — blank placeholder so no mock data ever
   // flashes for a real user before auth resolves.
+  // We do use the cached tier (tc_tier_${userId}) so paid users don't briefly
+  // see free-tier gates while the Supabase profile fetch is in flight.
   if (isLoading) {
-    return { ...BLANK_USER, isLoading: true };
+    const loadingTier = getLoadingPhaseTier();
+    return { ...BLANK_USER, subscriptionTier: loadingTier ?? 'free', isLoading: true };
   }
 
   // Demo account → full mock experience (Iceland trip, all mock data).
