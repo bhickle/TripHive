@@ -94,6 +94,18 @@ function clearCachedProfile() {
   try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
 }
 
+// ─── Supabase singleton ───────────────────────────────────────────────────────
+// IMPORTANT: createBrowserClient MUST live at module scope, not inside the
+// component. Each call creates a new client that tries to acquire the same
+// Web Lock ("lock:sb-…-auth-token"). Multiple instances fight over it, causing
+// "Lock was released because another request stole it" errors on every render,
+// which prevents the session from ever resolving and leaves the app in an
+// eternal skeleton/loading state.
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   // Pre-populate profile from localStorage cache so auth-gated UI has data the moment
@@ -103,12 +115,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // The profile cache is used to hydrate data immediately once the session confirms,
   // but we never expose isLoading=false before we know whether a session exists.
   const [isLoading, setIsLoading] = useState(true);
-
-  // One stable Supabase browser client for the lifetime of the provider
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
 
   const fetchProfile = useCallback(
     async (userId: string) => {
