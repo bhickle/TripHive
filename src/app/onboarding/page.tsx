@@ -297,9 +297,13 @@ export default function OnboardingPage() {
         <Link href="/">
           <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
         </Link>
-        <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+        <button
+          type="button"
+          onClick={handleGoToDashboard}
+          className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+        >
           Skip for now →
-        </Link>
+        </button>
       </header>
 
       {/* Content */}

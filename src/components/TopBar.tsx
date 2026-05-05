@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, MapPin, UserPlus, Copy, Check, Map, Sparkles, Users, CheckSquare, Camera } from 'lucide-react';
+import { ArrowLeft, MapPin, UserPlus, Map, Sparkles, Users, CheckSquare, Camera } from 'lucide-react';
 import { NotificationBell } from '@/components/NotificationPanel';
 
 interface TopBarProps {
@@ -26,13 +26,13 @@ const tabs = [
 export const TopBar: React.FC<TopBarProps> = ({
   tripTitle, destination, activeTab = 'itinerary', onTabChange, onInvite, tripId, showBackButton = true,
 }) => {
-  const [inviteCopied, setInviteCopied] = useState(false);
   const router = useRouter();
 
   const handleInvite = () => {
+    // The actual copy/email/SMS happens inside the modal that onInvite opens —
+    // this button only opens that flow. Don't flash a misleading "Copied! ✓"
+    // before any copy has happened.
     if (onInvite) onInvite();
-    setInviteCopied(true);
-    setTimeout(() => setInviteCopied(false), 2000);
   };
 
   return (
@@ -69,8 +69,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={handleInvite}
             className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm px-4 py-2 rounded-full shadow-sm hover:shadow-md transition-all"
           >
-            {inviteCopied ? <Check className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-            <span className="hidden sm:inline">{inviteCopied ? 'Copied! ✓' : 'Add Someone'}</span>
+            <UserPlus className="w-4 h-4" />
+            <span className="hidden sm:inline">Add Someone</span>
           </button>
         </div>
       </div>

@@ -22,7 +22,9 @@ export function getStripe(): Stripe {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error('STRIPE_SECRET_KEY is not set');
     _stripe = new Stripe(key, {
-      apiVersion: '2026-03-25.dahlia',
+      // Don't pin apiVersion — let the SDK use its bundled default so the
+      // typed surface always matches the wire format. The previous explicit
+      // '2026-03-25.dahlia' didn't match stripe@22.0.2's bundled types.
       typescript: true,
     });
   }
