@@ -633,6 +633,15 @@ function ItineraryPageContent() {
           localStorage.removeItem('generatedTripMeta');
           localStorage.removeItem('currentTripId');
         } catch { /* ignore */ }
+        // Also reset React state — App Router can keep this component mounted
+        // when navigating between trip IDs, so any aiDays/aiMeta from a
+        // previously-viewed trip would otherwise leak into the new build view
+        // until the stream replaces them. Force a clean slate so the hasDays
+        // gate renders the loading state immediately.
+        syncAiDays(null);
+        setAiMeta(null);
+        setTripRow(null);
+        setShowAiBanner(false);
         // Skip loading — the live-build effect will populate data as it streams in
         return;
       }
