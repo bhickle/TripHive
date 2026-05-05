@@ -564,8 +564,19 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
     const supabase = createBrowserClient(supabaseUrl, supabaseKey);
 
+    // Refetch votes from the API — used as the realtime callback. Simpler and
+    // more correct than trying to update local counts incrementally from
+    // INSERT/DELETE payloads (group_votes/vote_responses changes can affect
+    // multiple counts at once when toggling).
+    const refetchVotes = async () => {
+      try {
+        const fresh = await fetch(`/api/trips/${params.id}/group-votes`).then(r => r.ok ? r.json() : null);
+        if (fresh?.votes) setVotes(fresh.votes);
+      } catch { /* non-critical */ }
+    };
+
     const channel = supabase
-      .channel(`group-chat-${params.id}`)
+      .channel(`group-channel-${params.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `trip_id=eq.${params.id}` },
@@ -599,6 +610,21 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             setReactions(prev => ({ ...prev, [msg.id]: normalized }));
           }
         }
+      )
+      // Group polls: a new vote was created on this trip
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'group_votes', filter: `trip_id=eq.${params.id}` },
+        () => { refetchVotes(); }
+      )
+      // Group polls: someone cast or uncast a vote. vote_responses doesn't
+      // carry trip_id directly, so we can't filter at the publication level —
+      // every vote_responses change in the project will fire and refetchVotes
+      // is the simplest correct response.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vote_responses' },
+        () => { refetchVotes(); }
       )
       .subscribe();
 
