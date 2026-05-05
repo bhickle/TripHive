@@ -1270,8 +1270,16 @@ export async function POST(request: NextRequest) {
         let objStart = -1;
         let dayIndex = 0;
         const collectedDays: Record<string, unknown>[] = [];
+        let firstPassStopReason: string | null = null;
 
         for await (const event of anthropicStream) {
+          // Capture stop_reason so we can distinguish "model finished" from
+          // "model was cut off at max_tokens" — the latter MUST trigger continuation
+          // even if dayIndex happens to equal resolvedTripLength rounded down.
+          if (event.type === 'message_delta' && event.delta.stop_reason) {
+            firstPassStopReason = event.delta.stop_reason;
+            continue;
+          }
           if (event.type !== 'content_block_delta') continue;
           if (event.delta.type !== 'text_delta') continue;
 
@@ -1321,13 +1329,24 @@ export async function POST(request: NextRequest) {
                   buffer = '';
                   objStart = -1;
                 } catch {
-                  // Malformed object (rare) — keep scanning; don't advance dayIndex
-                  // Reset depth tracking so the next { starts fresh
+                  // Malformed object — almost always means the response was
+                  // truncated mid-day at max_tokens. Fully reset parser state so
+                  // the rest of the stream isn't poisoned by stale buffer data.
+                  // (Without this, every subsequent `}` at depth 0 silently
+                  // discards content because objStart is -1 but buffer keeps growing.)
+                  buffer = '';
+                  braceDepth = 0;
+                  inString = false;
+                  escape = false;
                   objStart = -1;
                 }
               }
             }
           }
+        }
+
+        if (firstPassStopReason && firstPassStopReason !== 'end_turn') {
+          console.warn(`[generate-itinerary] First pass stop_reason=${firstPassStopReason} after ${dayIndex}/${resolvedTripLength} days`);
         }
 
         // ── Continuation loop for trips where a pass ran short ───────────────
@@ -1337,6 +1356,11 @@ export async function POST(request: NextRequest) {
         // the original "generate N days from day 1" instruction.
         const MAX_CONTINUATIONS = 4;
         let contAttempt = 0;
+        // Track consecutive zero-day passes. The model occasionally restarts at
+        // Day 1 (caught by dedup → 0 new days) — that's recoverable on the next
+        // attempt. Two zero-day passes in a row means the model is genuinely
+        // stuck and we should give up.
+        let consecutiveZeros = 0;
 
         while (dayIndex < resolvedTripLength && contAttempt < MAX_CONTINUATIONS) {
           contAttempt++;
@@ -1485,6 +1509,12 @@ export async function POST(request: NextRequest) {
                         contStart = -1;
                       }
                     } catch {
+                      // Same parser-poisoning fix as the main loop — fully reset
+                      // state so a truncated day doesn't corrupt the rest of the pass.
+                      contBuf = '';
+                      contDepth = 0;
+                      contInStr = false;
+                      contEsc = false;
                       contStart = -1;
                     }
                   }
@@ -1492,10 +1522,18 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            // If the model returned nothing new, no point retrying — it's stuck
+            // Track consecutive zero-day passes. Single zero is often a model
+            // misbehavior (restarting at Day 1 → all dedup'd) that recovers on
+            // the next attempt. Two in a row means the model is stuck.
             if (dayIndex === daysBefore) {
-              console.warn(`[generate-itinerary] Continuation pass ${contAttempt} produced 0 days — stopping retry loop`);
-              break;
+              consecutiveZeros++;
+              console.warn(`[generate-itinerary] Continuation pass ${contAttempt} produced 0 new days (consecutive zeros: ${consecutiveZeros}/2)`);
+              if (consecutiveZeros >= 2) {
+                console.warn(`[generate-itinerary] Two consecutive zero-day passes — stopping retry loop`);
+                break;
+              }
+            } else {
+              consecutiveZeros = 0;
             }
           } catch (contErr) {
             console.warn(`[generate-itinerary] Continuation pass ${contAttempt} failed:`, contErr);
