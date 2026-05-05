@@ -68,19 +68,41 @@ export async function requireAuth(): Promise<
     }
 
     // Look up tier from profiles table via admin client (bypasses RLS)
-    let tier: SubscriptionTier = 'free';
+    // We must NOT silently fall through to 'free' on errors here — that would
+    // mean a transient profile-fetch failure on a paid user gets treated like
+    // an entitlement downgrade. Better to fail the auth check entirely so the
+    // route returns 503 and the client retries.
+    let tier: SubscriptionTier;
     try {
       const admin = createAdminClient();
-      const { data: profile } = await admin
+      const { data: profile, error } = await admin
         .from('profiles')
         .select('subscription_tier')
         .eq('id', user.id)
         .single();
-      if (profile?.subscription_tier) {
-        tier = profile.subscription_tier as SubscriptionTier;
+
+      if (error) {
+        console.error('[requireAuth] profile fetch error for user', user.id, error);
+        return {
+          ok: false,
+          response: NextResponse.json(
+            { error: 'PROFILE_LOOKUP_FAILED', message: 'Could not load your account profile. Please retry in a moment.' },
+            { status: 503 },
+          ),
+        };
       }
-    } catch {
-      // Profile fetch failed — treat as free tier
+
+      // No row at all is genuinely a new account — default to free.
+      tier = (profile?.subscription_tier as SubscriptionTier | undefined) ?? 'free';
+    } catch (err) {
+      console.error('[requireAuth] profile fetch threw for user', user.id, err);
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: 'PROFILE_LOOKUP_FAILED', message: 'Could not load your account profile. Please retry in a moment.' },
+          { status: 503 },
+        ),
+      };
     }
 
     return {
