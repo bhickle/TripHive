@@ -1853,6 +1853,45 @@ function ItineraryPageContent() {
     track_b: { badgeColor: 'bg-rose-500 text-white', label: currentDayData.trackBLabel || 'Track B' },
   };
 
+  // ─── Empty-state gate ────────────────────────────────────────────────────────
+  // currentDayData is `{} as ItineraryDay` when activeDays is empty (Supabase
+  // returned no days yet, generation failed, etc.). Touching .date / .tracks
+  // / .transportLegs in render or handlers throws "cannot read property of
+  // undefined". Render a graceful state instead.
+  const hasDays = activeDays.length > 0;
+  if (!hasDays) {
+    return (
+      <div className="min-h-screen bg-parchment p-3 md:p-6 flex items-center justify-center">
+        <div className="max-w-md w-full text-center">
+          {isLiveBuilding ? (
+            <>
+              <Loader2 className="w-8 h-8 animate-spin text-sky-600 mx-auto mb-4" />
+              <h1 className="text-xl font-script italic font-semibold text-zinc-900 mb-2">
+                {liveBuildStatus || 'Building your itinerary…'}
+              </h1>
+              <p className="text-sm text-zinc-500">Days will appear as they finish generating.</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
+                No itinerary yet
+              </h1>
+              <p className="text-sm text-zinc-500 mb-6">
+                This trip doesn&apos;t have any generated days. Try refreshing — if the issue persists, the generation may have failed.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-full transition-colors"
+              >
+                Refresh
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-parchment p-3 md:p-6">
       <div className="max-w-5xl mx-auto">
