@@ -1238,6 +1238,9 @@ export async function POST(request: NextRequest) {
 
   // ── Open SSE stream ──────────────────────────────────────────────────────────
   const encoder = new TextEncoder();
+  // Forward client disconnect to the Anthropic SDK (and our own loops) so a
+  // closed browser tab doesn't keep generating for 5 minutes burning credits.
+  const clientSignal = request.signal;
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -1257,7 +1260,7 @@ export async function POST(request: NextRequest) {
           messages: [
             { role: 'user', content: finalPrompt },
           ],
-        });
+        }, { signal: clientSignal });
 
         // ── Character-level JSON object extractor ───────────────────────────
         // We scan the token stream character by character, tracking brace
@@ -1455,6 +1458,12 @@ export async function POST(request: NextRequest) {
             `Return ONLY the JSON array for days ${contFromDay}–${contToDay}. No markdown. No explanation. Start with [ and end with ].`,
           ].filter(Boolean).join('\n');
 
+          // Bail before the next continuation call if the client disconnected
+          if (clientSignal.aborted) {
+            console.warn('[generate-itinerary] client disconnected — aborting continuation loop');
+            break;
+          }
+
           try {
             const contStream = await client.messages.create({
               model: modelId,
@@ -1463,7 +1472,7 @@ export async function POST(request: NextRequest) {
               stream: true,
               system: SYSTEM_PROMPT, // enforce JSON-only output
               messages: [{ role: 'user', content: compactContPrompt }],
-            });
+            }, { signal: clientSignal });
 
             let contBuf = '';
             let contDepth = 0;

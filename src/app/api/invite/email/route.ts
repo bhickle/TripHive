@@ -39,14 +39,20 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Check if invitee already has a TripCoord account ─────────────────────
-  // If yes, create an in-app notification instead of (or in addition to) email
+  // If yes, create an in-app notification instead of (or in addition to) email.
+  //
+  // Look the email up via the profiles table (single indexed query on email)
+  // instead of auth.admin.listUsers() — that previous approach pulled every
+  // user record from auth on every invite send, which is both expensive and a
+  // service-role-data scan triggered by user input.
   let existingUserId: string | null = null;
   try {
-    const { data: authUser } = await supabase.auth.admin.listUsers();
-    const matched = authUser?.users?.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    );
-    if (matched) existingUserId = matched.id;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', email.trim())
+      .maybeSingle();
+    if (profile?.id) existingUserId = profile.id;
   } catch {
     // Non-fatal — continue with email path
   }
