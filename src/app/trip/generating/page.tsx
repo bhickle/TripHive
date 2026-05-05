@@ -209,8 +209,11 @@ export default function GeneratingPage() {
       try {
         const d = await res.json();
         if (d.error === 'NO_API_KEY') {
-          // Demo fallback — redirect to the sample itinerary
-          router.push('/trip/trip_1/itinerary');
+          // No Anthropic key configured — surface the error rather than
+          // redirecting authed users to the trip_1 mock Iceland sample.
+          setErrorMsg('AI generation is temporarily unavailable. Please try again in a few minutes.');
+          setErrorType('credits');
+          setPhase('error');
           return;
         }
         if (d.error === 'CREDIT_LIMIT') {

@@ -107,7 +107,8 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
     router.push(`/trip/${params.id}/${path}`);
   };
 
-  const inviteLink = `https://tripcoord.app/join/${params.id}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tripcoord.ai';
+  const inviteLink = `${appUrl.replace(/\/$/, '')}/join/${params.id}`;
 
   const handleInvite = () => {
     setShowInviteModal(true);

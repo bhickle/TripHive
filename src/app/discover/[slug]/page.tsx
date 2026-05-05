@@ -109,7 +109,7 @@ export default function DiscoverItineraryPage() {
 
   const handleStartPlanning = () => {
     if (!itinerary) return;
-    router.push(`/plan?destination=${encodeURIComponent(itinerary.destination)}&days=${itinerary.durationDays}&featured=${itinerary.slug}`);
+    router.push(`/trip/new?destination=${encodeURIComponent(itinerary.destination)}&days=${itinerary.durationDays}&featured=${itinerary.slug}`);
   };
 
   if (loading) {

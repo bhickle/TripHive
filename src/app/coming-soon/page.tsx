@@ -139,10 +139,10 @@ export default function ComingSoonPage() {
       <footer className="px-8 py-6 flex items-center justify-between">
         <p className="text-xs text-slate-400">© 2026 tripcoord, Inc.</p>
         <a
-          href="mailto:hello@tripcoord.com"
+          href="mailto:hello@tripcoord.ai"
           className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
         >
-          hello@tripcoord.com
+          hello@tripcoord.ai
         </a>
       </footer>
     </div>

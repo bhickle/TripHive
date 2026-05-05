@@ -193,7 +193,7 @@ function FeaturedItineraryCard({ item, days, loadingDays }: FeaturedItineraryCar
             See full itinerary <ChevronRight className="w-3.5 h-3.5" />
           </Link>
           <Link
-            href={`/plan?destination=${encodeURIComponent(item.destination)}&days=${item.durationDays}&featured=${item.slug}`}
+            href={`/trip/new?destination=${encodeURIComponent(item.destination)}&days=${item.durationDays}&featured=${item.slug}`}
             className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-700 text-white text-xs font-bold px-4 py-2 rounded-full transition-colors"
             onClick={() => logDestinationEvent(item.destination, 'plan_click')}
           >
