@@ -3,8 +3,8 @@
 import React, {
   createContext, useContext, useEffect, useState, useCallback,
 } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
 import type { User, Session } from '@supabase/supabase-js';
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { DEMO_USER_EMAIL } from '@/lib/demo';
 
 // ─── Profile shape ────────────────────────────────────────────────────────────
@@ -95,16 +95,12 @@ function clearCachedProfile() {
 }
 
 // ─── Supabase singleton ───────────────────────────────────────────────────────
-// IMPORTANT: createBrowserClient MUST live at module scope, not inside the
-// component. Each call creates a new client that tries to acquire the same
-// Web Lock ("lock:sb-…-auth-token"). Multiple instances fight over it, causing
-// "Lock was released because another request stole it" errors on every render,
-// which prevents the session from ever resolving and leaves the app in an
-// eternal skeleton/loading state.
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+// Use the shared browser-client singleton from src/lib/supabase/client.ts so
+// every part of the app (this provider, useCurrentUser hook, anywhere else
+// that needs a browser-side client) shares one instance. Multiple instances
+// fight over the same Web Lock ("lock:sb-…-auth-token"), causing "lock stolen"
+// errors and the app stuck in an eternal loading state.
+const supabase = createSupabaseBrowserClient();
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -125,12 +121,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('id', userId)
           .single();
         if (data) {
-          setProfile(data);
+          // DB schema has subscription_tier: string but our app narrows it to
+          // a union — coerce here. Anything outside the union we treat as 'free'.
+          const tier = (
+            ['free', 'trip_pass', 'explorer', 'nomad'].includes(data.subscription_tier)
+              ? data.subscription_tier
+              : 'free'
+          ) as UserProfile['subscription_tier'];
+          const profile: UserProfile = { ...data, subscription_tier: tier };
+          setProfile(profile);
           // Cache the full profile for instant hydration on next page load,
           // and also cache the tier separately for the existing tier-only fallback.
-          writeCachedProfile(data);
+          writeCachedProfile(profile);
           try {
-            localStorage.setItem(`tc_tier_${userId}`, data.subscription_tier);
+            localStorage.setItem(`tc_tier_${userId}`, tier);
           } catch {
             // localStorage unavailable (e.g. private browsing with storage blocked) — ignore
           }
