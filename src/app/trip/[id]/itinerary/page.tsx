@@ -445,28 +445,35 @@ function ItineraryPageContent() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ days: updated }),
-      }).catch(() => {
-        // Rollback aiDays to pre-vote state on failure
-        syncAiDays(days);
-      });
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`save failed: ${res.status}`);
+        })
+        .catch(() => {
+          // Rollback aiDays to pre-vote state on failure + surface the error
+          syncAiDays(days);
+          setSuggestError('Couldn’t save your vote. Try again in a moment.');
+          setTimeout(() => setSuggestError(null), 4000);
+        });
     }
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
 
-    // Fire-and-forget vote to dedicated votes table (persists per-user across sessions)
+    // Persist vote to dedicated votes table (per-user, durable across sessions)
     if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
       fetch(`/api/votes/${tripId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activityId, vote: next.myVote }),
       }).then(async res => {
-        if (res.ok) {
-          // Merge server-fresh counts back in (handles multi-user scenarios)
-          const { up, down } = await res.json();
-          setVotes(prev => ({ ...prev, [activityId]: { ...prev[activityId], up, down } }));
-        }
+        if (!res.ok) throw new Error(`vote failed: ${res.status}`);
+        // Merge server-fresh counts back in (handles multi-user scenarios)
+        const { up, down } = await res.json();
+        setVotes(prev => ({ ...prev, [activityId]: { ...prev[activityId], up, down } }));
       }).catch(() => {
         // Rollback vote indicator to pre-vote state on failure
         setVotes(prev => ({ ...prev, [activityId]: prevVoteState }));
+        setSuggestError('Vote didn’t save. Try again.');
+        setTimeout(() => setSuggestError(null), 4000);
       });
     }
   }, [params.id]);
@@ -1272,16 +1279,25 @@ function ItineraryPageContent() {
     syncAiDays(updated);
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
 
-    // Fire-and-forget sync to Supabase — use the URL trip ID directly so this
-    // works regardless of whether localStorage has 'currentTripId' set (e.g. on
-    // direct navigation via bookmark or dashboard link).
+    // Sync to Supabase — use the URL trip ID directly so this works regardless
+    // of whether localStorage has 'currentTripId' set (e.g. on direct
+    // navigation via bookmark or dashboard link). Surface failures via the
+    // existing toast — localStorage still has the change so the user's edit
+    // isn't lost on refresh, but they should know the cloud copy is stale.
     const tripId = params.id;
     if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
       fetch(`/api/trips/${tripId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ days: updated }),
-      }).catch(() => { /* non-critical — localStorage is the source of truth */ });
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`save failed: ${res.status}`);
+        })
+        .catch(() => {
+          setSuggestError('Couldn’t save your changes to the cloud. They’re still on this device.');
+          setTimeout(() => setSuggestError(null), 4000);
+        });
     }
   }, [params.id]);
 

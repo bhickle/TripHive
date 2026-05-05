@@ -459,6 +459,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   const [memberInvited, setMemberInvited] = useState(false);
   const [voteCreated, setVoteCreated] = useState(false);
+  const [voteError, setVoteError] = useState<string | null>(null);
   const [settledUp, setSettledUp] = useState(false);
   const [paidTransactions, setPaidTransactions] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -524,9 +525,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         });
         if (!res.ok) throw new Error('Vote failed');
       } catch {
-        // Rollback optimistic update on failure
+        // Rollback optimistic update on failure + surface the error
         setVotes(prevVotes);
         setUserVotes(prevUserVotes);
+        setVoteError('Vote didn’t save. Try again.');
+        setTimeout(() => setVoteError(null), 4000);
       }
     }
   };
@@ -825,6 +828,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen bg-parchment p-4 md:p-6">
+      {voteError && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+          <span className="text-sm font-semibold">{voteError}</span>
+        </div>
+      )}
       <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">
@@ -1819,12 +1827,17 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                                 createdByName: currentUserName,
                               }),
                             });
-                            if (res.ok) {
-                              // Refresh votes to get real IDs
-                              const fresh = await fetch(`/api/trips/${params.id}/group-votes`).then(r => r.json());
-                              if (fresh.votes) setVotes(fresh.votes);
-                            }
-                          } catch { /* optimistic already shown */ }
+                            if (!res.ok) throw new Error(`vote create failed: ${res.status}`);
+                            // Refresh votes to get real IDs
+                            const fresh = await fetch(`/api/trips/${params.id}/group-votes`).then(r => r.json());
+                            if (fresh.votes) setVotes(fresh.votes);
+                          } catch {
+                            // Rollback: drop the optimistic vote and tell the user
+                            setVotes(prev => prev.filter(v => v.id !== optimisticVote.id));
+                            setVoteCreated(false);
+                            setVoteError('Couldn’t save the vote. Try again.');
+                            setTimeout(() => setVoteError(null), 4000);
+                          }
                         }
                       }}
                       className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-medium text-sm transition-colors"
