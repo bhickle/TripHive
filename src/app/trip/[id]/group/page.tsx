@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Avatar, AvatarStack } from '@/components/Avatar';
 import { ExpenseRow } from '@/components/ExpenseRow';
 import { VoteCard } from '@/components/VoteCard';
@@ -415,7 +416,17 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  // Open the group page on a specific tab when the URL has ?tab=chat | votes
+  // | expenses | overview (used by the notification bell to deep-link directly
+  // to the chat/poll the user was notified about).
+  const searchParams = useSearchParams();
+  const initialTab = (() => {
+    const t = searchParams?.get('tab');
+    return t === 'chat' || t === 'votes' || t === 'expenses' || t === 'overview'
+      ? (t as TabType)
+      : 'overview';
+  })();
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [uploadedReceipt, setUploadedReceipt] = useState<File | null>(null);
