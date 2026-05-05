@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { notifyTripMembers } from '@/lib/supabase/notify';
 
 /**
  * GET /api/trips/[id]/messages
@@ -74,6 +75,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (error) {
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
     }
+
+    // Fire-and-forget: notify every other trip member that a message arrived.
+    // Don't await — the chat reply shouldn't block on notification fan-out.
+    notifyTripMembers({
+      supabase,
+      tripId: params.id,
+      excludeUserId: userId,
+      type: 'new_message',
+      fromName: userName,
+      message: message.content,
+    });
 
     return NextResponse.json({
       message: {

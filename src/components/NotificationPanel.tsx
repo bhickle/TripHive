@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Bell, X, CheckCheck, MapPin, MessageSquare,
   DollarSign, ThumbsUp, UserPlus, Sparkles, Route,
   Calendar,
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,66 @@ export type NotifType =
   | 'ai'
   | 'transport'
   | 'reminder';
+
+// ─── DB row → display shape mapping ───────────────────────────────────────────
+
+interface ApiNotificationRow {
+  id: string;
+  type: string;
+  trip_id: string | null;
+  trip_name: string | null;
+  inviter_name: string | null;
+  message: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+function dbTypeToUi(t: string): NotifType {
+  switch (t) {
+    case 'trip_invite':  return 'member';
+    case 'new_message':  return 'chat';
+    case 'new_vote':     return 'vote';
+    default:             return 'reminder';
+  }
+}
+
+function buildTitle(row: ApiNotificationRow): string {
+  const who = row.inviter_name ?? 'Someone';
+  const trip = row.trip_name ?? 'a trip';
+  switch (row.type) {
+    case 'trip_invite': return `${who} invited you to ${trip}`;
+    case 'new_message': return `New message from ${who}`;
+    case 'new_vote':    return `${who} started a vote`;
+    default:            return who;
+  }
+}
+
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const diffMs = Date.now() - then;
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function rowToNotification(row: ApiNotificationRow): Notification {
+  return {
+    id: row.id,
+    type: dbTypeToUi(row.type),
+    title: buildTitle(row),
+    message: row.message ?? '',
+    tripId: row.trip_id ?? undefined,
+    tripName: row.trip_name ?? undefined,
+    time: relativeTime(row.created_at),
+    read: row.read,
+  };
+}
 
 export interface Notification {
   id: string;
@@ -124,6 +185,56 @@ export function NotificationBell() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Initial fetch from /api/notifications
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch('/api/notifications');
+      if (!res.ok) return;
+      const { notifications: rows } = await res.json() as { notifications: ApiNotificationRow[] };
+      setNotifications((rows ?? []).map(rowToNotification));
+    } catch {
+      /* unauthenticated or network error — leave list empty */
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  // Realtime subscription so new notifications appear instantly without a refresh.
+  // Falls back gracefully if Supabase is unreachable — refresh() still pulls on mount.
+  useEffect(() => {
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+
+        const channel = supabase
+          .channel(`notifications:${user.id}`)
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+            (payload) => {
+              const row = payload.new as ApiNotificationRow;
+              setNotifications(prev => {
+                if (prev.some(n => n.id === row.id)) return prev;
+                return [rowToNotification(row), ...prev];
+              });
+            },
+          )
+          .subscribe();
+
+        cleanup = () => { supabase.removeChannel(channel); };
+      } catch {
+        /* swallow — realtime is best-effort */
+      }
+    })();
+
+    return () => { cancelled = true; cleanup?.(); };
+  }, []);
+
   // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -137,10 +248,20 @@ export function NotificationBell() {
 
   const markRead = (id: string) => {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+    fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).catch(() => { /* non-critical */ });
   };
 
   const markAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markAllRead: true }),
+    }).catch(() => { /* non-critical */ });
   };
 
   // Group: unread first, then by trip

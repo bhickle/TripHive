@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { notifyTripMembers } from '@/lib/supabase/notify';
 
 /**
  * GET /api/trips/[id]/group-votes
@@ -113,6 +114,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }));
 
     await supabase.from('vote_options').insert(optionRows);
+
+    // Fire-and-forget: notify every other trip member that a new poll exists.
+    notifyTripMembers({
+      supabase,
+      tripId: params.id,
+      excludeUserId: userId,
+      type: 'new_vote',
+      fromName: createdByName ?? userName,
+      message: title,
+    });
 
     return NextResponse.json({ success: true, voteId: vote.id });
   } catch (err) {
