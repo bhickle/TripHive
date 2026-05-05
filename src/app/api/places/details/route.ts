@@ -251,16 +251,19 @@ export async function GET(request: NextRequest) {
         types: r.types || [],
         source: 'google',
       });
-    } catch {
-      // Fall through to mock
+    } catch (err) {
+      console.error('[places/details] Google fetch failed:', err);
+      return NextResponse.json(
+        { error: 'Place details temporarily unavailable.' },
+        { status: 503 },
+      );
     }
   }
 
-  // Demo mode — return mock details
-  const mock = MOCK_DETAILS[placeId];
-  if (mock) {
-    return NextResponse.json({ ...mock, source: 'demo' });
-  }
-
-  return NextResponse.json({ error: 'Place not found' }, { status: 404 });
+  // No GOOGLE_MAPS_KEY OR caller passed a mock_* placeId — surface this rather
+  // than silently feeding mock data to authenticated users.
+  return NextResponse.json(
+    { error: 'Place details not available for this place.' },
+    { status: 404 },
+  );
 }

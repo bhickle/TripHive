@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { itineraryDays, trips } from '@/data/mock';
+import { itineraryDays, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
 import {
@@ -1040,7 +1040,9 @@ function ItineraryPageContent() {
     try {
       // Derive unique cities from itinerary days; fall back to the trip destination.
       // Use aiDays directly (activeDays is derived from aiDays but declared after this callback).
-      const days = aiDays ?? itineraryDays;
+      // Mock trips (demo) get the mock Iceland days; real trips get an empty fallback.
+      const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+      const days = aiDays ?? (isMockTrip ? itineraryDays : []);
       const citiesInOrder: string[] = [];
       for (const d of days) {
         const c = d.city?.trim();
@@ -1260,7 +1262,11 @@ function ItineraryPageContent() {
   };
 
   // ─── Derived state — declared early so callbacks below can reference them ────
-  const activeDays = aiDays ?? itineraryDays;
+  // Mock Iceland data is only for demo trip IDs (trip_1..trip_4). For real
+  // trips, missing aiDays means "not loaded yet" — fall through to empty array
+  // and let the hasDays gate below render an empty state.
+  const isMockTrip = MOCK_TRIP_IDS.has(params.id);
+  const activeDays = aiDays ?? (isMockTrip ? itineraryDays : []);
   const trip = aiMeta
     ? { ...trips[0], destination: aiMeta.destination || trips[0].destination,
         budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown']) ?? trips[0].budgetBreakdown,

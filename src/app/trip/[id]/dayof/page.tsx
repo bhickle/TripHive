@@ -277,9 +277,12 @@ export default function DayOfPage() {
   const [destination, setDestination] = useState<string>('Destination');
   const [currentUserName, setCurrentUserName] = useState<string>('You');
   const [isMockTrip, setIsMockTrip] = useState(!isRealTrip);
-  // Use state for currentDay so Supabase/localStorage loads trigger a re-render
-  const [currentDay, setCurrentDay] = useState<(typeof itineraryDays)[0]>(
-    isRealTrip ? itineraryDays[0] : itineraryDays[1]
+  // Use state for currentDay so Supabase/localStorage loads trigger a re-render.
+  // For real trips, start with null and render a loading state — initializing
+  // to itineraryDays[0] would flash mock Iceland data before Supabase resolves
+  // (and persist it forever if Supabase + localStorage both fail).
+  const [currentDay, setCurrentDay] = useState<(typeof itineraryDays)[0] | null>(
+    isRealTrip ? null : itineraryDays[1]
   );
 
   useEffect(() => {
@@ -326,6 +329,18 @@ export default function DayOfPage() {
 
     load();
   }, [tripId, isRealTrip]);
+
+  // Render a loading state until the real trip's currentDay is loaded.
+  if (!currentDay) {
+    return (
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-slate-500 text-sm">Loading today&apos;s plan…</p>
+        </div>
+      </main>
+    );
+  }
 
   const transportLegs = currentDay.transportLegs || [];
 

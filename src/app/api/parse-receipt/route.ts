@@ -36,23 +36,12 @@ export async function POST(request: NextRequest) {
 
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
-      // Return plausible mock data when no API key is configured
-      return NextResponse.json({
-        merchant: 'Café Reykjavik',
-        total: 64.50,
-        subtotal: 58.00,
-        tax: 6.50,
-        currency: 'USD',
-        date: new Date().toISOString().split('T')[0],
-        category: 'dining',
-        lineItems: [
-          { description: 'Skyr pancakes', amount: 14.00, quantity: 2 },
-          { description: 'Lamb soup', amount: 16.00, quantity: 1 },
-          { description: 'Cappuccino', amount: 6.00, quantity: 2 },
-          { description: 'Arctic char', amount: 22.00, quantity: 1 },
-        ],
-        _mock: true,
-      });
+      // No Anthropic key configured — fail clearly rather than feed mock
+      // Iceland café data to authenticated users (per CLAUDE.md mock policy).
+      return NextResponse.json(
+        { error: 'AI receipt parsing is temporarily unavailable.' },
+        { status: 503 },
+      );
     }
 
     const body = await request.json();
