@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/photos
- * Returns all photos for a trip.
+ * Returns all photos for a trip. Caller must be the trip organizer or a member.
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createAdminClient();
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { supabase } = access.ctx;
 
     const { data: photos, error } = await supabase
       .from('trip_photos')

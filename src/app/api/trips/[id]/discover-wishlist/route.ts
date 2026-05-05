@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/discover-wishlist
  * Returns all wishlist votes for a trip, grouped by item.
+ * Caller must be the trip organizer or a confirmed member.
  * Shape: { items: WishlistItem[] }
  * where WishlistItem = { itemId, itemData, upVotes, downVotes, myVote: 'up'|'down'|null }
  */
@@ -13,15 +12,10 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // Auth optional — unauthenticated users get myVote: null
-  let myUserId: string | null = null;
-  try {
-    const authClient = await createClient();
-    const { data: { user } } = await authClient.auth.getUser();
-    myUserId = user?.id ?? null;
-  } catch { /* ignore */ }
+  const access = await requireTripAccess(params.id);
+  if (!access.ok) return access.response;
+  const { userId: myUserId, supabase } = access.ctx;
 
-  const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rows, error } = await (supabase as any)
     .from('discover_wishlist')
@@ -65,12 +59,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = await requireAuth();
-  if (!auth.ok) return auth.response;
-
-  const authClient = await createClient();
-  const { data: { user } } = await authClient.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const access = await requireTripAccess(params.id);
+  if (!access.ok) return access.response;
+  const { userId, supabase } = access.ctx;
 
   const body = await req.json();
   const { itemId, itemData, vote, saved } = body as {
@@ -82,7 +73,6 @@ export async function POST(
 
   if (!itemId) return NextResponse.json({ error: 'itemId required' }, { status: 400 });
 
-  const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const table = (supabase as any).from('discover_wishlist');
 
@@ -90,14 +80,14 @@ export async function POST(
   if (vote === null && saved === false) {
     await table.delete()
       .eq('trip_id', params.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('item_id', itemId);
   } else if (vote !== undefined || saved !== undefined) {
     // Fetch existing row to preserve fields not being updated
     const { data: existing } = await table
       .select('vote, saved')
       .eq('trip_id', params.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('item_id', itemId)
       .maybeSingle();
 
@@ -107,7 +97,7 @@ export async function POST(
     const { error } = await table.upsert(
       {
         trip_id: params.id,
-        user_id: user.id,
+        user_id: userId,
         item_id: itemId,
         item_data: itemData ?? existing?.item_data ?? {},
         vote: newVote,

@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * PATCH /api/trips/[id]/messages/[msgId]
- * Toggle an emoji reaction on a message.
+ * Toggle an emoji reaction on a message. Caller must be organizer or trip member.
  * Body: { emoji: string }
  *
  * Reactions are stored as { "emoji": ["userId1", "userId2", ...] } in the reactions JSONB column.
@@ -16,22 +15,14 @@ export async function PATCH(
   { params }: { params: { id: string; msgId: string } }
 ) {
   try {
-    // Auth
-    let userId: string | null = null;
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      userId = user?.id ?? null;
-    } catch { /* unauthenticated */ }
-
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
 
     const { emoji } = await req.json();
     if (!emoji || typeof emoji !== 'string') {
       return NextResponse.json({ error: 'emoji required' }, { status: 400 });
     }
-
-    const supabase = createAdminClient();
 
     // Fetch current message
     const { data: message, error: fetchError } = await supabase

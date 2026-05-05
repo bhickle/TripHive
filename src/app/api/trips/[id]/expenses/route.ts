@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/expenses
@@ -15,44 +14,11 @@ import { createAdminClient } from '@/lib/supabase/admin';
  * Body: { expenseId, settled }
  */
 
-async function getAuthedUserId(): Promise<string | null> {
-  try {
-    const authClient = await createClient();
-    const { data: { user } } = await authClient.auth.getUser();
-    return user?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function verifyTripAccess(supabase: ReturnType<typeof createAdminClient>, tripId: string, userId: string): Promise<boolean> {
-  const { data: trip } = await supabase
-    .from('trips')
-    .select('organizer_id')
-    .eq('id', tripId)
-    .maybeSingle();
-
-  if (!trip) return false;
-  if (trip.organizer_id === userId) return true;
-
-  const { data: membership } = await supabase
-    .from('trip_members')
-    .select('id')
-    .eq('trip_id', tripId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  return !!membership;
-}
-
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const userId = await getAuthedUserId();
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const supabase = createAdminClient();
-    const hasAccess = await verifyTripAccess(supabase, params.id, userId);
-    if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { supabase } = access.ctx;
 
     const { data: expenses, error } = await supabase
       .from('expenses')
@@ -85,12 +51,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const userId = await getAuthedUserId();
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const supabase = createAdminClient();
-    const hasAccess = await verifyTripAccess(supabase, params.id, userId);
-    if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
 
     const body = await req.json();
     const { description, amount, paidByName, splitType, category, customAmounts, lineItems } = body;
@@ -144,12 +107,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const userId = await getAuthedUserId();
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const supabase = createAdminClient();
-    const hasAccess = await verifyTripAccess(supabase, params.id, userId);
-    if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { supabase } = access.ctx;
 
     const { expenseId, settled } = await req.json();
     if (!expenseId) return NextResponse.json({ error: 'expenseId required' }, { status: 400 });

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/messages
@@ -13,43 +12,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    // Auth check
-    let userId: string | null = null;
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      userId = user?.id ?? null;
-    } catch { /* auth failed */ }
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const supabase = createAdminClient();
-
-    // Verify caller is organizer or member of this trip
-    const { data: trip } = await supabase
-      .from('trips')
-      .select('organizer_id')
-      .eq('id', params.id)
-      .maybeSingle();
-
-    if (!trip) {
-      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
-    }
-
-    if (trip.organizer_id !== userId) {
-      const { data: membership } = await supabase
-        .from('trip_members')
-        .select('id')
-        .eq('trip_id', params.id)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!membership) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { supabase } = access.ctx;
 
     const { data: messages, error } = await supabase
       .from('group_messages')
@@ -79,29 +44,22 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    let userId: string | null = null;
-    let userName = 'Anonymous';
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      userId = user?.id ?? null;
-      if (userId) {
-        const supabase = createAdminClient();
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('name, email')
-          .eq('id', userId)
-          .single();
-        userName = profile?.name ?? profile?.email?.split('@')[0] ?? 'You';
-      }
-    } catch { /* unauthenticated */ }
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', userId)
+      .single();
+    const userName = profile?.name ?? profile?.email?.split('@')[0] ?? 'You';
 
     const { content } = await req.json();
     if (!content?.trim()) {
       return NextResponse.json({ error: 'content required' }, { status: 400 });
     }
 
-    const supabase = createAdminClient();
     const { data: message, error } = await supabase
       .from('group_messages')
       .insert({

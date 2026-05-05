@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/packing
@@ -14,24 +13,17 @@ import { createAdminClient } from '@/lib/supabase/admin';
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    let userId: string | null = null;
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      userId = user?.id ?? null;
-    } catch { /* unauthenticated */ }
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
 
-    const supabase = createAdminClient();
-    const query = supabase
+    const { data: items } = await supabase
       .from('packing_items')
       .select('*')
       .eq('trip_id', params.id)
+      .eq('user_id', userId)
       .order('display_order', { ascending: true });
 
-    // Scope to user if authenticated
-    if (userId) query.eq('user_id', userId);
-
-    const { data: items } = await query;
     return NextResponse.json({ items: items ?? [] });
   } catch (err) {
     console.error('packing GET error:', err);
@@ -41,17 +33,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    let userId: string | null = null;
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      userId = user?.id ?? null;
-    } catch { /* unauthenticated */ }
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
 
     const { name, category } = await req.json();
     if (!name?.trim()) return NextResponse.json({ error: 'name required' }, { status: 400 });
-
-    const supabase = createAdminClient();
 
     const { data: last } = await supabase
       .from('packing_items')
@@ -82,16 +69,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function PATCH(req: Request, { params: _params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
+
     const { itemId, packed } = await req.json();
     if (!itemId) return NextResponse.json({ error: 'itemId required' }, { status: 400 });
 
-    const supabase = createAdminClient();
+    // Scope the update to the caller's own row in this trip — no cross-row tampering
     const { error } = await supabase
       .from('packing_items')
       .update({ packed: !!packed })
-      .eq('id', itemId);
+      .eq('id', itemId)
+      .eq('trip_id', params.id)
+      .eq('user_id', userId);
 
     if (error) return NextResponse.json({ error: 'Failed to update item' }, { status: 500 });
     return NextResponse.json({ success: true });

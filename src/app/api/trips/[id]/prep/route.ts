@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 const GENERIC_PREP_TASKS = [
   { category: 'document', title: 'Check passport validity (6+ months required for most destinations)', urgent: false, display_order: 0 },
@@ -24,7 +24,9 @@ const GENERIC_PREP_TASKS = [
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createAdminClient();
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { supabase } = access.ctx;
 
     const { data: existing } = await supabase
       .from('prep_tasks')
@@ -51,11 +53,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { supabase } = access.ctx;
+
     const body = await req.json();
     const { category, title, dueDate } = body;
     if (!title?.trim()) return NextResponse.json({ error: 'title required' }, { status: 400 });
-
-    const supabase = createAdminClient();
 
     // Get max display_order
     const { data: last } = await supabase
@@ -87,16 +91,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function PATCH(req: Request, { params: _params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { supabase } = access.ctx;
+
     const { taskId, completed } = await req.json();
     if (!taskId) return NextResponse.json({ error: 'taskId required' }, { status: 400 });
 
-    const supabase = createAdminClient();
+    // Scope by trip_id so a member of trip A can't toggle tasks in trip B
     const { error } = await supabase
       .from('prep_tasks')
       .update({ completed: !!completed })
-      .eq('id', taskId);
+      .eq('id', taskId)
+      .eq('trip_id', params.id);
 
     if (error) return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
     return NextResponse.json({ success: true });
