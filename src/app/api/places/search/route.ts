@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 // Iceland mock data for demo mode (no API key required)
 const ICELAND_PLACES = [
@@ -34,6 +35,11 @@ const ICELAND_PLACES = [
 ];
 
 export async function GET(request: NextRequest) {
+  // Require auth — this endpoint proxies Google Places on the server's
+  // billing key. Without auth, anyone with the URL can drain the quota.
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q') || '';
   const location = searchParams.get('location') || '';

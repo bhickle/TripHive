@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 // Mock place details for demo mode
 const MOCK_DETAILS: Record<string, object> = {
@@ -203,6 +204,11 @@ const MOCK_DETAILS: Record<string, object> = {
 };
 
 export async function GET(request: NextRequest) {
+  // Require auth — this endpoint proxies Google Places on the server's
+  // billing key. Without auth, anyone with the URL can drain the quota.
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(request.url);
   const placeId = searchParams.get('place_id') || '';
 
