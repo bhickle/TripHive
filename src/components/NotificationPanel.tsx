@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Bell, X, CheckCheck, MapPin, MessageSquare,
   DollarSign, ThumbsUp, UserPlus, Sparkles, Route,
@@ -71,6 +72,7 @@ function rowToNotification(row: ApiNotificationRow): Notification {
   return {
     id: row.id,
     type: dbTypeToUi(row.type),
+    dbType: row.type,
     title: buildTitle(row),
     message: row.message ?? '',
     tripId: row.trip_id ?? undefined,
@@ -80,9 +82,27 @@ function rowToNotification(row: ApiNotificationRow): Notification {
   };
 }
 
+/**
+ * Where should clicking this notification take the user?
+ * Returns null if there's no relevant destination.
+ */
+function destinationUrl(notif: Notification): string | null {
+  if (!notif.tripId) return null;
+  switch (notif.dbType) {
+    // trip_invite → same URL the email/SMS link uses, so guests get the same
+    // intro/preferences flow whether they came in via email or the bell.
+    case 'trip_invite': return `/join/${notif.tripId}`;
+    case 'new_message': return `/trip/${notif.tripId}/group?tab=chat`;
+    case 'new_vote':    return `/trip/${notif.tripId}/group?tab=votes`;
+    default:            return `/trip/${notif.tripId}/itinerary`;
+  }
+}
+
 export interface Notification {
   id: string;
   type: NotifType;
+  /** Raw DB type — used to pick the destination URL on click. */
+  dbType?: string;
   title: string;
   message: string;
   tripId?: string;
@@ -130,16 +150,23 @@ function notifTypeBg(type: NotifType) {
 function NotifItem({
   notif,
   onRead,
+  onNavigate,
 }: {
   notif: Notification;
   onRead: (id: string) => void;
+  onNavigate: (url: string) => void;
 }) {
+  const handleClick = () => {
+    onRead(notif.id);
+    const url = destinationUrl(notif);
+    if (url) onNavigate(url);
+  };
   return (
     <div
       className={`flex items-start gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer ${
         !notif.read ? 'bg-sky-50/40' : ''
       }`}
-      onClick={() => onRead(notif.id)}
+      onClick={handleClick}
     >
       {/* Avatar or icon */}
       <div className="flex-shrink-0 mt-0.5">
@@ -182,6 +209,12 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  const navigate = useCallback((url: string) => {
+    setOpen(false);
+    router.push(url);
+  }, [router]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -335,7 +368,7 @@ export function NotificationBell() {
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">New</p>
                     </div>
                     {unread.map((n) => (
-                      <NotifItem key={n.id} notif={n} onRead={markRead} />
+                      <NotifItem key={n.id} notif={n} onRead={markRead} onNavigate={navigate} />
                     ))}
                   </div>
                 )}
@@ -347,7 +380,7 @@ export function NotificationBell() {
                       </div>
                     )}
                     {read.map((n) => (
-                      <NotifItem key={n.id} notif={n} onRead={markRead} />
+                      <NotifItem key={n.id} notif={n} onRead={markRead} onNavigate={navigate} />
                     ))}
                   </div>
                 )}

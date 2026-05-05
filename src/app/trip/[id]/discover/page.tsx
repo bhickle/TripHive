@@ -847,7 +847,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                 className="w-full pl-9 pr-4 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
               />
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
+            <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto sm:flex-1 sm:min-w-0 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {categories.map((cat) => (
                 <button
                   key={cat.value}
