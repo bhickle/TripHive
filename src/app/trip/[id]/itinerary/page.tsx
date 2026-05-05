@@ -1742,42 +1742,9 @@ function ItineraryPageContent() {
     }
   }, [activeDays, addDayPosition, addDayRelativeTo, addDayMode, aiMeta, trip, params.id, persistDays, setSelectedDay]);
 
-  const weatherData: Record<number, { icon: React.ReactNode; temp: number; condition: string }> = {
-    1: { icon: <Cloud className="w-8 h-8" />, temp: 54, condition: 'Partly Cloudy' },
-    2: { icon: <Sun className="w-8 h-8" />, temp: 57, condition: 'Sunny' },
-    3: { icon: <CloudRain className="w-8 h-8" />, temp: 50, condition: 'Rainy' },
-    4: { icon: <Cloud className="w-8 h-8" />, temp: 52, condition: 'Overcast' },
-    5: { icon: <Wind className="w-8 h-8" />, temp: 48, condition: 'Windy' },
-  };
-  const weather = weatherData[selectedDay] || weatherData[1];
-
-  // Show "Weather Today" only during the week of the trip; otherwise "Avg. Weather"
-  const weatherLabel = (() => {
-    const tripStart = aiMeta?.startDate ? new Date(aiMeta.startDate) : null;
-    const tripEnd = aiMeta?.endDate ? new Date(aiMeta.endDate) : null;
-    if (!tripStart) return 'Avg. Weather';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfTripWeek = new Date(tripStart);
-    startOfTripWeek.setDate(startOfTripWeek.getDate() - 7);
-    const isWithinTripWindow = today >= startOfTripWeek && (!tripEnd || today <= tripEnd);
-    return isWithinTripWindow ? 'Weather Today' : 'Avg. Weather';
-  })();
-
   const hasTrackA = (currentDayData.tracks?.track_a?.length ?? 0) > 0;
   const hasTrackB = (currentDayData.tracks?.track_b?.length ?? 0) > 0;
   const hasSplitTracks = hasTrackA || hasTrackB;
-
-  const budgetCategories = [
-    { label: 'Flights', spent: 1800, budget: trip.budgetBreakdown.flights, color: 'bg-blue-500' },
-    { label: 'Hotel', spent: 800, budget: trip.budgetBreakdown.hotel, color: 'bg-violet-500' },
-    { label: 'Food', spent: 380, budget: trip.budgetBreakdown.food, color: 'bg-orange-500' },
-    { label: 'Activities', spent: 420, budget: trip.budgetBreakdown.experiences, color: 'bg-teal-500' },
-    { label: 'Transport', spent: 210, budget: trip.budgetBreakdown.transport, color: 'bg-indigo-500' },
-  ];
-  const totalSpent = budgetCategories.reduce((s, c) => s + c.spent, 0);
-  const totalBudget = budgetCategories.reduce((s, c) => s + c.budget, 0);
-  const remainingBudget = totalBudget - totalSpent;
 
   // If the day has a dinnerMeetupLocation but no dinner restaurant in the shared track,
   // synthesize a virtual dinner card so the meetup restaurant actually appears on the timeline.
