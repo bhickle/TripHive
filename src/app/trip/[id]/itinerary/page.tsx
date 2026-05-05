@@ -103,6 +103,28 @@ const transportConfig: Record<
   },
 };
 
+// ─── Per-priority sidebar block metadata ─────────────────────────────────────
+// Drives the generic <PriorityHighlightsBlock> sidebar render. Each entry maps
+// a Trip Builder priority id to its visual identity. Food / nightlife /
+// shopping / photography are handled by their own dedicated blocks elsewhere
+// in the sidebar — they are intentionally NOT in this map.
+const PRIORITY_SIDEBAR_META: Record<string, {
+  icon: string; label: string; hint: string;
+  bg: string; border: string; text: string; textMuted: string; pill: string; tipText: string;
+}> = {
+  nature:        { icon: '🌿', label: 'Nature Highlights',        hint: 'Parks · Trails · Viewpoints',           bg: 'bg-green-50',   border: 'border-green-100',   text: 'text-green-900',   textMuted: 'text-green-600',   pill: 'bg-green-100 text-green-700 border-green-200',   tipText: 'text-green-700' },
+  history:       { icon: '📜', label: 'History Highlights',       hint: 'Monuments · Museums · Stories',         bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-900',   textMuted: 'text-amber-600',   pill: 'bg-amber-100 text-amber-700 border-amber-200',   tipText: 'text-amber-700' },
+  sports:        { icon: '⛹️', label: 'Sports Highlights',        hint: 'Stadiums · Arenas · Fan zones',         bg: 'bg-red-50',     border: 'border-red-100',     text: 'text-red-900',     textMuted: 'text-red-600',     pill: 'bg-red-100 text-red-700 border-red-200',         tipText: 'text-red-700' },
+  wellness:      { icon: '💆', label: 'Wellness Highlights',      hint: 'Spas · Yoga · Restorative',             bg: 'bg-teal-50',    border: 'border-teal-100',    text: 'text-teal-900',    textMuted: 'text-teal-600',    pill: 'bg-teal-100 text-teal-700 border-teal-200',     tipText: 'text-teal-700' },
+  adventure:     { icon: '⚡', label: 'Adventure Highlights',     hint: 'Thrills · Outdoor · High-energy',       bg: 'bg-orange-50',  border: 'border-orange-100',  text: 'text-orange-900',  textMuted: 'text-orange-600',  pill: 'bg-orange-100 text-orange-700 border-orange-200', tipText: 'text-orange-700' },
+  culture:       { icon: '🏛️', label: 'Culture Highlights',       hint: 'Arts · Performances · Traditions',      bg: 'bg-indigo-50',  border: 'border-indigo-100',  text: 'text-indigo-900',  textMuted: 'text-indigo-600',  pill: 'bg-indigo-100 text-indigo-700 border-indigo-200', tipText: 'text-indigo-700' },
+  beach:         { icon: '🏖️', label: 'Beach Highlights',         hint: 'Beaches · Coast · Water',               bg: 'bg-cyan-50',    border: 'border-cyan-100',    text: 'text-cyan-900',    textMuted: 'text-cyan-600',    pill: 'bg-cyan-100 text-cyan-700 border-cyan-200',     tipText: 'text-cyan-700' },
+  themepark:     { icon: '🎢', label: 'Theme Park Highlights',    hint: 'Parks · Rides · Strategy',              bg: 'bg-pink-50',    border: 'border-pink-100',    text: 'text-pink-900',    textMuted: 'text-pink-600',    pill: 'bg-pink-100 text-pink-700 border-pink-200',     tipText: 'text-pink-700' },
+  family:        { icon: '👨‍👩‍👧', label: 'Family Highlights',     hint: 'Kid-friendly · Family-paced',           bg: 'bg-yellow-50',  border: 'border-yellow-100',  text: 'text-yellow-900',  textMuted: 'text-yellow-600',  pill: 'bg-yellow-100 text-yellow-700 border-yellow-200', tipText: 'text-yellow-700' },
+  budget:        { icon: '💰', label: 'Budget Highlights',        hint: 'Free · Cheap · Money-saving',           bg: 'bg-lime-50',    border: 'border-lime-100',    text: 'text-lime-900',    textMuted: 'text-lime-600',    pill: 'bg-lime-100 text-lime-700 border-lime-200',     tipText: 'text-lime-700' },
+  accessibility: { icon: '♿', label: 'Accessibility Highlights', hint: 'Mobility-friendly · Accessible',        bg: 'bg-blue-50',    border: 'border-blue-100',    text: 'text-blue-900',    textMuted: 'text-blue-600',    pill: 'bg-blue-100 text-blue-700 border-blue-200',     tipText: 'text-blue-700' },
+};
+
 // ─── transportToNext helpers ──────────────────────────────────────────────────
 
 const TRANSPORT_NEXT_CONFIG: Record<string, {
@@ -582,6 +604,12 @@ function ItineraryPageContent() {
       name: string; type?: string; neighborhood?: string;
       what?: string; bestFor?: string; openDays?: string; tip?: string;
     }>;
+    // Sidebar tip cards keyed by priority id (nature/history/sports/wellness/etc).
+    // Food/nightlife/shopping/photography keep their own dedicated fields.
+    priorityHighlights?: Record<string, Array<{
+      name: string; type?: string; neighborhood?: string;
+      description?: string; bestFor?: string; bestTime?: string; tip?: string;
+    }>>;
   } | null>(null);
   const [showAiBanner, setShowAiBanner] = useState(false);
 
@@ -938,6 +966,7 @@ function ItineraryPageContent() {
         foodieTips:          firstMeta?.foodieTips                       || null,
         nightlifeHighlights: firstMeta?.nightlifeHighlights              || null,
         shoppingGuide:       firstMeta?.shoppingGuide                    || null,
+        priorityHighlights:  firstMeta?.priorityHighlights               || null,
       };
       if (firstMeta) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -3178,6 +3207,79 @@ function ItineraryPageContent() {
                 </div>
               );
             })()}
+
+            {/* ── Generic per-priority Highlights blocks (nature/history/sports/wellness/etc) ── */}
+            {Object.entries(aiMeta?.priorityHighlights ?? {}).map(([priorityId, spots]) => {
+              const meta = PRIORITY_SIDEBAR_META[priorityId];
+              const list = Array.isArray(spots) ? spots : [];
+              if (!meta || list.length === 0) return null;
+              if (!aiMeta?.preferences?.priorities?.includes(priorityId)) return null;
+
+              const sectionKey = `priority_${priorityId}`;
+              const isCollapsed = collapsedSections[sectionKey] ?? true;
+
+              return (
+                <div key={priorityId} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                  <button
+                    onClick={() => toggleSidebarSection(sectionKey)}
+                    className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
+                  >
+                    <span className="text-base flex-shrink-0">{meta.icon}</span>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">{meta.label}</p>
+                      {isCollapsed && (
+                        <p className="text-[11px] text-zinc-300 mt-0.5">
+                          {list.length} spot{list.length !== 1 ? 's' : ''} · tap to expand
+                        </p>
+                      )}
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
+                  {!isCollapsed && (
+                    <div className="px-5 pb-5">
+                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">{meta.hint}</p>
+                      <div className="space-y-3">
+                        {list.map((spot, idx) => {
+                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
+                          return (
+                            <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border}`}>
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <p className={`text-sm font-semibold ${meta.text} leading-snug`}>{spot.name}</p>
+                                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                                    className={`flex-shrink-0 ${meta.textMuted} hover:opacity-70 transition-opacity`} onClick={e => e.stopPropagation()}>
+                                    <MapPin className="w-3 h-3" />
+                                  </a>
+                                </div>
+                                {spot.bestTime && (
+                                  <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.pill} whitespace-nowrap`}>
+                                    {spot.bestTime}
+                                  </span>
+                                )}
+                              </div>
+                              {spot.type && <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textMuted} mb-1`}>{spot.type}</p>}
+                              {spot.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1`}>{spot.neighborhood}</p>}
+                              {spot.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1`}>{spot.description}</p>}
+                              {spot.bestFor && (
+                                <p className={`text-[11px] ${meta.tipText} font-medium mb-1`}>
+                                  <span className={`${meta.textMuted} mr-1`}>Best for:</span>{spot.bestFor}
+                                </p>
+                              )}
+                              {spot.tip && (
+                                <div className={`flex items-start gap-1.5 mt-2 pt-2 border-t ${meta.border}`}>
+                                  <span className="text-xs flex-shrink-0">💡</span>
+                                  <p className={`text-[11px] ${meta.tipText} leading-relaxed italic`}>{spot.tip}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {/* Where to Stay — collapsible wrapper. Hidden once hotels are booked (they show inline on the day timeline instead). */}
             {aiMeta?.destination && (aiMeta?.bookedHotels ?? []).length === 0 && (

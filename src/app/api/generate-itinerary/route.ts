@@ -402,6 +402,28 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
   const hasFoodPriority = priorities.includes('food');
   const hasNightlifePriority = priorities.includes('nightlife');
   const hasShoppingPriority = priorities.includes('shopping');
+
+  // ── Sidebar tip-block priorities ─────────────────────────────────────────────
+  // Food / nightlife / shopping have their own custom blocks above. Photography
+  // is covered by the per-day `photoSpots` array. Every OTHER selected priority
+  // gets a generic `priorityHighlights[<id>]` block (5-7 curated spots).
+  const PRIORITY_HIGHLIGHT_GUIDANCE: Record<string, { focus: string; types: string }> = {
+    nature:        { focus: 'parks, trails, viewpoints, gardens, wildlife & natural landscapes',                      types: 'park | trail | viewpoint | garden | nature reserve | wildlife | forest' },
+    history:       { focus: 'monuments, museums, historic districts, walking tours, local lore',                       types: 'monument | museum | historic district | landmark | walking tour | ruin | memorial' },
+    sports:        { focus: 'stadiums, arenas, training facilities, halls of fame, fan zones, sports bars',           types: 'stadium | arena | hall of fame | fan zone | sports bar | training facility | iconic venue' },
+    wellness:      { focus: 'spas, hot springs, yoga studios, hammams, wellness retreats, restorative spots',         types: 'spa | hot spring | yoga | hammam | retreat | sauna | bathhouse | meditation' },
+    adventure:     { focus: 'high-energy outdoor activities — hiking, climbing, water sports, ziplines, off-road',    types: 'hiking | climbing | water sport | zipline | off-road | rafting | paragliding | dive site' },
+    culture:       { focus: 'galleries, performance venues, traditional arts, immersive experiences, cultural districts', types: 'gallery | theater | performance | dance | craft workshop | cultural district | traditional venue' },
+    beach:         { focus: 'beaches, coves, beach clubs, water activities, coastal viewpoints',                       types: 'beach | cove | beach club | water sport | coastal viewpoint | snorkel | swim spot' },
+    themepark:     { focus: 'theme parks, water parks, signature rides, character meet-ups, ticket strategy notes',   types: 'theme park | water park | ride | attraction | character experience | parade' },
+    family:        { focus: 'kid-friendly attractions, family-paced experiences, parks, zoos, aquariums, playgrounds', types: 'kid-friendly | playground | zoo | aquarium | family park | interactive museum' },
+    budget:        { focus: 'free sights, money-saving picks, budget eats, free walking tours, off-peak deals',        types: 'free attraction | budget eat | free walking tour | discount pass | off-peak deal' },
+    accessibility: { focus: 'mobility-friendly venues, accessible transit, sensory-friendly options, step-free routes', types: 'accessible venue | step-free route | sensory-friendly | accessible transit' },
+  };
+  const sidebarPriorities = priorities.filter(
+    p => p in PRIORITY_HIGHLIGHT_GUIDANCE,
+  );
+  const hasSidebarPriorities = sidebarPriorities.length > 0;
   const foodText = hasFoodPriority
     ? `\n- FOODIE PRIORITY — ELEVATED STANDARDS FOR EVERY MEAL AND FOOD EXPERIENCE:
   This group is serious about food. Eating is not a logistical checkpoint — it is the highlight of the day. Apply these rules across every single meal slot in the itinerary:
@@ -802,7 +824,35 @@ ${hasShoppingPriority ? `
         "tip": "One insider tip — arrive early for best selection, cash preferred, haggling expected, hidden floor, etc."
       }
     ]
-    Rules: (1) Prioritize local and independent over international chains. (2) Vary the type — at least one food/produce market, one craft or artisan market, and one neighborhood to browse. (3) Include specific items or products to look for — don't be generic. (4) Be real and accurately named.` : ''}
+    Rules: (1) Prioritize local and independent over international chains. (2) Vary the type — at least one food/produce market, one craft or artisan market, and one neighborhood to browse. (3) Include specific items or products to look for — don't be generic. (4) Be real and accurately named.` : ''}${hasSidebarPriorities ? `
+
+  "priorityHighlights" — for EACH of the user's selected priorities listed below, include a curated list of 5-7 sidebar highlights for the trip overall (day 1 only, covers the full trip — these are sidebar reference cards, not day activities).
+
+  Selected priorities to cover:
+${sidebarPriorities.map(p => `    - ${p}: focus on ${PRIORITY_HIGHLIGHT_GUIDANCE[p].focus}.`).join('\n')}
+
+  Schema (a single object keyed by priority id, each value is an array of spots):
+    "priorityHighlights": {
+${sidebarPriorities.map(p => `      "${p}": [
+        {
+          "name": "Specific venue / location / district name — real and accurately named",
+          "type": "${PRIORITY_HIGHLIGHT_GUIDANCE[p].types}",
+          "neighborhood": "District or area name",
+          "description": "1-2 vivid sentences on what makes this worth a visit — opinionated and concrete, not generic.",
+          "bestFor": "Who or when this fits — e.g. 'first-timers', 'rainy-day backup', 'sunset photos', 'travelers with kids'",
+          "bestTime": "Best day or time to visit — e.g. 'mornings before crowds', 'Friday-Sunday only', 'shoulder season'",
+          "tip": "One practical insider tip — booking required? cash only? specific entrance? little-known shortcut?"
+        }
+      ]`).join(',\n')}
+    }
+
+  Rules across all priorityHighlights:
+  (1) All venues must be REAL and specifically named — no invented places.
+  (2) Vary the type within each priority — don't return five of the same category.
+  (3) Spread across the destination geographically — don't cluster everything in one neighborhood.
+  (4) "description" must read with personality and specificity, not like a guidebook blurb.
+  (5) Do not duplicate venues that already appear as activities in the daily tracks — these are bonus discoveries.
+  (6) For multi-city trips, weave spots from each city into each priority's array (label the neighborhood with the city name).` : ''}
     {
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
@@ -817,7 +867,8 @@ ${hasShoppingPriority ? `
     "title": "Evocative trip name here (day 1 only)",
     "practicalNotes": { ... (day 1 only) },${hasNightlifePriority ? `
     "nightlifeHighlights": [ ... (day 1 only, nightlife priority trips) ],` : ''}${hasShoppingPriority ? `
-    "shoppingGuide": [ ... (day 1 only, shopping priority trips) ],` : ''}
+    "shoppingGuide": [ ... (day 1 only, shopping priority trips) ],` : ''}${hasSidebarPriorities ? `
+    "priorityHighlights": { ... (day 1 only — keyed by priority id) },` : ''}
     "day": 1,
     "date": "${startDate}",
     "city": "Primary city or town for this day (e.g. 'Paris', 'Reykjavik', 'Kyoto') — used for per-day weather. For day trips from a base city, use the base city.",
@@ -1315,12 +1366,14 @@ export async function POST(request: NextRequest) {
                       hotelSuggestions: dayObj.hotelSuggestions ?? null,
                       nightlifeHighlights: dayObj.nightlifeHighlights ?? null,
                       shoppingGuide: dayObj.shoppingGuide ?? null,
+                      priorityHighlights: dayObj.priorityHighlights ?? null,
                     });
                     delete dayObj.title;
                     delete dayObj.practicalNotes;
                     delete dayObj.hotelSuggestions;
                     delete dayObj.nightlifeHighlights;
                     delete dayObj.shoppingGuide;
+                    delete dayObj.priorityHighlights;
                     // foodieTips intentionally NOT extracted — stays on each day object
                   }
 
