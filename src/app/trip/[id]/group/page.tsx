@@ -470,17 +470,51 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   // Track which member card triggered the file picker
   const pendingAvatarMemberId = useRef<string>('');
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    const memberId = pendingAvatarMemberId.current || (currentUserId ?? 'user_1');
+    const memberId = pendingAvatarMemberId.current || (currentUserId ?? '');
+    if (!memberId) return;
+
+    // Optimistic preview — show the file via FileReader so the avatar updates
+    // immediately while the upload runs.
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
       setMemberAvatars(prev => ({ ...prev, [memberId]: dataUrl }));
     };
     reader.readAsDataURL(file);
-    e.target.value = '';
+
+    // Upload to Supabase Storage + persist on profiles.avatar_url so it
+    // survives navigation, shows for other trip members, and propagates to
+    // every other trip the user is on. Without this the previous behavior
+    // was "data URL in React state only" — vanished on refresh.
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        body: form,
+      });
+      if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+      const { url } = await res.json() as { url: string };
+      // Replace the temporary data URL with the persisted public URL
+      setMemberAvatars(prev => ({ ...prev, [memberId]: url }));
+      // Also keep groupMembers in sync so the avatar persists when the
+      // memberAvatars overlay state is cleared on remount.
+      setGroupMembers(prev => prev.map(m => m.id === memberId ? { ...m, avatarUrl: url } : m));
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+      setVoteError('Couldn’t save your photo. Try again.');
+      setTimeout(() => setVoteError(null), 4000);
+      // Roll back the optimistic data URL so it doesn't look like it saved
+      setMemberAvatars(prev => {
+        const next = { ...prev };
+        delete next[memberId];
+        return next;
+      });
+    }
   };
 
   // Invite Members Modal
