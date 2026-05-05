@@ -16,17 +16,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { stripe, PRICE_TO_TIER } from '@/lib/stripe';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
-
-// Service-role client — bypasses RLS so we can write from a server-only context.
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+// Stripe SDK uses Node-specific APIs (Buffer, crypto); pin to Node runtime.
+export const runtime = 'nodejs';
 
 // ─── AI credit allocations per tier ──────────────────────────────────────────
 const TIER_CREDITS: Record<string, number> = {
@@ -35,13 +31,44 @@ const TIER_CREDITS: Record<string, number> = {
   free:     10,
 };
 
+// Tiers (ordered low → high) used to detect downgrade attempts when buying Trip Pass.
+const SUBSCRIPTION_TIER_RANK: Record<string, number> = {
+  free: 0,
+  trip_pass: 1,
+  explorer: 2,
+  nomad: 3,
+};
+
 // ─── Helper: update profile tier ─────────────────────────────────────────────
 async function setTier(
   userId: string,
   tier: 'free' | 'explorer' | 'nomad',
   subscriptionId?: string,
 ) {
+  const supabaseAdmin = createAdminClient();
   const credits = TIER_CREDITS[tier] ?? 10;
+
+  // Idempotency: if the profile already reflects this tier + subscription_id
+  // AND the credit window is still active, skip the write to avoid resetting
+  // ai_credits_used on a webhook retry of a previously-processed event.
+  if (subscriptionId) {
+    const { data: existing } = await supabaseAdmin
+      .from('profiles')
+      .select('subscription_tier, stripe_subscription_id, ai_credits_reset_at')
+      .eq('id', userId)
+      .single();
+
+    if (
+      existing?.subscription_tier === tier &&
+      existing?.stripe_subscription_id === subscriptionId &&
+      existing?.ai_credits_reset_at &&
+      new Date(existing.ai_credits_reset_at).getTime() > Date.now()
+    ) {
+      console.log(`[stripe/webhook] setTier skipped (already ${tier} for sub ${subscriptionId})`);
+      return;
+    }
+  }
+
   await supabaseAdmin
     .from('profiles')
     .update({
@@ -56,6 +83,7 @@ async function setTier(
 
 // ─── Helper: look up supabase user ID from Stripe customer ───────────────────
 async function userIdFromCustomer(customerId: string): Promise<string | null> {
+  const supabaseAdmin = createAdminClient();
   // First try: metadata on the Stripe customer object (most reliable)
   const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
   const metaId = customer.metadata?.supabase_user_id;
@@ -106,18 +134,35 @@ export async function POST(req: NextRequest) {
             await setTier(userId, tier, sub.id);
           }
         } else if (session.mode === 'payment') {
-          // One-time Trip Pass
+          // One-time Trip Pass — upsert the trip_passes row, but ONLY set
+          // subscription_tier='trip_pass' if the user is currently on free.
+          // Otherwise an Explorer/Nomad user buying a Trip Pass for a
+          // friend/group would be downgraded.
           const tripId = session.metadata?.trip_id;
           const extraPeople = parseInt(session.metadata?.extra_people ?? '0', 10);
           const now = new Date();
           const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          const supabaseAdmin = createAdminClient();
 
-          await supabaseAdmin.from('profiles').update({
-            subscription_tier: 'trip_pass',
-          }).eq('id', userId);
+          const { data: existingProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('subscription_tier')
+            .eq('id', userId)
+            .single();
+
+          const currentRank = SUBSCRIPTION_TIER_RANK[existingProfile?.subscription_tier ?? 'free'] ?? 0;
+          const tripPassRank = SUBSCRIPTION_TIER_RANK['trip_pass'];
+
+          if (currentRank < tripPassRank) {
+            // User was on free → upgrade to trip_pass
+            await supabaseAdmin.from('profiles').update({
+              subscription_tier: 'trip_pass',
+            }).eq('id', userId);
+          }
+          // else: user already has explorer/nomad — leave subscription_tier alone
 
           if (tripId) {
-            // Upsert the trip pass record
+            // Upsert the trip pass record (idempotent on user_id + trip_id)
             await supabaseAdmin.from('trip_passes').upsert({
               user_id: userId,
               trip_id: tripId,
@@ -166,13 +211,27 @@ export async function POST(req: NextRequest) {
         const userId = await userIdFromCustomer(invoice.customer as string);
         if (!userId) break;
 
+        const supabaseAdmin = createAdminClient();
         const { data: profile } = await supabaseAdmin
           .from('profiles')
-          .select('subscription_tier')
+          .select('subscription_tier, ai_credits_reset_at')
           .eq('id', userId)
           .single();
 
         if (profile?.subscription_tier && profile.subscription_tier !== 'free' && profile.subscription_tier !== 'trip_pass') {
+          // Idempotency: each subscription_cycle invoice represents one billing
+          // period. period_end is when the cycle ends. If we've already credited
+          // this cycle (reset_at >= period_end), skip — Stripe is retrying.
+          const periodEndMs = invoice.period_end * 1000;
+          const alreadyResetMs = profile.ai_credits_reset_at
+            ? new Date(profile.ai_credits_reset_at).getTime()
+            : 0;
+
+          if (alreadyResetMs > periodEndMs) {
+            console.log(`[stripe/webhook] credit reset skipped (already credited for cycle ending ${new Date(periodEndMs).toISOString()})`);
+            break;
+          }
+
           const credits = TIER_CREDITS[profile.subscription_tier] ?? 10;
           await supabaseAdmin.from('profiles').update({
             ai_credits_used: 0,
