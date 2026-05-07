@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock, Loader } from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr';
 
 type JoinStep = 'intro' | 'preferences' | 'confirmation';
 

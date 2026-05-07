@@ -7,7 +7,7 @@ import { ExpenseRow } from '@/components/ExpenseRow';
 import { VoteCard } from '@/components/VoteCard';
 import { ChatBubble } from '@/components/ChatBubble';
 import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes as mockGroupVotes, messages as mockMessages, MOCK_TRIP_IDS } from '@/data/mock';
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }
 interface Vote { id: string; title: string; status: 'open' | 'closed'; closesAt?: string; options: VoteOption[]; }
@@ -635,11 +635,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   // Supabase Realtime subscription for chat messages + reaction updates
   useEffect(() => {
     if (isMockTrip) return;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseKey) return;
-
-    const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+    const supabase = createSupabaseBrowserClient();
 
     // Refetch votes from the API — used as the realtime callback. Simpler and
     // more correct than trying to update local counts incrementally from

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -251,10 +251,7 @@ export default function OnboardingPage() {
     // Persist name + full travel persona to Supabase for logged-in users
     // so the data is available on any device, not just this browser's localStorage
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      );
+      const supabase = createSupabaseBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         // Use the /api/auth/me PATCH endpoint so validation + admin client are consistent

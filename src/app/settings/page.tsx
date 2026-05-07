@@ -12,7 +12,7 @@ import {
   ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap, Loader2,
 } from 'lucide-react';
 import Image from 'next/image';
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type ActiveSection = 'profile' | 'persona' | 'subscription' | 'notifications' | 'apps' | 'privacy' | 'downloads';
 
@@ -247,11 +247,10 @@ export default function SettingsPage() {
     setAvatarUploading(true);
     setAvatarError(null);
     try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (supabaseUrl && supabaseKey && user) {
-        // Upload to Supabase Storage avatars bucket
-        const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+      if (user) {
+        // Upload to Supabase Storage avatars bucket — use the app singleton
+        // so the auth session is shared and RLS sees the right user.
+        const supabase = createSupabaseBrowserClient();
         const ext = file.name.split('.').pop() ?? 'jpg';
         // Use a unique timestamped path so each upload is always a new
         // object — avoids needing an UPDATE storage policy for upsert.

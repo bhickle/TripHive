@@ -8,7 +8,11 @@ import {
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, MOCK_TRIP_IDS } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
-import { createBrowserClient } from '@supabase/ssr';
+// IMPORTANT: import the singleton from lib/supabase/client — never call
+// createBrowserClient directly. Competing instances fight over the same
+// auth Web Lock and routinely lose the session, which made uploads run
+// as anonymous and silently fail RLS on the trip_photos insert.
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 export default function MemoriesPage({ params }: { params: { id: string } }) {
@@ -358,12 +362,12 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             }));
             setTripPhotos(prev => [...prev, ...newPhotoEntries]);
 
-            // Try Supabase upload in background (non-mock trips only)
+            // Try Supabase upload in background (non-mock trips only).
+            // Uses the app-wide singleton so the auth session is shared with
+            // every other call — without this, RLS rejects the insert.
             if (!isMockTrip) {
-              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-              const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-              if (supabaseUrl && supabaseKey) {
-                const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+              const supabase = createSupabaseBrowserClient();
+              {
                 for (let i = 0; i < fileArray.length; i++) {
                   const file = fileArray[i];
                   // Simulate smooth per-file progress with a ticker so the bar
