@@ -775,20 +775,75 @@ function ItineraryPageContent() {
         return;
       }
 
-      // 2. Build per-city segment list (multi-city) or empty list (single-city)
-      // NOTE: daysPerDestination is Record<string, number> keyed by city name, NOT an array
-      type Segment = { cityName: string; dayStart: number; dayCount: number };
+      // 2. Build per-chunk segment list. Each segment is one HTTP request to
+      //    /api/generate-itinerary, and each request gets its own 300s Vercel
+      //    function budget. Long single-city trips (e.g. 10 days in Tampa)
+      //    used to be one giant request that hit the timeout mid-stream and
+      //    produced a truncated trip — chunking fixes that.
+      //
+      //    NOTE: daysPerDestination is Record<string, number> keyed by city
+      //    name, NOT an array.
+      type Segment = {
+        cityName: string;
+        dayStart: number;
+        dayCount: number;
+        sameCity: boolean; // true when chunk continues a city already entered
+      };
       const destinations = payload.destinations as string[] | null | undefined;
       const daysPerDest  = payload.daysPerDestination as Record<string, number> | null | undefined;
       const segments: Segment[] = [];
+
+      // Chunk size: each chunk = one HTTP call with its own 5-min budget.
+      // 3 days is conservative for the per-day richness this app generates
+      // (~10-13K output tokens/day on Sonnet 4.6). Worst case ~3.5 minutes.
+      const CHUNK_SIZE = 3;
+
       if (destinations && destinations.length > 1 && daysPerDest) {
+        // Multi-city: one (or more) chunks per city. A long city (>3 days)
+        // gets sub-chunked the same way a long single-city trip does.
         let dayStart = 1;
         for (const cityName of destinations) {
-          const dayCount = daysPerDest[cityName] ?? 0;
-          if (dayCount > 0) {
-            segments.push({ cityName, dayStart, dayCount });
-            dayStart += dayCount;
+          const cityDays = daysPerDest[cityName] ?? 0;
+          if (cityDays <= 0) continue;
+          let chunkStart = dayStart;
+          let cityRemaining = cityDays;
+          let chunkInCity = 0;
+          while (cityRemaining > 0) {
+            const cnt = Math.min(CHUNK_SIZE, cityRemaining);
+            segments.push({
+              cityName,
+              dayStart: chunkStart,
+              dayCount: cnt,
+              // First chunk of a city gets the "arrival" framing; subsequent
+              // chunks within the same city continue the stay.
+              sameCity: chunkInCity > 0,
+            });
+            chunkStart += cnt;
+            cityRemaining -= cnt;
+            chunkInCity++;
           }
+          dayStart += cityDays;
+        }
+      } else if (((payload.tripLength as number) || 0) > CHUNK_SIZE) {
+        // Single-city long trip — chunk it into pieces of CHUNK_SIZE days.
+        // Without this, the first chunk would be the entire trip and would
+        // exceed the 5-min function timeout for trips >5 days.
+        const cityName = (payload.destination as string) || 'destination';
+        const totalDays = payload.tripLength as number;
+        let chunkStart = 1;
+        let remaining = totalDays;
+        let chunkIdx = 0;
+        while (remaining > 0) {
+          const cnt = Math.min(CHUNK_SIZE, remaining);
+          segments.push({
+            cityName,
+            dayStart: chunkStart,
+            dayCount: cnt,
+            sameCity: chunkIdx > 0,
+          });
+          chunkStart += cnt;
+          remaining -= cnt;
+          chunkIdx++;
         }
       }
       const totalDays = segments.reduce((s, c) => s + c.dayCount, 0)
@@ -806,6 +861,12 @@ function ItineraryPageContent() {
             cityName: seg.cityName,
             dayStart: seg.dayStart,
             dayCount: seg.dayCount,
+            // sameCity tells the server to skip arrival/check-in framing in
+            // the continuity prompt; totalTripDays lets it know whether the
+            // chunk's last day is the trip's final day (governs departure
+            // logistics).
+            sameCity: seg.sameCity,
+            totalTripDays: totalDays,
             ...(prevContext ? { prevContext } : {}),
           };
         }
@@ -863,9 +924,13 @@ function ItineraryPageContent() {
                   syncAiDays(merged);
                   setShowAiBanner(true);
                   setLiveBuildDone(prev => prev + 1);
-                  setLiveBuildStatus(
-                    seg ? `Building ${seg.cityName}…` : `Building day ${dayNum}…`
-                  );
+                  // Status shows progress against total days. The previous
+                  // "Building day N…" label was set AFTER day N had already
+                  // streamed in, so it lagged the actual model output by one
+                  // (e.g. "Building day 3" while the model was generating
+                  // day 4). Showing the count instead is accurate without
+                  // requiring a "starting day N" SSE event we don't have.
+                  setLiveBuildStatus(`${dayNum} of ${totalDays} days built…`);
                   break;
                 }
 
@@ -906,10 +971,13 @@ function ItineraryPageContent() {
             let segRetry = 0;
             while (segDaysReceived < seg.dayCount && segRetry < MAX_SEG_RETRIES) {
               segRetry++;
-              const gapSeg = {
+              const gapSeg: Segment = {
                 cityName: seg.cityName,
                 dayStart: seg.dayStart + segDaysReceived,
                 dayCount: seg.dayCount - segDaysReceived,
+                // A gap-fill is always a continuation within the same city
+                // — the original chunk had already entered the city.
+                sameCity: true,
               };
               const { days: retryDays } = await streamSegment(gapSeg, prevContext);
               if (retryDays.length === 0) break; // AI stuck — give up

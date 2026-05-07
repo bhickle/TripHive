@@ -1221,15 +1221,29 @@ export async function POST(request: NextRequest) {
   }
 
   // ── City segment mode — generate one city's days at a time ─────────────────
-  // When citySegment is provided, we focus this call on a single city's portion
-  // of a multi-city trip (e.g. days 4–6 in Rome of an 8-day Paris → Rome trip).
-  // This breaks long multi-city trips into smaller API calls, each well under
-  // the 300s Vercel limit, while allowing the UI to show days as they arrive.
+  // When citySegment is provided, we focus this call on one chunk of the trip:
+  //  - For multi-city trips, a chunk is a city's days (e.g. days 4–6 in Rome
+  //    of an 8-day Paris → Rome trip).
+  //  - For long single-city trips, a chunk is a 3-day slice of the same city
+  //    (e.g. days 4–6 of a 10-day Tampa stay), with `sameCity: true`.
+  //
+  // Chunking is what keeps each call well under Vercel's 300s function cap.
+  // The client orchestrates the sequence (see streamSegment in itinerary page);
+  // each chunk is its own HTTP request with its own 300s budget, so the global
+  // ceiling becomes effectively infinite.
+  //
+  // sameCity     — true when this chunk is a continuation of the same city
+  //                (no arrival/check-in framing). Drives the continuity prompt.
+  // totalTripDays — the FULL trip length, so the server can tell whether the
+  //                final day of this chunk is also the final day of the trip
+  //                (departure framing only when true).
   const citySegment = body.citySegment as {
     cityName: string;
     dayStart: number;
     dayCount: number;
     prevContext?: string;
+    sameCity?: boolean;
+    totalTripDays?: number;
   } | undefined;
 
   // Resolve effective params — citySegment overrides some body fields
@@ -1346,11 +1360,43 @@ export async function POST(request: NextRequest) {
   // the day numbers so they're correct in the full trip context (e.g. start at 4 not 1).
   let finalPrompt = prompt;
   if (citySegment) {
+    const chunkLastDay = citySegment.dayStart + citySegment.dayCount - 1;
+    const isFinalDayOfTrip = citySegment.totalTripDays
+      ? chunkLastDay === citySegment.totalTripDays
+      : !citySegment.sameCity; // multi-city default: assume city's last day = check-out
+    const isFirstDayOfTrip = citySegment.dayStart === 1;
+
     if (dayOffset > 0) {
-      finalPrompt += `\n\nCRITICAL DAY NUMBERING: This segment covers days ${citySegment.dayStart}–${citySegment.dayStart + citySegment.dayCount - 1} of the full trip. Every "day" field MUST start at ${citySegment.dayStart}, not at 1. The first day object is {"day": ${citySegment.dayStart}, "date": "${resolvedStartDate}", ...} and the last is {"day": ${citySegment.dayStart + citySegment.dayCount - 1}, ...}. Do NOT include "title" or "practicalNotes" fields — those belong to the full trip's day 1 only.`;
+      finalPrompt += `\n\nCRITICAL DAY NUMBERING: This segment covers days ${citySegment.dayStart}–${chunkLastDay} of the full trip. Every "day" field MUST start at ${citySegment.dayStart}, not at 1. The first day object is {"day": ${citySegment.dayStart}, "date": "${resolvedStartDate}", ...} and the last is {"day": ${chunkLastDay}, ...}. Do NOT include "title" or "practicalNotes" fields — those belong to the full trip's day 1 only.`;
     }
+
+    // For single-city chunks (sameCity: true), tell the model where this chunk
+    // sits in the trip so it doesn't add arrival/departure logistics on the
+    // wrong days. Without this, a chunk-2 of a 10-day trip would treat day 6
+    // as "the final day" (because the chunk is 3 days long) and add airport
+    // logistics where the traveler is actually mid-trip.
+    if (citySegment.sameCity && citySegment.totalTripDays) {
+      const tripPositionNotes: string[] = [];
+      if (!isFirstDayOfTrip) {
+        tripPositionNotes.push(`Day ${citySegment.dayStart} is NOT the first day of the trip — the traveler is already settled in ${citySegment.cityName}. Do NOT include arrival, check-in, or "settling in" logistics.`);
+      }
+      if (!isFinalDayOfTrip) {
+        tripPositionNotes.push(`Day ${chunkLastDay} is NOT the final day of the trip — there are more days afterward. Do NOT include departure, airport, or end-of-trip logistics.`);
+      }
+      if (tripPositionNotes.length > 0) {
+        finalPrompt += `\n\nTRIP POSITION (${citySegment.totalTripDays}-day trip): ${tripPositionNotes.join(' ')}`;
+      }
+    }
+
     if (citySegment.prevContext) {
-      finalPrompt += `\n\nCONTINUITY — arriving from previous destination: ${citySegment.prevContext} Reference this naturally in Day ${citySegment.dayStart}'s morning (e.g. just checked in, settling into the new city). Do not repeat any venues or activities mentioned in the continuity context.`;
+      // Two phrasings: same-city chunk continuation vs multi-city handoff.
+      // The multi-city phrasing ("just checked in, settling into the new city")
+      // would be wrong for a single-city chunk where the traveler hasn't moved.
+      if (citySegment.sameCity) {
+        finalPrompt += `\n\nCONTINUITY — context from prior days in ${citySegment.cityName}: ${citySegment.prevContext}. Day ${citySegment.dayStart} continues the trip in the same city. Do NOT repeat any venues or activities already covered.`;
+      } else {
+        finalPrompt += `\n\nCONTINUITY — arriving from previous destination: ${citySegment.prevContext} Reference this naturally in Day ${citySegment.dayStart}'s morning (e.g. just checked in, settling into the new city). Do not repeat any venues or activities mentioned in the continuity context.`;
+      }
     }
   }
 
