@@ -894,34 +894,7 @@ ${hasShoppingPriority ? `
         "tip": "One insider tip — arrive early for best selection, cash preferred, haggling expected, hidden floor, etc."
       }
     ]
-    Rules: (1) Prioritize local and independent over international chains. (2) Geographically anchored to where the group is that day — no recycled city-wide picks across days. (3) Vary the type across the trip — aim for a mix overall (one food/produce market, one craft or artisan market, one neighborhood to browse, etc.) without repeating the same category two days in a row. (4) Include specific items or products to look for — don't be generic. (5) Be real and accurately named.` : ''}${hasSidebarPriorities ? `
-
-  "priorityHighlights" — include this object on EVERY day. For EACH of the user's selected priorities listed below, include EXACTLY 2 sidebar spots anchored to that day's neighborhoods (where the group is spending that day).
-
-  Selected priorities to cover:
-${sidebarPriorities.map(p => `    - ${p}: focus on ${PRIORITY_HIGHLIGHT_GUIDANCE[p].focus}.`).join('\n')}
-
-  Schema (a single object keyed by priority id, each value is an array of exactly 2 spots for THIS day). Keep each spot LEAN — these render as compact sidebar cards, not full reviews. The parent priority key (e.g. "${sidebarPriorities[0]}") already conveys the category, so per-item "type" is intentionally omitted.
-    "priorityHighlights": {
-${sidebarPriorities.map(p => `      "${p}": [
-        {
-          "name": "Specific venue / location / district name — real and accurately named",
-          "neighborhood": "District or area name",
-          "description": "ONE vivid sentence on what makes this worth a visit — opinionated and concrete, not a guidebook blurb.",
-          "bestFor": "Who or when this fits — e.g. 'first-timers', 'rainy-day backup', 'sunset photos', 'travelers with kids'",
-          "bestTime": "Short timing hint — e.g. 'mornings', 'weekends only', 'shoulder season'. Skip if no meaningful timing constraint.",
-          "tip": "One practical insider tip — booking required? cash only? specific entrance? little-known shortcut?"
-        }
-      ]`).join(',\n')}
-    }
-
-  Rules across all priorityHighlights:
-  (1) All venues must be REAL and specifically named — no invented places.
-  (2) Geographically anchored to that day's neighborhoods — pick spots the group could realistically reach on this day given their planned activities. Do NOT recycle the same picks across days.
-  (3) Vary across the trip — don't return the same kind of spot two days in a row within a priority (e.g. don't return two trail viewpoints back-to-back under "nature").
-  (4) "description" must read with personality and specificity, not like a guidebook blurb.
-  (5) Do not duplicate venues that already appear as activities in the daily tracks — these are bonus discoveries.
-  (6) For multi-city trips, anchor each day's picks to the city the group is in that day.` : ''}
+    Rules: (1) Prioritize local and independent over international chains. (2) Geographically anchored to where the group is that day — no recycled city-wide picks across days. (3) Vary the type across the trip — aim for a mix overall (one food/produce market, one craft or artisan market, one neighborhood to browse, etc.) without repeating the same category two days in a row. (4) Include specific items or products to look for — don't be generic. (5) Be real and accurately named.` : ''}
     {
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
@@ -936,8 +909,7 @@ ${sidebarPriorities.map(p => `      "${p}": [
     "title": "Evocative trip name here (day 1 only)",
     "practicalNotes": { ... (day 1 only) },${hasNightlifePriority ? `
     "nightlifeHighlights": [ ... (EVERY day — exactly 2 venues anchored to this day's neighborhoods) ],` : ''}${hasShoppingPriority ? `
-    "shoppingGuide": [ ... (EVERY day — exactly 2 spots anchored to this day's neighborhoods) ],` : ''}${hasSidebarPriorities ? `
-    "priorityHighlights": { ... (EVERY day — exactly 2 spots per priority, keyed by priority id, anchored to this day) },` : ''}
+    "shoppingGuide": [ ... (EVERY day — exactly 2 spots anchored to this day's neighborhoods) ],` : ''}
     "day": 1,
     "date": "${startDate}",
     "city": "Primary city or town for this day (e.g. 'Paris', 'Reykjavik', 'Kyoto') — used for per-day weather. For day trips from a base city, use the base city.",
@@ -1697,7 +1669,7 @@ export async function POST(request: NextRequest) {
             `YOUR TASK: Output ONLY day objects ${contFromDay} through ${contToDay} (${remaining} day${remaining === 1 ? '' : 's'}), starting from ${contStartDate}.`,
             ``,
             `Day schema (use exact field names):`,
-            `{"day":<N>,"date":"YYYY-MM-DD","city":"<city>","theme":"<3-5 word theme>","photoSpots":[{"name":"...","timeOfDay":"...","tip":"..."}],"destinationTip":"<one insider fact>","trackALabel":null,"trackBLabel":null,"dinnerMeetupLocation":null,"tracks":{"shared":[<activities>],"track_a":[],"track_b":[]},"meetupTime":"<HH:MM>","meetupLocation":"Hotel lobby"${contHasFood ? ',"foodieTips":[{"name":"...","type":"...","neighborhood":"...","why":"...","orderThis":"...","timeOfDay":"...","priceRange":"...","tip":"..."}]' : ''}${contHasNightlife ? ',"nightlifeHighlights":[{"name":"...","type":"...","neighborhood":"...","vibe":"...","bestNight":"...","openFrom":"...","tip":"..."}]' : ''}${contHasShopping ? ',"shoppingGuide":[{"name":"...","type":"...","neighborhood":"...","what":"...","bestFor":"...","openDays":"...","tip":"..."}]' : ''}${contHasSidebar ? `,"priorityHighlights":{${contSidebarPriorities.map((p: string) => `"${p}":[{"name":"...","neighborhood":"...","description":"...","bestFor":"...","bestTime":"...","tip":"..."}]`).join(',')}}` : ''}}`,
+            `{"day":<N>,"date":"YYYY-MM-DD","city":"<city>","theme":"<3-5 word theme>","photoSpots":[{"name":"...","timeOfDay":"...","tip":"..."}],"destinationTip":"<one insider fact>","trackALabel":null,"trackBLabel":null,"dinnerMeetupLocation":null,"tracks":{"shared":[<activities>],"track_a":[],"track_b":[]},"meetupTime":"<HH:MM>","meetupLocation":"Hotel lobby"${contHasFood ? ',"foodieTips":[{"name":"...","type":"...","neighborhood":"...","why":"...","orderThis":"...","timeOfDay":"...","priceRange":"...","tip":"..."}]' : ''}${contHasNightlife ? ',"nightlifeHighlights":[{"name":"...","type":"...","neighborhood":"...","vibe":"...","bestNight":"...","openFrom":"...","tip":"..."}]' : ''}${contHasShopping ? ',"shoppingGuide":[{"name":"...","type":"...","neighborhood":"...","what":"...","bestFor":"...","openDays":"...","tip":"..."}]' : ''}}`,
             ``,
             `Activity schema:`,
             `{"id":"act_d<N>_<i>","dayNumber":<N>,"timeSlot":"HH:MM–HH:MM","name":"venue","title":"venue","address":"full address","website":"https://...","isRestaurant":<bool>,"mealType":<null|"breakfast"|"lunch"|"dinner">,"track":"shared","priceLevel":<0-4>,"description":"why visit","costEstimate":<USD>,"confidence":0.9,"verified":true,"packingTips":[],"transportToNext":{"mode":"walk|rideshare|metro|taxi|train","durationMins":<N>,"distanceMiles":<N>,"notes":"to next place"}|null}`,
@@ -1711,7 +1683,6 @@ export async function POST(request: NextRequest) {
             contHasFood ? `- foodieTips: EXACTLY 2 per day, anchored to that day's neighborhoods, different from daily track restaurants` : '',
             contHasNightlife ? `- nightlifeHighlights: EXACTLY 2 per day, evening venues anchored to that day's neighborhoods, no recycled picks` : '',
             contHasShopping ? `- shoppingGuide: EXACTLY 2 per day, shops anchored to that day's neighborhoods, no recycled picks` : '',
-            contHasSidebar ? `- priorityHighlights: EXACTLY 2 spots per priority per day, anchored to that day's neighborhoods, no recycled picks. Keep "description" to ONE sentence.` : '',
             citySegment
               ? `- Day ${contToDay} is the last day in ${citySegment.cityName} — full normal day, the group travels to the next city after checkout`
               : `- Day ${contToDay} is the final day — light schedule ending at airport/station`,

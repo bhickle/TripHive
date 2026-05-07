@@ -105,24 +105,21 @@ const transportConfig: Record<
 
 // ─── Per-priority sidebar block metadata ─────────────────────────────────────
 // Drives the generic <PriorityHighlightsBlock> sidebar render. Each entry maps
-// a Trip Builder priority id to its visual identity. Food / nightlife /
-// shopping / photography are handled by their own dedicated blocks elsewhere
-// in the sidebar — they are intentionally NOT in this map.
-const PRIORITY_SIDEBAR_META: Record<string, {
-  icon: string; label: string; hint: string;
+// Visual identity for the unified "Day Highlights" sidebar items. Each item
+// is colored by its category — these are the discovery add-ons that live
+// in the sidebar (food / photo / nightlife / shopping). Activity-shaping
+// priorities like nature, culture, beach, history, sports, etc. are
+// woven into the daily activities themselves and intentionally do NOT
+// appear here as separate sidebar lists.
+type HighlightCategory = 'photo' | 'food' | 'nightlife' | 'shopping';
+const HIGHLIGHT_CATEGORY_META: Record<HighlightCategory, {
+  icon: string; label: string;
   bg: string; border: string; text: string; textMuted: string; pill: string; tipText: string;
 }> = {
-  nature:        { icon: '🌿', label: 'Nature Highlights',        hint: 'Parks · Trails · Viewpoints',           bg: 'bg-green-50',   border: 'border-green-100',   text: 'text-green-900',   textMuted: 'text-green-600',   pill: 'bg-green-100 text-green-700 border-green-200',   tipText: 'text-green-700' },
-  history:       { icon: '📜', label: 'History Highlights',       hint: 'Monuments · Museums · Stories',         bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-900',   textMuted: 'text-amber-600',   pill: 'bg-amber-100 text-amber-700 border-amber-200',   tipText: 'text-amber-700' },
-  sports:        { icon: '⛹️', label: 'Sports Highlights',        hint: 'Stadiums · Arenas · Fan zones',         bg: 'bg-red-50',     border: 'border-red-100',     text: 'text-red-900',     textMuted: 'text-red-600',     pill: 'bg-red-100 text-red-700 border-red-200',         tipText: 'text-red-700' },
-  wellness:      { icon: '💆', label: 'Wellness Highlights',      hint: 'Spas · Yoga · Restorative',             bg: 'bg-teal-50',    border: 'border-teal-100',    text: 'text-teal-900',    textMuted: 'text-teal-600',    pill: 'bg-teal-100 text-teal-700 border-teal-200',     tipText: 'text-teal-700' },
-  adventure:     { icon: '⚡', label: 'Adventure Highlights',     hint: 'Thrills · Outdoor · High-energy',       bg: 'bg-orange-50',  border: 'border-orange-100',  text: 'text-orange-900',  textMuted: 'text-orange-600',  pill: 'bg-orange-100 text-orange-700 border-orange-200', tipText: 'text-orange-700' },
-  culture:       { icon: '🏛️', label: 'Culture Highlights',       hint: 'Arts · Performances · Traditions',      bg: 'bg-indigo-50',  border: 'border-indigo-100',  text: 'text-indigo-900',  textMuted: 'text-indigo-600',  pill: 'bg-indigo-100 text-indigo-700 border-indigo-200', tipText: 'text-indigo-700' },
-  beach:         { icon: '🏖️', label: 'Beach Highlights',         hint: 'Beaches · Coast · Water',               bg: 'bg-cyan-50',    border: 'border-cyan-100',    text: 'text-cyan-900',    textMuted: 'text-cyan-600',    pill: 'bg-cyan-100 text-cyan-700 border-cyan-200',     tipText: 'text-cyan-700' },
-  themepark:     { icon: '🎢', label: 'Theme Park Highlights',    hint: 'Parks · Rides · Strategy',              bg: 'bg-pink-50',    border: 'border-pink-100',    text: 'text-pink-900',    textMuted: 'text-pink-600',    pill: 'bg-pink-100 text-pink-700 border-pink-200',     tipText: 'text-pink-700' },
-  family:        { icon: '👨‍👩‍👧', label: 'Family Highlights',     hint: 'Kid-friendly · Family-paced',           bg: 'bg-yellow-50',  border: 'border-yellow-100',  text: 'text-yellow-900',  textMuted: 'text-yellow-600',  pill: 'bg-yellow-100 text-yellow-700 border-yellow-200', tipText: 'text-yellow-700' },
-  budget:        { icon: '💰', label: 'Budget Highlights',        hint: 'Free · Cheap · Money-saving',           bg: 'bg-lime-50',    border: 'border-lime-100',    text: 'text-lime-900',    textMuted: 'text-lime-600',    pill: 'bg-lime-100 text-lime-700 border-lime-200',     tipText: 'text-lime-700' },
-  accessibility: { icon: '♿', label: 'Accessibility Highlights', hint: 'Mobility-friendly · Accessible',        bg: 'bg-blue-50',    border: 'border-blue-100',    text: 'text-blue-900',    textMuted: 'text-blue-600',    pill: 'bg-blue-100 text-blue-700 border-blue-200',     tipText: 'text-blue-700' },
+  photo:     { icon: '📸', label: 'Photo',     bg: 'bg-violet-50',   border: 'border-violet-100',   text: 'text-violet-900',   textMuted: 'text-violet-600',   pill: 'bg-violet-100 text-violet-700 border-violet-200',     tipText: 'text-violet-700' },
+  food:      { icon: '🍴', label: 'Food',      bg: 'bg-rose-50',     border: 'border-rose-100',     text: 'text-rose-900',     textMuted: 'text-rose-600',     pill: 'bg-rose-100 text-rose-700 border-rose-200',           tipText: 'text-rose-700' },
+  nightlife: { icon: '🎶', label: 'Nightlife', bg: 'bg-fuchsia-50',  border: 'border-fuchsia-100',  text: 'text-fuchsia-900',  textMuted: 'text-fuchsia-600',  pill: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',  tipText: 'text-fuchsia-700' },
+  shopping:  { icon: '🛍️', label: 'Shopping',  bg: 'bg-emerald-50',  border: 'border-emerald-100',  text: 'text-emerald-900',  textMuted: 'text-emerald-600',  pill: 'bg-emerald-100 text-emerald-700 border-emerald-200',  tipText: 'text-emerald-700' },
 };
 
 // ─── transportToNext helpers ──────────────────────────────────────────────────
@@ -3033,185 +3030,113 @@ function ItineraryPageContent() {
             />
 
 
-            {/* Photo Spots Card — collapsible */}
-            {currentDayData.photoSpots && currentDayData.photoSpots.length > 0 && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-                <button
-                  onClick={() => toggleSidebarSection('photoSpots')}
-                  className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
-                >
-                  <Camera className="w-4 h-4 text-violet-500 flex-shrink-0" />
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Photo Spots</p>
-                    {collapsedSections.photoSpots && (
-                      <p className="text-[11px] text-zinc-300 mt-0.5">
-                        {currentDayData.photoSpots.length} spot{currentDayData.photoSpots.length !== 1 ? 's' : ''} · tap to expand
-                      </p>
-                    )}
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${collapsedSections.photoSpots ? '' : 'rotate-180'}`} />
-                </button>
-                {!collapsedSections.photoSpots && (
-                  <div className="px-5 pb-5 space-y-3">
-                    {currentDayData.photoSpots.map((spot, i) => (
-                      <div key={i} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-sm font-semibold text-violet-900 leading-snug min-w-0 break-words">{spot.name}</p>
-                          <span className="flex-shrink-0 text-[10px] font-semibold text-violet-500 bg-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                            {spot.timeOfDay}
-                          </span>
-                        </div>
-                        <p className="text-xs text-violet-700 leading-relaxed break-words">{spot.tip}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Foodie Finds — collapsible, shown when Food priority + tips present ── */}
+            {/* ── Day Highlights — unified discovery sidebar ──
+                Single section per day combining the four discovery
+                categories (food / photo / nightlife / shopping) into one
+                mixed list, color-coded by category. Replaces the four
+                previous separate dropdowns. Activity-shaping priorities
+                like nature, culture, beach, history etc. don't appear
+                here — those are woven into the daily activities themselves
+                by the prompt's priority guidance blocks.
+                Backward compat: each source falls back to aiMeta for old
+                trips that stored the data trip-wide. */}
             {(() => {
-              // New trips: foodieTips live on each day. Old trips: Day 1 only in aiMeta (backward compat).
-              const rawFoodieTips = currentDayData?.foodieTips && currentDayData.foodieTips.length > 0
-                ? currentDayData.foodieTips
-                : (selectedDay === 1 && aiMeta?.foodieTips && aiMeta.foodieTips.length > 0 ? aiMeta.foodieTips : null);
-              // Filter out tips already added to the itinerary this session
-              const dayFoodieTips = rawFoodieTips?.filter(t => !addedFoodieTipNames.has(t.name)) ?? null;
-              const hasAnyTips = !!rawFoodieTips && rawFoodieTips.length > 0;
-              if (!aiMeta?.preferences?.priorities?.includes('food') || !hasAnyTips) return null;
-              const isCollapsed = collapsedSections.foodie;
-              return (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-                  {/* Collapsible header */}
-                  <button
-                    onClick={() => toggleSidebarSection('foodie')}
-                    className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
-                  >
-                    <span className="text-base flex-shrink-0">🍜</span>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Foodie Finds</p>
-                      {isCollapsed && (
-                        <p className="text-[11px] text-zinc-300 mt-0.5">
-                          {rawFoodieTips!.length} spot{rawFoodieTips!.length !== 1 ? 's' : ''} · tap to expand
-                        </p>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
-                  </button>
+              type Highlight = {
+                category: HighlightCategory;
+                name: string;
+                neighborhood?: string;
+                description?: string;
+                tip?: string;
+                badges?: string[];
+                addToDayHandler?: () => void;
+              };
+              const userPriorities = aiMeta?.preferences?.priorities ?? [];
+              const items: Highlight[] = [];
 
-                  {!isCollapsed && (
-                    <div className="px-5 pb-5">
-                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Off the beaten path · Locals only</p>
+              // Photos — required by the prompt regardless of priority,
+              // so include whenever the day has them.
+              for (const spot of currentDayData.photoSpots ?? []) {
+                items.push({
+                  category: 'photo',
+                  name: spot.name,
+                  tip: spot.tip,
+                  badges: spot.timeOfDay ? [spot.timeOfDay] : undefined,
+                });
+              }
 
-                      {dayFoodieTips && dayFoodieTips.length > 0 ? (
-                        <div className="space-y-3">
-                          {dayFoodieTips.map((tip, idx) => {
-                            const timeColor =
-                              tip.timeOfDay === 'morning'   ? 'bg-amber-50  text-amber-700  border-amber-100'  :
-                              tip.timeOfDay === 'afternoon' ? 'bg-sky-50    text-sky-700    border-sky-100'    :
-                              tip.timeOfDay === 'evening'   ? 'bg-violet-50 text-violet-700 border-violet-100' :
-                                                              'bg-zinc-50   text-zinc-600   border-zinc-100';
-                            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${tip.name} ${tip.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
-                            return (
-                              <div key={idx} className="p-3 bg-orange-50 rounded-xl border border-orange-100">
-                                <div className="flex items-start justify-between gap-2 mb-1">
-                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                    <p className="text-sm font-semibold text-orange-900 leading-snug">{tip.name}</p>
-                                    <a
-                                      href={mapsUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="View on Google Maps"
-                                      className="flex-shrink-0 text-orange-400 hover:text-orange-600 transition-colors"
-                                      onClick={e => e.stopPropagation()}
-                                    >
-                                      <MapPin className="w-3 h-3" />
-                                    </a>
-                                  </div>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    {tip.priceRange && (
-                                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-orange-100 text-orange-600 border-orange-200">
-                                        {tip.priceRange}
-                                      </span>
-                                    )}
-                                    {tip.timeOfDay && tip.timeOfDay !== 'any' && (
-                                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${timeColor}`}>
-                                        {tip.timeOfDay}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                {tip.type && (
-                                  <p className="text-[10px] font-bold uppercase tracking-wide text-orange-400 mb-1">{tip.type}</p>
-                                )}
-                                {tip.neighborhood && (
-                                  <p className="text-[11px] text-orange-600 mb-1">{tip.neighborhood}</p>
-                                )}
-                                {tip.why && (
-                                  <p className="text-xs text-orange-800 leading-relaxed mb-1">{tip.why}</p>
-                                )}
-                                {(tip.orderThis || tip.bestFor) && (
-                                  <p className="text-[11px] text-orange-700 font-medium mb-1">
-                                    <span className="text-orange-400 mr-1">{tip.orderThis ? 'Order:' : 'Best for:'}</span>
-                                    {tip.orderThis ?? tip.bestFor}
-                                  </p>
-                                )}
-                                {tip.tip && (
-                                  <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-orange-100">
-                                    <span className="text-xs flex-shrink-0">💡</span>
-                                    <p className="text-[11px] text-orange-700 leading-relaxed italic">{tip.tip}</p>
-                                  </div>
-                                )}
-                                {/* Add to Day button */}
-                                <button
-                                  onClick={() => handleAddFoodieToItinerary(tip)}
-                                  className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-800 text-[11px] font-semibold rounded-lg transition-colors"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  Add to Day
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-zinc-400 text-center py-2">All tips added to your itinerary ✓</p>
-                      )}
+              // Food — gated on food priority. Filter out tips already
+              // promoted to the itinerary this session so the sidebar
+              // doesn't show duplicates of activities the user added.
+              if (userPriorities.includes('food')) {
+                const rawFoodieTips = (currentDayData?.foodieTips && currentDayData.foodieTips.length > 0)
+                  ? currentDayData.foodieTips
+                  : (selectedDay === 1 && aiMeta?.foodieTips && aiMeta.foodieTips.length > 0 ? aiMeta.foodieTips : []);
+                const dayFoodieTips = rawFoodieTips.filter(t => !addedFoodieTipNames.has(t.name));
+                for (const tip of dayFoodieTips) {
+                  const badges: string[] = [];
+                  if (tip.priceRange) badges.push(tip.priceRange);
+                  if (tip.timeOfDay && tip.timeOfDay !== 'any') badges.push(tip.timeOfDay);
+                  items.push({
+                    category: 'food',
+                    name: tip.name,
+                    neighborhood: tip.neighborhood,
+                    description: tip.why || tip.orderThis,
+                    tip: tip.tip,
+                    badges: badges.length > 0 ? badges : undefined,
+                    addToDayHandler: () => handleAddFoodieToItinerary(tip),
+                  });
+                }
+              }
 
-                      {aiMeta.practicalNotes?.tipping && (
-                        <div className="mt-3 pt-3 border-t border-zinc-100 flex items-start gap-2">
-                          <span className="text-xs flex-shrink-0 mt-0.5">💸</span>
-                          <p className="text-[11px] text-zinc-500 leading-relaxed">{aiMeta.practicalNotes.tipping}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+              // Nightlife — gated on nightlife priority.
+              if (userPriorities.includes('nightlife')) {
+                const nightlife = (currentDayData?.nightlifeHighlights && currentDayData.nightlifeHighlights.length > 0)
+                  ? currentDayData.nightlifeHighlights
+                  : (aiMeta?.nightlifeHighlights ?? []);
+                for (const spot of nightlife) {
+                  items.push({
+                    category: 'nightlife',
+                    name: spot.name,
+                    neighborhood: spot.neighborhood,
+                    description: spot.vibe,
+                    tip: spot.tip,
+                    badges: spot.openFrom ? [spot.openFrom] : undefined,
+                  });
+                }
+              }
 
-            {/* ── Nightlife Highlights — collapsible, shown when nightlife priority ──
-                New trips store this per-day on each ItineraryDay. Old trips stored it
-                trip-wide on aiMeta — fall back to that when the per-day field is empty. */}
-            {(() => {
-              if (!aiMeta?.preferences?.priorities?.includes('nightlife')) return null;
-              const nightlife = (currentDayData?.nightlifeHighlights && currentDayData.nightlifeHighlights.length > 0)
-                ? currentDayData.nightlifeHighlights
-                : (aiMeta?.nightlifeHighlights ?? null);
-              if (!nightlife || nightlife.length === 0) return null;
-              const isCollapsed = collapsedSections.nightlife;
+              // Shopping — gated on shopping priority.
+              if (userPriorities.includes('shopping')) {
+                const shopping = (currentDayData?.shoppingGuide && currentDayData.shoppingGuide.length > 0)
+                  ? currentDayData.shoppingGuide
+                  : (aiMeta?.shoppingGuide ?? []);
+                for (const spot of shopping) {
+                  items.push({
+                    category: 'shopping',
+                    name: spot.name,
+                    neighborhood: spot.neighborhood,
+                    description: spot.what,
+                    tip: spot.tip,
+                    badges: spot.openDays ? [spot.openDays] : undefined,
+                  });
+                }
+              }
+
+              if (items.length === 0) return null;
+              const isCollapsed = collapsedSections.dayHighlights ?? false;
+
               return (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
                   <button
-                    onClick={() => toggleSidebarSection('nightlife')}
+                    onClick={() => toggleSidebarSection('dayHighlights')}
                     className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
                   >
-                    <span className="text-base flex-shrink-0">🎶</span>
+                    <span className="text-base flex-shrink-0">✨</span>
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Nightlife Guide</p>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Day Highlights</p>
                       {isCollapsed && (
                         <p className="text-[11px] text-zinc-300 mt-0.5">
-                          {nightlife.length} spot{nightlife.length !== 1 ? 's' : ''} · tap to expand
+                          {items.length} pick{items.length !== 1 ? 's' : ''} · tap to expand
                         </p>
                       )}
                     </div>
@@ -3219,185 +3144,48 @@ function ItineraryPageContent() {
                   </button>
                   {!isCollapsed && (
                     <div className="px-5 pb-5">
-                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Local spots · After dark</p>
+                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Discoveries beyond the planned activities</p>
                       <div className="space-y-3">
-                        {nightlife.map((spot, idx) => {
-                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
-                          return (
-                            <div key={idx} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  <p className="text-sm font-semibold text-violet-900 leading-snug">{spot.name}</p>
-                                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
-                                    className="flex-shrink-0 text-violet-400 hover:text-violet-600 transition-colors" onClick={e => e.stopPropagation()}>
-                                    <MapPin className="w-3 h-3" />
-                                  </a>
-                                </div>
-                                {spot.openFrom && (
-                                  <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-violet-100 text-violet-600 border-violet-200 whitespace-nowrap">
-                                    {spot.openFrom}
-                                  </span>
-                                )}
-                              </div>
-                              {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-violet-400 mb-1">{spot.type}</p>}
-                              {spot.neighborhood && <p className="text-[11px] text-violet-600 mb-1">{spot.neighborhood}</p>}
-                              {spot.vibe && <p className="text-xs text-violet-800 leading-relaxed mb-1">{spot.vibe}</p>}
-                              {spot.bestNight && (
-                                <p className="text-[11px] text-violet-700 font-medium mb-1">
-                                  <span className="text-violet-400 mr-1">Best:</span>{spot.bestNight}
-                                </p>
-                              )}
-                              {spot.tip && (
-                                <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-violet-100">
-                                  <span className="text-xs flex-shrink-0">💡</span>
-                                  <p className="text-[11px] text-violet-700 leading-relaxed italic">{spot.tip}</p>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* ── Shopping Guide — collapsible, shown when shopping priority ──
-                Per-day on each ItineraryDay; falls back to trip-wide aiMeta for old trips. */}
-            {(() => {
-              if (!aiMeta?.preferences?.priorities?.includes('shopping')) return null;
-              const shopping = (currentDayData?.shoppingGuide && currentDayData.shoppingGuide.length > 0)
-                ? currentDayData.shoppingGuide
-                : (aiMeta?.shoppingGuide ?? null);
-              if (!shopping || shopping.length === 0) return null;
-              const isCollapsed = collapsedSections.shopping;
-              return (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-                  <button
-                    onClick={() => toggleSidebarSection('shopping')}
-                    className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
-                  >
-                    <span className="text-base flex-shrink-0">🛍️</span>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Shopping Guide</p>
-                      {isCollapsed && (
-                        <p className="text-[11px] text-zinc-300 mt-0.5">
-                          {shopping.length} spot{shopping.length !== 1 ? 's' : ''} · tap to expand
-                        </p>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
-                  </button>
-                  {!isCollapsed && (
-                    <div className="px-5 pb-5">
-                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Markets · Boutiques · Local finds</p>
-                      <div className="space-y-3">
-                        {shopping.map((spot, idx) => {
-                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
-                          return (
-                            <div key={idx} className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  <p className="text-sm font-semibold text-emerald-900 leading-snug">{spot.name}</p>
-                                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
-                                    className="flex-shrink-0 text-emerald-400 hover:text-emerald-600 transition-colors" onClick={e => e.stopPropagation()}>
-                                    <MapPin className="w-3 h-3" />
-                                  </a>
-                                </div>
-                                {spot.openDays && (
-                                  <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-600 border-emerald-200 whitespace-nowrap">
-                                    {spot.openDays}
-                                  </span>
-                                )}
-                              </div>
-                              {spot.type && <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400 mb-1">{spot.type}</p>}
-                              {spot.neighborhood && <p className="text-[11px] text-emerald-600 mb-1">{spot.neighborhood}</p>}
-                              {spot.what && <p className="text-xs text-emerald-800 leading-relaxed mb-1">{spot.what}</p>}
-                              {spot.bestFor && (
-                                <p className="text-[11px] text-emerald-700 font-medium mb-1">
-                                  <span className="text-emerald-400 mr-1">Best for:</span>{spot.bestFor}
-                                </p>
-                              )}
-                              {spot.tip && (
-                                <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-emerald-100">
-                                  <span className="text-xs flex-shrink-0">💡</span>
-                                  <p className="text-[11px] text-emerald-700 leading-relaxed italic">{spot.tip}</p>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* ── Generic per-priority Highlights blocks (nature/history/sports/wellness/etc) ──
-                Per-day on each ItineraryDay; falls back to trip-wide aiMeta for old trips. */}
-            {Object.entries(currentDayData?.priorityHighlights ?? aiMeta?.priorityHighlights ?? {}).map(([priorityId, spots]) => {
-              const meta = PRIORITY_SIDEBAR_META[priorityId];
-              const list = Array.isArray(spots) ? spots : [];
-              if (!meta || list.length === 0) return null;
-              if (!aiMeta?.preferences?.priorities?.includes(priorityId)) return null;
-
-              const sectionKey = `priority_${priorityId}`;
-              const isCollapsed = collapsedSections[sectionKey] ?? true;
-
-              return (
-                <div key={priorityId} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-                  <button
-                    onClick={() => toggleSidebarSection(sectionKey)}
-                    className="w-full flex items-center gap-2 px-5 py-4 hover:bg-zinc-50 transition-colors"
-                  >
-                    <span className="text-base flex-shrink-0">{meta.icon}</span>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">{meta.label}</p>
-                      {isCollapsed && (
-                        <p className="text-[11px] text-zinc-300 mt-0.5">
-                          {list.length} spot{list.length !== 1 ? 's' : ''} · tap to expand
-                        </p>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
-                  </button>
-                  {!isCollapsed && (
-                    <div className="px-5 pb-5">
-                      <p className="text-[11px] text-zinc-400 mb-4 -mt-1">{meta.hint}</p>
-                      <div className="space-y-3">
-                        {list.map((spot, idx) => {
-                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
+                        {items.map((item, idx) => {
+                          const meta = HIGHLIGHT_CATEGORY_META[item.category];
+                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.name} ${item.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           return (
                             <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0`}>
                               <div className="flex items-start justify-between gap-2 mb-1">
                                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0`}>{spot.name}</p>
+                                  <span className="text-base flex-shrink-0" title={meta.label}>{meta.icon}</span>
+                                  <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0`}>{item.name}</p>
                                   <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
                                     className={`flex-shrink-0 ${meta.textMuted} hover:opacity-70 transition-opacity`} onClick={e => e.stopPropagation()}>
                                     <MapPin className="w-3 h-3" />
                                   </a>
                                 </div>
-                                {spot.bestTime && (
-                                  <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.pill} whitespace-nowrap`}>
-                                    {spot.bestTime}
-                                  </span>
+                                {item.badges && item.badges.length > 0 && (
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    {item.badges.map((b, i) => (
+                                      <span key={i} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${meta.pill}`}>
+                                        {b}
+                                      </span>
+                                    ))}
+                                  </div>
                                 )}
                               </div>
-                              {spot.type && <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textMuted} mb-1 break-words`}>{spot.type}</p>}
-                              {spot.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1 break-words`}>{spot.neighborhood}</p>}
-                              {spot.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1 break-words`}>{spot.description}</p>}
-                              {spot.bestFor && (
-                                <p className={`text-[11px] ${meta.tipText} font-medium mb-1 break-words`}>
-                                  <span className={`${meta.textMuted} mr-1`}>Best for:</span>{spot.bestFor}
-                                </p>
-                              )}
-                              {spot.tip && (
+                              {item.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1 break-words`}>{item.neighborhood}</p>}
+                              {item.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1 break-words`}>{item.description}</p>}
+                              {item.tip && (
                                 <div className={`flex items-start gap-1.5 mt-2 pt-2 border-t ${meta.border}`}>
                                   <span className="text-xs flex-shrink-0">💡</span>
-                                  <p className={`text-[11px] ${meta.tipText} leading-relaxed italic break-words min-w-0 flex-1`}>{spot.tip}</p>
+                                  <p className={`text-[11px] ${meta.tipText} leading-relaxed italic break-words min-w-0 flex-1`}>{item.tip}</p>
                                 </div>
+                              )}
+                              {item.addToDayHandler && (
+                                <button
+                                  onClick={item.addToDayHandler}
+                                  className={`mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 ${meta.pill} text-[11px] font-semibold rounded-lg transition-opacity hover:opacity-90`}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add to Day
+                                </button>
                               )}
                             </div>
                           );
@@ -3407,7 +3195,7 @@ function ItineraryPageContent() {
                   )}
                 </div>
               );
-            })}
+            })()}
 
             {/* Where to Stay — collapsible wrapper. Hidden once hotels are booked (they show inline on the day timeline instead). */}
             {aiMeta?.destination && (aiMeta?.bookedHotels ?? []).length === 0 && (
