@@ -2603,7 +2603,9 @@ function TripBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Local Mode Toggle */}
+                  {/* Repeat-visitor toggle — when set, the prompt skips the
+                      famous tourist landmarks (the user has already been
+                      there) and focuses on hidden gems / local-only spots. */}
                   <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <input
                       type="checkbox"
@@ -2617,7 +2619,7 @@ function TripBuilderPage() {
                       className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
                     />
                     <label className="text-sm font-medium text-zinc-900">
-                      Local insider mode (off-the-beaten-path experiences)
+                      I&apos;ve been here before — focus on hidden gems, skip the famous landmarks
                     </label>
                   </div>
 

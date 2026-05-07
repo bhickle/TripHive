@@ -403,8 +403,13 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
     ? 'balanced traveler — mix of iconic sights and authentic local discoveries'
     : 'comfort-focused — prefers well-reviewed, accessible, and easy-to-navigate attractions';
 
+  // When localMode is on, the user has indicated this is a REPEAT visit —
+  // they've already covered the famous tourist landmarks and want a "deeper
+  // cut" itinerary on this trip. This explicitly OVERRIDES rule 11's
+  // requirement to anchor every day with the iconic landmark in photoSpots,
+  // because the user has been to those before.
   const localModeText = localMode
-    ? '\n- LOCAL INSIDER MODE: For every day, include the iconic tourist highlight AND a local alternative nearby — a neighborhood cafe instead of the tourist-facing one, a local market instead of the souvenir shop. Both options appear side by side so the group can choose. Never skip the famous landmark entirely — just pair it with a genuine local counterpart.'
+    ? '\n- REPEAT-VISITOR MODE (override): This traveler has been to this destination before and has already visited the famous tourist landmarks. SKIP or strongly de-emphasize the iconic must-see spots (Eiffel Tower, Trevi Fountain, Hagia Sophia, etc.) — INCLUDING in the photoSpots arrays. Replace them with hidden gems, local-only neighborhoods, off-the-beaten-path experiences, second-tier neighborhoods worth exploring, lesser-known museums and galleries, locals\' favorite restaurants and cafes, niche markets, craft and design districts, residential pockets with character, and cultural spots first-time visitors typically miss. Treat this as a deeper-cut itinerary — depth over breadth, locals over tourists. This rule overrides rule 11\'s "always include iconic must-photograph landmarks" instruction.'
     : '';
 
   const dateNightText = dateNight

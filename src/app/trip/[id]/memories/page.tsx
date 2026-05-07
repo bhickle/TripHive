@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
-  Filter, MapPin, Calendar, Users
+  Filter, MapPin, Calendar, Users, AlertCircle,
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, MOCK_TRIP_IDS } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
@@ -58,6 +58,10 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [photoLocation, setPhotoLocation] = useState('');
+  // Tracks photos that failed to persist to Supabase Storage (or to the
+  // trip_photos table). They're still visible locally as blob URLs but will
+  // disappear on refresh — surface this to the user instead of swallowing.
+  const [uploadFailedCount, setUploadFailedCount] = useState(0);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const tripDestination = isMockTrip ? 'Iceland' : (tripDestinationFromApi ?? 'your trip');
@@ -237,6 +241,14 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   {uploadedCount} photo{uploadedCount !== 1 ? 's' : ''} loaded. Keep adding and we'll weave them into your recap.
                 </p>
               )}
+              {uploadFailedCount > 0 && (
+                <div className="mt-4 mx-auto max-w-md flex items-start gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-left">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
+                  <p className="text-xs text-rose-700">
+                    {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -308,8 +320,13 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
             setIsUploading(true);
             setUploadProgress(0);
+            setUploadFailedCount(0);
 
             const fileArray = Array.from(files);
+            // Count storage / DB failures so we can show a banner at the end
+            // instead of silently dropping photos that only exist as blob URLs
+            // and will vanish on refresh.
+            let failedCount = 0;
 
             // Create blob URLs once per file and reuse across both state slices
             const blobEntries = fileArray.map((file, i) => ({
@@ -371,41 +388,59 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                       .from('trip-photos')
                       .upload(path, file, { upsert: true });
                     clearInterval(ticker);
-                    if (!uploadError && data) {
-                      const { data: urlData } = supabase.storage.from('trip-photos').getPublicUrl(path);
-                      if (urlData?.publicUrl) {
-                        // Swap local preview URL with the Supabase URL and revoke the blob URL
-                        setUploadedPhotos(prev => {
-                          const updated = [...prev];
-                          const localIdx = updated.findIndex(p => p.name === file.name && p.url.startsWith('blob:'));
-                          if (localIdx >= 0) {
-                            URL.revokeObjectURL(updated[localIdx].url);
-                            updated[localIdx] = { url: urlData.publicUrl, name: file.name };
-                          }
-                          return updated;
-                        });
-                        // Also swap in tripPhotos state
-                        setTripPhotos(prev => prev.map(p =>
-                          p.url.startsWith('blob:') && p.activity === (photoLocation.trim() || file.name.replace(/\.[^.]+$/, ''))
-                            ? { ...p, url: urlData.publicUrl }
-                            : p
-                        ));
-                        // Record in trip_photos table with real uploader name and location caption
-                        await supabase.from('trip_photos').insert({
-                          trip_id: params.id,
-                          storage_path: path,
-                          public_url: urlData.publicUrl,
-                          uploader_name: uploaderName,
-                          day_number: 1,
-                          caption: photoLocation.trim() || null,
-                        }).then(({ error }) => { if (error) console.warn('trip_photos insert:', error.message); });
-                      }
+                    if (uploadError || !data) {
+                      // Storage upload failed — count it. The blob URL is
+                      // still visible to the user this session but won't
+                      // survive a refresh. Banner at end tells them to retry.
+                      console.warn('Storage upload failed for', file.name, uploadError?.message ?? 'no data returned');
+                      failedCount++;
+                      setUploadProgress(fileEnd);
+                      continue;
                     }
-                    // Snap to file-end percentage after upload finishes
+                    const { data: urlData } = supabase.storage.from('trip-photos').getPublicUrl(path);
+                    if (!urlData?.publicUrl) {
+                      console.warn('No public URL for', file.name);
+                      failedCount++;
+                      setUploadProgress(fileEnd);
+                      continue;
+                    }
+                    // Swap local preview URL with the Supabase URL and revoke the blob URL
+                    setUploadedPhotos(prev => {
+                      const updated = [...prev];
+                      const localIdx = updated.findIndex(p => p.name === file.name && p.url.startsWith('blob:'));
+                      if (localIdx >= 0) {
+                        URL.revokeObjectURL(updated[localIdx].url);
+                        updated[localIdx] = { url: urlData.publicUrl, name: file.name };
+                      }
+                      return updated;
+                    });
+                    // Also swap in tripPhotos state
+                    setTripPhotos(prev => prev.map(p =>
+                      p.url.startsWith('blob:') && p.activity === (photoLocation.trim() || file.name.replace(/\.[^.]+$/, ''))
+                        ? { ...p, url: urlData.publicUrl }
+                        : p
+                    ));
+                    // Record in trip_photos table with real uploader name and location caption.
+                    // Storage upload succeeded but DB insert can still fail (RLS,
+                    // missing trip_id, etc.) — count those as failures too,
+                    // because without the row the photo won't load on refresh.
+                    const { error: insertError } = await supabase.from('trip_photos').insert({
+                      trip_id: params.id,
+                      storage_path: path,
+                      public_url: urlData.publicUrl,
+                      uploader_name: uploaderName,
+                      day_number: 1,
+                      caption: photoLocation.trim() || null,
+                    });
+                    if (insertError) {
+                      console.warn('trip_photos insert:', insertError.message);
+                      failedCount++;
+                    }
                     setUploadProgress(fileEnd);
                   } catch (err) {
                     clearInterval(ticker);
                     console.warn('Background upload failed for', file.name, err);
+                    failedCount++;
                     setUploadProgress(fileEnd);
                   }
                 }
@@ -414,6 +449,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
             setUploadProgress(100);
             setIsUploading(false);
+            if (failedCount > 0) setUploadFailedCount(failedCount);
             e.target.value = '';
           }}
         />

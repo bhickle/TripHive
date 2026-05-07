@@ -2075,21 +2075,6 @@ function ItineraryPageContent() {
           </div>
         )}
 
-        {/* AI Generated Banner — demo only (not shown for real uploaded/generated trips) */}
-        {showAiBanner && !aiMeta && (
-          <div className="mb-6 flex items-center justify-between px-5 py-3.5 bg-sky-50 border border-sky-200 rounded-2xl">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-sky-800 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-sm font-bold">✦</span>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-sky-900">Built by AI, made for your crew ✦</p>
-                <p className="text-xs text-sky-800">Demo itinerary · Iceland · Personalized just for you</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Toasts */}
         {activityAdded && (
           <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
