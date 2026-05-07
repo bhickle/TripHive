@@ -544,6 +544,34 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
     ? `\n- ACCESSIBILITY PRIORITY: This group includes travelers with mobility, sensory, or other accessibility needs — plan every activity with this as a baseline requirement. For every activity and venue, note: wheelchair and stroller accessibility (step-free entry, elevator or lift availability, accessible restrooms), availability of audio guides or assistive listening devices at museums and cultural sites, surface conditions for outdoor activities (paved paths vs. cobblestone vs. uneven terrain), and any alternatives for activities with limited accessibility. Prioritize venues with strong accessibility provisions. If the destination has known challenges (hilly terrain, cobblestone streets, limited elevator coverage), flag them explicitly and suggest practical workarounds. Include at least one activity per day that is fully accessible with no caveats.`
     : '';
 
+  // ── Cacheable priority guidance ──────────────────────────────────────────────
+  // These priority-conditional blocks are stable for the duration of a trip
+  // generation: they depend ONLY on the user's selected priorities, never on
+  // trip-specific values like destination, dates, group size, or places. We
+  // concatenate them here and the call sites send them as a separate system
+  // block with cache_control so multi-city segments, open-stream retries, and
+  // continuation passes all hit the same cached prefix on Anthropic's side.
+  // Excluded from this set: sportsText (interpolates destination), foodText
+  // is included because it does NOT interpolate. Verify before adding any
+  // future priority block — a single byte of trip-specific content makes the
+  // whole prefix uncacheable.
+  const cacheableGuidance = [
+    foodText,
+    photoText,
+    natureText,
+    nightlifeText,
+    historyText,
+    wellnessText,
+    shoppingText,
+    adventureText,
+    cultureText,
+    beachText,
+    themeParkText,
+    familyText,
+    budgetConsciousText,
+    accessibilityPriorityText,
+  ].filter(Boolean).join('');
+
   // Multi-city routing rules — injected when destinations array has 2+ cities
   // Priority: explicit destinations list > hotel city fields > skip
   const multiCityText = (() => {
@@ -730,7 +758,7 @@ You MUST follow ALL of these rules:
     ? `\n- FLEXIBLE DATES: The traveler has not committed to specific dates — the dates above are placeholder defaults. Treat the trip length (${tripLength} days) as the firm constraint, and feel free to recommend a better season or month for ${destination} where it would meaningfully improve the experience (better weather, fewer crowds, key seasonal events). Note any timing recommendation prominently in the practicalNotes so the traveler can choose dates accordingly.`
     : '';
 
-  return `Generate a ${tripLength}-day travel itinerary for the following trip:
+  const userPrompt = `Generate a ${tripLength}-day travel itinerary for the following trip:
 
 TRIP DETAILS:
 - Destination: ${destinations.length >= 2 ? `Multi-city — ${destinations.join(' → ')}` : destination}
@@ -745,7 +773,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${beachText}${themeParkText}${familyText}${budgetConsciousText}${accessibilityPriorityText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
+- Travel style: ${travelStyleText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -1059,6 +1087,8 @@ RULES:
 ${getSeasonalContext(startDate, destination)}
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
+
+  return { user: userPrompt, cacheableGuidance };
 }
 
 // Recover a valid JSON array from a truncated response by finding the last
@@ -1277,7 +1307,7 @@ export async function POST(request: NextRequest) {
     : realPlaces;
   const resolvedMultiCityPlaces = citySegment ? null : multiCityPlaces;
 
-  const prompt = buildPrompt({
+  const { user: prompt, cacheableGuidance } = buildPrompt({
     destination: resolvedDestination,
     startDate: resolvedStartDate,
     endDate: resolvedEndDate,
@@ -1330,6 +1360,22 @@ export async function POST(request: NextRequest) {
   // closed browser tab doesn't keep generating for 5 minutes burning credits.
   const clientSignal = request.signal;
 
+  // ── Anthropic prompt caching: send the priority guidance as a separate
+  // cached system block. Multi-city segments, open-stream retries, and
+  // continuation passes all share the same priority guidance for the user's
+  // selected priorities — caching it means each subsequent Anthropic call
+  // within the 5-minute TTL reads the prefix from cache (~90% cheaper, much
+  // faster) instead of re-processing it. Cache requires a >=2K token prefix
+  // on Sonnet 4.6; if the user picked few priorities and the guidance is
+  // smaller, the cache_control is harmless (silently won't cache).
+  const systemParam: string | Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> =
+    cacheableGuidance.length > 0
+      ? [
+          { type: 'text', text: SYSTEM_PROMPT },
+          { type: 'text', text: cacheableGuidance, cache_control: { type: 'ephemeral' } },
+        ]
+      : SYSTEM_PROMPT;
+
   const readable = new ReadableStream({
     async start(controller) {
       /** Encode and enqueue one SSE event. */
@@ -1354,7 +1400,7 @@ export async function POST(request: NextRequest) {
                 model: modelId,
                 max_tokens: maxTokens,
                 stream: true,
-                system: SYSTEM_PROMPT,
+                system: systemParam,
                 messages: [
                   { role: 'user', content: finalPrompt },
                 ],
@@ -1387,6 +1433,22 @@ export async function POST(request: NextRequest) {
 
         try {
           for await (const event of anthropicStream) {
+            // Surface prompt-cache stats from the message_start event so we can
+            // verify caching is working in production. cache_read_input_tokens
+            // > 0 means the priority guidance was served from cache (~90%
+            // cheaper, much faster). On the first call it'll be 0 and
+            // cache_creation_input_tokens will be the size of the cached block;
+            // subsequent calls within 5min should flip it.
+            if (event.type === 'message_start') {
+              const u = event.message.usage as {
+                input_tokens?: number;
+                cache_creation_input_tokens?: number;
+                cache_read_input_tokens?: number;
+              };
+              console.log(
+                `[generate-itinerary] cache: read=${u.cache_read_input_tokens ?? 0}, write=${u.cache_creation_input_tokens ?? 0}, fresh=${u.input_tokens ?? 0}`,
+              );
+            }
             // Capture stop_reason so we can distinguish "model finished" from
             // "model was cut off at max_tokens" — the latter MUST trigger continuation
             // even if dayIndex happens to equal resolvedTripLength rounded down.
@@ -1619,7 +1681,11 @@ export async function POST(request: NextRequest) {
               // Give at least 16K tokens even for 1 remaining day (descriptions are verbose)
               max_tokens: Math.min(64000, Math.max(remaining * tokensPerDay, 16000)),
               stream: true,
-              system: SYSTEM_PROMPT, // enforce JSON-only output
+              // Continuation reuses the cached system prefix from the first pass.
+              // Anthropic looks up the cache by hashing system+user up to each
+              // breakpoint; the system bytes are identical across calls within
+              // a trip generation, so the priority guidance hits the cache.
+              system: systemParam,
               messages: [{ role: 'user', content: compactContPrompt }],
             }, { signal: clientSignal });
 
@@ -1631,6 +1697,19 @@ export async function POST(request: NextRequest) {
             const daysBefore = dayIndex; // detect if this pass produces anything
 
             for await (const ev of contStream) {
+              // Same cache-stat logging as the first pass — continuation
+              // calls should see cache_read_input_tokens > 0 if the priority
+              // guidance is in cache.
+              if (ev.type === 'message_start') {
+                const u = ev.message.usage as {
+                  input_tokens?: number;
+                  cache_creation_input_tokens?: number;
+                  cache_read_input_tokens?: number;
+                };
+                console.log(
+                  `[generate-itinerary] cache (cont ${contAttempt}): read=${u.cache_read_input_tokens ?? 0}, write=${u.cache_creation_input_tokens ?? 0}, fresh=${u.input_tokens ?? 0}`,
+                );
+              }
               if (ev.type !== 'content_block_delta') continue;
               if (ev.delta.type !== 'text_delta') continue;
 
