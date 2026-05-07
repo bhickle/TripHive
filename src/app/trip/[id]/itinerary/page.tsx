@@ -2446,7 +2446,7 @@ function ItineraryPageContent() {
                     // Activity item
                     const activity = item.data;
                     const config = trackConfig[activity.track as keyof typeof trackConfig];
-                    const startTime = activity.timeSlot.split(/–|—/)[0]?.trim() || '';
+                    const startTime = (activity.timeSlot ?? '').split(/–|—/)[0]?.trim() || '';
                     const price = priceLevelLabel(activity.priceLevel);
                     const actName = activity.name || activity.title || '';
                     const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(actName + (activity.address ? ' ' + activity.address : ' ' + trip.destination))}`;
@@ -3242,10 +3242,10 @@ function ItineraryPageContent() {
                         {list.map((spot, idx) => {
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           return (
-                            <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border}`}>
+                            <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0`}>
                               <div className="flex items-start justify-between gap-2 mb-1">
                                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  <p className={`text-sm font-semibold ${meta.text} leading-snug`}>{spot.name}</p>
+                                  <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0`}>{spot.name}</p>
                                   <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
                                     className={`flex-shrink-0 ${meta.textMuted} hover:opacity-70 transition-opacity`} onClick={e => e.stopPropagation()}>
                                     <MapPin className="w-3 h-3" />
@@ -3257,18 +3257,18 @@ function ItineraryPageContent() {
                                   </span>
                                 )}
                               </div>
-                              {spot.type && <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textMuted} mb-1`}>{spot.type}</p>}
-                              {spot.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1`}>{spot.neighborhood}</p>}
-                              {spot.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1`}>{spot.description}</p>}
+                              {spot.type && <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textMuted} mb-1 break-words`}>{spot.type}</p>}
+                              {spot.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1 break-words`}>{spot.neighborhood}</p>}
+                              {spot.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1 break-words`}>{spot.description}</p>}
                               {spot.bestFor && (
-                                <p className={`text-[11px] ${meta.tipText} font-medium mb-1`}>
+                                <p className={`text-[11px] ${meta.tipText} font-medium mb-1 break-words`}>
                                   <span className={`${meta.textMuted} mr-1`}>Best for:</span>{spot.bestFor}
                                 </p>
                               )}
                               {spot.tip && (
                                 <div className={`flex items-start gap-1.5 mt-2 pt-2 border-t ${meta.border}`}>
                                   <span className="text-xs flex-shrink-0">💡</span>
-                                  <p className={`text-[11px] ${meta.tipText} leading-relaxed italic`}>{spot.tip}</p>
+                                  <p className={`text-[11px] ${meta.tipText} leading-relaxed italic break-words min-w-0 flex-1`}>{spot.tip}</p>
                                 </div>
                               )}
                             </div>

@@ -43,6 +43,44 @@ export async function verifyTripAccess(
 }
 
 /**
+ * Resolves the caller's role on a given trip.
+ * - 'organizer'     → trips.organizer_id matches
+ * - 'co_organizer'  → trip_members.role = 'co_organizer'
+ * - 'member'        → trip_members row exists with any other role
+ * - null            → not on this trip
+ *
+ * Used by routes that need finer-grained authorization than "are they on the
+ * trip" (e.g. only co-organizers can edit destination/dates, but any member
+ * can vote on activities).
+ */
+export type TripRole = 'organizer' | 'co_organizer' | 'member';
+
+export async function getTripRole(
+  supabase: ReturnType<typeof createAdminClient>,
+  tripId: string,
+  userId: string,
+): Promise<TripRole | null> {
+  const { data: trip } = await supabase
+    .from('trips')
+    .select('organizer_id')
+    .eq('id', tripId)
+    .maybeSingle();
+
+  if (!trip) return null;
+  if (trip.organizer_id === userId) return 'organizer';
+
+  const { data: membership } = await supabase
+    .from('trip_members')
+    .select('role')
+    .eq('trip_id', tripId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!membership) return null;
+  return membership.role === 'co_organizer' ? 'co_organizer' : 'member';
+}
+
+/**
  * Combined helper: validates auth + trip membership in one call.
  * Returns { ok: true, ctx } with userId + admin supabase client on success,
  * or { ok: false, response } with a ready-to-return 401/403 NextResponse.

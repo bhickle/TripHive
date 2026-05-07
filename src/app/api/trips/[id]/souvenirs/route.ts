@@ -61,6 +61,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const supabase = createAdminClient();
 
+    // Use maybeSingle so first-time users (no existing rows) don't trigger a
+    // PostgrestError "JSON object requested, multiple (or no) rows returned"
+    // — the previous .single() emitted that error into the destructured `error`
+    // slot which was being ignored, masking real issues.
     const { data: last } = await supabase
       .from('souvenir_items')
       .select('display_order')
@@ -68,7 +72,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .eq('user_id', userId)
       .order('display_order', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const { data: item, error } = await supabase
       .from('souvenir_items')

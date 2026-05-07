@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { getTripRole } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]
@@ -119,23 +120,38 @@ export async function PATCH(
 
     const supabase = createAdminClient();
 
-    // Verify the user owns this trip (organizer_id check)
-    const { data: tripRow, error: tripLookupError } = await supabase
-      .from('trips')
-      .select('organizer_id')
-      .eq('id', params.id)
-      .single();
-
-    if (tripLookupError || !tripRow) {
-      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    // ── Role-based authorization ─────────────────────────────────────────────
+    // Previously this route hard-blocked every non-organizer with a 403, which
+    // meant trip members couldn't even save vote tallies (those round-trip
+    // through this endpoint as a `days` patch). Now:
+    //   • days       → any trip member (organizer + co-org + member)
+    //                  — needed so members can vote on activities
+    //   • tripPatch  → organizer + co-organizer only
+    //                  — destination/title/dates are trip-shaping decisions
+    //   • metaPatch  → organizer + co-organizer only
+    //                  — itinerary meta affects everyone's view
+    const role = await getTripRole(supabase, params.id, userId);
+    if (!role) {
+      // Either the trip doesn't exist or the caller isn't a member.
+      // Disambiguate so the client shows the right error.
+      const { data: tripExists } = await supabase
+        .from('trips')
+        .select('id')
+        .eq('id', params.id)
+        .maybeSingle();
+      return NextResponse.json(
+        { error: tripExists ? 'Forbidden' : 'Trip not found' },
+        { status: tripExists ? 403 : 404 },
+      );
     }
 
-    if (tripRow.organizer_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const canEditTrip = role === 'organizer' || role === 'co_organizer';
 
     // ── Update trips table fields (destination, title, dates) ─────────────────
     if (tripPatch && Object.keys(tripPatch).length > 0) {
+      if (!canEditTrip) {
+        return NextResponse.json({ error: 'Only organizers and co-organizers can edit trip details' }, { status: 403 });
+      }
       const { error } = await supabase
         .from('trips')
         .update(tripPatch)
@@ -162,6 +178,9 @@ export async function PATCH(
 
     // ── Merge-patch itinerary meta (e.g. add isCruise/cruiseLine after upload) ─
     if (metaPatch) {
+      if (!canEditTrip) {
+        return NextResponse.json({ error: 'Only organizers and co-organizers can edit itinerary metadata' }, { status: 403 });
+      }
       // Fetch existing meta first so we can merge
       const { data: existing } = await supabase
         .from('itineraries')

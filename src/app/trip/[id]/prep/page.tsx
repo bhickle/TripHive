@@ -511,9 +511,29 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ person: optimistic.person, idea: optimistic.idea }),
       });
+      // Previously an HTTP error (e.g. 401 / 500) returned valid JSON without
+      // an `item` field, so the optimistic row was orphaned forever — looked
+      // saved to the user but vanished on refresh. Now: any non-OK status is
+      // treated as a save failure and the optimistic row is rolled back.
+      if (!res.ok) {
+        throw new Error(`save failed: ${res.status}`);
+      }
       const data = await res.json();
-      if (data?.item) setSouvenirItems(prev => prev.map(i => i.id === tempId ? { id: data.item.id, person: data.item.person, idea: data.item.idea, purchased: data.item.purchased } : i));
-    } catch { setSouvenirItems(prev => prev.filter(i => i.id !== tempId)); }
+      if (data?.item) {
+        setSouvenirItems(prev => prev.map(i => i.id === tempId
+          ? { id: data.item.id, person: data.item.person, idea: data.item.idea, purchased: data.item.purchased }
+          : i,
+        ));
+      } else {
+        throw new Error('save returned no item');
+      }
+    } catch (err) {
+      console.error('addSouvenirItem failed:', err);
+      setSouvenirItems(prev => prev.filter(i => i.id !== tempId));
+      // Restore the input so the user doesn't lose what they typed
+      setNewSouvenirPerson(optimistic.person);
+      setNewSouvenirIdea(optimistic.idea);
+    }
   };
 
   const toggleSouvenirPurchased = (itemId: string, purchased: boolean) => {

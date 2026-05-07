@@ -24,6 +24,34 @@ Photo spot tips must be ONE concise sentence only — no more than 20 words. Nev
 CRITICAL — NEVER INVENT EVENTS: Never assign a specific scheduled game, concert, show, or live event to a specific date. Sports games, concerts, and live performances have unpredictable schedules. If a venue hosts live events, write that travelers should check the official website or ticketing platform for current dates — never fabricate a fixture date, game time, or show schedule.
 Return ONLY valid JSON — no markdown, no explanation, no code fences.`;
 
+// ── Retry helpers for transient Anthropic failures ──────────────────────────
+// Anthropic returns 529 / overloaded_error during peak load and 5xx for
+// internal hiccups. Without retries, a single overload kills the whole
+// generation and the user sees a partial trip (e.g. 11 requested → 4 emitted).
+function isRetryableAnthropicError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { status?: number; error?: { error?: { type?: string }; type?: string }; message?: string };
+  if (e.status === 429 || e.status === 500 || e.status === 502 || e.status === 503 || e.status === 504 || e.status === 529) {
+    return true;
+  }
+  const innerType = e.error?.error?.type ?? e.error?.type;
+  if (innerType === 'overloaded_error' || innerType === 'rate_limit_error' || innerType === 'api_error') {
+    return true;
+  }
+  const msg = typeof e.message === 'string' ? e.message : '';
+  if (msg.includes('overloaded_error') || msg.includes('rate_limit_error') || msg.includes('"Overloaded"')) return true;
+  if (/ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|socket hang up/i.test(msg)) return true;
+  return false;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error('aborted'));
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => { clearTimeout(t); reject(new Error('aborted')); }, { once: true });
+  });
+}
+
 interface BookedFlight {
   airline?: string;
   flightNumber?: string;
@@ -1303,15 +1331,37 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        const anthropicStream = await client.messages.create({
-          model: modelId,
-          max_tokens: maxTokens,
-          stream: true,
-          system: SYSTEM_PROMPT,
-          messages: [
-            { role: 'user', content: finalPrompt },
-          ],
-        }, { signal: clientSignal });
+        // Open the first-pass stream with retry-with-backoff for connection-time
+        // overloaded_error / 5xx. Without this, a single 529 from Anthropic kills
+        // the whole generation before any days are emitted.
+        let anthropicStream: Awaited<ReturnType<typeof client.messages.create>> | null = null;
+        {
+          const MAX_OPEN_ATTEMPTS = 3;
+          let openErr: unknown;
+          for (let attempt = 1; attempt <= MAX_OPEN_ATTEMPTS; attempt++) {
+            if (clientSignal.aborted) throw new Error('client aborted');
+            try {
+              anthropicStream = await client.messages.create({
+                model: modelId,
+                max_tokens: maxTokens,
+                stream: true,
+                system: SYSTEM_PROMPT,
+                messages: [
+                  { role: 'user', content: finalPrompt },
+                ],
+              }, { signal: clientSignal });
+              break;
+            } catch (err) {
+              openErr = err;
+              if (!isRetryableAnthropicError(err) || attempt === MAX_OPEN_ATTEMPTS) throw err;
+              const delay = 2000 * Math.pow(3, attempt - 1); // 2s, 6s
+              console.warn(`[generate-itinerary] first-pass open retry ${attempt}/${MAX_OPEN_ATTEMPTS} after ${delay}ms: ${err instanceof Error ? err.message : String(err)}`);
+              send({ type: 'status', message: `Anthropic temporarily overloaded — retrying in ${Math.round(delay / 1000)}s...` });
+              await sleep(delay, clientSignal);
+            }
+          }
+          if (!anthropicStream) throw openErr ?? new Error('failed to open Anthropic stream');
+        }
 
         // ── Character-level JSON object extractor ───────────────────────────
         // We scan the token stream character by character, tracking brace
@@ -1326,78 +1376,94 @@ export async function POST(request: NextRequest) {
         const collectedDays: Record<string, unknown>[] = [];
         let firstPassStopReason: string | null = null;
 
-        for await (const event of anthropicStream) {
-          // Capture stop_reason so we can distinguish "model finished" from
-          // "model was cut off at max_tokens" — the latter MUST trigger continuation
-          // even if dayIndex happens to equal resolvedTripLength rounded down.
-          if (event.type === 'message_delta' && event.delta.stop_reason) {
-            firstPassStopReason = event.delta.stop_reason;
-            continue;
-          }
-          if (event.type !== 'content_block_delta') continue;
-          if (event.delta.type !== 'text_delta') continue;
+        try {
+          for await (const event of anthropicStream) {
+            // Capture stop_reason so we can distinguish "model finished" from
+            // "model was cut off at max_tokens" — the latter MUST trigger continuation
+            // even if dayIndex happens to equal resolvedTripLength rounded down.
+            if (event.type === 'message_delta' && event.delta.stop_reason) {
+              firstPassStopReason = event.delta.stop_reason;
+              continue;
+            }
+            if (event.type !== 'content_block_delta') continue;
+            if (event.delta.type !== 'text_delta') continue;
 
-          for (const ch of event.delta.text) {
-            // String / escape tracking (so braces inside string values are ignored)
-            if (escape)                      { escape = false; buffer += ch; continue; }
-            if (ch === '\\' && inString)     { escape = true;  buffer += ch; continue; }
-            if (ch === '"')                  { inString = !inString; buffer += ch; continue; }
-            if (inString)                    { buffer += ch; continue; }
+            for (const ch of event.delta.text) {
+              // String / escape tracking (so braces inside string values are ignored)
+              if (escape)                      { escape = false; buffer += ch; continue; }
+              if (ch === '\\' && inString)     { escape = true;  buffer += ch; continue; }
+              if (ch === '"')                  { inString = !inString; buffer += ch; continue; }
+              if (inString)                    { buffer += ch; continue; }
 
-            buffer += ch;
+              buffer += ch;
 
-            if (ch === '{') {
-              if (braceDepth === 0) objStart = buffer.length - 1; // mark start of day object
-              braceDepth++;
-            } else if (ch === '}' && braceDepth > 0) {
-              braceDepth--;
-              if (braceDepth === 0 && objStart >= 0) {
-                // Candidate complete day object: buffer[objStart..end]
-                const rawObj = buffer.slice(objStart);
-                try {
-                  const dayObj = JSON.parse(cleanJson(rawObj)) as Record<string, unknown>;
+              if (ch === '{') {
+                if (braceDepth === 0) objStart = buffer.length - 1; // mark start of day object
+                braceDepth++;
+              } else if (ch === '}' && braceDepth > 0) {
+                braceDepth--;
+                if (braceDepth === 0 && objStart >= 0) {
+                  // Candidate complete day object: buffer[objStart..end]
+                  const rawObj = buffer.slice(objStart);
+                  try {
+                    const dayObj = JSON.parse(cleanJson(rawObj)) as Record<string, unknown>;
 
-                  // Day 1 carries trip-level meta fields — extract and emit separately
-                  if (dayIndex === 0) {
-                    send({
-                      type: 'meta',
-                      title: dayObj.title ?? null,
-                      practicalNotes: dayObj.practicalNotes ?? null,
-                      hotelSuggestions: dayObj.hotelSuggestions ?? null,
-                      nightlifeHighlights: dayObj.nightlifeHighlights ?? null,
-                      shoppingGuide: dayObj.shoppingGuide ?? null,
-                      priorityHighlights: dayObj.priorityHighlights ?? null,
-                    });
-                    delete dayObj.title;
-                    delete dayObj.practicalNotes;
-                    delete dayObj.hotelSuggestions;
-                    delete dayObj.nightlifeHighlights;
-                    delete dayObj.shoppingGuide;
-                    delete dayObj.priorityHighlights;
-                    // foodieTips intentionally NOT extracted — stays on each day object
+                    // Day 1 carries trip-level meta fields — extract and emit separately
+                    if (dayIndex === 0) {
+                      send({
+                        type: 'meta',
+                        title: dayObj.title ?? null,
+                        practicalNotes: dayObj.practicalNotes ?? null,
+                        hotelSuggestions: dayObj.hotelSuggestions ?? null,
+                        nightlifeHighlights: dayObj.nightlifeHighlights ?? null,
+                        shoppingGuide: dayObj.shoppingGuide ?? null,
+                        priorityHighlights: dayObj.priorityHighlights ?? null,
+                      });
+                      delete dayObj.title;
+                      delete dayObj.practicalNotes;
+                      delete dayObj.hotelSuggestions;
+                      delete dayObj.nightlifeHighlights;
+                      delete dayObj.shoppingGuide;
+                      delete dayObj.priorityHighlights;
+                      // foodieTips intentionally NOT extracted — stays on each day object
+                    }
+
+                    send({ type: 'day', index: dayIndex, data: dayObj });
+                    collectedDays.push(dayObj);
+                    dayIndex++;
+
+                    // Trim the buffer — the object has been consumed
+                    buffer = '';
+                    objStart = -1;
+                  } catch {
+                    // Malformed object — almost always means the response was
+                    // truncated mid-day at max_tokens. Fully reset parser state so
+                    // the rest of the stream isn't poisoned by stale buffer data.
+                    // (Without this, every subsequent `}` at depth 0 silently
+                    // discards content because objStart is -1 but buffer keeps growing.)
+                    buffer = '';
+                    braceDepth = 0;
+                    inString = false;
+                    escape = false;
+                    objStart = -1;
                   }
-
-                  send({ type: 'day', index: dayIndex, data: dayObj });
-                  collectedDays.push(dayObj);
-                  dayIndex++;
-
-                  // Trim the buffer — the object has been consumed
-                  buffer = '';
-                  objStart = -1;
-                } catch {
-                  // Malformed object — almost always means the response was
-                  // truncated mid-day at max_tokens. Fully reset parser state so
-                  // the rest of the stream isn't poisoned by stale buffer data.
-                  // (Without this, every subsequent `}` at depth 0 silently
-                  // discards content because objStart is -1 but buffer keeps growing.)
-                  buffer = '';
-                  braceDepth = 0;
-                  inString = false;
-                  escape = false;
-                  objStart = -1;
                 }
               }
             }
+          }
+        } catch (streamErr) {
+          // If Anthropic returns an overloaded_error mid-stream, the SDK throws
+          // out of the for-await. Without this catch, the throw propagates to
+          // the outer handler and the entire generation aborts — even if we
+          // already streamed several valid days. Instead: fall through to the
+          // continuation loop, which will request the missing days using the
+          // self-contained "continue from day N" prompt.
+          if (isRetryableAnthropicError(streamErr)) {
+            console.warn(`[generate-itinerary] First-pass stream interrupted by retryable error after ${dayIndex} days — falling through to continuation:`, streamErr instanceof Error ? streamErr.message : streamErr);
+            send({ type: 'status', message: 'Anthropic temporarily overloaded — recovering remaining days...' });
+            firstPassStopReason = 'overloaded'; // forces continuation loop to engage
+          } else {
+            throw streamErr;
           }
         }
 
@@ -1410,7 +1476,9 @@ export async function POST(request: NextRequest) {
         // that exceed the 64K output token cap). We retry up to MAX_CONTINUATIONS
         // times using a self-contained compact prompt that avoids conflicting with
         // the original "generate N days from day 1" instruction.
-        const MAX_CONTINUATIONS = 4;
+        // Bumped from 4 → 6 to absorb retry passes spent on transient
+        // overloaded_error / 5xx responses (each retryable failure burns a slot).
+        const MAX_CONTINUATIONS = 6;
         let contAttempt = 0;
         // Track consecutive zero-day passes. The model occasionally restarts at
         // Day 1 (caught by dedup → 0 new days) — that's recoverable on the next
@@ -1598,8 +1666,21 @@ export async function POST(request: NextRequest) {
               consecutiveZeros = 0;
             }
           } catch (contErr) {
-            console.warn(`[generate-itinerary] Continuation pass ${contAttempt} failed:`, contErr);
-            // Break rather than retry on hard errors (rate limits, network, etc.)
+            // Retry on transient Anthropic failures (overloaded_error, 5xx, network).
+            // Without this, a single 529 mid-trip strands the user with a partial itinerary.
+            if (isRetryableAnthropicError(contErr) && contAttempt < MAX_CONTINUATIONS) {
+              const delay = Math.min(30000, 3000 * Math.pow(2, Math.min(contAttempt - 1, 4))); // 3s, 6s, 12s, 24s, 30s, 30s
+              console.warn(`[generate-itinerary] Continuation pass ${contAttempt} hit retryable error — backing off ${delay}ms: ${contErr instanceof Error ? contErr.message : String(contErr)}`);
+              send({ type: 'status', message: `Anthropic overloaded — retrying in ${Math.round(delay / 1000)}s...` });
+              try {
+                await sleep(delay, clientSignal);
+              } catch {
+                console.warn('[generate-itinerary] client disconnected during retry backoff');
+                break;
+              }
+              continue; // re-enter the while loop (contAttempt will tick on the next iteration)
+            }
+            console.warn(`[generate-itinerary] Continuation pass ${contAttempt} failed (non-retryable or exhausted):`, contErr);
             break;
           }
         }

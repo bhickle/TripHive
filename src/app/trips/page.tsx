@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 type StatusFilter = 'all' | 'planning' | 'active' | 'completed';
+type ShareFilter = 'all' | 'mine' | 'shared_with_me';
 type ViewMode = 'grid' | 'list';
 
 /** Compute trip status from dates rather than the stored column. */
@@ -38,6 +39,7 @@ export default function TripsPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [shareFilter, setShareFilter] = useState<ShareFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,6 +77,9 @@ export default function TripsPage() {
               budgetTotal: t.budget_total ?? 0,
               memberCount: t.group_size ?? 1,
               guestCount: 0,
+              role: t.role ?? 'organizer',
+              organizerName: t.organizerName ?? null,
+              memberNames: t.memberNames ?? '',
             })));
           }
         })
@@ -96,11 +101,20 @@ export default function TripsPage() {
 
   const filteredTrips = allTrips.filter((trip) => {
     const matchesStatus = statusFilter === 'all' || trip.status === statusFilter;
+    const matchesShare =
+      shareFilter === 'all' ||
+      (shareFilter === 'mine' && trip.role === 'organizer') ||
+      (shareFilter === 'shared_with_me' && trip.role && trip.role !== 'organizer');
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
       searchQuery === '' ||
-      trip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      trip.destination.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+      trip.title.toLowerCase().includes(q) ||
+      trip.destination.toLowerCase().includes(q) ||
+      // People search — match against member names AND the organizer's name so
+      // "all trips with Luke" works whether Luke is a member or the organizer.
+      (trip.memberNames ?? '').toLowerCase().includes(q) ||
+      (trip.organizerName ?? '').toLowerCase().includes(q);
+    return matchesStatus && matchesShare && matchesSearch;
   });
 
   const sortByDate = (a: { startDate?: string }, b: { startDate?: string }) => {
@@ -153,37 +167,84 @@ export default function TripsPage() {
         </div>
 
         {/* Search + Filters bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
-          <div className="relative flex-1 max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
-            <input
-              type="text"
-              placeholder="Search trips by name or destination..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 pl-10 focus:ring-2 focus:ring-sky-700 focus:border-transparent transition-all text-zinc-900 placeholder-zinc-400"
-            />
+        <div className="flex flex-col gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="relative flex-1 max-w-md w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search by trip, destination, or person..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 pl-10 focus:ring-2 focus:ring-sky-700 focus:border-transparent transition-all text-zinc-900 placeholder-zinc-400"
+              />
+            </div>
+
+            {/* Status filter pills */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {(['all', 'planning', 'active', 'completed'] as StatusFilter[]).map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                    statusFilter === status
+                      ? 'bg-sky-800 text-white'
+                      : 'bg-white border border-zinc-200 text-zinc-700 hover:border-sky-400'
+                  }`}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* View mode toggle (lifted into the same row so the share filter
+                can sit on its own row below — keeps the visual hierarchy clean) */}
+            <div className="hidden sm:flex items-center gap-2 bg-white border border-zinc-200 rounded-lg p-1 ml-auto">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === 'grid' ? 'bg-sky-100 text-sky-700' : 'text-zinc-400 hover:text-zinc-600'
+                }`}
+                title="Grid view"
+              >
+                <LayoutGrid className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === 'list' ? 'bg-sky-100 text-sky-700' : 'text-zinc-400 hover:text-zinc-600'
+                }`}
+                title="List view"
+              >
+                <List className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          {/* Status filter pills */}
+          {/* Share filter row — shows owned vs invited trips */}
           <div className="flex items-center gap-2 flex-wrap">
-            {(['all', 'planning', 'active', 'completed'] as StatusFilter[]).map((status) => (
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mr-1">Show</span>
+            {([
+              { value: 'all', label: 'All trips' },
+              { value: 'mine', label: 'Shared by me' },
+              { value: 'shared_with_me', label: 'Shared with me' },
+            ] as Array<{ value: ShareFilter; label: string }>).map(({ value, label }) => (
               <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
-                  statusFilter === status
-                    ? 'bg-sky-800 text-white'
-                    : 'bg-white border border-zinc-200 text-zinc-700 hover:border-sky-400'
+                key={value}
+                onClick={() => setShareFilter(value)}
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
+                  shareFilter === value
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-white border border-zinc-200 text-zinc-600 hover:border-amber-400'
                 }`}
               >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {label}
               </button>
             ))}
           </div>
 
-          {/* View mode toggle */}
-          <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-lg p-1">
+          {/* View mode toggle — mobile only (desktop has it inline above) */}
+          <div className="flex sm:hidden items-center gap-2 bg-white border border-zinc-200 rounded-lg p-1 self-start">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-md transition-all ${
