@@ -89,7 +89,6 @@ interface TripWizardState {
   };
   ageRanges: string[];
   accessibilityNeeds: string[];
-  difficultyPrefs: Record<string, string>;
   bookedFlight: BookedFlight | null;
   bookedHotels: BookedHotel[];
   bookedCar: BookedCar | null;
@@ -270,8 +269,6 @@ const accessibilityOptions = [
   'Hearing assistance',
 ];
 
-const difficultyLevels = ['Easy', 'Moderate', 'Challenging'];
-
 // Destination cost estimates (per-person, USD, for a 7-day trip baseline)
 interface DestinationCosts {
   flightsPerPerson: number;   // typical round-trip from US
@@ -404,7 +401,6 @@ function TripBuilderPage() {
     },
     ageRanges: [],
     accessibilityNeeds: [],
-    difficultyPrefs: {},
     bookedFlight: null,
     bookedHotels: [],
     bookedCar: null,
@@ -677,6 +673,11 @@ function TripBuilderPage() {
       startDate: state.startDate || '2026-09-15',
       endDate: state.endDate || '2026-09-21',
       tripLength: state.tripLength || 7,
+      // groupSize was previously omitted from the payload, so the prompt
+      // (which reads it for group-pacing logic and meeting points) silently
+      // fell back to defaults — itineraries didn't reflect the actual party
+      // size collected by the wizard.
+      groupSize: state.groupSize,
       groupType: state.groupType,
       priorities: state.priorities,
       budget: state.budget,
@@ -690,6 +691,11 @@ function TripBuilderPage() {
       localMode: state.localMode,
       dateNight: state.dateNight,
       curiosityLevel: state.curiosityLevel,
+      // flexibleDates tells the prompt the dates are placeholder defaults
+      // (the user opted into a length-only flow) so the model can frame
+      // weather/season suggestions accordingly rather than treating the
+      // dates as hard requirements.
+      flexibleDates: state.flexibleDates,
       modality: state.modality.join(', '),
       accommodationType: state.accommodationType.join(', '),
       bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,

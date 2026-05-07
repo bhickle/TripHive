@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
   CalendarDays, Map, Camera, Shield, Star, ChevronDown,
-  ChevronUp, Lock, Crown, Loader2, Receipt,
+  ChevronUp, Lock, Crown, Loader2, Receipt, AlertCircle,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
@@ -122,10 +122,16 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 export default function PricingPage() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
 
   // ── Kick off Stripe checkout ──────────────────────────────────────────────
+  // Without the explicit res.ok check, a non-2xx response (5xx, auth fail,
+  // missing price ID) used to short-circuit through `data.url && regex`,
+  // null out the loading state, and leave the user staring at the page with
+  // no feedback. Now we surface a banner above the cards so they know the
+  // action failed and can retry.
   async function startCheckout(priceId: string, mode: 'subscription' | 'payment') {
     // If not logged in, send to signup first; after auth they'll come back to pricing
     if (!user) {
@@ -134,21 +140,31 @@ export default function PricingPage() {
     }
 
     setCheckingOut(priceId);
+    setCheckoutError(null);
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priceId, mode }),
       });
-      const data = await res.json();
+      if (!res.ok) {
+        let detail = `request failed (${res.status})`;
+        try {
+          const errBody = await res.json() as { error?: string };
+          if (errBody?.error) detail = errBody.error;
+        } catch { /* response wasn't JSON */ }
+        throw new Error(detail);
+      }
+      const data = await res.json() as { url?: string };
       if (data.url && /^https:\/\/(checkout\.stripe\.com|billing\.stripe\.com)\//.test(data.url)) {
         window.location.href = data.url;
       } else {
-        console.error('Checkout error:', data.error ?? 'Invalid redirect URL');
-        setCheckingOut(null);
+        throw new Error('Stripe did not return a valid checkout URL.');
       }
     } catch (err) {
       console.error('Checkout failed:', err);
+      const msg = err instanceof Error ? err.message : 'Something went wrong.';
+      setCheckoutError(`Couldn't start checkout — ${msg} Please try again.`);
       setCheckingOut(null);
     }
   }
@@ -209,6 +225,19 @@ export default function PricingPage() {
           <p className="text-center text-xs text-zinc-400 mb-4">
             Annual billing is available for Explorer and Nomad subscriptions only.
           </p>
+        )}
+        {checkoutError && (
+          <div className="max-w-2xl mx-auto mb-5 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span className="flex-1">{checkoutError}</span>
+            <button
+              onClick={() => setCheckoutError(null)}
+              className="text-rose-400 hover:text-rose-600 transition-colors"
+              aria-label="Dismiss error"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         )}
         <div className={`grid gap-5 max-w-6xl mx-auto ${billing === 'annual' ? 'grid-cols-1 sm:grid-cols-2 max-w-2xl' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'}`}>
 

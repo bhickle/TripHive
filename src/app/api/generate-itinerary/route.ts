@@ -278,6 +278,7 @@ function buildPrompt(params: {
   localMode?: boolean;
   dateNight?: boolean;
   curiosityLevel?: number;
+  flexibleDates?: boolean;
   modality?: string;
   accommodationType?: string;
   bookedFlight?: BookedFlight | null;
@@ -297,7 +298,7 @@ function buildPrompt(params: {
   const {
     destination, startDate, endDate, tripLength,
     groupType, budget, budgetBreakdown,
-    localMode, dateNight, curiosityLevel, modality, accommodationType,
+    localMode, dateNight, curiosityLevel, flexibleDates, modality, accommodationType,
     bookedFlight, realPlaces,
   } = params;
   // Guard optional/potentially-missing array fields against undefined at runtime
@@ -480,7 +481,7 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
 
   // Photography guidance — iconic spots always included; extra depth when photography is a priority
   const photoText = priorities.includes('photography')
-    ? `\n- PHOTOGRAPHY PRIORITY: In addition to the iconic must-photograph landmarks (always required — see Rule 11), each activity description should note photographic potential with golden hour and blue hour timing, the best angles, and any access restrictions (tripod rules, drone restrictions, flash prohibited). Add 1-2 extra photoSpots per day that go beyond the famous spots — local viewpoints, rooftop bars with skyline views, street murals, market scenes, reflections, and neighborhood street photography gems. Include at least one spot that most tourists miss. Note the best time of day to shoot each key location.`
+    ? `\n- PHOTOGRAPHY PRIORITY: Each activity description should note photographic potential with golden hour and blue hour timing, the best angles, and any access restrictions (tripod rules, drone restrictions, flash prohibited). Each day's photoSpots array should contain EXACTLY 2 entries: one iconic anchor location for that day's neighborhoods, and one off-the-beaten-path local view (rooftop, street mural, market scene, reflection, or hidden viewpoint most tourists miss). Note the best time of day to shoot each.`
     : '';
 
   // Nature priority (Item 13)
@@ -721,6 +722,14 @@ You MUST follow ALL of these rules:
     ? `MOBILITY NEEDS ACTIVE: Walking segments must be under 0.25 miles (0.4 km) each, and total walking across the entire day must not exceed 1 mile (1.6 km). Use rideshare or taxi for any activity pair more than 0.25 miles apart. Choose tightly clustered activities and plan transport between every location. Do not rely on "short walks" — be explicit with mode of transport for every segment.`
     : `HARD WALKING LIMIT: No single walking segment between consecutive activities may exceed 1 mile (1.6 km). This is a firm limit — if two activities are farther apart than 1 mile, you MUST insert a transport leg (taxi, rideshare, metro, or bus) between them. Total walking across the day should not exceed 4 miles (6.5 km). Cluster activities geographically whenever possible.`;
 
+  // The wizard's "I have flexible dates" toggle means the user opted into a
+  // length-only flow — the dates the API receives are server-side defaults
+  // (e.g. 2026-09-15), not user-chosen. Without this hint, the model treats
+  // those defaults as hard requirements and won't suggest better timing.
+  const flexibleDatesText = flexibleDates
+    ? `\n- FLEXIBLE DATES: The traveler has not committed to specific dates — the dates above are placeholder defaults. Treat the trip length (${tripLength} days) as the firm constraint, and feel free to recommend a better season or month for ${destination} where it would meaningfully improve the experience (better weather, fewer crowds, key seasonal events). Note any timing recommendation prominently in the practicalNotes so the traveler can choose dates accordingly.`
+    : '';
+
   return `Generate a ${tripLength}-day travel itinerary for the following trip:
 
 TRIP DETAILS:
@@ -736,7 +745,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${dateNightText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${beachText}${themeParkText}${familyText}${budgetConsciousText}${accessibilityPriorityText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
+- Travel style: ${travelStyleText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${photoText}${foodText}${natureText}${nightlifeText}${historyText}${wellnessText}${shoppingText}${adventureText}${cultureText}${beachText}${themeParkText}${familyText}${budgetConsciousText}${accessibilityPriorityText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -811,7 +820,7 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
       }
     ]
     Choose properties that are: (1) real and accurately named, (2) well-located — ideally central or near transport hubs, (3) highly regarded for their category.${destinations.length >= 2 ? ` For each city in the multi-city route, include 1-2 options — this helps the group plan where to base themselves in each leg of the trip.` : ' Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value.'} The bookingUrl should be a Booking.com search URL pre-filled with the property name and city.` : ''}${hasFoodPriority ? `
-  "foodieTips" — since food is a top priority, include this array on EVERY day (not just day 1) with 3-4 bonus finds specific to that day's neighborhoods. Schema:
+  "foodieTips" — since food is a top priority, include this array on EVERY day with EXACTLY 2 bonus finds specific to that day's neighborhoods. Schema:
     [
       {
         "name": "Specific place, stall, or vendor name — be precise, not generic",
@@ -826,7 +835,7 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
     ]
     Rules: (1) Tips must be DIFFERENT from the daily track restaurants — these are bonus discoveries, spontaneous stops. (2) Must be real, specifically named establishments. (3) Geographically anchored to where the group is that day — no recycled city-wide tips across days. (4) Write each "why" like a food writer: opinionated and concrete. (5) Vary the type each day — don't repeat the same category two days in a row.` : ''}
 ${hasNightlifePriority ? `
-  "nightlifeHighlights" — since nightlife is a top priority, include an array of 5-7 evening venues curated for this destination (day 1 only, covers full trip):
+  "nightlifeHighlights" — since nightlife is a top priority, include this array on EVERY day with EXACTLY 2 evening venues anchored to that day's neighborhoods (where the group spent the day or will end the day):
     [
       {
         "name": "Bar, club, or venue name — specific and real",
@@ -838,9 +847,9 @@ ${hasNightlifePriority ? `
         "tip": "One practical tip — reservation required, cover charge, dress code, best seat in the house, etc."
       }
     ]
-    Rules: (1) All venues must be real and specifically named — no invented bars. (2) Vary the type: include at least one live music venue, one cocktail bar, and one locals-only spot. (3) Write "vibe" with personality — specific, atmospheric, opinionated. (4) No tourist-trap venues — the list should read like a local's guide.` : ''}
+    Rules: (1) All venues must be real and specifically named — no invented bars. (2) Geographically anchored to where the group is that day — no recycled city-wide picks across days. (3) Vary the type across the trip — don't repeat the same category two days in a row, and aim for a mix overall (live music, cocktail bar, locals-only spot, etc.). (4) Write "vibe" with personality — specific, atmospheric, opinionated. (5) No tourist-trap venues — the list should read like a local's guide.` : ''}
 ${hasShoppingPriority ? `
-  "shoppingGuide" — since shopping is a top priority, include an array of 5-7 curated shopping spots (day 1 only, covers full trip):
+  "shoppingGuide" — since shopping is a top priority, include this array on EVERY day with EXACTLY 2 curated shopping spots anchored to that day's neighborhoods:
     [
       {
         "name": "Market, shop, or district name — specific and real",
@@ -852,14 +861,14 @@ ${hasShoppingPriority ? `
         "tip": "One insider tip — arrive early for best selection, cash preferred, haggling expected, hidden floor, etc."
       }
     ]
-    Rules: (1) Prioritize local and independent over international chains. (2) Vary the type — at least one food/produce market, one craft or artisan market, and one neighborhood to browse. (3) Include specific items or products to look for — don't be generic. (4) Be real and accurately named.` : ''}${hasSidebarPriorities ? `
+    Rules: (1) Prioritize local and independent over international chains. (2) Geographically anchored to where the group is that day — no recycled city-wide picks across days. (3) Vary the type across the trip — aim for a mix overall (one food/produce market, one craft or artisan market, one neighborhood to browse, etc.) without repeating the same category two days in a row. (4) Include specific items or products to look for — don't be generic. (5) Be real and accurately named.` : ''}${hasSidebarPriorities ? `
 
-  "priorityHighlights" — for EACH of the user's selected priorities listed below, include a curated list of 5-7 sidebar highlights for the trip overall (day 1 only, covers the full trip — these are sidebar reference cards, not day activities).
+  "priorityHighlights" — include this object on EVERY day. For EACH of the user's selected priorities listed below, include EXACTLY 2 sidebar spots anchored to that day's neighborhoods (where the group is spending that day).
 
   Selected priorities to cover:
 ${sidebarPriorities.map(p => `    - ${p}: focus on ${PRIORITY_HIGHLIGHT_GUIDANCE[p].focus}.`).join('\n')}
 
-  Schema (a single object keyed by priority id, each value is an array of spots):
+  Schema (a single object keyed by priority id, each value is an array of exactly 2 spots for THIS day):
     "priorityHighlights": {
 ${sidebarPriorities.map(p => `      "${p}": [
         {
@@ -876,11 +885,11 @@ ${sidebarPriorities.map(p => `      "${p}": [
 
   Rules across all priorityHighlights:
   (1) All venues must be REAL and specifically named — no invented places.
-  (2) Vary the type within each priority — don't return five of the same category.
-  (3) Spread across the destination geographically — don't cluster everything in one neighborhood.
+  (2) Geographically anchored to that day's neighborhoods — pick spots the group could realistically reach on this day given their planned activities. Do NOT recycle the same picks across days.
+  (3) Vary the type across the trip — don't return the same category two days in a row within a priority.
   (4) "description" must read with personality and specificity, not like a guidebook blurb.
   (5) Do not duplicate venues that already appear as activities in the daily tracks — these are bonus discoveries.
-  (6) For multi-city trips, weave spots from each city into each priority's array (label the neighborhood with the city name).` : ''}
+  (6) For multi-city trips, anchor each day's picks to the city the group is in that day.` : ''}
     {
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
@@ -894,16 +903,16 @@ ${sidebarPriorities.map(p => `      "${p}": [
   {
     "title": "Evocative trip name here (day 1 only)",
     "practicalNotes": { ... (day 1 only) },${hasNightlifePriority ? `
-    "nightlifeHighlights": [ ... (day 1 only, nightlife priority trips) ],` : ''}${hasShoppingPriority ? `
-    "shoppingGuide": [ ... (day 1 only, shopping priority trips) ],` : ''}${hasSidebarPriorities ? `
-    "priorityHighlights": { ... (day 1 only — keyed by priority id) },` : ''}
+    "nightlifeHighlights": [ ... (EVERY day — exactly 2 venues anchored to this day's neighborhoods) ],` : ''}${hasShoppingPriority ? `
+    "shoppingGuide": [ ... (EVERY day — exactly 2 spots anchored to this day's neighborhoods) ],` : ''}${hasSidebarPriorities ? `
+    "priorityHighlights": { ... (EVERY day — exactly 2 spots per priority, keyed by priority id, anchored to this day) },` : ''}
     "day": 1,
     "date": "${startDate}",
     "city": "Primary city or town for this day (e.g. 'Paris', 'Reykjavik', 'Kyoto') — used for per-day weather. For day trips from a base city, use the base city.",
     "theme": "Evocative 3-5 word theme for the day",
     "photoSpots": [
       {
-        "name": "Specific viewpoint or location name",
+        "name": "Specific viewpoint or location name (EXACTLY 2 entries per day — anchored to this day's neighborhoods)",
         "timeOfDay": "golden hour",
         "tip": "One-sentence tip on what to capture and how"
       }
@@ -1283,6 +1292,7 @@ export async function POST(request: NextRequest) {
     localMode: body.localMode as boolean,
     dateNight: body.dateNight as boolean,
     curiosityLevel: body.curiosityLevel as number,
+    flexibleDates: body.flexibleDates as boolean,
     modality: body.modality as string,
     accommodationType: body.accommodationType as string,
     bookedFlight: body.bookedFlight as BookedFlight | null,
@@ -1408,7 +1418,11 @@ export async function POST(request: NextRequest) {
                   try {
                     const dayObj = JSON.parse(cleanJson(rawObj)) as Record<string, unknown>;
 
-                    // Day 1 carries trip-level meta fields — extract and emit separately
+                    // Day 1 carries trip-level meta fields — extract and emit separately.
+                    // nightlifeHighlights, shoppingGuide, priorityHighlights, foodieTips, and
+                    // photoSpots are PER-DAY (kept on each day object). They are still emitted
+                    // on the meta event for backward compat with old trips that stored them
+                    // trip-wide; the UI prefers per-day data and falls back to meta when absent.
                     if (dayIndex === 0) {
                       send({
                         type: 'meta',
@@ -1422,10 +1436,9 @@ export async function POST(request: NextRequest) {
                       delete dayObj.title;
                       delete dayObj.practicalNotes;
                       delete dayObj.hotelSuggestions;
-                      delete dayObj.nightlifeHighlights;
-                      delete dayObj.shoppingGuide;
-                      delete dayObj.priorityHighlights;
-                      // foodieTips intentionally NOT extracted — stays on each day object
+                      // nightlifeHighlights, shoppingGuide, priorityHighlights, foodieTips:
+                      // intentionally NOT deleted — they stay on each day object so the
+                      // sidebar can render per-day picks anchored to that day's plans.
                     }
 
                     send({ type: 'day', index: dayIndex, data: dayObj });
@@ -1545,6 +1558,17 @@ export async function POST(request: NextRequest) {
           // The original prompt contains "generate a ${tripLength}-day itinerary
           // starting from Day 1" which conflicts with the continuation directive
           // and causes the model to regenerate from Day 1 instead of continuing.
+          //
+          // Per-day sidebar priorities — recomputed here because the buildPrompt
+          // closure isn't accessible. Keep the sidebar id list in sync with
+          // PRIORITY_HIGHLIGHT_GUIDANCE in buildPrompt above.
+          const contPriorities = body.priorities as string[];
+          const contHasFood = contPriorities.includes('food');
+          const contHasNightlife = contPriorities.includes('nightlife');
+          const contHasShopping = contPriorities.includes('shopping');
+          const CONT_SIDEBAR_IDS = ['nature', 'history', 'sports', 'wellness', 'adventure', 'culture', 'beach', 'themepark', 'family', 'budget', 'accessibility'];
+          const contSidebarPriorities = contPriorities.filter(p => CONT_SIDEBAR_IDS.includes(p));
+          const contHasSidebar = contSidebarPriorities.length > 0;
           const compactContPrompt = [
             `You are an expert travel planner. Continue an in-progress itinerary.`,
             ``,
@@ -1561,7 +1585,7 @@ export async function POST(request: NextRequest) {
             `YOUR TASK: Output ONLY day objects ${contFromDay} through ${contToDay} (${remaining} day${remaining === 1 ? '' : 's'}), starting from ${contStartDate}.`,
             ``,
             `Day schema (use exact field names):`,
-            `{"day":<N>,"date":"YYYY-MM-DD","city":"<city>","theme":"<3-5 word theme>","photoSpots":[{"name":"...","timeOfDay":"...","tip":"..."}],"destinationTip":"<one insider fact>","trackALabel":null,"trackBLabel":null,"dinnerMeetupLocation":null,"tracks":{"shared":[<activities>],"track_a":[],"track_b":[]},"meetupTime":"<HH:MM>","meetupLocation":"Hotel lobby"}`,
+            `{"day":<N>,"date":"YYYY-MM-DD","city":"<city>","theme":"<3-5 word theme>","photoSpots":[{"name":"...","timeOfDay":"...","tip":"..."}] (EXACTLY 2 per day),"destinationTip":"<one insider fact>","trackALabel":null,"trackBLabel":null,"dinnerMeetupLocation":null,"tracks":{"shared":[<activities>],"track_a":[],"track_b":[]},"meetupTime":"<HH:MM>","meetupLocation":"Hotel lobby"${contHasFood ? ',"foodieTips":[{"name":"...","type":"...","neighborhood":"...","why":"...","orderThis":"...","timeOfDay":"...","priceRange":"...","tip":"..."}] (EXACTLY 2 per day, anchored to this day)' : ''}${contHasNightlife ? ',"nightlifeHighlights":[{"name":"...","type":"...","neighborhood":"...","vibe":"...","bestNight":"...","openFrom":"...","tip":"..."}] (EXACTLY 2 per day, anchored to this day)' : ''}${contHasShopping ? ',"shoppingGuide":[{"name":"...","type":"...","neighborhood":"...","what":"...","bestFor":"...","openDays":"...","tip":"..."}] (EXACTLY 2 per day, anchored to this day)' : ''}${contHasSidebar ? `,"priorityHighlights":{${contSidebarPriorities.map((p: string) => `"${p}":[{"name":"...","type":"...","neighborhood":"...","description":"...","bestFor":"...","bestTime":"...","tip":"..."}]`).join(',')}} (EXACTLY 2 per priority per day, anchored to this day)` : ''}}`,
             ``,
             `Activity schema:`,
             `{"id":"act_d<N>_<i>","dayNumber":<N>,"timeSlot":"HH:MM–HH:MM","name":"venue","title":"venue","address":"full address","website":"https://...","isRestaurant":<bool>,"mealType":<null|"breakfast"|"lunch"|"dinner">,"track":"shared","priceLevel":<0-4>,"description":"why visit","costEstimate":<USD>,"confidence":0.9,"verified":true,"packingTips":[],"transportToNext":{"mode":"walk|rideshare|metro|taxi|train","durationMins":<N>,"distanceMiles":<N>,"notes":"to next place"}|null}`,

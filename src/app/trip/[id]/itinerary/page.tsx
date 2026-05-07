@@ -325,7 +325,7 @@ function ItineraryPageContent() {
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [suggestingActivityId, setSuggestingActivityId] = useState<string | null>(null);
-  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [showParseModal, setShowParseModal] = useState(false);
   const [showMapView, setShowMapView] = useState(false);
@@ -345,6 +345,7 @@ function ItineraryPageContent() {
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [savingTripEdit, setSavingTripEdit] = useState(false);
+  const [editTripError, setEditTripError] = useState<string | null>(null);
 
   // Add Day modal
   const [showAddDayModal, setShowAddDayModal] = useState(false);
@@ -474,8 +475,8 @@ function ItineraryPageContent() {
         .catch(() => {
           // Rollback aiDays to pre-vote state on failure + surface the error
           syncAiDays(days);
-          setSuggestError('Couldn’t save your vote. Try again in a moment.');
-          setTimeout(() => setSuggestError(null), 4000);
+          setActionError('Couldn’t save your vote. Try again in a moment.');
+          setTimeout(() => setActionError(null), 4000);
         });
     }
     try { localStorage.setItem('generatedItinerary', JSON.stringify(updated)); } catch { /* ignore */ }
@@ -494,8 +495,8 @@ function ItineraryPageContent() {
       }).catch(() => {
         // Rollback vote indicator to pre-vote state on failure
         setVotes(prev => ({ ...prev, [activityId]: prevVoteState }));
-        setSuggestError('Vote didn’t save. Try again.');
-        setTimeout(() => setSuggestError(null), 4000);
+        setActionError('Vote didn’t save. Try again.');
+        setTimeout(() => setActionError(null), 4000);
       });
     }
   }, [params.id]);
@@ -938,14 +939,26 @@ function ItineraryPageContent() {
               prevContext = [theme, actName].filter(Boolean).join(', ').slice(0, 80) || null;
             }
 
-            // Partial-persist: PATCH Supabase after each city completes
+            // Partial-persist: PATCH Supabase after each city completes.
+            // We surface failure via a soft toast: the final PATCH at the
+            // end is authoritative, so a per-city failure isn't catastrophic,
+            // but consistently failing partial saves can mean a stale cloud
+            // copy if the user closes the tab mid-build — better to know.
             if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
               const currentDays = aiDaysRef.current ?? [];
               fetch(`/api/trips/${tripPageId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ days: currentDays }),
-              }).catch(() => { /* silent — final PATCH below is authoritative */ });
+              })
+                .then(res => {
+                  if (!res.ok) throw new Error(`partial save failed: ${res.status}`);
+                })
+                .catch(err => {
+                  console.warn('[live-build] partial PATCH failed:', err);
+                  setActionError('Cloud save is lagging — your progress is safe locally.');
+                  setTimeout(() => setActionError(null), 4000);
+                });
             }
           }
         }
@@ -998,12 +1011,26 @@ function ItineraryPageContent() {
     run();
   }, [searchParams, tripPageId, syncAiDays]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Realtime: subscribe to itinerary updates for live vote sync
+  // Realtime: subscribe to itinerary updates for live vote sync.
+  //
+  // Cleanup pattern note: useEffect can only return a synchronous cleanup
+  // function. Returning one from inside `import().then()` doesn't register —
+  // React never sees it, so prior implementation leaked the channel on every
+  // unmount/remount. Navigating between trips left stale subscriptions open
+  // and vote updates from the old trip contaminated the new trip's state.
+  // Fix: capture the cleanup target in closure variables and return cleanup
+  // synchronously from the effect, while a `cancelled` flag prevents
+  // late-arriving subscriptions if the effect is torn down before the
+  // dynamic import resolves.
   useEffect(() => {
     if (!tripPageId || !/^[0-9a-f-]{36}$/i.test(tripPageId)) return;
 
-    // Dynamically import to avoid SSR issues
-    import('@/lib/supabase/client').then(({ createClient: createBrowserClient }) => {
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    (async () => {
+      const { createClient: createBrowserClient } = await import('@/lib/supabase/client');
+      if (cancelled) return;
       const supabase = createBrowserClient();
 
       const channel = supabase
@@ -1037,8 +1064,13 @@ function ItineraryPageContent() {
         )
         .subscribe();
 
-      return () => { supabase.removeChannel(channel); };
-    });
+      cleanup = () => { supabase.removeChannel(channel); };
+    })();
+
+    return () => {
+      cancelled = true;
+      if (cleanup) cleanup();
+    };
   }, [tripPageId]);
 
   // ── Day-tab arrow scroll helpers ─────────────────────────────────────────────
@@ -1273,18 +1305,33 @@ function ItineraryPageContent() {
     setShowAddHotelModal(true);
   };
 
-  // Delete a booked hotel by index
-  const handleDeleteHotel = (index: number) => {
+  // Delete a booked hotel by index.
+  // Optimistic update with rollback on failure — mirrors the handleCastVote
+  // pattern in group/page.tsx. Without this, a failed PATCH leaves the UI
+  // showing the hotel removed while Supabase still has it; refresh "resurrects"
+  // the deleted entry, which reads as a save bug to users.
+  const handleDeleteHotel = async (index: number) => {
+    const prevAiMeta = aiMeta;
+    const prevTripRow = tripRow;
     const updated = (aiMeta?.bookedHotels ?? []).filter((_, i) => i !== index);
     setAiMeta(prev => prev ? { ...prev, bookedHotels: updated } : prev);
     setTripRow(prev => prev ? { ...prev, booked_hotels: updated } : prev);
+
     const tripId = params.id;
-    if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
-      fetch(`/api/trips/${tripId}`, {
+    if (!tripId || !/^[0-9a-f-]{36}$/i.test(tripId)) return;
+
+    try {
+      const res = await fetch(`/api/trips/${tripId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tripPatch: { booked_hotels: updated } }),
-      }).catch(() => {});
+      });
+      if (!res.ok) throw new Error(`delete failed: ${res.status}`);
+    } catch {
+      setAiMeta(prevAiMeta);
+      setTripRow(prevTripRow);
+      setHotelGenError("Couldn't remove hotel. Please try again.");
+      setTimeout(() => setHotelGenError(null), 4000);
     }
   };
 
@@ -1339,8 +1386,8 @@ function ItineraryPageContent() {
           if (!res.ok) throw new Error(`save failed: ${res.status}`);
         })
         .catch(() => {
-          setSuggestError('Couldn’t save your changes to the cloud. They’re still on this device.');
-          setTimeout(() => setSuggestError(null), 4000);
+          setActionError('Couldn’t save your changes to the cloud. They’re still on this device.');
+          setTimeout(() => setActionError(null), 4000);
         });
     }
   }, [params.id]);
@@ -1454,12 +1501,18 @@ function ItineraryPageContent() {
   const handleDeleteActivity = useCallback((activityId: string) => {
     // Find the activity and which track it lives in
     const dayData = (activeDays as ItineraryDay[]).find(d => d.day === selectedDay);
+    // Defensive: dayData should always exist when this fires (user clicked
+    // delete on a rendered card), but if activeDays is mid-update or the
+    // selectedDay was just removed, bail out instead of writing an empty
+    // tracks update that wipes the day.
+    if (!dayData) return;
     let deletedAct: Activity | undefined;
     let deletedTrack: 'shared' | 'track_a' | 'track_b' = 'shared';
     for (const track of ['shared', 'track_a', 'track_b'] as const) {
-      const found = dayData?.tracks?.[track]?.find((a: Activity) => a.id === activityId);
+      const found = dayData.tracks?.[track]?.find((a: Activity) => a.id === activityId);
       if (found) { deletedAct = found; deletedTrack = track; break; }
     }
+    if (!deletedAct) return;
 
     const updatedDays = (activeDays as ItineraryDay[]).map(day => {
       if (day.day !== selectedDay) return day;
@@ -1514,7 +1567,7 @@ function ItineraryPageContent() {
   // ─── AI: suggest a replacement activity ──────────────────────────────────────
   const handleSuggestAnother = useCallback(async (activity: Activity) => {
     setSuggestingActivityId(activity.id);
-    setSuggestError(null);
+    setActionError(null);
     try {
       const res = await fetch('/api/suggest-activity', {
         method: 'POST',
@@ -1522,7 +1575,7 @@ function ItineraryPageContent() {
         body: JSON.stringify({
           destination: currentDayData?.city ?? trip.destination,
           dayNumber: selectedDay,
-          date: currentDayData.date,
+          date: currentDayData?.date ?? '',
           mealType: (activity as Activity & { mealType?: string }).mealType ?? null,
           isRestaurant: activity.isRestaurant ?? false,
           existingActivityName: activity.name || activity.title,
@@ -1570,8 +1623,8 @@ function ItineraryPageContent() {
       });
       persistDays(updatedDays as ItineraryDay[]);
     } catch (err) {
-      setSuggestError(err instanceof Error ? err.message : 'Could not get suggestion');
-      setTimeout(() => setSuggestError(null), 3000);
+      setActionError(err instanceof Error ? err.message : 'Could not get suggestion');
+      setTimeout(() => setActionError(null), 3000);
     } finally {
       setSuggestingActivityId(null);
     }
@@ -1607,12 +1660,14 @@ function ItineraryPageContent() {
     setEditDest(aiMeta?.destination ?? trip.destination);
     setEditStartDate(aiMeta?.startDate ?? '');
     setEditEndDate(aiMeta?.endDate ?? '');
+    setEditTripError(null);
     setShowEditTripModal(true);
   }, [aiMeta, trip.destination]);
 
   const handleSaveTripEdit = useCallback(async () => {
     if (!editDest.trim()) return;
     setSavingTripEdit(true);
+    setEditTripError(null);
     try {
       const city = editDest.split(',')[0].trim();
       const newTitle = `${city} Adventure`;
@@ -1633,7 +1688,11 @@ function ItineraryPageContent() {
       const tripId = params.id;
       const isUuid = tripId && /^[0-9a-f-]{36}$/i.test(tripId);
       if (isUuid) {
-        await fetch(`/api/trips/${tripId}`, {
+        // Without the explicit res.ok check below, a 4xx/5xx response would
+        // resolve normally, local state would update as if saved, and the
+        // user would think the edit succeeded — until refresh resurrected
+        // the old values.
+        const res = await fetch(`/api/trips/${tripId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1651,6 +1710,7 @@ function ItineraryPageContent() {
             ...(updatedDays ? { days: updatedDays } : {}),
           }),
         });
+        if (!res.ok) throw new Error(`save failed: ${res.status}`);
       }
 
       // Update local state immediately
@@ -1670,6 +1730,7 @@ function ItineraryPageContent() {
       setShowEditTripModal(false);
     } catch (err) {
       console.error('Failed to save trip edit:', err);
+      setEditTripError("Couldn't save your changes. Please try again.");
     } finally {
       setSavingTripEdit(false);
     }
@@ -1974,10 +2035,10 @@ function ItineraryPageContent() {
             <span className="text-sm font-semibold">Activity removed</span>
           </div>
         )}
-        {suggestError && (
+        {actionError && (
           <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
             <AlertCircle className="w-5 h-5 text-rose-300" />
-            <span className="text-sm font-semibold">{suggestError}</span>
+            <span className="text-sm font-semibold">{actionError}</span>
           </div>
         )}
         {bookingSaved && (
@@ -3076,8 +3137,15 @@ function ItineraryPageContent() {
               );
             })()}
 
-            {/* ── Nightlife Highlights — collapsible, shown when nightlife priority ── */}
-            {aiMeta?.preferences?.priorities?.includes('nightlife') && aiMeta?.nightlifeHighlights && aiMeta.nightlifeHighlights.length > 0 && (() => {
+            {/* ── Nightlife Highlights — collapsible, shown when nightlife priority ──
+                New trips store this per-day on each ItineraryDay. Old trips stored it
+                trip-wide on aiMeta — fall back to that when the per-day field is empty. */}
+            {(() => {
+              if (!aiMeta?.preferences?.priorities?.includes('nightlife')) return null;
+              const nightlife = (currentDayData?.nightlifeHighlights && currentDayData.nightlifeHighlights.length > 0)
+                ? currentDayData.nightlifeHighlights
+                : (aiMeta?.nightlifeHighlights ?? null);
+              if (!nightlife || nightlife.length === 0) return null;
               const isCollapsed = collapsedSections.nightlife;
               return (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
@@ -3090,7 +3158,7 @@ function ItineraryPageContent() {
                       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Nightlife Guide</p>
                       {isCollapsed && (
                         <p className="text-[11px] text-zinc-300 mt-0.5">
-                          {aiMeta.nightlifeHighlights!.length} spot{aiMeta.nightlifeHighlights!.length !== 1 ? 's' : ''} · tap to expand
+                          {nightlife.length} spot{nightlife.length !== 1 ? 's' : ''} · tap to expand
                         </p>
                       )}
                     </div>
@@ -3100,7 +3168,7 @@ function ItineraryPageContent() {
                     <div className="px-5 pb-5">
                       <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Local spots · After dark</p>
                       <div className="space-y-3">
-                        {aiMeta.nightlifeHighlights.map((spot, idx) => {
+                        {nightlife.map((spot, idx) => {
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           return (
                             <div key={idx} className="p-3 bg-violet-50 rounded-xl border border-violet-100">
@@ -3142,8 +3210,14 @@ function ItineraryPageContent() {
               );
             })()}
 
-            {/* ── Shopping Guide — collapsible, shown when shopping priority ── */}
-            {aiMeta?.preferences?.priorities?.includes('shopping') && aiMeta?.shoppingGuide && aiMeta.shoppingGuide.length > 0 && (() => {
+            {/* ── Shopping Guide — collapsible, shown when shopping priority ──
+                Per-day on each ItineraryDay; falls back to trip-wide aiMeta for old trips. */}
+            {(() => {
+              if (!aiMeta?.preferences?.priorities?.includes('shopping')) return null;
+              const shopping = (currentDayData?.shoppingGuide && currentDayData.shoppingGuide.length > 0)
+                ? currentDayData.shoppingGuide
+                : (aiMeta?.shoppingGuide ?? null);
+              if (!shopping || shopping.length === 0) return null;
               const isCollapsed = collapsedSections.shopping;
               return (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
@@ -3156,7 +3230,7 @@ function ItineraryPageContent() {
                       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Shopping Guide</p>
                       {isCollapsed && (
                         <p className="text-[11px] text-zinc-300 mt-0.5">
-                          {aiMeta.shoppingGuide!.length} spot{aiMeta.shoppingGuide!.length !== 1 ? 's' : ''} · tap to expand
+                          {shopping.length} spot{shopping.length !== 1 ? 's' : ''} · tap to expand
                         </p>
                       )}
                     </div>
@@ -3166,7 +3240,7 @@ function ItineraryPageContent() {
                     <div className="px-5 pb-5">
                       <p className="text-[11px] text-zinc-400 mb-4 -mt-1">Markets · Boutiques · Local finds</p>
                       <div className="space-y-3">
-                        {aiMeta.shoppingGuide.map((spot, idx) => {
+                        {shopping.map((spot, idx) => {
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           return (
                             <div key={idx} className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -3208,8 +3282,9 @@ function ItineraryPageContent() {
               );
             })()}
 
-            {/* ── Generic per-priority Highlights blocks (nature/history/sports/wellness/etc) ── */}
-            {Object.entries(aiMeta?.priorityHighlights ?? {}).map(([priorityId, spots]) => {
+            {/* ── Generic per-priority Highlights blocks (nature/history/sports/wellness/etc) ──
+                Per-day on each ItineraryDay; falls back to trip-wide aiMeta for old trips. */}
+            {Object.entries(currentDayData?.priorityHighlights ?? aiMeta?.priorityHighlights ?? {}).map(([priorityId, spots]) => {
               const meta = PRIORITY_SIDEBAR_META[priorityId];
               const list = Array.isArray(spots) ? spots : [];
               if (!meta || list.length === 0) return null;
@@ -4128,6 +4203,13 @@ function ItineraryPageContent() {
                 <p className="flex items-center gap-1.5 text-xs text-sky-600 font-medium">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   Day dates will shift to match the new start date.
+                </p>
+              )}
+
+              {editTripError && (
+                <p className="flex items-center gap-1.5 text-xs text-rose-600 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {editTripError}
                 </p>
               )}
             </div>

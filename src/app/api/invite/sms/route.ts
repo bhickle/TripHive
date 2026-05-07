@@ -73,11 +73,19 @@ export async function POST(request: NextRequest) {
       },
     );
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Twilio error');
+    // Twilio surface: { code: number, message: string, more_info: url }
+    // for errors. Capture both so the client can distinguish a transient
+    // failure from a permanent one (invalid number, blocked recipient, etc.).
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const code = data?.code ? `Twilio ${data.code}` : `HTTP ${res.status}`;
+      const message = data?.message || 'Send failed';
+      throw new Error(`${code}: ${message}`);
+    }
     return NextResponse.json({ success: true, sid: data.sid });
   } catch (err) {
-    console.error('[invite/sms] error:', err);
-    return NextResponse.json({ error: 'Failed to send SMS' }, { status: 500 });
+    const detail = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[invite/sms] error:', detail);
+    return NextResponse.json({ error: 'Failed to send SMS', detail }, { status: 500 });
   }
 }

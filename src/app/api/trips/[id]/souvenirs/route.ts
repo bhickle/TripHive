@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/souvenirs
@@ -53,13 +54,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Previously only checked auth — any signed-in user could write souvenir
+    // rows into trips they weren't a member of. requireTripAccess validates
+    // both auth AND that the caller is on this trip.
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
 
     const { person, idea } = await req.json();
     if (!person?.trim()) return NextResponse.json({ error: 'person required' }, { status: 400 });
-
-    const supabase = createAdminClient();
 
     // Use maybeSingle so first-time users (no existing rows) don't trigger a
     // PostgrestError "JSON object requested, multiple (or no) rows returned"

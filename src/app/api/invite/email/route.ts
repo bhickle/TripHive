@@ -148,8 +148,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const errMsg = (data?.errors?.[0]?.message) || JSON.stringify(data);
+      // SendGrid usually returns JSON like { errors: [{ message, field, help }] }
+      // but a non-JSON 5xx (gateway timeout, HTML error page) used to surface
+      // here as the literal string "{}" because the .catch fallback returned
+      // an empty object. Read text first, fall back through layers.
+      const rawText = await res.text().catch(() => '');
+      let errMsg = '';
+      try {
+        const parsed = rawText ? JSON.parse(rawText) : null;
+        errMsg = parsed?.errors?.[0]?.message
+          || (parsed ? JSON.stringify(parsed) : '');
+      } catch {
+        errMsg = rawText.slice(0, 200);
+      }
+      if (!errMsg) errMsg = `empty response body (HTTP ${res.status})`;
       console.error(`[sg-err] ${res.status} | ${errMsg}`);
       throw new Error(`SendGrid ${res.status}: ${errMsg}`);
     }

@@ -2,7 +2,7 @@
 
 > **App name:** TripCoord (brand) / **Repo:** TripHive / **Domain:** tripcoord.ai  
 > **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · Supabase · Anthropic Claude API · Stripe  
-> **Last updated:** 2026-05-04
+> **Last updated:** 2026-05-06
 
 ---
 
@@ -218,13 +218,10 @@ Claude cannot set these — Brandon must add them manually.
 These are the active items to build/fix, in rough priority order:
 
 ### 🔴 Must-Fix Before Any More Testing
-- [ ] **Fix: itinerary page crash on empty activeDays** — when `activeDays` is empty at load (e.g. Supabase returns no days yet), certain callbacks crash with "cannot read property of undefined". Add null guards. (`src/app/trip/[id]/itinerary/page.tsx`)
-- [ ] **Fix: silent vote/delete failures** — vote and delete API calls fail silently; no error toast shown to user. Add `try/catch` + error state display. (itinerary page)
-- [ ] **Fix: group page optimistic vote has no rollback** — when a vote API call fails, the UI already updated; there's no rollback. (`src/app/trip/[id]/group/page.tsx`)
+- _All previously listed items shipped. Add new launch-blockers here as they surface._
 
 ### 🟠 Feature Work (Active)
 - [ ] **Enable Google OAuth** (`#183`) — Google sign-in buttons exist but OAuth is not configured. Steps: Google Cloud Console → create OAuth Client ID → redirect URI: `https://pqizuvmtertpxhhxyemj.supabase.co/auth/v1/callback` → Supabase dashboard → Authentication → Providers → Google → enable + paste keys.
-- [ ] **Fix: trip page cutoff at 4 days** — Brandon's personal trip generation cut off at 4 days. Suspected cause: AI credit limit (all accounts have `ai_credits_used = ai_credits_total` for testing). Before testing generation again, run: `UPDATE profiles SET ai_credits_used = 0 WHERE email = 'brandon.hickle@gmail.com';` in Supabase SQL editor.
 - [ ] **Build Trip Pass purchase flow** — trip selector + extra people picker + Stripe checkout. Not yet built.
 - [ ] **Split Tracks + Co-organizer → Trip Pass tier** — currently gated at Explorer. Move to Trip Pass.
 - [ ] **Wishlist for free users (no AI preview)** — free users can add to wishlist but can't get AI destination previews.
@@ -280,6 +277,13 @@ Before every `git push`:
 
 ## Recently Shipped (Last Few Sessions)
 
+- **Generation reliability hardening** — Anthropic `overloaded_error` / 5xx retry on first-pass open + mid-stream fallthrough into continuation loop; `MAX_CONTINUATIONS` 4→6; two-zero-pass guard (commit `cab5bab`)
+- **Role-based trip writes** — `getTripRole` helper; any member can save vote/day edits, only organizer + co-organizer can edit destination/dates/meta (commit `cab5bab`)
+- **Vote/delete failure surfacing + create-vote rollback** — silent failures replaced with error toasts; failed vote create rolls back optimistic UI (commit `247a5f0`)
+- **Group page optimistic vote rollback** — `handleCastVote` captures pre-update state and restores it on API failure with a toast (`group/page.tsx:543`)
+- **Itinerary render gate on empty activeDays** — page no longer crashes when Supabase returns no days yet (commit `6ba3b18`)
+- **4–5 day cutoff fix in generation** — segment-aware final-day prompt + client gap-fill retry resolves the truncation bug (commits `88b248d`, `d6081bf`)
+- **Realtime + notifications wired end-to-end** — chat + vote notifications, notification bell deep-links to chat/votes/join, SELECT RLS published on collab tables (commits `1f8ee5d`, `773576f`, `da7fbd0`, `fe810a5`)
 - **Live-build SSE itinerary generation** — trips generate live into the itinerary page; skeleton mode prevents old data bleed
 - **Multi-city itinerary with day-5 fix** — city headers, per-city segments, Day 5 continuation bug fixed
 - **Add Day feature** — modal to insert AI-generated or blank day at any position; renumbers all subsequent days
@@ -288,6 +292,7 @@ Before every `git push`:
 - **Pack This tab rebuilt** — Group Pack / My Pack / Gifts sub-tabs with Supabase-backed souvenir items
 - **Expense tracking + group chat** — Who Owes Who tab, Realtime chat, emoji reactions
 - **Stripe integration** — checkout, portal, webhook, tier update pipeline all working (test mode)
+- **Avatar uploads persisted to Supabase Storage** — survives navigation, propagates across trips (commit `8953a0a`)
 
 ---
 

@@ -103,6 +103,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
  *   - Authenticated users (user_id is set from session)
  *   - Guest joiners (user_id is null; name + email stored directly)
  * Body: { name: string, email?: string, preferences?: object }
+ *
+ * SECURITY NOTE — open by design today:
+ * Anyone with a trip UUID can POST and add themselves as `role: 'member'`.
+ * That's intentional for the public share-link UX (/join/[id]) but means a
+ * leaked or guessed UUID lets an attacker join a private trip. The proper
+ * fix is an invite-token system: organizer issues a one-time token from the
+ * email/sms invite routes, /join/[id] passes it back here, and POST rejects
+ * requests without a valid + unconsumed token. Tracked as a separate punch
+ * list item — do not require auth here without also building tokens, since
+ * that would silently break the share-link join flow.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {

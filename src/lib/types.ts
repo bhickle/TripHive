@@ -299,6 +299,21 @@ export interface ItineraryDay {
     why?: string; bestFor?: string; orderThis?: string; priceRange?: string;
     timeOfDay?: string; tip?: string;
   }>;
+  /** Per-day nightlife picks anchored to the day's neighborhoods — only when Nightlife is a top priority */
+  nightlifeHighlights?: Array<{
+    name: string; type?: string; neighborhood?: string;
+    vibe?: string; bestNight?: string; openFrom?: string; tip?: string;
+  }>;
+  /** Per-day shopping picks anchored to the day's neighborhoods — only when Shopping is a top priority */
+  shoppingGuide?: Array<{
+    name: string; type?: string; neighborhood?: string;
+    what?: string; bestFor?: string; openDays?: string; tip?: string;
+  }>;
+  /** Per-day sidebar spots keyed by priority id (nature/history/wellness/etc), anchored to that day */
+  priorityHighlights?: Record<string, Array<{
+    name: string; type?: string; neighborhood?: string;
+    description?: string; bestFor?: string; bestTime?: string; tip?: string;
+  }>>;
   /** Punchy insider fact about the destination for this day */
   destinationTip?: string;
   /** For split-track days: restaurant name + address where both tracks reconvene for dinner */

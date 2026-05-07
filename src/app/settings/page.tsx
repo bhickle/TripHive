@@ -144,6 +144,7 @@ export default function SettingsPage() {
   const [personaSaved, setPersonaSaved] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   // Stores the last Supabase-fetched persona so Cancel can restore it correctly
@@ -539,17 +540,27 @@ export default function SettingsPage() {
 
   const openBillingPortal = async () => {
     setBillingLoading(true);
+    setBillingError(null);
     try {
       const res = await fetch('/api/stripe/portal', { method: 'POST' });
-      const data = await res.json();
+      if (!res.ok) {
+        let detail = `request failed (${res.status})`;
+        try {
+          const errBody = await res.json() as { error?: string };
+          if (errBody?.error) detail = errBody.error;
+        } catch { /* response wasn't JSON */ }
+        throw new Error(detail);
+      }
+      const data = await res.json() as { url?: string };
       if (data.url && /^https:\/\/(checkout\.stripe\.com|billing\.stripe\.com)\//.test(data.url)) {
         window.location.href = data.url;
       } else {
-        console.error('Billing portal error:', data.error ?? 'Invalid redirect URL');
+        throw new Error('Stripe did not return a valid portal URL.');
       }
     } catch (err) {
       console.error('Billing portal failed:', err);
-    } finally {
+      const msg = err instanceof Error ? err.message : 'Something went wrong.';
+      setBillingError(`Couldn't open billing — ${msg} Please try again.`);
       setBillingLoading(false);
     }
   };
@@ -969,16 +980,21 @@ export default function SettingsPage() {
                         Upgrade to Explorer or Nomad
                       </a>
                     ) : (
-                      <button
-                        onClick={openBillingPortal}
-                        disabled={billingLoading}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition-all disabled:opacity-70"
-                      >
-                        {billingLoading
-                          ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening…</>
-                          : <><CreditCard className="w-4 h-4" /> Manage Billing</>
-                        }
-                      </button>
+                      <div className="flex flex-col items-end gap-2">
+                        <button
+                          onClick={openBillingPortal}
+                          disabled={billingLoading}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition-all disabled:opacity-70"
+                        >
+                          {billingLoading
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening…</>
+                            : <><CreditCard className="w-4 h-4" /> Manage Billing</>
+                          }
+                        </button>
+                        {billingError && (
+                          <p className="text-xs text-rose-200 text-right max-w-xs">{billingError}</p>
+                        )}
+                      </div>
                     )}
                   </div>
 

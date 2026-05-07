@@ -205,10 +205,25 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberId, role: newRole }),
       });
-      if (res.ok) {
-        setGroupMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+      if (!res.ok) {
+        // Parse the server's error reason if it's JSON (e.g. "Co-organizer
+        // roles require a Nomad subscription"). Without this, the user clicks
+        // and sees no change — they don't know if they hit a tier gate, a
+        // permission error, or a network issue.
+        let detail = `request failed (${res.status})`;
+        try {
+          const errBody = await res.json() as { error?: string };
+          if (errBody?.error) detail = errBody.error;
+        } catch { /* response wasn't JSON */ }
+        throw new Error(detail);
       }
-    } catch { /* ignore */ } finally {
+      setGroupMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+    } catch (err) {
+      console.error('Role change error:', err);
+      const msg = err instanceof Error ? err.message : 'Try again.';
+      setActionError(`Couldn't update role — ${msg}`);
+      setTimeout(() => setActionError(null), 4000);
+    } finally {
       setRoleUpdating(null);
     }
   };
@@ -333,17 +348,23 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         };
       });
 
-      await fetch(`/api/trips/${params.id}`, {
+      // Without the explicit res.ok check, a failed PATCH would still be
+      // followed by the local state updates below — UI would show the
+      // replacement, but on refresh the original (Nay'd) activity returns.
+      const patchRes = await fetch(`/api/trips/${params.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ days: updatedDays }),
       });
+      if (!patchRes.ok) throw new Error(`save failed: ${patchRes.status}`);
 
       setItineraryDaysData(updatedDays);
       setReplacedActivityIds(prev => new Set(Array.from(prev).concat(nay.id)));
       setNayActivities(prev => prev.filter(a => a.id !== nay.id));
     } catch (err) {
       console.error('Replace activity error:', err);
+      setActionError("Couldn't replace activity. Please try again.");
+      setTimeout(() => setActionError(null), 4000);
     } finally {
       setReplacingActivityId(null);
     }
@@ -441,6 +462,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     setShowReactionPicker(null);
     if (!currentUserId && !isMockTrip) return;
 
+    // Capture pre-state for rollback. Without this, a failed PATCH leaves the
+    // emoji visible to the current user but absent for everyone else — and on
+    // refresh the reaction disappears, which reads as a flaky chat.
+    const prevReactions = reactions;
+
     // Optimistic update
     setReactions(prev => {
       const msgReactions = { ...(prev[messageId] || {}) };
@@ -459,18 +485,24 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     // Persist for real trips
     if (!isMockTrip) {
       try {
-        await fetch(`/api/trips/${params.id}/messages/${messageId}`, {
+        const res = await fetch(`/api/trips/${params.id}/messages/${messageId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ emoji }),
         });
-      } catch { /* optimistic already shown */ }
+        if (!res.ok) throw new Error(`reaction failed: ${res.status}`);
+      } catch (err) {
+        console.error('Reaction error:', err);
+        setReactions(prevReactions);
+        setActionError("Couldn't save reaction. Try again.");
+        setTimeout(() => setActionError(null), 4000);
+      }
     }
   };
 
   const [memberInvited, setMemberInvited] = useState(false);
   const [voteCreated, setVoteCreated] = useState(false);
-  const [voteError, setVoteError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [settledUp, setSettledUp] = useState(false);
   const [paidTransactions, setPaidTransactions] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -517,8 +549,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       setGroupMembers(prev => prev.map(m => m.id === memberId ? { ...m, avatarUrl: url } : m));
     } catch (err) {
       console.error('Avatar upload failed:', err);
-      setVoteError('Couldn’t save your photo. Try again.');
-      setTimeout(() => setVoteError(null), 4000);
+      setActionError('Couldn’t save your photo. Try again.');
+      setTimeout(() => setActionError(null), 4000);
       // Roll back the optimistic data URL so it doesn't look like it saved
       setMemberAvatars(prev => {
         const next = { ...prev };
@@ -573,8 +605,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         // Rollback optimistic update on failure + surface the error
         setVotes(prevVotes);
         setUserVotes(prevUserVotes);
-        setVoteError('Vote didn’t save. Try again.');
-        setTimeout(() => setVoteError(null), 4000);
+        setActionError('Vote didn’t save. Try again.');
+        setTimeout(() => setActionError(null), 4000);
       }
     }
   };
@@ -854,12 +886,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       if (data.category) setNewExpenseCategory(data.category);
     } catch (err) {
       console.error('[scan-receipt]', err);
-      // Fallback mock so the UI doesn't break
+      // Surface the actual reason rather than a generic message — users were
+      // blaming their receipt when the failure was an AI quota / 503 / auth
+      // issue. Falling back to an empty form lets them still file the
+      // expense manually with the cause clearly explained.
+      const reason = err instanceof Error ? err.message : 'unknown error';
       setScannedData({
-        merchant: 'Receipt scanned',
+        merchant: '',
         total: 0,
         date: new Date().toLocaleDateString(),
-        items: ['Could not parse receipt — enter manually'],
+        items: [`Receipt scan failed (${reason}). Enter details manually below.`],
       });
     } finally {
       setIsScanning(false);
@@ -899,9 +935,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen bg-parchment p-4 md:p-6">
-      {voteError && (
+      {actionError && (
         <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
-          <span className="text-sm font-semibold">{voteError}</span>
+          <span className="text-sm font-semibold">{actionError}</span>
         </div>
       )}
       <div className="max-w-5xl mx-auto">
@@ -1143,19 +1179,34 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                             <button
                               onClick={async () => {
                                 setPaidTransactions(prev => new Set(Array.from(prev).concat(idx)));
-                                // Mark all expenses as settled
-                                for (const exp of localExpenses.filter(e => !e.settled)) {
+                                // Track per-expense success so a partial failure doesn't
+                                // claim "All settled up" while leaving rows unmarked on
+                                // the server. Run requests in parallel and collect
+                                // results — the previous loop swallowed each error and
+                                // rendered the success toast unconditionally.
+                                const unsettled = localExpenses.filter(e => !e.settled);
+                                const results = await Promise.all(unsettled.map(async exp => {
                                   try {
-                                    await fetch(`/api/trips/${params.id}/expenses`, {
+                                    const res = await fetch(`/api/trips/${params.id}/expenses`, {
                                       method: 'PATCH',
                                       headers: { 'Content-Type': 'application/json' },
                                       body: JSON.stringify({ expenseId: exp.id, settled: true }),
                                     });
-                                  } catch { /* ignore */ }
+                                    return { id: exp.id, ok: res.ok };
+                                  } catch {
+                                    return { id: exp.id, ok: false };
+                                  }
+                                }));
+                                const settledIds = new Set(results.filter(r => r.ok).map(r => r.id));
+                                const failedCount = results.length - settledIds.size;
+                                setLocalExpenses(prev => prev.map(e => settledIds.has(e.id) ? { ...e, settled: true } : e));
+                                if (failedCount === 0) {
+                                  setSettledUp(true);
+                                  setTimeout(() => setSettledUp(false), 3000);
+                                } else {
+                                  setActionError(`Couldn't settle ${failedCount} of ${results.length} expenses. Please try again.`);
+                                  setTimeout(() => setActionError(null), 4500);
                                 }
-                                setLocalExpenses(prev => prev.map(e => ({ ...e, settled: true })));
-                                setSettledUp(true);
-                                setTimeout(() => setSettledUp(false), 3000);
                               }}
                               disabled={paidTransactions.has(idx)}
                               className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
@@ -1433,7 +1484,10 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         setNewExpenseAmount('');
                         setCustomAmounts({});
 
-                        // Persist for real trips
+                        // Persist for real trips. Capture the optimistic-row id so a
+                        // failed POST can be rolled back — otherwise the row stays in
+                        // the UI permanently and disappears on refresh, which looks
+                        // like a save bug.
                         if (!isMockTrip) {
                           try {
                             const res = await fetch(`/api/trips/${params.id}/expenses`, {
@@ -1449,12 +1503,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                                 lineItems: newExp.lineItems.length > 0 ? newExp.lineItems : null,
                               }),
                             });
-                            if (res.ok) {
-                              const data = await res.json();
-                              // Replace optimistic with real ID
-                              setLocalExpenses(prev => prev.map(e => e.id === newExp.id ? { ...e, id: data.expense.id } : e));
-                            }
-                          } catch { /* optimistic already shown */ }
+                            if (!res.ok) throw new Error(`save failed: ${res.status}`);
+                            const data = await res.json();
+                            // Replace optimistic with real ID
+                            setLocalExpenses(prev => prev.map(e => e.id === newExp.id ? { ...e, id: data.expense.id } : e));
+                          } catch (err) {
+                            console.error('Expense save error:', err);
+                            setLocalExpenses(prev => prev.filter(e => e.id !== newExp.id));
+                            setActionError("Couldn't save the expense. Please try again.");
+                            setTimeout(() => setActionError(null), 4000);
+                          }
                         }
                       }}
                       disabled={!newExpenseName.trim() || !newExpenseAmount || !newExpensePaidBy.trim()}
@@ -1906,8 +1964,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                             // Rollback: drop the optimistic vote and tell the user
                             setVotes(prev => prev.filter(v => v.id !== optimisticVote.id));
                             setVoteCreated(false);
-                            setVoteError('Couldn’t save the vote. Try again.');
-                            setTimeout(() => setVoteError(null), 4000);
+                            setActionError('Couldn’t save the vote. Try again.');
+                            setTimeout(() => setActionError(null), 4000);
                           }
                         }
                       }}
