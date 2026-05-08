@@ -11,7 +11,7 @@ import { TripStoryModal } from '@/components/TripStoryModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { trips, wishlistItems as mockWishlistItems } from '@/data/mock';
+import { trips } from '@/data/mock';
 import {
   PlusCircle,
   TrendingUp,

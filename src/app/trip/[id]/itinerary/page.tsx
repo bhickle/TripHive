@@ -1521,11 +1521,51 @@ function ItineraryPageContent() {
   // and let the hasDays gate below render an empty state.
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
   const activeDays = aiDays ?? (isMockTrip ? itineraryDays : []);
-  const trip = aiMeta
-    ? { ...trips[0], destination: aiMeta.destination || trips[0].destination,
-        budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown']) ?? trips[0].budgetBreakdown,
-        budgetTotal: aiMeta.budget ?? trips[0].budgetTotal }
-    : (trips.find(t => t.id === 'trip_1') || trips[0]);
+
+  // Build the `trip` object passed to TripStoryModal and read in a few places
+  // for `destination`. Previously this spread `...trips[0]` (Iceland mock) for
+  // EVERY trip with aiMeta set, then overrode destination/budget. That leaked
+  // mock fields onto real trips:
+  //   - trip.id stayed as 'trip_1', so MOCK_TRIP_IDS.has(trip.id) was true
+  //     for real trips, which would have made TripStoryModal show the full
+  //     Iceland slide deck instead of the "Coming soon" placeholder once the
+  //     trip ended.
+  //   - trip.coverImage / title / dates came from Iceland.
+  // Now: mock trips get the full mock object (with aiMeta overrides on top
+  // for the demo flow), real trips get a clean object built from tripRow +
+  // aiMeta with neutral defaults — no mock leakage.
+  const trip = (() => {
+    if (isMockTrip) {
+      const mockBase = trips.find(t => t.id === params.id) ?? trips[0];
+      if (!aiMeta) return mockBase;
+      return {
+        ...mockBase,
+        destination: aiMeta.destination || mockBase.destination,
+        budgetBreakdown: (aiMeta.budgetBreakdown as unknown as typeof mockBase.budgetBreakdown) ?? mockBase.budgetBreakdown,
+        budgetTotal: aiMeta.budget ?? mockBase.budgetTotal,
+      };
+    }
+    // Real trip — build from aiMeta + tripRow with neutral defaults. Never
+    // spread Iceland mock data over a real user's trip.
+    const aiMetaAny = aiMeta as Record<string, unknown> | null;
+    return {
+      id: params.id,
+      creatorId: '',
+      title: (aiMetaAny?.title as string | undefined) ?? (tripRow?.title as string) ?? '',
+      destination: aiMeta?.destination ?? (tripRow?.destination as string) ?? '',
+      coverImage: (tripRow?.cover_image as string) ?? '',
+      startDate: aiMeta?.startDate ?? (tripRow?.start_date as string) ?? '',
+      endDate: aiMeta?.endDate ?? (tripRow?.end_date as string) ?? '',
+      tripLength: (tripRow?.trip_length as number) ?? 0,
+      status: ((tripRow?.status as string) ?? 'planning') as 'planning' | 'active' | 'completed',
+      budgetTotal: aiMeta?.budget ?? (tripRow?.budget_total as number) ?? 0,
+      budgetBreakdown: (aiMeta?.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown'])
+        ?? (tripRow?.budget_breakdown as typeof trips[0]['budgetBreakdown'])
+        ?? { flights: 0, hotel: 0, food: 0, experiences: 0, transport: 0 },
+      memberCount: (tripRow?.group_size as number) ?? 1,
+      guestCount: 0,
+    };
+  })();
   // Guard: if activeDays is empty, currentDayData will never be rendered (the
   // "no itinerary" empty state gate below returns early before any access).
   // Cast is safe because every render path that uses currentDayData is gated on
