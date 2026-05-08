@@ -276,121 +276,6 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 mb-8">
-          <h3 className="text-xl font-display font-bold text-zinc-900 mb-6">Trip Recap</h3>
-
-          {isMockTrip ? (
-            <>
-              <div className="prose prose-sm max-w-none text-zinc-700 mb-6 leading-relaxed">
-                <p>
-                  Reykjavik revealed itself slowly: first the airport's raw brutality, then the city's hushed charm
-                  along the harbor. We stumbled through golden-hour light at Þingvellir, where the earth literally pulls
-                  apart beneath your feet. The Geysir erupted on cue, sending plumes skyward while Sarah laughed and Alex
-                  captured every frame.
-                </p>
-                <p className="mt-4">
-                  Day three split us—the glacier called some, while others answered the black sand beaches. That evening,
-                  under skies that refused to fully darken, we found ourselves at the Blue Lagoon's milky edge, warm water
-                  against cold stone, the moment suspended between day and night. The Northern Lights remained elusive but
-                  the memories burned just as bright.
-                </p>
-              </div>
-              <button className="flex items-center gap-2 px-4 py-2 bg-sky-100 text-sky-800 hover:bg-sky-200 rounded-lg font-medium transition-all">
-                <Heart className="w-4 h-4" />
-                Save Narrative
-              </button>
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-4">✈️📸</div>
-              <p className="text-lg font-semibold text-zinc-800 mb-2">Your story is still being written.</p>
-              <p className="text-sm text-zinc-500 max-w-sm mx-auto">
-                Upload photos as you go and at the end of your trip we'll craft an AI-generated recap narrative — a keepsake you can share with the whole crew.
-              </p>
-              {uploadedCount > 0 && (
-                <p className="mt-4 text-sm font-medium text-sky-700">
-                  {uploadedCount} photo{uploadedCount !== 1 ? 's' : ''} loaded. Keep adding and we'll weave them into your recap.
-                </p>
-              )}
-              {uploadFailedCount > 0 && (
-                <div className="mt-4 mx-auto max-w-md flex items-start gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-left">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
-                  <p className="text-xs text-rose-700">
-                    {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
-                  </p>
-                </div>
-              )}
-              {photosLoadError && (
-                <div className="mt-4 mx-auto max-w-md flex items-start justify-between gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-left">
-                  <p className="text-xs text-amber-900">
-                    We couldn&apos;t load your saved photos. New uploads will still work.
-                  </p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="text-xs font-medium text-amber-900 underline hover:text-amber-700 whitespace-nowrap"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-script italic text-lg font-semibold text-zinc-900 flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              Filter Photos
-            </h3>
-            {(filterDay || filterPerson) && (
-              <button
-                onClick={() => {
-                  setFilterDay(null);
-                  setFilterPerson(null);
-                }}
-                className="text-sm text-sky-700 hover:text-sky-800 font-medium"
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-900 mb-2">By Day</label>
-              <select
-                value={filterDay || ''}
-                onChange={(e) => setFilterDay(e.target.value ? parseInt(e.target.value) : null)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
-              >
-                <option value="">All Days</option>
-                {itineraryDays.map(day => (
-                  <option key={day.day} value={day.day}>
-                    Day {day.day} — {day.theme}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-900 mb-2">By Photographer</label>
-              <select
-                value={filterPerson || ''}
-                onChange={(e) => setFilterPerson(e.target.value || null)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
-              >
-                <option value="">All Contributors</option>
-                {uniqueUploaders.map(uploader => (
-                  <option key={uploader} value={uploader}>
-                    {uploader}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
         {/* Hidden file input — triggered by Upload Photos button */}
         <input
           ref={photoInputRef}
@@ -578,6 +463,60 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-script italic text-lg font-semibold text-zinc-900 flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              Filter Photos
+            </h3>
+            {(filterDay || filterPerson) && (
+              <button
+                onClick={() => {
+                  setFilterDay(null);
+                  setFilterPerson(null);
+                }}
+                className="text-sm text-sky-700 hover:text-sky-800 font-medium"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-900 mb-2">By Day</label>
+              <select
+                value={filterDay || ''}
+                onChange={(e) => setFilterDay(e.target.value ? parseInt(e.target.value) : null)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+              >
+                <option value="">All Days</option>
+                {itineraryDays.map(day => (
+                  <option key={day.day} value={day.day}>
+                    Day {day.day} — {day.theme}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-900 mb-2">By Photographer</label>
+              <select
+                value={filterPerson || ''}
+                onChange={(e) => setFilterPerson(e.target.value || null)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+              >
+                <option value="">All Contributors</option>
+                {uniqueUploaders.map(uploader => (
+                  <option key={uploader} value={uploader}>
+                    {uploader}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
         {/* Loading skeleton — shown only on first load for real trips */}
         {photosLoading && tripPhotos.length === 0 && (
           <div className="mb-12">
@@ -689,6 +628,67 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             </div>
           </div>
         ))}
+
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 mb-8">
+          <h3 className="text-xl font-display font-bold text-zinc-900 mb-6">Trip Recap</h3>
+
+          {isMockTrip ? (
+            <>
+              <div className="prose prose-sm max-w-none text-zinc-700 mb-6 leading-relaxed">
+                <p>
+                  Reykjavik revealed itself slowly: first the airport's raw brutality, then the city's hushed charm
+                  along the harbor. We stumbled through golden-hour light at Þingvellir, where the earth literally pulls
+                  apart beneath your feet. The Geysir erupted on cue, sending plumes skyward while Sarah laughed and Alex
+                  captured every frame.
+                </p>
+                <p className="mt-4">
+                  Day three split us—the glacier called some, while others answered the black sand beaches. That evening,
+                  under skies that refused to fully darken, we found ourselves at the Blue Lagoon's milky edge, warm water
+                  against cold stone, the moment suspended between day and night. The Northern Lights remained elusive but
+                  the memories burned just as bright.
+                </p>
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2 bg-sky-100 text-sky-800 hover:bg-sky-200 rounded-lg font-medium transition-all">
+                <Heart className="w-4 h-4" />
+                Save Narrative
+              </button>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-4">✈️📸</div>
+              <p className="text-lg font-semibold text-zinc-800 mb-2">Your story is still being written.</p>
+              <p className="text-sm text-zinc-500 max-w-sm mx-auto">
+                Upload photos as you go and at the end of your trip we'll craft an AI-generated recap narrative — a keepsake you can share with the whole crew.
+              </p>
+              {uploadedCount > 0 && (
+                <p className="mt-4 text-sm font-medium text-sky-700">
+                  {uploadedCount} photo{uploadedCount !== 1 ? 's' : ''} loaded. Keep adding and we'll weave them into your recap.
+                </p>
+              )}
+              {uploadFailedCount > 0 && (
+                <div className="mt-4 mx-auto max-w-md flex items-start gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-left">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
+                  <p className="text-xs text-rose-700">
+                    {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
+                  </p>
+                </div>
+              )}
+              {photosLoadError && (
+                <div className="mt-4 mx-auto max-w-md flex items-start justify-between gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-left">
+                  <p className="text-xs text-amber-900">
+                    We couldn&apos;t load your saved photos. New uploads will still work.
+                  </p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-xs font-medium text-amber-900 underline hover:text-amber-700 whitespace-nowrap"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedPhoto && (
