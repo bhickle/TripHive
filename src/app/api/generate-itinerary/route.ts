@@ -451,13 +451,22 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
 
   const accessibilityText = accessibilityNeeds.filter(n => n !== 'No special needs').join(', ') || 'none';
 
-  // Travel style context
-  const explorerPct = curiosityLevel ?? 50;
-  const travelStyleText = explorerPct >= 70
-    ? 'adventurous explorer — strongly prefers hidden gems, local haunts, and off-the-beaten-path experiences over famous tourist sites'
-    : explorerPct >= 40
-    ? 'balanced traveler — mix of iconic sights and authentic local discoveries'
-    : 'comfort-focused — prefers well-reviewed, accessible, and easy-to-navigate attractions';
+  // curiosityLevel maps to a budget/comfort TIER, not an exploration axis.
+  // The Step 7 wizard slider is labeled "Backpacker → Luxury" with helper
+  // text describing hostels at low / premium hotels + fine dining at high.
+  // Earlier code interpreted this as "exploration appetite" (hidden gems vs
+  // iconic sights) which is orthogonal — exploration is now driven by the
+  // priorities array (history, culture, food, etc.) and the localMode flag.
+  // This slider purely sets the spend tier. Boundaries match the wizard's
+  // own helper-text breakpoints: <30 budget, <60 mid, <85 comfort, ≥85 luxury.
+  const budgetTierLevel = curiosityLevel ?? 50;
+  const travelStyleText = budgetTierLevel >= 85
+    ? 'LUXURY tier — premium hotels (5-star feel), fine dining and tasting menus, private transfers, top-shelf curated experiences. Avoid budget eateries, hostels, dive bars.'
+    : budgetTierLevel >= 60
+    ? 'COMFORT tier — well-rated 4-star hotels, quality restaurants with the occasional special meal, smooth logistics (rideshare or private transport when transit is impractical).'
+    : budgetTierLevel >= 30
+    ? 'MID-RANGE tier — comfortable 3-star hotels or mid-tier vacation rentals, a mix of casual and nicer dining, public transit with occasional rideshare.'
+    : 'BUDGET tier — hostels or budget hotels, street food and local cafes, public transit, value-conscious activity picks. Avoid Michelin tasting menus, $$$$ resorts, private transfers.';
 
   // When localMode is on, the user has indicated this is a REPEAT visit —
   // they've already covered the famous tourist landmarks and want a "deeper
@@ -796,18 +805,56 @@ You MUST follow ALL of these rules:
   const dailyFoodBudget = Math.round((budgetBreakdown.food ?? 0) / tripLength);
   const dailyExperiencesBudget = Math.round((budgetBreakdown.experiences ?? 0) / tripLength);
 
-  // Meal price level based on travel style
-  const mealPriceLevels = explorerPct < 40
+  // Meal price level based on budget tier (was previously keyed off
+  // "explorerPct" — same slider, fixed semantics: high tier = nicer meals).
+  const mealPriceLevels = budgetTierLevel < 30
     ? { breakfast: 1, lunch: 1, dinner: 2 }
-    : explorerPct < 70
+    : budgetTierLevel < 60
     ? { breakfast: 1, lunch: 2, dinner: 2 }
-    : { breakfast: 2, lunch: 2, dinner: 3 };
+    : budgetTierLevel < 85
+    ? { breakfast: 2, lunch: 2, dinner: 3 }
+    : { breakfast: 2, lunch: 3, dinner: 4 };
 
-  // Accessibility walking rule
+  // Accessibility / pace walking rule. Most-restrictive wins: explicit
+  // mobility needs > elderly (65+) > default. Even without an explicit
+  // accessibility selection, an elderly traveler tightens the walking budget
+  // because the default 4-mile/day limit is unrealistic for many seniors.
   const hasLimitedMobility = accessibilityNeeds.includes('Wheelchair accessible') || accessibilityNeeds.includes('Limited mobility');
+  const hasElderly = ageRanges.includes('65+');
+  const hasSeniors = hasElderly || ageRanges.includes('51-65');
   const walkingRuleText = hasLimitedMobility
     ? `MOBILITY NEEDS ACTIVE: Walking segments must be under 0.25 miles (0.4 km) each, and total walking across the entire day must not exceed 1 mile (1.6 km). Use rideshare or taxi for any activity pair more than 0.25 miles apart. Choose tightly clustered activities and plan transport between every location. Do not rely on "short walks" — be explicit with mode of transport for every segment.`
+    : hasElderly
+    ? `ELDERLY MEMBERS (65+) IN GROUP — RESTRICTED WALKING: walking segments under 0.5 miles (0.8 km) each, total daily walking under 2 miles (3.2 km). Insert a transport leg (taxi, rideshare, metro, or bus) between any pair of activities more than 0.5 miles apart. Prefer venues with elevators or step-free entry, indoor seating, and accessible restrooms. Pace must be relaxed — schedule sit-down breaks (afternoon coffee, garden bench, shaded plaza) between high-energy activities.`
     : `HARD WALKING LIMIT: No single walking segment between consecutive activities may exceed 1 mile (1.6 km). This is a firm limit — if two activities are farther apart than 1 mile, you MUST insert a transport leg (taxi, rideshare, metro, or bus) between them. Total walking across the day should not exceed 4 miles (6.5 km). Cluster activities geographically whenever possible.`;
+
+  // Group-type tone — friends/family/business/couple/solo each shape the
+  // itinerary's vibe in concrete ways beyond the meetup-skip rule for
+  // solo/couple. Was previously only surfaced as the bare "Group type: friends"
+  // line in trip details; now actively guides venue selection.
+  const groupTypeKey = (groupType || 'friends').toLowerCase();
+  const groupTypeText = (() => {
+    switch (groupTypeKey) {
+      case 'solo':
+        return '\n- SOLO TRAVELER vibe: optimize for the lone-traveler experience. Favor venues welcoming to dining alone (counter seating, communal tables, lively bars). Include a few low-pressure social touchpoints when the priorities align (group cooking class, brewery tour, walking tour with strangers). Avoid "for the group" excursions that assume a party.';
+      case 'couple':
+        return '\n- COUPLE vibe: lean toward intimate, romance-friendly experiences — quiet restaurants over loud group spots, sunset views, scenic walks, shared activities. Build in private moments (a sunset cocktail, a slow morning) instead of packed group events.';
+      case 'family':
+        return '\n- FAMILY vibe: every shared activity must be family-appropriate regardless of specific ages — high-chair seating where kids are present, accessible restrooms, manageable distances, predictable food (something kid-pleasing on the menu). Avoid late-night spots and adult-only venues from the shared track. Use split tracks when ages indicate older kids/teens to give parents an adults-only window.';
+      case 'business':
+        return '\n- BUSINESS vibe: assume tight schedules and limited free windows. Prefer venues within walking distance of the hotel, fast and consistent service (highly-reviewed established restaurants over experimental spots), and modular short-block activities rather than long booked excursions. Build flexibility — the user may need to step away for a call.';
+      case 'friends':
+      default:
+        return '\n- FRIENDS GROUP vibe: prioritize social, group-friendly venues — restaurants that take reservations for parties, bars with shared energy, group activities (cooking class, boat day, brewery tour), food spots with shareable plates. Avoid intimate-couple-only venues on shared days.';
+    }
+  })();
+
+  // Senior-without-65+-elderly (51-65 only) — relaxed pace cue without
+  // hard-restricting walking. The 65+ branch above already covers tighter
+  // limits.
+  const seniorPaceText = hasSeniors && !hasElderly
+    ? '\n- SENIOR MEMBERS (51-65) PRESENT: build in pacing — sit-down lunch instead of grab-and-go, an afternoon coffee/break window, walking segments under 1 mile each. Avoid back-to-back high-intensity activities and 9pm+ dinners.'
+    : '';
 
   // The wizard's "I have flexible dates" toggle means the user opted into a
   // length-only flow — the dates the API receives are server-side defaults
@@ -833,7 +880,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style: ${travelStyleText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
+- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -1111,7 +1158,7 @@ RULES:
 10. meetupTime and meetupLocation are the MORNING departure point — the place where the whole group gathers at the start of the day before heading out. meetupLocation must ALWAYS be the hotel lobby (e.g. "Hotel lobby" or "[Hotel Name] lobby"). meetupTime must equal the timeSlot start of the very FIRST activity of that day (e.g. if the day's first activity starts at "09:00", meetupTime is "09:00"). Never set meetupTime to a time after the first activity starts — the group meets first, then heads out. Do NOT generate a "Group Meetup" activity in the tracks array; use meetupTime/meetupLocation exclusively. For solo or couple trips (groupType "solo" or "couple"), set meetupTime and meetupLocation to null on every day — group meetup points are irrelevant for individual travelers.
 11. photoSpots: REQUIRED on every itinerary, every day — include 1-3 per day regardless of whether photography is a selected priority. Always include the destination's iconic must-photograph landmarks (e.g. Trevi Fountain in Rome, Eiffel Tower in Paris, Hagia Sophia in Istanbul) as the primary spot on the relevant day. These are the shots every visitor wants and they must not be omitted. Pair each with a specific time of day (sunrise/golden hour/blue hour/midday) and one actionable shooting tip (best angle, where to stand, what to frame). Additional spots can be local or lesser-known but the famous landmark always anchors the list.
 12. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
-13. Respect the travel style: ${explorerPct >= 70 ? 'prioritize hidden gems and local spots over famous tourist sites' : explorerPct >= 40 ? 'balance iconic sights with local discoveries' : 'focus on well-reviewed and accessible attractions'}
+13. Respect the budget tier above — match every venue, hotel, and activity to that comfort level. For LUXURY tier, lean upscale (skip dive bars, hostels, fast food, $ casual). For BUDGET tier, lean local-value (skip Michelin tasting menus, $$$$ resorts, private guided tours). MID-RANGE and COMFORT should mix appropriately. Exploration appetite (hidden gems vs iconic sights) is shaped by the priorities array and localMode flag — not this slider.
 14. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
 15. "title" and "practicalNotes" fields appear ONLY on day 1. All other day objects must not include these fields.
 16. NEVER INVENT SCHEDULED EVENTS: Do not assign a specific scheduled game, concert, festival, or live performance to a specific date unless it is a recurring, date-independent, permanent offering (e.g. a weekly farmers market, a permanent museum exhibit). For any live event venue, describe it and direct travelers to the official website or a ticketing platform (Ticketmaster, AXS, SeatGeek) to check current dates. This rule overrides any priority or must-have instruction.
