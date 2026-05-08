@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
   CalendarDays, Map, Camera, Shield, Star, ChevronDown,
-  ChevronUp, Lock, Crown, Loader2, Receipt, AlertCircle,
+  ChevronUp, Lock, Crown, Loader2, Receipt, AlertCircle, Plus,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
@@ -119,12 +119,101 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Per-trip row shape returned by /api/trips. Kept narrow on purpose — the
+// pricing-page picker only needs identity + display fields.
+interface PickerTrip {
+  id: string;
+  title?: string | null;
+  destination?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  group_size?: number | null;
+}
+
 export default function PricingPage() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ── Trip Pass picker ──────────────────────────────────────────────────────
+  // A Trip Pass purchase needs a tripId, but the visitor on this page may not
+  // have one yet. Flow:
+  //   1. Not authenticated → bounce to signup, return to /pricing?intent=trip_pass
+  //   2. Authenticated, no trips → route to /trip/new
+  //   3. Authenticated with trips → show a picker; clicking a trip starts
+  //      checkout for that tripId with the live extra-person price
+  // After signup, the URL carries ?intent=trip_pass which auto-triggers the
+  // picker so the user doesn't have to click "Buy a Pass" twice.
+  const [showTripPicker, setShowTripPicker] = useState(false);
+  const [tripPickerTrips, setTripPickerTrips] = useState<PickerTrip[]>([]);
+  const [tripPickerLoading, setTripPickerLoading] = useState(false);
+
+  const handleTripPassClick = async () => {
+    if (!user) {
+      router.push('/auth/signup?redirect=/pricing%3Fintent%3Dtrip_pass');
+      return;
+    }
+    setTripPickerLoading(true);
+    setCheckoutError(null);
+    try {
+      const res = await fetch('/api/trips');
+      const data = await res.json().catch(() => ({}));
+      const trips: PickerTrip[] = Array.isArray(data?.trips) ? data.trips : [];
+      if (trips.length === 0) {
+        router.push('/trip/new');
+        return;
+      }
+      setTripPickerTrips(trips);
+      setShowTripPicker(true);
+    } catch {
+      setCheckoutError('Could not load your trips. Please try again.');
+    } finally {
+      setTripPickerLoading(false);
+    }
+  };
+
+  // Auto-open picker after signup-redirect-back if intent=trip_pass.
+  useEffect(() => {
+    if (searchParams?.get('intent') === 'trip_pass' && user && !showTripPicker) {
+      handleTripPassClick();
+    }
+    // We deliberately don't include handleTripPassClick in deps — it'd
+    // rebuild every render and re-fire the picker. The intent + user check
+    // is the actual trigger condition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user]);
+
+  const handlePickerTripPassCheckout = async (trip: PickerTrip) => {
+    setCheckingOut(STRIPE_PRICES.trip_pass.base);
+    setCheckoutError(null);
+    const groupSize = Math.min(trip.group_size ?? PRICING.trip_pass.baseGroupSize, PRICING.trip_pass.maxGroupSize);
+    const extraPeople = Math.max(0, groupSize - PRICING.trip_pass.baseGroupSize);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: STRIPE_PRICES.trip_pass.base,
+          mode: 'payment',
+          tripId: trip.id,
+          extraPeople,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        setCheckoutError(data.error ?? 'Could not start checkout.');
+        setCheckingOut(null);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setCheckoutError('Could not start checkout. Please try again.');
+      setCheckingOut(null);
+    }
+  };
 
   // ── Kick off Stripe checkout ──────────────────────────────────────────────
   // Without the explicit res.ok check, a non-2xx response (5xx, auth fail,
@@ -289,9 +378,14 @@ export default function PricingPage() {
               <span className="text-zinc-500 text-sm ml-1">/ trip</span>
             </div>
             <p className="text-xs text-amber-700 font-medium mb-6">+$4/person beyond 6 · up to 12</p>
-            <Link href="/auth/signup" className="w-full text-center py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
-              Buy a Pass
-            </Link>
+            <button
+              onClick={handleTripPassClick}
+              disabled={tripPickerLoading}
+              className="w-full text-center py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+            >
+              {tripPickerLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {tripPickerLoading ? 'Loading…' : 'Buy a Pass'}
+            </button>
             <ul className="space-y-3 flex-1">
               {[
                 'Up to 6 travelers (+ add-ons)',
@@ -546,6 +640,76 @@ export default function PricingPage() {
           <p className="text-zinc-600 text-xs">© 2026 tripcoord. All rights reserved.</p>
         </div>
       </footer>
+
+      {/* ─── Trip Pass picker ────────────────────────────────────────────────
+          Shown after the user clicks "Buy a Pass" while authenticated. Lists
+          their trips so they can apply the pass to a specific one — pricing
+          adjusts live based on each trip's group_size. */}
+      {showTripPicker && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowTripPicker(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6 relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowTripPicker(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h2 className="font-script italic text-2xl font-semibold text-zinc-900 mb-1 pr-8">Which trip is this for?</h2>
+            <p className="text-sm text-zinc-500 mb-5">
+              Trip Pass is one-time, tied to a single trip. Pick one below or start a new one.
+            </p>
+            <div className="space-y-2 mb-4">
+              {tripPickerTrips.map(trip => {
+                const groupSize = Math.min(trip.group_size ?? PRICING.trip_pass.baseGroupSize, PRICING.trip_pass.maxGroupSize);
+                const extraPeople = Math.max(0, groupSize - PRICING.trip_pass.baseGroupSize);
+                const totalPrice = PRICING.trip_pass.base + extraPeople * PRICING.trip_pass.extraPersonFee;
+                const dateRange = trip.start_date && trip.end_date
+                  ? `${new Date(trip.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(trip.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                  : null;
+                const purchasing = checkingOut === STRIPE_PRICES.trip_pass.base;
+                return (
+                  <button
+                    key={trip.id}
+                    onClick={() => handlePickerTripPassCheckout(trip)}
+                    disabled={purchasing}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-zinc-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-zinc-900 truncate">{trip.title || trip.destination || 'Untitled trip'}</p>
+                      <p className="text-xs text-zinc-500 truncate">
+                        {[trip.destination, dateRange, `${groupSize} ${groupSize === 1 ? 'traveler' : 'travelers'}`].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <span className="text-base font-semibold text-amber-700">${totalPrice}</span>
+                      {extraPeople > 0 && (
+                        <span className="text-[10px] text-amber-600 -mt-0.5">+{extraPeople} extra</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => { setShowTripPicker(false); router.push('/trip/new'); }}
+              className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-zinc-300 hover:border-zinc-500 hover:bg-zinc-50 text-zinc-700 font-semibold rounded-xl text-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Build a new trip
+            </button>
+            {checkoutError && (
+              <p className="mt-3 text-xs text-rose-600 text-center">{checkoutError}</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { User, Mail, Lock } from 'lucide-react';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -15,6 +15,18 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Honor an explicit ?redirect=... param after signup so flows that bounce
+  // anonymous users through signup (e.g. /pricing → /auth/signup → back) can
+  // resume where they left off. Defaults to /onboarding for organic signups.
+  // Only same-origin paths are accepted to prevent open-redirect.
+  const safeRedirect = (() => {
+    const raw = searchParams?.get('redirect');
+    if (!raw) return '/onboarding';
+    if (!raw.startsWith('/') || raw.startsWith('//')) return '/onboarding';
+    return raw;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +61,7 @@ export default function SignupPage() {
         .eq('id', data.user.id);
     }
 
-    router.push('/onboarding');
+    router.push(safeRedirect);
     router.refresh();
   };
 
