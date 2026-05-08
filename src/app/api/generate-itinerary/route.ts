@@ -753,14 +753,26 @@ You MUST follow ALL of these rules:
     - Car rental cost is already paid; exclude car hire from budget recommendations`;
   }
 
-  // Hotel recommendation context (only when no hotel is pre-booked)
+  // Hotel recommendation context (only when no hotel is pre-booked).
+  //
+  // Trip Builder collects budget PER PERSON (Step 7 is explicitly labeled
+  // "Budget Breakdown (per person)"). For hotels we need the per-ROOM nightly
+  // budget to pick the right tier — a 4-person group at $150/person/night
+  // can afford a $600/night room, not a $150/night room. Multiply by
+  // groupSize before classifying. Stays use trip nights (length - 1) since
+  // the last day is typically a check-out morning.
   const needsHotelSuggestions = !hasPreBookedHotel;
-  const hotelBudgetPerNight = Math.round((budgetBreakdown.hotel ?? 0) / tripLength);
-  const hotelPriceTier = hotelBudgetPerNight < 80
+  const tripNights = Math.max(1, tripLength - 1);
+  const hotelBudgetPerNightPerPerson = Math.round((budgetBreakdown.hotel ?? 0) / tripNights);
+  const hotelBudgetPerNightPerRoom = hotelBudgetPerNightPerPerson * Math.max(1, groupSize ?? 1);
+  // Tier thresholds reflect typical PER-ROOM market pricing (room rate,
+  // not per-person share). Was previously bucketed off per-person budget,
+  // which silently under-tiered every group trip.
+  const hotelPriceTier = hotelBudgetPerNightPerRoom < 100
     ? 'budget ($)'
-    : hotelBudgetPerNight < 180
+    : hotelBudgetPerNightPerRoom < 250
     ? 'mid-range ($$)'
-    : hotelBudgetPerNight < 350
+    : hotelBudgetPerNightPerRoom < 500
     ? 'upscale ($$$)'
     : 'luxury ($$$$)';
   // Build lodging type instruction from accommodationType preference
@@ -811,12 +823,13 @@ TRIP DETAILS:
 - Destination: ${destinations.length >= 2 ? `Multi-city — ${destinations.join(' → ')}` : destination}
 - Dates: ${startDate} to ${endDate} (${tripLength} days)
 - Group type: ${groupType || 'friends'}
-- Budget: $${budget.toLocaleString()} total
-  - Flights: $${budgetBreakdown.flights ?? 0}
-  - Hotel: $${budgetBreakdown.hotel ?? 0}
-  - Food: $${budgetBreakdown.food ?? 0} ($${dailyFoodBudget}/day)
-  - Experiences: $${budgetBreakdown.experiences ?? 0} ($${dailyExperiencesBudget}/day)
-  - Transport: $${budgetBreakdown.transport ?? 0}
+- Group size: ${groupSize ?? 1} ${(groupSize ?? 1) === 1 ? 'person' : 'people'}
+- Budget (per person, USD): $${budget.toLocaleString()}
+  - Flights: $${budgetBreakdown.flights ?? 0} per person
+  - Hotel: $${budgetBreakdown.hotel ?? 0} per person ($${hotelBudgetPerNightPerPerson}/night per person, $${hotelBudgetPerNightPerRoom}/night per room for the ${groupSize ?? 1}-person group → ${hotelPriceTier})
+  - Food: $${budgetBreakdown.food ?? 0} per person ($${dailyFoodBudget}/day per person)
+  - Experiences: $${budgetBreakdown.experiences ?? 0} per person ($${dailyExperiencesBudget}/day per person)
+  - Transport: $${budgetBreakdown.transport ?? 0} per person
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
@@ -856,7 +869,7 @@ OPENING HOURS RULES (strictly enforce):
 
 QUALITY & CURATION RULES (travel agent standard):
 - All venues are pre-filtered for quality (minimum rating + review count). Prefer venues with more reviews when choosing between similar options.
-- Match price level to the trip budget. Venues marked $$$$ are not appropriate for budget trips.
+- Match price level to the trip budget. The hotel tier for this trip is ${hotelPriceTier} (per-room budget $${hotelBudgetPerNightPerRoom}/night). Restaurants and activities should match the same overall price band — venues marked $$$$ are not appropriate for budget trips, and $ dive bars / chain food courts are not appropriate for luxury-tier trips. Read the user's budget and select accordingly.
 - For restaurants: read the types and hours to determine meal fit.
   - Cafes, bakeries, diners open before 10 AM → breakfast-appropriate.
   - Restaurants opening at or after 11 AM → lunch/dinner only.
@@ -1079,10 +1092,11 @@ ${walkingRuleText}
 
 GEOGRAPHIC CLUSTERING RULE: When a transport leg (car, bus, train, or excursion) moves the group to a new town or region, ALL activities scheduled after that transport leg — until the next transport leg — must cluster within 0.5 miles of each other around a central point in that town. Restaurants must always be within walking distance of the immediately preceding activity — never require a separate drive just for a meal. If two activities in the same town are more than 0.5 miles apart, insert a transport leg between them.
 
-DAILY BUDGET ENFORCEMENT:
-- Food budget: $${dailyFoodBudget} per person per day — the sum of costEstimate for all 3 restaurant activities must not exceed this amount
-- Experiences budget: $${dailyExperiencesBudget} per person per day — the sum of costEstimate for all non-restaurant activities must not exceed this amount
-- If free activities (museums with free entry, walking tours, parks) are available, use them to stay within budget while still filling the day
+DAILY BUDGET ENFORCEMENT — these are the user's explicit budget limits and must be respected:
+- FOOD: $${dailyFoodBudget} per person per day. The sum of costEstimate values across the 3 restaurant activities (breakfast + lunch + dinner) MUST be ≤ $${dailyFoodBudget}. Pick venues whose realistic per-person bill fits — fine-dining steakhouses don't fit a $40/day food budget; street food and casual cafes don't fit a $300/day food budget either (a luxury food budget should buy luxury meals). Match the level.
+- EXPERIENCES: $${dailyExperiencesBudget} per person per day. The sum of costEstimate values across non-restaurant activities MUST be ≤ $${dailyExperiencesBudget}. If free activities exist (free museums, walking tours, parks, viewpoints) use them to balance pricier ones.
+- HOTEL TIER: ${hotelPriceTier}. The group's per-room nightly budget is $${hotelBudgetPerNightPerRoom}. Hotel pricePerNight in hotelSuggestions must be ≤ $${hotelBudgetPerNightPerRoom} (per room) and within the ${hotelPriceTier} band. Do not suggest properties that would visibly exceed this budget.
+- VENUE SELECTION: When a budget is luxury-tier, lean upscale (skip dive bars and budget eateries). When a budget is budget-tier, lean local (skip $$$$ tasting menus). The traveler set this budget deliberately.
 
 RULES:
 1. Use REAL venue names and real addresses for ${destination}
