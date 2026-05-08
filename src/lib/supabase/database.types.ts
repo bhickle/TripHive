@@ -903,6 +903,7 @@ export type Database = {
           budget_breakdown: Json
           budget_total: number
           cover_image: string | null
+          cover_image_meta: Json | null
           created_at: string
           destination: string
           end_date: string | null
@@ -925,6 +926,7 @@ export type Database = {
           budget_breakdown?: Json
           budget_total?: number
           cover_image?: string | null
+          cover_image_meta?: Json | null
           created_at?: string
           destination: string
           end_date?: string | null
@@ -947,6 +949,7 @@ export type Database = {
           budget_breakdown?: Json
           budget_total?: number
           cover_image?: string | null
+          cover_image_meta?: Json | null
           created_at?: string
           destination?: string
           end_date?: string | null

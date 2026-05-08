@@ -75,6 +75,7 @@ export default function TripsPage() {
               group_type?: string;
               group_size?: number;
               cover_image?: string | null;
+              cover_image_meta?: { photographer?: string | null; photographerUrl?: string | null; photoUrl?: string | null; downloadLocation?: string | null } | null;
               budget_total?: number;
               role?: 'organizer' | 'co_organizer' | 'member';
               organizerName?: string | null;
@@ -92,6 +93,7 @@ export default function TripsPage() {
               groupType: t.group_type,
               groupSize: t.group_size ?? 1,
               coverImage: t.cover_image ?? null,
+              coverImageMeta: t.cover_image_meta ?? null,
               budgetTotal: t.budget_total ?? 0,
               memberCount: t.group_size ?? 1,
               guestCount: 0,

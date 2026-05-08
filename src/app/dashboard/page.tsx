@@ -104,6 +104,7 @@ export default function DashboardPage() {
             group_type?: string;
             group_size?: number;
             cover_image?: string | null;
+            cover_image_meta?: { photographer?: string | null; photographerUrl?: string | null; photoUrl?: string | null; downloadLocation?: string | null } | null;
             budget_total?: number;
           };
           const rows: TripRow[] = trips;
@@ -120,6 +121,7 @@ export default function DashboardPage() {
             groupType: t.group_type,
             groupSize: Math.max(1, t.group_size ?? 1),
             coverImage: t.cover_image ?? null,
+            coverImageMeta: t.cover_image_meta ?? null,
             budgetTotal: t.budget_total ?? 0,
             // Use group_size from the trip builder as the traveler count
             memberCount: Math.max(1, t.group_size ?? 1),

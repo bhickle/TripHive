@@ -69,7 +69,17 @@ function maybePersistCoverImage(tripId: string, photo: DynamicPhoto | null) {
   fetch(`/api/trips/${tripId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tripPatch: { cover_image: photo.url } }),
+    body: JSON.stringify({
+      tripPatch: {
+        cover_image: photo.url,
+        cover_image_meta: {
+          photographer: photo.photographer,
+          photographerUrl: photo.photographerUrl,
+          photoUrl: photo.photoUrl,
+          downloadLocation: photo.downloadLocation,
+        },
+      },
+    }),
   }).catch(() => { /* silent — gradient just keeps loading next time */ });
 }
 
@@ -90,17 +100,32 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
   const [deleting, setDeleting] = useState(false);
 
   // Photo resolution order:
-  //   1. Trip's saved coverImage (user-uploaded, no Unsplash attribution)
-  //   2. Dynamic Unsplash search via /api/unsplash/photo
-  //   3. Gradient placeholder (rendered as a div, not an <Image>) while
-  //      the fetch is in flight, or permanently if the search has no
-  //      results / the API is rate-limited / the key is missing.
+  //   1. Trip's saved coverImage. If coverImageMeta has a photographer it's
+  //      a previously-persisted Unsplash photo — render with attribution.
+  //      If meta is null, treat as user-uploaded (no chip needed).
+  //   2. Dynamic Unsplash search via /api/unsplash/photo (first-time load).
+  //   3. Gradient placeholder while the fetch is in flight, or permanently
+  //      if the search has no results / the API is rate-limited / no key.
   const userPhoto = trip.coverImage ?? null;
+  const persistedMeta = trip.coverImageMeta ?? null;
   const cachedDynamic = dynamicPhotoCache.get(trip.destination);
   const [dynamicPhoto, setDynamicPhoto] = useState<DynamicPhoto | null>(cachedDynamic ?? null);
 
   useEffect(() => {
-    if (userPhoto) return;
+    if (userPhoto) {
+      // Persisted Unsplash photo: still need to track downloads each session
+      // (Unsplash counts every "use" — the sessionStorage gate dedupes).
+      if (persistedMeta?.downloadLocation) {
+        maybeTrackDownload({
+          url: userPhoto,
+          photographer: persistedMeta.photographer ?? null,
+          photographerUrl: persistedMeta.photographerUrl ?? null,
+          photoUrl: persistedMeta.photoUrl ?? null,
+          downloadLocation: persistedMeta.downloadLocation ?? null,
+        });
+      }
+      return;
+    }
     if (dynamicPhotoCache.has(trip.destination)) {
       // Already fetched this session — but we may still need to fire the
       // download-tracking call if this is a fresh component mount
@@ -122,15 +147,25 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
       })
       .catch(() => { /* silent — placeholder stays */ });
     return () => { aborted = true; };
-  }, [trip.destination, trip.id, userPhoto]);
+  }, [trip.destination, trip.id, userPhoto, persistedMeta]);
 
   const photoSrc = userPhoto ?? dynamicPhoto?.url ?? null;
-  // Show the attribution chip only for live Unsplash photos with full
-  // metadata. User-uploaded coverImages don't need it.
-  const showAttribution =
-    !userPhoto &&
-    !!dynamicPhoto?.photographer &&
-    !!dynamicPhoto?.photographerUrl;
+  // Resolve the attribution source. Persisted Unsplash photos carry their
+  // metadata in coverImageMeta; fresh API photos use the dynamic state.
+  const attribution = persistedMeta?.photographer
+    ? {
+        photographer: persistedMeta.photographer,
+        photographerUrl: persistedMeta.photographerUrl ?? null,
+        photoUrl: persistedMeta.photoUrl ?? null,
+      }
+    : !userPhoto && dynamicPhoto?.photographer
+      ? {
+          photographer: dynamicPhoto.photographer,
+          photographerUrl: dynamicPhoto.photographerUrl,
+          photoUrl: dynamicPhoto.photoUrl,
+        }
+      : null;
+  const showAttribution = !!attribution?.photographer && !!attribution.photographerUrl;
 
   const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
@@ -180,23 +215,24 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
         {/* Unsplash attribution — required by API guidelines.
-            Only renders for live API photos; clicks open in a new tab and
-            stop propagation so the parent Link doesn't navigate. */}
-        {showAttribution && dynamicPhoto && (
+            Renders for both freshly-fetched and persisted Unsplash photos;
+            clicks open in a new tab and stop propagation so the parent
+            Link doesn't navigate. */}
+        {showAttribution && attribution && (
           <div className="absolute bottom-2 right-3 text-[10px] text-white/70 z-10">
             Photo by{' '}
             <a
-              href={`${dynamicPhoto.photographerUrl}${UTM}`}
+              href={`${attribution.photographerUrl}${UTM}`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="underline-offset-2 hover:underline hover:text-white transition-colors"
             >
-              {dynamicPhoto.photographer}
+              {attribution.photographer}
             </a>
             {' '}on{' '}
             <a
-              href={`${dynamicPhoto.photoUrl ?? 'https://unsplash.com'}${UTM}`}
+              href={`${attribution.photoUrl ?? 'https://unsplash.com'}${UTM}`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

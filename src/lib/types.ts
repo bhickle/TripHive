@@ -205,12 +205,23 @@ export interface TravelPersona {
   priorities: string[];
 }
 
+/** Unsplash attribution metadata persisted alongside an Unsplash-sourced
+ *  coverImage. When present, TripCard renders the photographer credit chip.
+ *  Null/undefined for user-uploaded covers (no attribution needed). */
+export interface CoverImageMeta {
+  photographer?: string | null;
+  photographerUrl?: string | null;
+  photoUrl?: string | null;
+  downloadLocation?: string | null;
+}
+
 export interface Trip {
   id: string;
   creatorId: string;
   title: string;
   destination: string;
   coverImage: string;
+  coverImageMeta?: CoverImageMeta | null;
   startDate: string;
   endDate: string;
   /** The user-selected trip length in days (from the trip builder button).

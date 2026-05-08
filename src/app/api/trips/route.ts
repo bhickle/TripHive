@@ -32,7 +32,7 @@ export async function GET() {
     // 1) Trips where the user is the organizer
     const ownedQuery = supabase
       .from('trips')
-      .select('id, title, destination, start_date, end_date, trip_length, status, group_type, group_size, cover_image, created_at, organizer_id')
+      .select('id, title, destination, start_date, end_date, trip_length, status, group_type, group_size, cover_image, cover_image_meta, created_at, organizer_id')
       .eq('organizer_id', userId);
 
     // 2) Trip IDs where the user is a member (not organizer)
@@ -62,7 +62,7 @@ export async function GET() {
     if (invitedTripIds.length > 0) {
       const { data: invited } = await supabase
         .from('trips')
-        .select('id, title, destination, start_date, end_date, trip_length, status, group_type, group_size, cover_image, created_at, organizer_id')
+        .select('id, title, destination, start_date, end_date, trip_length, status, group_type, group_size, cover_image, cover_image_meta, created_at, organizer_id')
         .in('id', invitedTripIds);
       invitedTrips = invited ?? [];
     }
