@@ -30,6 +30,8 @@ import {
   CalendarDays,
   CheckCircle2,
   X,
+  MessageCircle,
+  Vote,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
@@ -1090,19 +1092,29 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       )}
 
       <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 flex gap-1 mb-8 inline-flex flex-wrap">
-        {(['overview', 'expenses', 'chat', 'votes'] as TabType[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab as TabType)}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all ${
-              activeTab === tab
-                ? 'bg-zinc-900 text-white'
-                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 font-medium'
-            }`}
-          >
-            {tab === 'overview' ? 'The Crew' : tab === 'expenses' ? 'Who Owes Who 💸' : tab === 'chat' ? 'Chat 💬' : 'Yay/Nay 🗳️'}
-          </button>
-        ))}
+        {([
+          { id: 'overview' as TabType, label: 'The Crew', icon: Users },
+          { id: 'expenses' as TabType, label: 'Who Owes Who', icon: Receipt },
+          { id: 'chat' as TabType, label: 'Chat', icon: MessageCircle },
+          { id: 'votes' as TabType, label: 'Yay/Nay', icon: Vote },
+        ]).map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${
+                isActive
+                  ? 'bg-zinc-900 text-white'
+                  : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       <div>
