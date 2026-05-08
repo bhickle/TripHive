@@ -308,7 +308,16 @@ type SortOption = 'match' | 'rating' | 'price';
 // MOCK_TRIP_IDS is imported from @/data/mock — single source of truth
 
 export default function DiscoverPage({ params }: { params: { id: string } }) {
-  const [searchQuery, setSearchQuery] = useState('');
+  // Honor ?q=<query> on URL load — wishlist items on the group page link
+  // here with the item name so the discover view auto-filters to that item.
+  // Wrapped in typeof check because useSearchParams isn't available on the
+  // very first render; we read once at mount instead.
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      return new URL(window.location.href).searchParams.get('q') ?? '';
+    } catch { return ''; }
+  });
   const [activeCategory, setActiveCategory] = useState<FilterCategory>('all');
   const [sortBy, setSortBy] = useState<SortOption>('match');
   const [bookableOnly, setBookableOnly] = useState(false);

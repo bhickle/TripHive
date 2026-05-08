@@ -1933,8 +1933,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     return (
                       <div key={item.itemId} className="border border-zinc-100 rounded-xl overflow-hidden">
                         <div className="flex items-center gap-3 p-3">
-                          {/* Gradient swatch */}
-                          <div className={`w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br ${item.itemData.imageGradient ?? 'from-sky-300 to-indigo-500'} flex items-center justify-center`}>
+                          {/* Gradient swatch — clickable, sends user to the
+                              trip's What's Out There discover tab where they
+                              can read the full description, hours, etc. */}
+                          <a
+                            href={`/trip/${params.id}/discover?q=${encodeURIComponent(name)}`}
+                            className={`w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br ${item.itemData.imageGradient ?? 'from-sky-300 to-indigo-500'} flex items-center justify-center hover:ring-2 hover:ring-sky-300 transition-all`}
+                            title="View on What's Out There"
+                          >
                             <span className="text-lg">
                               {item.itemData.category === 'dining' ? '🍽️' :
                                item.itemData.category === 'nature' ? '🏔️' :
@@ -1942,14 +1948,18 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                                item.itemData.category === 'events' ? '🎭' :
                                item.itemData.category === 'sports' ? '⛹️' : '🎯'}
                             </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-zinc-900 truncate">{name}</p>
+                          </a>
+                          <a
+                            href={`/trip/${params.id}/discover?q=${encodeURIComponent(name)}`}
+                            className="flex-1 min-w-0 group hover:bg-zinc-50 -mx-1 px-1 py-0.5 rounded transition-colors"
+                            title="View on What's Out There"
+                          >
+                            <p className="text-sm font-semibold text-zinc-900 truncate group-hover:text-sky-800 transition-colors">{name}</p>
                             <p className="text-[10px] text-zinc-400 mt-0.5">
                               {item.itemData.duration && `${item.itemData.duration} · `}
                               {item.itemData.priceRange}
                             </p>
-                          </div>
+                          </a>
                           {/* Vote tally */}
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${item.upVotes > 0 ? 'bg-emerald-50 text-emerald-700' : 'text-zinc-300 bg-zinc-50'}`}>
