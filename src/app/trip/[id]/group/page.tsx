@@ -34,6 +34,7 @@ import {
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
+import type { ItineraryDay, Activity } from '@/lib/types';
 
 type TabType = 'overview' | 'expenses' | 'chat' | 'votes';
 
@@ -133,12 +134,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           setTripIsPrivate(tripRes.value.trip.is_private);
         }
         if (tripRes.status === 'fulfilled' && tripRes.value?.itinerary?.days) {
-          const days = tripRes.value.itinerary.days;
+          const days: ItineraryDay[] = tripRes.value.itinerary.days;
           setItineraryDaysData(days);
           // Find all activities where downVotes > upVotes
           const nays: NayActivity[] = [];
           for (const day of days) {
-            for (const track of ['shared', 'track_a', 'track_b']) {
+            for (const track of ['shared', 'track_a', 'track_b'] as const) {
               for (const act of (day.tracks?.[track] ?? [])) {
                 if ((act.downVotes ?? 0) > 0 && (act.downVotes ?? 0) > (act.upVotes ?? 0)) {
                   nays.push({
@@ -162,15 +163,26 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           setVotes(votesRes.value.votes);
         }
         if (messagesRes.status === 'fulfilled' && messagesRes.value?.messages) {
+          // Shape returned by /api/trips/[id]/messages — reactions is the
+          // Supabase Json column (we narrow per-emoji below).
+          type MessageRow = {
+            id: string;
+            senderId: string | null;
+            senderName: string;
+            content: string;
+            createdAt: string;
+            reactions?: unknown;
+          };
+          const rawMessages: MessageRow[] = messagesRes.value.messages;
           // Mark messages from current user as isOwn
-          const msgs = messagesRes.value.messages.map((m: any) => ({
+          const msgs = rawMessages.map((m) => ({
             ...m,
             isOwn: currentUserId ? m.senderId === currentUserId : false,
           }));
           setChatMessages(msgs);
           // Populate reactions from DB
           const initialReactions: Record<string, Record<string, string[]>> = {};
-          for (const m of messagesRes.value.messages) {
+          for (const m of rawMessages) {
             if (m.reactions && typeof m.reactions === 'object') {
               const normalized: Record<string, string[]> = {};
               for (const [emoji, val] of Object.entries(m.reactions as Record<string, unknown>)) {
@@ -182,7 +194,20 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           setReactions(initialReactions);
         }
         if (expensesRes.status === 'fulfilled' && expensesRes.value?.expenses) {
-          const mapped = expensesRes.value.expenses.map((e: any) => ({
+          // Shape from /api/trips/[id]/expenses GET (the camelCased mapping).
+          type ExpenseRow = {
+            id: string;
+            description: string;
+            amount: number;
+            paidByName: string;
+            splitType: 'equal' | 'custom';
+            category: string;
+            customAmounts?: Record<string, number>;
+            lineItems?: { description: string; amount: number }[];
+            settled?: boolean;
+          };
+          const rawExpenses: ExpenseRow[] = expensesRes.value.expenses;
+          const mapped = rawExpenses.map((e) => ({
             id: e.id,
             name: e.description,
             amount: e.amount,
@@ -258,7 +283,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [replacingActivityId, setReplacingActivityId] = useState<string | null>(null);
   const [replacedActivityIds, setReplacedActivityIds] = useState<Set<string>>(new Set());
   const [tripDestination, setTripDestination] = useState<string>('');
-  const [itineraryDaysData, setItineraryDaysData] = useState<any[]>([]);
+  const [itineraryDaysData, setItineraryDaysData] = useState<ItineraryDay[]>([]);
   // Trip budget_total from Supabase — used to calculate the utilization bar
   const [tripBudgetTotal, setTripBudgetTotal] = useState<number>(0);
   // Privacy flag — when true, /join/[id] without a valid invite token is
@@ -298,7 +323,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           setItineraryDaysData(days);
         }
       }
-      const dayIndex = days.findIndex((d: any) => d.day === dayNumber);
+      const dayIndex = days.findIndex(d => d.day === dayNumber);
       if (dayIndex === -1) throw new Error('Day not found');
 
       const newActivity = {
@@ -322,9 +347,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         fromDiscover: true,
       };
 
-      const updatedDays = days.map((d: any, i: number) => {
+      const updatedDays: ItineraryDay[] = days.map((d, i) => {
         if (i !== dayIndex) return d;
-        return { ...d, tracks: { ...d.tracks, shared: [...(d.tracks?.shared ?? []), newActivity] } };
+        return { ...d, tracks: { ...d.tracks, shared: [...(d.tracks?.shared ?? []), newActivity as unknown as Activity] } };
       });
 
       const patchRes = await fetch(`/api/trips/${params.id}`, {
@@ -352,7 +377,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         body: JSON.stringify({
           destination: tripDestination,
           dayNumber: nay.dayNumber,
-          date: itineraryDaysData.find((d: any) => d.day === nay.dayNumber)?.date ?? '',
+          date: itineraryDaysData.find(d => d.day === nay.dayNumber)?.date ?? '',
           existingActivityName: nay.name,
           timeSlot: nay.timeSlot,
           track: 'shared',
@@ -362,9 +387,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       if (!res.ok || !data.activity) throw new Error('No suggestion');
 
       // Patch the replacement into the itinerary
-      const updatedDays = itineraryDaysData.map((day: any) => {
+      const updatedDays: ItineraryDay[] = itineraryDaysData.map(day => {
         if (day.day !== nay.dayNumber) return day;
-        const replaceInTrack = (arr: any[]) =>
+        const replaceInTrack = (arr: Activity[]) =>
           arr.map(a => a.id === nay.id ? { ...data.activity, id: nay.id, track: a.track, upVotes: 0, downVotes: 0 } : a);
         return {
           ...day,
@@ -435,9 +460,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         const r = await fetch(`/api/trips/${params.id}`);
         if (!r.ok) throw new Error(`Couldn't load itinerary (${r.status})`);
         const data = await r.json();
-        const days: any[] = data?.itinerary?.days ?? [];
-        const dayIdx = days.findIndex((d: any) => d.day === addToItinDay);
-        const newActivity = {
+        const days: ItineraryDay[] = data?.itinerary?.days ?? [];
+        const dayIdx = days.findIndex(d => d.day === addToItinDay);
+        const newActivity: Activity = {
           id: `act_vote_${Date.now()}`,
           dayNumber: addToItinDay,
           timeSlot: '12:00',
@@ -683,7 +708,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [newExpenseSplitAmong, setNewExpenseSplitAmong] = useState<string[]>(groupMembers.map(m => m.name));
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [itemizedBreakdown, setItemizedBreakdown] = useState<Record<string, { items: string; amount: string }>>({});
-  const [localExpenses, setLocalExpenses] = useState<Array<{id: string; name: string; amount: number; paidBy: string; splitType: string; category?: string; splitAmong?: string[]; customAmounts?: Record<string, number>; lineItems?: string[]; settled?: boolean}>>([]);
+  const [localExpenses, setLocalExpenses] = useState<Array<{id: string; name: string; amount: number; paidBy: string; splitType: 'equal' | 'custom'; category?: string; splitAmong?: string[]; customAmounts?: Record<string, number>; lineItems?: { description: string; amount: number }[]; settled?: boolean}>>([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -711,11 +736,19 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `trip_id=eq.${params.id}` },
         (payload) => {
-          const msg = payload.new as any;
+          // Realtime row payload — Supabase types this as Record<string, any>;
+          // we narrow to the columns we actually read.
+          const msg = payload.new as {
+            id: string;
+            sender_id: string | null;
+            sender_name: string;
+            content: string;
+            created_at: string;
+          };
           // Skip own messages (already added optimistically)
           if (currentUserId && msg.sender_id === currentUserId) return;
           setChatMessages(prev => {
-            if (prev.some((m: any) => m.id === msg.id)) return prev;
+            if (prev.some(m => m.id === msg.id)) return prev;
             return [...prev, {
               id: msg.id,
               senderName: msg.sender_name,
@@ -992,7 +1025,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const allVotedActivities: VotedActivity[] = (() => {
     const result: VotedActivity[] = [];
     for (const day of itineraryDaysData) {
-      for (const track of ['shared', 'track_a', 'track_b']) {
+      for (const track of ['shared', 'track_a', 'track_b'] as const) {
         for (const act of (day.tracks?.[track] ?? [])) {
           const up = act.upVotes ?? 0;
           const down = act.downVotes ?? 0;
@@ -1775,6 +1808,17 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                             )
                           : {};
 
+                        // ScannedReceipt.items is string[] (free-text item
+                        // descriptions). The expense row's lineItems shape is
+                        // { description, amount }[] so the API + downstream
+                        // settlement math line up. The receipt scanner doesn't
+                        // produce per-item amounts, so we leave amount=0 — the
+                        // optimistic row will be replaced by the canonical
+                        // server row after the POST resolves.
+                        const optimisticLineItems = (scannedData?.items ?? []).map(
+                          desc => ({ description: desc, amount: 0 })
+                        );
+
                         const newExp = {
                           id: `exp_opt_${Date.now()}`,
                           name: newExpenseName.trim(),
@@ -1784,7 +1828,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           category: newExpenseCategory,
                           splitAmong: groupMembers.map(m => m.name),
                           customAmounts: custom,
-                          lineItems: scannedData?.items ?? [],
+                          lineItems: optimisticLineItems,
                           settled: false,
                         };
 
