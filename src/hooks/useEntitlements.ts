@@ -88,7 +88,7 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
   traveler_limit: {
     reason: 'traveler_limit',
     headline: 'Your group is growing',
-    body: 'Add more travelers with a Trip Pass add-on, or upgrade for bigger group support built in.',
+    body: 'A Trip Pass covers up to 12 travelers ($30 base for 6, +$4 each beyond that). Or compare full subscriptions for unlimited group support.',
     ctaLabel: 'See options',
   },
   feature_locked: {
