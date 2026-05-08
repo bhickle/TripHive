@@ -48,6 +48,31 @@ function maybeTrackDownload(photo: DynamicPhoto | null | undefined) {
   }).catch(() => { /* silent */ });
 }
 
+// Persists the resolved Unsplash URL to the trip's cover_image column so
+// every subsequent load is instant — no gradient flash, no API roundtrip.
+// Gated by sessionStorage to fire at most once per trip per browser
+// session (PATCH is idempotent but spamming the endpoint is wasteful).
+// Fails silently for non-organizer members (the API enforces RBAC) and
+// for mock trips (their IDs aren't valid UUIDs in Supabase).
+function maybePersistCoverImage(tripId: string, photo: DynamicPhoto | null) {
+  if (!photo?.url) return;
+  if (typeof window === 'undefined') return;
+  // Mock trip IDs are short slugs ('iceland-trip', etc.) — skip them.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(tripId)) return;
+  const key = `trip_cover_persisted_${tripId}`;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  } catch {
+    /* sessionStorage unavailable — fall through and PATCH anyway */
+  }
+  fetch(`/api/trips/${tripId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tripPatch: { cover_image: photo.url } }),
+  }).catch(() => { /* silent — gradient just keeps loading next time */ });
+}
+
 interface TripCardProps {
   trip: Trip;
   onCardClick?: (tripId: string) => void;
@@ -92,11 +117,12 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
         if (!aborted) {
           setDynamicPhoto(photo);
           maybeTrackDownload(photo);
+          maybePersistCoverImage(trip.id, photo);
         }
       })
       .catch(() => { /* silent — placeholder stays */ });
     return () => { aborted = true; };
-  }, [trip.destination, userPhoto]);
+  }, [trip.destination, trip.id, userPhoto]);
 
   const photoSrc = userPhoto ?? dynamicPhoto?.url ?? null;
   // Show the attribution chip only for live Unsplash photos with full
@@ -146,10 +172,10 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
             className="object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
-          // Loading state and no-result fallback: branded gradient instead
-          // of an unattributed Unsplash photo. Keeps the layout intact while
-          // the dynamic search resolves.
-          <div className="absolute inset-0 bg-gradient-to-br from-sky-700 via-sky-800 to-emerald-800" />
+          // Loading state and no-result fallback: brand-color gradient
+          // (ocean → earth) instead of an unattributed Unsplash photo.
+          // Keeps the layout intact while the dynamic search resolves.
+          <div className="absolute inset-0 bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
