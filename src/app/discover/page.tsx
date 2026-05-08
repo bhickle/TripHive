@@ -67,6 +67,22 @@ interface SeasonalCollection {
   destinationNames: string[];
 }
 
+interface CommunityTrip {
+  id: string;
+  title: string;
+  destination: string;
+  startDate: string | null;
+  endDate: string | null;
+  tripLength: number;
+  groupSize: number;
+  coverImage: string | null;
+  coverImageMeta: { photographer?: string | null; photographerUrl?: string | null; photoUrl?: string | null } | null;
+  organizerName: string | null;
+  likeCount: number;
+  planClickCount: number;
+  createdAt: string;
+}
+
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const CONTINENTS = ['All', 'Africa', 'Asia', 'Europe', 'North America', 'Oceania', 'South America'];
@@ -398,6 +414,9 @@ export default function DiscoverPage() {
   const [seasonal, setSeasonal] = useState<SeasonalCollection[]>([]);
   const [featuredDays, setFeaturedDays] = useState<Record<string, ItineraryDay[]>>({});
   const [loadingFeaturedDays, setLoadingFeaturedDays] = useState(false);
+  const [communityTrips, setCommunityTrips] = useState<CommunityTrip[]>([]);
+  const [communityLikedIds, setCommunityLikedIds] = useState<Set<string>>(new Set());
+  const [forkingId, setForkingId] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
@@ -417,6 +436,16 @@ export default function DiscoverPage() {
         if (data?.topSearches?.length) setTopSearches(data.topSearches);
       })
       .catch(() => { /* keep mock fallback */ });
+  }, []);
+
+  // Community trips — public-template itineraries from the community
+  useEffect(() => {
+    fetch('/api/community')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data?.trips)) setCommunityTrips(data.trips);
+      })
+      .catch(() => { /* silent — empty state is fine */ });
   }, []);
 
   // Featured itineraries + seasonal collections
@@ -462,6 +491,63 @@ export default function DiscoverPage() {
 
   const toggleVibe = (v: VibeTag) => {
     setActiveVibes(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
+  };
+
+  const handleCommunityLike = async (tripId: string) => {
+    if (!currentUser.id || currentUser.isDemo) {
+      // Unauthed → redirect to login. Could prompt instead.
+      window.location.href = '/auth/login';
+      return;
+    }
+    const isLiked = communityLikedIds.has(tripId);
+    // Optimistic toggle
+    setCommunityLikedIds(prev => {
+      const next = new Set(prev);
+      isLiked ? next.delete(tripId) : next.add(tripId);
+      return next;
+    });
+    setCommunityTrips(prev => prev.map(t =>
+      t.id === tripId ? { ...t, likeCount: Math.max(0, t.likeCount + (isLiked ? -1 : 1)) } : t
+    ));
+    try {
+      const res = await fetch(`/api/trips/${tripId}/like`, { method: isLiked ? 'DELETE' : 'POST' });
+      if (!res.ok) throw new Error('like failed');
+      const data = await res.json();
+      // Reconcile against server count
+      setCommunityTrips(prev => prev.map(t =>
+        t.id === tripId ? { ...t, likeCount: data.count ?? t.likeCount } : t
+      ));
+    } catch {
+      // Roll back
+      setCommunityLikedIds(prev => {
+        const next = new Set(prev);
+        isLiked ? next.add(tripId) : next.delete(tripId);
+        return next;
+      });
+      setCommunityTrips(prev => prev.map(t =>
+        t.id === tripId ? { ...t, likeCount: Math.max(0, t.likeCount + (isLiked ? 1 : -1)) } : t
+      ));
+    }
+  };
+
+  const handleCommunityFork = async (tripId: string) => {
+    if (!currentUser.id || currentUser.isDemo) {
+      window.location.href = '/auth/login';
+      return;
+    }
+    if (forkingId) return;
+    setForkingId(tripId);
+    try {
+      const res = await fetch(`/api/trips/${tripId}/fork`, { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.tripId) {
+        window.location.href = `/trip/${data.tripId}/itinerary`;
+      } else {
+        setForkingId(null);
+      }
+    } catch {
+      setForkingId(null);
+    }
   };
 
   const handleWishlist = (id: string) => {
@@ -607,52 +693,153 @@ export default function DiscoverPage() {
           )}
 
           {/* ══════════════════════════════════════════════════════════════
-              LAYER 2 — Curated by vibe (all destinations)
+              LAYER 2 — Community itineraries (replaces the old Curated
+              Destinations grid). Real trips users have opted to share
+              publicly, sorted by like count → plan-click count → recency.
+              Filters from the search bar don't apply here — community
+              trips don't carry vibe tags.
           ══════════════════════════════════════════════════════════════ */}
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
-                  {isFiltering
-                    ? `${filtered.length} destination${filtered.length !== 1 ? 's' : ''} found`
-                    : 'Curated Destinations'}
-                </h2>
-                {!isFiltering && (
-                  <p className="text-sm text-zinc-400 mt-0.5">Flights, hotels &amp; experiences — affiliate links, one click away</p>
-                )}
+          {!isFiltering && (
+            <section>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
+                    What the community is building
+                  </h2>
+                  <p className="text-sm text-zinc-400 mt-0.5">
+                    Real itineraries from TripCoord travelers — like &apos;em, save &apos;em, or use one as your starting point
+                  </p>
+                </div>
               </div>
-              {isFiltering && (
+
+              {communityTrips.length === 0 ? (
+                <div className="text-center py-20 bg-white rounded-2xl border border-zinc-100">
+                  <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
+                  <p className="text-zinc-700 font-semibold">No public itineraries yet</p>
+                  <p className="text-zinc-400 text-sm mt-1 max-w-md mx-auto">
+                    Be the first — toggle <span className="font-semibold">Share publicly</span> on
+                    one of your itineraries to add it here.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {communityTrips.map(trip => {
+                    const liked = communityLikedIds.has(trip.id);
+                    return (
+                      <div
+                        key={trip.id}
+                        className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                      >
+                        <Link href={`/community/${trip.id}`} className="block group">
+                          <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
+                            {trip.coverImage && (
+                              <Image
+                                src={trip.coverImage}
+                                alt={trip.destination}
+                                fill
+                                className="object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                            {trip.likeCount > 0 && (
+                              <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
+                                <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
+                              </div>
+                            )}
+                            <div className="absolute bottom-3 left-3 right-3">
+                              <p className="text-white font-script italic text-xl font-semibold drop-shadow">{trip.destination}</p>
+                            </div>
+                          </div>
+                        </Link>
+
+                        <div className="p-4 flex-1 flex flex-col gap-3">
+                          <div className="flex items-center gap-3 text-xs text-zinc-500">
+                            {trip.tripLength > 0 && (
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="w-3 h-3" /> {trip.tripLength} {trip.tripLength === 1 ? 'day' : 'days'}
+                              </span>
+                            )}
+                            {trip.groupSize > 0 && (
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="w-3 h-3" /> {trip.groupSize} {trip.groupSize === 1 ? 'traveler' : 'travelers'}
+                              </span>
+                            )}
+                          </div>
+                          {trip.organizerName && (
+                            <p className="text-xs text-zinc-400">by {trip.organizerName}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-auto">
+                            <button
+                              onClick={() => handleCommunityLike(trip.id)}
+                              className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                                liked
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                                  : 'bg-zinc-50 text-zinc-600 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+                              }`}
+                              aria-label={liked ? 'Unlike' : 'Like'}
+                            >
+                              <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
+                              {liked ? 'Liked' : 'Like'}
+                            </button>
+                            <button
+                              onClick={() => handleCommunityFork(trip.id)}
+                              disabled={forkingId === trip.id}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-lg transition-all"
+                            >
+                              {forkingId === trip.id ? 'Copying…' : 'Use as starting point'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* When filters are active, show the original destination grid
+              against the editor-curated discover_destinations rows so
+              search/vibe filtering still has something to bite on. */}
+          {isFiltering && (
+            <section>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
+                    {filtered.length} destination{filtered.length !== 1 ? 's' : ''} found
+                  </h2>
+                </div>
                 <button
                   onClick={() => { setActiveVibes([]); setActiveContinent('All'); setQuery(''); }}
                   className="text-xs text-zinc-400 hover:text-zinc-700 font-semibold underline"
                 >
                   Clear all filters
                 </button>
-              )}
-            </div>
+              </div>
 
-            {filtered.length === 0 ? (
-              <div className="text-center py-20">
-                <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
-                <p className="text-zinc-500 font-semibold">No destinations match your filters</p>
-                <p className="text-zinc-400 text-sm mt-1">Try broadening your search</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filtered.map(dest => (
-                  <DestinationCard
-                    key={dest.id}
-                    dest={dest}
-                    onWishlist={handleWishlist}
-                    wishlisted={wishlistedIds.has(dest.id)}
-                    canWishlist={hasWishlist}
-                    onCardClick={() => logDestinationEvent(dest.name, 'card_click')}
-                    onPlanClick={() => logDestinationEvent(dest.name, 'plan_click')}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+              {filtered.length === 0 ? (
+                <div className="text-center py-20">
+                  <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
+                  <p className="text-zinc-500 font-semibold">No destinations match your filters</p>
+                  <p className="text-zinc-400 text-sm mt-1">Try broadening your search</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filtered.map(dest => (
+                    <DestinationCard
+                      key={dest.id}
+                      dest={dest}
+                      onWishlist={handleWishlist}
+                      wishlisted={wishlistedIds.has(dest.id)}
+                      canWishlist={hasWishlist}
+                      onCardClick={() => logDestinationEvent(dest.name, 'card_click')}
+                      onPlanClick={() => logDestinationEvent(dest.name, 'plan_click')}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════
               LAYER 3 — Seasonal collections (SEO-driven)
