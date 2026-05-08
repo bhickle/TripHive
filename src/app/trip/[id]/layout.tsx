@@ -93,7 +93,7 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   const trip = mockTrip ?? (() => {
     const base = trips[0]; // shape reference only — destination + title are always overridden
     const destination = aiMeta?.destination ?? '';
-    const city = destination.split(',')[0].trim();
+    const city = (destination ?? '').split(',')[0].trim();
     const title = aiMeta?.title ?? (city ? `${city} Adventure` : 'Your Trip');
     return { ...base, id: params.id, destination, title };
   })();

@@ -73,8 +73,8 @@ function weatherSearchUrl(dest: string): string {
 }
 
 /** Returns the primary destination name (before any comma/& delimiter). */
-function primaryDest(dest: string): string {
-  return dest.split(/[,&/]|\band\b/i)[0].trim();
+function primaryDest(dest: string | undefined | null): string {
+  return (dest ?? '').split(/[,&/]|\band\b/i)[0].trim();
 }
 
 /** Open-Meteo forecast window: 16 days from today. */

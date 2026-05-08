@@ -1944,7 +1944,41 @@ function ItineraryPageContent() {
       });
       if (!res.ok) throw new Error('Generation failed');
       const { day: generatedDay } = await res.json() as { day: import('@/lib/types').ItineraryDay };
-      shiftedDays.splice(insertIndex, 0, { ...generatedDay, day: newDayNumber, date: newDate });
+      // Normalise the AI's day so missing optional fields don't crash render
+      // paths that assume they're set. Multiple components read these fields
+      // (sidebar Day Highlights, MapView, Weather, etc.) and an unguarded
+      // .split() on a missing string field reproducibly broke this flow.
+      const normalisedDay: import('@/lib/types').ItineraryDay = {
+        ...generatedDay,
+        day: newDayNumber,
+        date: newDate,
+        theme: generatedDay.theme ?? 'Free Day',
+        city: generatedDay.city ?? destination,
+        tracks: {
+          shared: generatedDay.tracks?.shared ?? [],
+          track_a: generatedDay.tracks?.track_a ?? [],
+          track_b: generatedDay.tracks?.track_b ?? [],
+        },
+        meetupTime: generatedDay.meetupTime ?? '',
+        meetupLocation: generatedDay.meetupLocation ?? '',
+        photoSpots: generatedDay.photoSpots ?? [],
+        foodieTips: generatedDay.foodieTips ?? [],
+        transportLegs: generatedDay.transportLegs ?? [],
+      };
+      // Backfill any missing string fields on each activity so downstream
+      // .split() / display code never hits undefined.
+      for (const track of ['shared', 'track_a', 'track_b'] as const) {
+        const acts = (normalisedDay.tracks as Record<string, import('@/lib/types').Activity[]>)[track];
+        if (!Array.isArray(acts)) continue;
+        for (const a of acts) {
+          a.timeSlot = a.timeSlot ?? '';
+          a.title = a.title ?? a.name ?? 'Activity';
+          a.description = a.description ?? '';
+          a.address = a.address ?? '';
+          a.track = (a.track as 'shared' | 'track_a' | 'track_b') ?? track;
+        }
+      }
+      shiftedDays.splice(insertIndex, 0, normalisedDay);
       const finalDays = shiftedDays.sort((a, b) => a.day - b.day);
       persistDays(finalDays);
       setSelectedDay(newDayNumber);

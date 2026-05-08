@@ -1991,7 +1991,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-zinc-900 leading-snug truncate">{nay.name}</p>
                           <p className="text-xs text-zinc-400 mt-0.5">
-                            Day {nay.dayNumber} · {nay.timeSlot.split(/–|—/)[0]?.trim() ?? ''}
+                            Day {nay.dayNumber} · {(nay.timeSlot ?? '').split(/–|—/)[0]?.trim() ?? ''}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
