@@ -115,7 +115,9 @@ export async function PATCH(
         booked_hotels?: Json[];
         booked_flight?: Json;
         is_private?: boolean;
+        is_public_template?: boolean;
         cover_image?: string | null;
+        cover_image_meta?: Json | null;
       };
     };
 

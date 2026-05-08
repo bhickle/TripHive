@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_likes: {
+        Row: {
+          activity_id: string
+          created_at: string
+          id: string
+          trip_id: string
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          id?: string
+          trip_id: string
+          user_id: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          id?: string
+          trip_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_likes_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_votes: {
         Row: {
           activity_id: string
@@ -414,6 +446,35 @@ export type Database = {
             foreignKeyName: "itineraries_trip_id_fkey"
             columns: ["trip_id"]
             isOneToOne: true
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      itinerary_likes: {
+        Row: {
+          created_at: string
+          id: string
+          trip_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          trip_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          trip_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itinerary_likes_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
             referencedRelation: "trips"
             referencedColumns: ["id"]
           },
@@ -907,10 +968,12 @@ export type Database = {
           created_at: string
           destination: string
           end_date: string | null
+          fork_source_id: string | null
           group_size: number
           group_type: string | null
           id: string
           is_private: boolean
+          is_public_template: boolean
           itinerary_generated_at: string | null
           organizer_id: string | null
           preferences: Json
@@ -930,10 +993,12 @@ export type Database = {
           created_at?: string
           destination: string
           end_date?: string | null
+          fork_source_id?: string | null
           group_size?: number
           group_type?: string | null
           id?: string
           is_private?: boolean
+          is_public_template?: boolean
           itinerary_generated_at?: string | null
           organizer_id?: string | null
           preferences?: Json
@@ -953,10 +1018,12 @@ export type Database = {
           created_at?: string
           destination?: string
           end_date?: string | null
+          fork_source_id?: string | null
           group_size?: number
           group_type?: string | null
           id?: string
           is_private?: boolean
+          is_public_template?: boolean
           itinerary_generated_at?: string | null
           organizer_id?: string | null
           preferences?: Json
@@ -967,6 +1034,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "trips_fork_source_id_fkey"
+            columns: ["fork_source_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trips_organizer_id_fkey"
             columns: ["organizer_id"]
