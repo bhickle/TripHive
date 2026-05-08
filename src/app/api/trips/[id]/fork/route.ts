@@ -85,12 +85,19 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           trip_id: newTrip.id,
           days: srcItinerary.days,
           meta: srcItinerary.meta,
-          source: 'forked',
+          // Inherit the source's content origin ('ai' / 'upload' / 'manual').
+          // The fact that this trip was forked is captured separately by
+          // trips.fork_source_id — itineraries.source has a CHECK constraint
+          // limiting it to those three values, so 'forked' would be rejected.
+          source: srcItinerary.source ?? 'ai',
         });
       if (itinErr) {
-        // Trip was created but itinerary copy failed — log and continue.
-        // User can regenerate from inside the trip if needed.
-        console.warn('fork itinerary copy failed:', itinErr);
+        // Empty trip = broken UX (user lands on a skeleton with no days).
+        // Roll back the new trip row and surface a real error instead of
+        // silently leaving the user stuck.
+        console.error('fork itinerary copy failed:', itinErr);
+        await supabase.from('trips').delete().eq('id', newTrip.id);
+        return NextResponse.json({ error: 'Failed to copy itinerary' }, { status: 500 });
       }
     }
 
