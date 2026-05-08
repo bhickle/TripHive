@@ -909,6 +909,7 @@ export type Database = {
           group_size: number
           group_type: string | null
           id: string
+          is_private: boolean
           itinerary_generated_at: string | null
           organizer_id: string | null
           preferences: Json
@@ -930,6 +931,7 @@ export type Database = {
           group_size?: number
           group_type?: string | null
           id?: string
+          is_private?: boolean
           itinerary_generated_at?: string | null
           organizer_id?: string | null
           preferences?: Json
@@ -951,6 +953,7 @@ export type Database = {
           group_size?: number
           group_type?: string | null
           id?: string
+          is_private?: boolean
           itinerary_generated_at?: string | null
           organizer_id?: string | null
           preferences?: Json

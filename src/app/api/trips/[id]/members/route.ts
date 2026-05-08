@@ -117,24 +117,26 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
  *   - Guest joiners (user_id is null; name + email stored directly)
  * Body: { name: string, email?: string, preferences?: object }
  *
- * SECURITY NOTE — open by design today:
- * Anyone with a trip UUID can POST and add themselves as `role: 'member'`.
- * That's intentional for the public share-link UX (/join/[id]) but means a
- * leaked or guessed UUID lets an attacker join a private trip. The proper
- * fix is an invite-token system: organizer issues a one-time token from the
- * email/sms invite routes, /join/[id] passes it back here, and POST rejects
- * requests without a valid + unconsumed token. Tracked as a separate punch
- * list item — do not require auth here without also building tokens, since
- * that would silently break the share-link join flow.
+ * Privacy modes:
+ *   - PUBLIC trip (default, trips.is_private = false): anyone with the
+ *     trip UUID can POST and join — the open share-link UX. An invite
+ *     token is honored if present (Phase 1 audit trail) but not required.
+ *   - PRIVATE trip (trips.is_private = true, Phase 2): a valid +
+ *     unconsumed invite token is REQUIRED. Tokenless joins are rejected
+ *     with 403. Organizer-issued tokens come from /api/invite/email or
+ *     /api/invite/sms and are passed back via the /join/[id] URL.
+ *
+ * Existing trips default to is_private = false so all current share
+ * links keep working unchanged. Toggle is on the trip's group page.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = createAdminClient();
 
-    // Check if the trip exists
+    // Check if the trip exists + read the privacy flag for the gate below.
     const { data: trip, error: tripErr } = await supabase
       .from('trips')
-      .select('id, organizer_id')
+      .select('id, organizer_id, is_private')
       .eq('id', params.id)
       .single();
 
@@ -154,14 +156,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'name is required' }, { status: 400 });
     }
 
-    // ── Validate + consume invite token if present ─────────────────────────
-    // Phase 1 of the invite-token system: token is OPTIONAL on join (tokenless
-    // joins still work today for the open share-link UX). When a token IS
-    // provided, validate it against trip_invites — if invalid/expired/already
-    // consumed, reject the join. On success mark the row accepted so the same
-    // token can't be reused. Phase 2 will add a privacy flag on trips that
-    // makes the token required.
+    // ── Privacy gate: private trips require a valid invite token ───────────
+    // Public trips (is_private = false) preserve the open share-link UX:
+    // tokens are validated when present but not required. Private trips
+    // (is_private = true) reject tokenless joins with 403, and an invalid
+    // / mismatched / expired / consumed token also fails. The validation
+    // below runs the same logic for both modes — only the "no token at
+    // all" case differs.
     let consumedInviteId: string | null = null;
+    if (trip.is_private && !inviteToken) {
+      return NextResponse.json(
+        { error: 'This trip is private. You need an invite from the organizer to join.' },
+        { status: 403 },
+      );
+    }
     if (inviteToken) {
       const { data: invite } = await supabase
         .from('trip_invites')

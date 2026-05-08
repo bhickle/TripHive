@@ -86,6 +86,11 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
   const isAuthenticated = !currentUser.isLoading && !!currentUser.id && !currentUser.isDemo;
 
   const [step, setStep] = useState<JoinStep>('intro');
+  // Surfaces server errors from the members POST — most importantly the
+  // privacy gate ("This trip is private") so users without a valid invite
+  // token don't silently end up on the confirmation step thinking they
+  // joined a trip they didn't actually get into.
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [tripData, setTripData] = useState<TripData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -234,7 +239,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
             submittedAt: new Date().toISOString(),
             accommodation: guestData.accommodation,
           };
-          await fetch(`/api/trips/${tripId}/members`, {
+          const res = await fetch(`/api/trips/${tripId}/members`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -244,9 +249,25 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               ...(inviteToken ? { inviteToken } : {}),
             }),
           });
+          if (!res.ok) {
+            // Read the server's error message so privacy/expired-token
+            // errors land in the UI verbatim. The bail-out below stops
+            // the user from advancing to the confirmation step thinking
+            // they joined when they actually didn't.
+            let msg = `Couldn't join the trip (${res.status}).`;
+            try {
+              const body = await res.json();
+              if (body?.error) msg = body.error;
+            } catch { /* response wasn't JSON */ }
+            setJoinError(msg);
+            setJoining(false);
+            return;
+          }
         } catch (err) {
           console.error('Join trip error:', err);
-          // Non-blocking — still advance to confirmation even if the write fails
+          setJoinError('Network error — please check your connection and try again.');
+          setJoining(false);
+          return;
         } finally {
           setJoining(false);
         }
@@ -470,6 +491,21 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   ))}
                 </div>
               </div>
+
+              {/* Server-side error from /api/trips/[id]/members POST.
+                  Most commonly: privacy gate ("This trip is private") or
+                  expired/invalid invite token. Surfaced inline so users
+                  know exactly why the join didn't go through. */}
+              {joinError && (
+                <div className="mt-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-lg">
+                  <p className="text-sm text-rose-800 font-medium">{joinError}</p>
+                  {joinError.toLowerCase().includes('private') && (
+                    <p className="text-xs text-rose-700 mt-1">
+                      Ask the trip organizer to send you an email or text invite — those links carry the access token you need.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* CTAs */}
               <div className="flex space-x-3 pt-4">

@@ -129,6 +129,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.budget_total) {
           setTripBudgetTotal(tripRes.value.trip.budget_total);
         }
+        if (tripRes.status === 'fulfilled' && typeof tripRes.value?.trip?.is_private === 'boolean') {
+          setTripIsPrivate(tripRes.value.trip.is_private);
+        }
         if (tripRes.status === 'fulfilled' && tripRes.value?.itinerary?.days) {
           const days = tripRes.value.itinerary.days;
           setItineraryDaysData(days);
@@ -258,6 +261,10 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [itineraryDaysData, setItineraryDaysData] = useState<any[]>([]);
   // Trip budget_total from Supabase — used to calculate the utilization bar
   const [tripBudgetTotal, setTripBudgetTotal] = useState<number>(0);
+  // Privacy flag — when true, /join/[id] without a valid invite token is
+  // rejected with 403 by the members POST. UI toggle on the Overview tab.
+  const [tripIsPrivate, setTripIsPrivate] = useState<boolean>(false);
+  const [privacyToggleSaving, setPrivacyToggleSaving] = useState(false);
 
   // Discover Wishlist — items voted on in the What's Out There tab
   type WishlistItem = {
@@ -1151,6 +1158,71 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       </div>
                     </>
                   )}
+                </div>
+              );
+            })()}
+
+            {/* Privacy toggle — organizer/co-organizer only. Locks /join/[id]
+                to require an invite token from /api/invite/email or /sms when
+                enabled. Public is the default — preserves the open share-link
+                UX for casual trips. */}
+            {(() => {
+              const viewerRole = currentUserId
+                ? groupMembers.find(m => m.id === currentUserId)?.role
+                : null;
+              if (viewerRole !== 'organizer' && viewerRole !== 'co_organizer') return null;
+              return (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ShieldCheck className={`w-4 h-4 ${tripIsPrivate ? 'text-emerald-600' : 'text-zinc-400'}`} />
+                        <h3 className="font-semibold text-zinc-900 text-sm">
+                          {tripIsPrivate ? 'Private trip' : 'Public share link'}
+                        </h3>
+                      </div>
+                      <p className="text-xs text-zinc-500 leading-relaxed">
+                        {tripIsPrivate
+                          ? 'Only people you\'ve invited via email or SMS can join. Sharing the bare trip link won\'t let anyone else in.'
+                          : 'Anyone with the trip link can join the group. Turn this on to require an emailed/texted invite.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (privacyToggleSaving) return;
+                        const next = !tripIsPrivate;
+                        setPrivacyToggleSaving(true);
+                        // Optimistic UI flip; rollback on failure.
+                        setTripIsPrivate(next);
+                        try {
+                          const res = await fetch(`/api/trips/${params.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ tripPatch: { is_private: next } }),
+                          });
+                          if (!res.ok) throw new Error(`save failed: ${res.status}`);
+                        } catch {
+                          setTripIsPrivate(!next);
+                          setActionError('Couldn\'t update privacy setting. Please try again.');
+                          setTimeout(() => setActionError(null), 4000);
+                        } finally {
+                          setPrivacyToggleSaving(false);
+                        }
+                      }}
+                      disabled={privacyToggleSaving}
+                      role="switch"
+                      aria-checked={tripIsPrivate}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                        tripIsPrivate ? 'bg-emerald-600' : 'bg-zinc-300'
+                      } ${privacyToggleSaving ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                          tripIsPrivate ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               );
             })()}
