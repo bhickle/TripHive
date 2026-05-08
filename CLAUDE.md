@@ -2,7 +2,7 @@
 
 > **App name:** TripCoord (brand) / **Repo:** TripHive / **Domain:** tripcoord.ai  
 > **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · Supabase · Anthropic Claude API · Stripe  
-> **Last updated:** 2026-05-07
+> **Last updated:** 2026-05-08
 
 ---
 
@@ -215,28 +215,24 @@ Claude cannot set these — Brandon must add them manually.
 
 ## Open Development Tasks
 
-These are the active items to build/fix, in rough priority order:
+These are the active items to build/fix, in rough priority order. Note: this list goes stale fast. Always cross-check against `git log` before assuming a task is unfinished — many "open" items here are knocked out within a session and not removed promptly.
 
 ### 🔴 Must-Fix Before Any More Testing
 - _All previously listed items shipped. Add new launch-blockers here as they surface._
 
 ### 🟠 Feature Work (Active)
 - [ ] **Enable Google OAuth** (`#183`) — Google sign-in buttons exist but OAuth is not configured. Steps: Google Cloud Console → create OAuth Client ID → redirect URI: `https://pqizuvmtertpxhhxyemj.supabase.co/auth/v1/callback` → Supabase dashboard → Authentication → Providers → Google → enable + paste keys.
-- [ ] **Build Trip Pass purchase flow** — trip selector + extra people picker + Stripe checkout. Not yet built.
-- [ ] **Split Tracks + Co-organizer → Trip Pass tier** — currently gated at Explorer. Move to Trip Pass.
-- [ ] **Wishlist for free users (no AI preview)** — free users can add to wishlist but can't get AI destination previews.
-- [ ] **Invite-token system for `/join/[id]`** — currently anyone with a trip UUID can POST to `/api/trips/[id]/members` and add themselves as a guest, by design (open share-link flow). For private trips this should require a one-time token issued by the email/sms invite routes. Schema: add `trip_invites` table (already in `database.types.ts`), populate it from `/api/invite/email` + `/api/invite/sms`, validate token in `members POST`, mark consumed. Documented inline at `src/app/api/trips/[id]/members/route.ts` POST handler.
-- [ ] **Trip Story real-data implementation** — `src/components/TripStoryModal.tsx` is currently mock-only. Real trips and the Year-in-Review now show a "Coming soon" placeholder. Rewrite the slide deck to consume real trip data: actual `tripPhotos` rows, real expenses + members + chat highlights instead of the hardcoded "Marcus tried to pronounce Þingvellir" laughs. Gated by `MOCK_TRIP_IDS` check; remove that gate once real-data slides land.
+- [ ] **Invite-token system Phase 2 (privacy gate)** — Phase 1 shipped (commit `d6cc2d3`): tokens are issued by `/api/invite/email` + `/api/invite/sms` and validated in `/api/trips/[id]/members` POST when present, but the token is OPTIONAL today (open share-link still works). Phase 2: add a privacy flag on `trips` (default off for backward compat); when on, `members POST` rejects requests without a valid token. Documented inline at the members route.
+- [ ] **Trip Story real-data implementation** — DEFERRED per Brandon (2026-05-08): "I don't think we are there yet and it seems like a bit much for now." Real trips currently show a "Coming soon" placeholder gated by `MOCK_TRIP_IDS`. Partial progress: the data-driven slides (Top Picks, Numbers, Day Highlights) now read days from a prop instead of the mock import (commit `543eea6`), so when the gate is eventually removed those three are already mock-data-free. Slides still depending on hardcoded mock pools: Laughs (chat highlights), Crew (group members + roles), Photos (tripPhotos URLs). Rewrite those to consume real `group_messages`, `trip_members`, and `trip_photos` rows when ready.
 - [ ] **Per-priority difficulty UI** — design + build sliders on each selected priority chip in the Trip Builder so users can set "Adventure: Easy" or "Wellness: Challenging." State and `difficultyLevels` constant were removed; reintroduce when designing.
-- [ ] **`#10` sidebar formatting fix** — user reported the sidebar items "aren't formatted properly for a screen" but couldn't describe specifically. Waiting on a screenshot. Don't speculate — confirm with the user before attempting a fix.
+- [ ] **Yay/Nay dead-space layout decision** (PDF #3 deferred) — Brandon flagged a green-bordered empty area in the votes section's right column. Two options: (a) move Wishlist + Nay Watch into the right column of the votes grid so they fill space, (b) collapse to single-column on lg+ entirely. Needs Brandon's design call before implementing.
+- [ ] **Click expense line item to view/edit details** (PDF #3 deferred) — needs UX design for the detail panel (slide-over vs inline expand vs modal).
 
 ### 🟡 Polish & UX
 - [ ] **Unsplash integration** (`#78`) — dynamic destination photos on trip cards. Code scaffold is ready; just needs `UNSPLASH_ACCESS_KEY` env var + wiring in `src/app/trips/page.tsx` and `dashboard/page.tsx`.
 - [ ] **Ticketmaster events** (`#69`) — real event data on Discover/What's Out There. Needs `TICKETMASTER_API_KEY`.
 - [ ] **Viator/GetYourGuide affiliate links** (`#70`) — "Book This" links on activity cards in the itinerary. Scaffold at `scripts/enrich-affiliate-links.ts`. Needs affiliate registration + API keys (blocked until site is live for affiliate approval).
-- [ ] **Trip Story repositioning** — move Trip Story CTA from active itinerary toolbar to a "Memories" section on the dashboard that appears only after trip end date. (`src/app/trip/[id]/itinerary/page.tsx` + `dashboard/page.tsx`). Gates behind `tripEnded`; the placeholder "Coming soon" view will still show until the real-data implementation lands.
-- [ ] **Dashboard "View All Notifications" button** — non-functional today, no `onClick`. Either build a `/notifications` page or remove the button. Per the wire-up rule, prefer building.
-- [ ] **Affiliate disclosure** — Discover page renders Flights / Hotels / Things-to-Do affiliate links without per-link FTC disclosure. Add a small "(affiliate)" tag inline.
+- [ ] **Prompt-cache optimization (low priority)** — `cacheableGuidance` can fall below Anthropic's 2K-token threshold for users with few priorities, in which case caching silently doesn't happen. Not a regression — the current architecture is correct, just sub-optimal at the low end. Bigger fix: move stable user-prompt content (budgetTierText, groupTypeText, walkingRuleText, etc.) into the cacheable region so multi-city chunks share more cache. Audit notes from 2026-05-08.
 
 ### 🟢 Go-Live Prerequisites (Brandon-owned)
 - [ ] Re-enable email confirmation in Supabase (currently OFF for testing ease)
@@ -245,6 +241,7 @@ These are the active items to build/fix, in rough priority order:
 - [ ] Upgrade Twilio from trial to Pay As You Go + complete A2P 10DLC registration
 - [ ] Swap Stripe test keys for live keys + recreate products in live mode + update `src/lib/stripe-prices.ts`
 - [ ] Reset AI credits: `UPDATE profiles SET ai_credits_used = 0;`
+- [ ] Set `CRON_SECRET` in Vercel env vars (any random string) — the daily preferences-fallback cron at `/api/cron/preferences-fallback` returns 500 every day at 09:00 UTC until set. Steps in the route's docstring.
 - [ ] Run full pre-launch test pass (see `GOLIVE_CHECKLIST.md`)
 
 ---
