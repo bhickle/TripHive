@@ -42,14 +42,6 @@ const coverPhotos: Record<string, string> = {
   default:   'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=1400&fit=crop',
 };
 
-const budgetColors: Record<string, string> = {
-  flights: 'bg-sky-500', hotel: 'bg-violet-500', food: 'bg-orange-400',
-  experiences: 'bg-emerald-500', transport: 'bg-indigo-400',
-};
-const budgetLabels: Record<string, string> = {
-  flights: 'Flights', hotel: 'Hotel', food: 'Food', experiences: 'Activities', transport: 'Getting Around',
-};
-
 const dayColors = [
   { bg: 'bg-sky-900/60',     border: 'border-sky-700/40',     text: 'text-sky-300',    num: 'bg-sky-700' },
   { bg: 'bg-violet-900/60',  border: 'border-violet-700/40',  text: 'text-violet-300', num: 'bg-violet-700' },
@@ -298,34 +290,67 @@ function CrewSlide({ bgPhoto }: { bgPhoto?: string }) {
   );
 }
 
-function BudgetSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string }) {
-  const total = Object.values(trip.budgetBreakdown).reduce((s, v) => s + v, 0);
-  const items = Object.entries(trip.budgetBreakdown)
-    .sort((a, b) => b[1] - a[1])
-    .map(([key, val]) => ({ key, val, pct: Math.round((val / total) * 100) }));
+// Replaces the old BudgetSlide. Brandon's note: a money breakdown is a
+// planning artifact, not a memory artifact. The deck now ends on the
+// experiences themselves. Picks 3 standout activities across the whole
+// trip — non-meal, non-transport, non-accommodation — ranked by category
+// distinctiveness (one adventure, one cultural, one scenic when available).
+function TopPicksSlide({ bgPhoto }: { bgPhoto?: string }) {
+  // Collect every non-utility activity across all days, then pick the
+  // first 3 with distinct categories so the slide isn't all the same
+  // type of thing.
+  const allActivities = itineraryDays.flatMap(d => [
+    ...d.tracks.shared,
+    ...d.tracks.track_a,
+    ...d.tracks.track_b,
+  ]).filter(a => {
+    const cat = (a.category ?? '').toLowerCase();
+    return cat !== 'transport' && cat !== 'accommodation' && !a.isRestaurant;
+  });
+
+  const seenCategories = new Set<string>();
+  const picks: typeof allActivities = [];
+  for (const a of allActivities) {
+    const cat = (a.category ?? 'experience').toLowerCase();
+    if (seenCategories.has(cat) && picks.length >= 3) continue;
+    if (picks.length >= 3) break;
+    if (!seenCategories.has(cat)) {
+      seenCategories.add(cat);
+      picks.push(a);
+    }
+  }
+  // Pad to 3 with whatever's left if we didn't find enough categories
+  if (picks.length < 3) {
+    for (const a of allActivities) {
+      if (picks.length >= 3) break;
+      if (!picks.includes(a)) picks.push(a);
+    }
+  }
+
   return (
     <SlideWithPhotoBg bgPhoto={bgPhoto}>
       <div className="flex flex-col p-8 pt-10 h-full">
-        <p className="text-zinc-400 text-xs font-semibold uppercase tracking-widest mb-2">Follow the money</p>
-        <h2 className="text-white text-3xl font-black mb-5 leading-tight">Where it went</h2>
+        <p className="text-zinc-400 text-xs font-semibold uppercase tracking-widest mb-2">The greatest hits</p>
+        <h2 className="text-white text-3xl font-black mb-5 leading-tight">You&apos;ll Remember These</h2>
         <div className="flex flex-col gap-3 flex-1">
-          {items.map(({ key, val, pct }) => (
-            <div key={key}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-white font-semibold text-sm">{budgetLabels[key] ?? key}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-400 text-xs">{pct}%</span>
-                  <span className="text-white font-bold text-sm">${val.toLocaleString()}</span>
+          {picks.map((a, i) => {
+            const c = dayColors[i % dayColors.length];
+            return (
+              <div key={a.id} className={`${c.bg} backdrop-blur-sm border ${c.border} rounded-xl p-4`}>
+                <div className="flex items-center gap-3 mb-1">
+                  <div className={`${c.num} w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0`}>
+                    <span className="text-white font-black text-xs">{i + 1}</span>
+                  </div>
+                  <p className="text-white font-bold text-sm leading-tight flex-1">{a.title}</p>
                 </div>
+                {a.description && (
+                  <p className="text-zinc-300 text-xs leading-relaxed line-clamp-2 ml-10">
+                    {a.description}
+                  </p>
+                )}
               </div>
-              <div className="w-full bg-white/10 rounded-full h-2.5 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${budgetColors[key] ?? 'bg-zinc-500'} transition-all duration-700`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="flex justify-center mt-4 opacity-30">
           <div className="flex items-center gap-2">
@@ -946,7 +971,7 @@ export function TripStoryModal({ mode, trip, onClose }: TripStoryModalProps) {
     { id: 'numbers', render: () => <NumbersSlide trip={activeTripData} bgPhoto={getBg(0)} /> },
     { id: 'days',    render: () => <DayHighlightsSlide trip={activeTripData} bgPhoto={getBg(1)} /> },
     { id: 'crew',    render: () => <CrewSlide bgPhoto={getBg(2)} /> },
-    { id: 'budget',  render: () => <BudgetSlide trip={activeTripData} bgPhoto={getBg(3)} /> },
+    { id: 'toppicks', render: () => <TopPicksSlide bgPhoto={getBg(3)} /> },
     { id: 'laughs',  render: () => <LaughsSlide bgPhoto={getBg(4)} /> },
     { id: 'photos',  render: () => <PhotosSlide photos={tripPhotos.slice(0, 7)} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotos.slice(0, 7), idx)} /> },
     { id: 'share',   render: () => <ShareSlide trip={activeTripData} onDownload={handleDownload} /> },

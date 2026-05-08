@@ -305,7 +305,6 @@ function ItineraryPageContent() {
   const [activityAdded, setActivityAdded] = useState(false);
   const [activityDeleted, setActivityDeleted] = useState(false);
   const [bookingSaved, setBookingSaved] = useState<string | null>(null);
-  const [storyLocked, setStoryLocked] = useState(false);
   // Undo delete
   const [undoSnapshot, setUndoSnapshot] = useState<{ activity: Activity; dayNumber: number; track: 'shared' | 'track_a' | 'track_b'; label: string } | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2236,12 +2235,6 @@ function ItineraryPageContent() {
             <span className="text-sm font-semibold">{bookingSaved}</span>
           </div>
         )}
-        {storyLocked && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-zinc-800 text-white px-4 py-2.5 rounded-full shadow-lg text-sm font-medium">
-            <BookOpen className="w-4 h-4 text-zinc-400" />
-            Available the day after your trip ends
-          </div>
-        )}
 
         {/* Undo delete toast — shown for 5s after an activity is deleted */}
         {undoSnapshot && (
@@ -2430,33 +2423,38 @@ function ItineraryPageContent() {
             </a>
 
             {(() => {
-              // Trip Story is available only after the trip's end date has passed (next day)
+              // Trip Story is hidden entirely until the trip has ended. Brandon's
+              // concern: showing the button on active/planning trips invites
+              // exploratory clicks that could trigger AI-generated content costs
+              // in the future. The button only renders the day after the trip's
+              // end date — by which point the story is meaningful and the AI
+              // (when wired up) is generating something concrete to consume.
               const endDateStr = tripRow?.end_date || aiMeta?.endDate;
               const tripEnded = endDateStr
                 ? new Date() > new Date(new Date(endDateStr).getTime() + 24 * 60 * 60 * 1000)
                 : false;
-              const storyAvailable = hasTripStory && tripEnded;
+              if (!tripEnded) return null;
+              if (!hasTripStory) {
+                // Tier-gated but trip ended: still render so users can see the
+                // upgrade nudge. Disabled appearance with the lock badge.
+                return (
+                  <button
+                    onClick={() => setUpgradePromptKey('feature_locked')}
+                    className="flex items-center gap-1.5 px-3 py-2 md:px-4 border bg-white border-zinc-200 text-zinc-400 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+                  >
+                    <BookOpen className="w-4 h-4 text-zinc-300" />
+                    <span className="hidden sm:inline">Trip </span>Story
+                    <LockBadge />
+                  </button>
+                );
+              }
               return (
                 <button
-                  onClick={() => {
-                    if (!hasTripStory) { setUpgradePromptKey('feature_locked'); return; }
-                    if (!tripEnded) {
-                      setStoryLocked(true);
-                      setTimeout(() => setStoryLocked(false), 2500);
-                      return;
-                    }
-                    setShowStoryModal(true);
-                  }}
-                  title={hasTripStory && !tripEnded ? 'Available the day after your trip ends' : undefined}
-                  className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
-                    storyAvailable
-                      ? 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700'
-                      : 'bg-white border-zinc-200 text-zinc-400 cursor-not-allowed'
-                  }`}
+                  onClick={() => setShowStoryModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 md:px-4 border bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
                 >
-                  <BookOpen className={`w-4 h-4 ${storyAvailable ? 'text-sky-600' : 'text-zinc-300'}`} />
+                  <BookOpen className="w-4 h-4 text-sky-600" />
                   <span className="hidden sm:inline">Trip </span>Story
-                  {!hasTripStory && <LockBadge />}
                 </button>
               );
             })()}
