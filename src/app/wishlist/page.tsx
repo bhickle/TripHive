@@ -310,10 +310,12 @@ function AddDestinationModal({
                 try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
                 if (parsed.type === 'day' && parsed.index === 0) {
                   // Extract non-restaurant activity names from the first day as highlights
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const day = parsed.data as any;
-                  const shared: unknown[] = day?.tracks?.shared ?? [];
-                  const actNames = (shared as Array<{ isRestaurant?: boolean; name?: string }>)
+                  type SseDayData = {
+                    tracks?: { shared?: Array<{ isRestaurant?: boolean; name?: string }> };
+                  };
+                  const day = parsed.data as SseDayData | undefined;
+                  const shared = day?.tracks?.shared ?? [];
+                  const actNames = shared
                     .filter(a => !a.isRestaurant && a.name)
                     .map(a => a.name as string)
                     .slice(0, 3);

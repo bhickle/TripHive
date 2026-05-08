@@ -434,7 +434,7 @@ export default function SettingsPage() {
   // Use real auth profile tier when available; fall back to currentUser (mock) for demo/guest
   const rawTier = authLoading
     ? 'free'
-    : (user ? (authProfile?.subscription_tier ?? 'free') : ((currentUser as any).subscriptionTier ?? 'free')) as string;
+    : (user ? (authProfile?.subscription_tier ?? 'free') : (currentUser.subscriptionTier ?? 'free'));
   const tier = (rawTier in PLAN_DISPLAY) ? rawTier : 'free';
   const plan = PLAN_DISPLAY[tier];
   const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
@@ -673,7 +673,7 @@ export default function SettingsPage() {
     }
   };
 
-  const SectionButton = ({ section, label, icon: Icon }: { section: ActiveSection; label: string; icon: any }) => (
+  const SectionButton = ({ section, label, icon: Icon }: { section: ActiveSection; label: string; icon: React.ComponentType<{ className?: string }> }) => (
     <button
       onClick={() => setActiveSection(section)}
       className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all flex items-center space-x-3 ${

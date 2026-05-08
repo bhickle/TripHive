@@ -966,8 +966,11 @@ function ItineraryPageContent() {
                   break;
 
                 case 'day': {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const dayData = parsed.data as any;
+                  // SSE day payload — narrow to ItineraryDay since the
+                  // server contract guarantees this shape on `data` for
+                  // `type: 'day'` events. The two `as ItineraryDay` casts
+                  // below were already paying the same toll.
+                  const dayData = parsed.data as ItineraryDay;
                   collectedDays.push(dayData);
 
                   // Merge into live view — sort by day number
@@ -1152,8 +1155,7 @@ function ItineraryPageContent() {
         priorityHighlights:  firstMeta?.priorityHighlights               || null,
       };
       if (firstMeta) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setAiMeta(metaFull as any);
+        setAiMeta(metaFull);
       }
 
       if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {

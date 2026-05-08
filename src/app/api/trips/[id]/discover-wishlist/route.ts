@@ -16,8 +16,7 @@ export async function GET(
   if (!access.ok) return access.response;
   const { userId: myUserId, supabase } = access.ctx;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rows, error } = await (supabase as any)
+  const { data: rows, error } = await supabase
     .from('discover_wishlist')
     .select('item_id, item_data, vote, saved, user_id')
     .eq('trip_id', params.id);
@@ -40,7 +39,8 @@ export async function GET(
     if (row.vote === 'up') byItem[row.item_id].upVotes++;
     if (row.vote === 'down') byItem[row.item_id].downVotes++;
     if (row.user_id === myUserId) {
-      byItem[row.item_id].myVote = row.vote;
+      // Schema stores `vote` as plain string; only 'up' / 'down' are real votes.
+      byItem[row.item_id].myVote = row.vote === 'up' || row.vote === 'down' ? row.vote : null;
       byItem[row.item_id].mySaved = row.saved ?? false;
     }
   }
@@ -73,8 +73,7 @@ export async function POST(
 
   if (!itemId) return NextResponse.json({ error: 'itemId required' }, { status: 400 });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const table = (supabase as any).from('discover_wishlist');
+  const table = supabase.from('discover_wishlist');
 
   // Delete row only when both vote is null AND saved is false
   if (vote === null && saved === false) {
@@ -85,21 +84,28 @@ export async function POST(
   } else if (vote !== undefined || saved !== undefined) {
     // Fetch existing row to preserve fields not being updated
     const { data: existing } = await table
-      .select('vote, saved')
+      .select('vote, saved, item_data')
       .eq('trip_id', params.id)
       .eq('user_id', userId)
       .eq('item_id', itemId)
       .maybeSingle();
 
-    const newVote = vote !== undefined ? vote : (existing?.vote ?? null);
-    const newSaved = saved !== undefined ? saved : (existing?.saved ?? false);
+    // The `vote` column is non-nullable string in the schema. The body's
+    // `null` case is handled above (delete branch); here we coerce a
+    // missing-or-null vote to an empty string so the DB stays consistent.
+    // Without this, the previous (supabase as any) cast was masking a
+    // possible runtime constraint violation when (vote: null, saved: true)
+    // hit this branch with no existing row.
+    const newVote: string = vote ?? existing?.vote ?? '';
+    const newSaved: boolean = saved !== undefined ? saved : (existing?.saved ?? false);
+    const mergedItemData = (itemData ?? existing?.item_data ?? {}) as import('@/lib/supabase/database.types').Json;
 
     const { error } = await table.upsert(
       {
         trip_id: params.id,
         user_id: userId,
         item_id: itemId,
-        item_data: itemData ?? existing?.item_data ?? {},
+        item_data: mergedItemData,
         vote: newVote,
         saved: newSaved,
         updated_at: new Date().toISOString(),

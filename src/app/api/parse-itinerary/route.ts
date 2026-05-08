@@ -88,8 +88,7 @@ export async function POST(req: NextRequest) {
                 media_type: 'application/pdf',
                 data: pdfBase64,
               },
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            } as any,
+            },
             {
               type: 'text',
               text: `This is the itinerary PDF${fileName ? ` (${fileName})` : ''}. ${buildParsePrompt('')}`,

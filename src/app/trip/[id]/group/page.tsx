@@ -764,7 +764,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'group_messages', filter: `trip_id=eq.${params.id}` },
         (payload) => {
-          const msg = payload.new as any;
+          // UPDATE payloads land here when only `reactions` changes — typed
+          // narrowly to the columns we read.
+          const msg = payload.new as { id: string; reactions?: unknown };
           if (msg.reactions && typeof msg.reactions === 'object') {
             const normalized: Record<string, string[]> = {};
             for (const [emoji, val] of Object.entries(msg.reactions as Record<string, unknown>)) {
