@@ -16,6 +16,50 @@ export async function getAuthedUserId(): Promise<string | null> {
 }
 
 /**
+ * Look up the authed user's email + claim any orphaned trip_members rows.
+ *
+ * Background: the /join/[id] flow lets people join a trip BEFORE they have
+ * a TripCoord account — they fill out their email + name and the resulting
+ * trip_members row has email set but user_id = null. When that same person
+ * later signs up (or signs in), their auth.uid is a fresh value that
+ * doesn't match the existing row, so every member-scoped check (vote save,
+ * pack visibility, etc.) treats them as not-a-member and 403s.
+ *
+ * Fix: on every access check, find any trip_members rows for THIS trip
+ * where email matches the authed user but user_id is null, and claim them
+ * by setting user_id. After the first hit, subsequent calls are normal
+ * user_id lookups.
+ *
+ * Returns the user's email (or null if we can't resolve it) so callers
+ * can do the email-based fallback themselves on the same query.
+ */
+async function getEmailAndClaimOrphans(
+  supabase: ReturnType<typeof createAdminClient>,
+  tripId: string,
+  userId: string,
+): Promise<string | null> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle();
+  const email = profile?.email ?? null;
+  if (!email) return null;
+
+  // Claim any rows with this email but no user_id. ilike for case-insensitive
+  // match — emails are stored as the user typed them, but the auth address
+  // might be normalised.
+  await supabase
+    .from('trip_members')
+    .update({ user_id: userId })
+    .eq('trip_id', tripId)
+    .is('user_id', null)
+    .ilike('email', email);
+
+  return email;
+}
+
+/**
  * Returns true if the user is the trip organizer or a confirmed trip_member.
  */
 export async function verifyTripAccess(
@@ -31,6 +75,9 @@ export async function verifyTripAccess(
 
   if (!trip) return false;
   if (trip.organizer_id === userId) return true;
+
+  // Claim any guest-flow orphan rows for this user before the lookup.
+  await getEmailAndClaimOrphans(supabase, tripId, userId);
 
   const { data: membership } = await supabase
     .from('trip_members')
@@ -68,6 +115,9 @@ export async function getTripRole(
 
   if (!trip) return null;
   if (trip.organizer_id === userId) return 'organizer';
+
+  // Claim any guest-flow orphan rows for this user before the lookup.
+  await getEmailAndClaimOrphans(supabase, tripId, userId);
 
   const { data: membership } = await supabase
     .from('trip_members')

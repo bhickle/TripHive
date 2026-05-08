@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { getTripRole } from '@/lib/supabase/tripAccess';
+import { getTripRole, verifyTripAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]
@@ -38,17 +38,14 @@ export async function GET(
       return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
     }
 
-    // Verify the caller is the organizer or a trip member
+    // Verify the caller is the organizer or a trip member.
+    // verifyTripAccess also claims any orphan trip_members rows (email match
+    // but null user_id) — the open share-link join flow can create those
+    // when a guest joins before signing up.
     const isOrganizer = trip.organizer_id === userId;
     if (!isOrganizer) {
-      const { data: membership } = await supabase
-        .from('trip_members')
-        .select('id')
-        .eq('trip_id', params.id)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!membership) {
+      const hasAccess = await verifyTripAccess(supabase, params.id, userId);
+      if (!hasAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
