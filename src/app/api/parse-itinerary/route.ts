@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { AI_CREDIT_COSTS, TIER_LIMITS } from '@/lib/types';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const PARSE_COST = AI_CREDIT_COSTS.parse_itinerary;
 
 const SYSTEM_PROMPT = `You are an expert travel itinerary parser. Given raw itinerary text (from a PDF, email, travel agent doc, etc.), you extract and restructure it into a clean JSON format.
 
@@ -84,39 +81,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Credit gate ──────────────────────────────────────────────────────────
-  // Free tier gets ~10 parses/month before the server rejects with 402. Paid
-  // tiers (trip_pass, explorer, nomad) and admin (no monthly cap configured)
-  // pass through without enforcement — their cap is effectively the plan
-  // limit but we don't enforce paid-tier ceilings here yet.
-  //
-  // TODO(launch): apply this same credit-gate pattern to generate-itinerary,
-  // suggest-activity, and parse-transport. None of those routes currently
-  // enforce credits server-side, so the credit counter on the settings page
-  // is advisory only. Without server enforcement, a free user can't actually
-  // be stopped from running unlimited generations. Tracked as a launch
-  // blocker in CLAUDE.md.
-  const admin = createAdminClient();
-  let creditsUsedAtStart = 0;
-  if (auth.ctx.tier === 'free') {
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('ai_credits_used')
-      .eq('id', auth.ctx.userId)
-      .single();
-    creditsUsedAtStart = profile?.ai_credits_used ?? 0;
-    const limit = TIER_LIMITS.free.aiCreditsPerMonth as number;
-    if (creditsUsedAtStart + PARSE_COST > limit) {
-      return NextResponse.json(
-        {
-          error: 'CREDITS_EXHAUSTED',
-          message: `You've used your ${limit} AI credits for the month. Upgrade to a Trip Pass or higher tier for more.`,
-          used: creditsUsedAtStart,
-          limit,
-        },
-        { status: 402 },
-      );
-    }
-  }
+  // Two-phase: check before the AI call, increment after success. Failed
+  // parses don't consume credits — the user can retry without burning quota
+  // for an error that wasn't their fault.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'parse_itinerary');
+  if (!credits.ok) return credits.response;
 
   try {
     // Build message content — native PDF document for PDFs, text prompt for everything else
@@ -180,18 +149,8 @@ export async function POST(req: NextRequest) {
       throw new Error('Invalid structure — missing itinerary array');
     }
 
-    // Charge the credit AFTER a successful parse. Failed parses don't
-    // consume credits — the user can retry without burning quota for an
-    // error that wasn't their fault. Race condition: two simultaneous
-    // parses both pass the cap check then both increment, allowing 1
-    // over-charge. Acceptable on a 10-credit/mo free tier; tighten via
-    // a Postgres RPC with atomic increment if it matters at scale.
-    if (auth.ctx.tier === 'free') {
-      await admin
-        .from('profiles')
-        .update({ ai_credits_used: creditsUsedAtStart + PARSE_COST })
-        .eq('id', auth.ctx.userId);
-    }
+    // Charge the credit AFTER a successful parse.
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json({
       itinerary: parsed.itinerary,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 export const maxDuration = 60;
 
@@ -36,6 +37,10 @@ export async function POST(request: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 503 });
   }
+
+  // Credit gate (two-phase). Charged after the day is successfully parsed.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'add_day');
+  if (!credits.ok) return credits.response;
 
   let body: Record<string, unknown>;
   try {
@@ -130,8 +135,12 @@ Rules:
       try {
         day = JSON.parse(cleaned);
       } catch {
+        // Parse error doesn't charge — the user got nothing usable.
         return NextResponse.json({ error: 'PARSE_ERROR', raw }, { status: 500 });
       }
+
+      // Charge after a clean parse.
+      await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
       return NextResponse.json({ day });
     } catch (err) {

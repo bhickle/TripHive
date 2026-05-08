@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
 
 // Extend Vercel function timeout to 5 minutes (300s).
@@ -1339,6 +1340,22 @@ export async function POST(request: NextRequest) {
     }, { status: 403 });
   }
 
+  // ── Credit gate ──────────────────────────────────────────────────────────
+  // Charge 10 credits per generate-itinerary call (the AI_CREDIT_COSTS
+  // entry). Free tier (10 credits/mo) gets exactly one generation per
+  // month. The increment happens just before the SSE 'done' event — if
+  // the stream errors out mid-way, no charge.
+  //
+  // KNOWN LIMITATION: client-side chunking for long trips and multi-city
+  // calls this route once per chunk, so a 3-city trip = 3 separate
+  // generate-itinerary calls = 30 credits total. Free users with multi-
+  // city would 402 on the second chunk. Multi-city is a paid feature
+  // anyway (canSplitTracks gate runs upstream), so this is mostly
+  // theoretical for free tier — but explorer (100/mo) and nomad (350/mo)
+  // can absorb the per-chunk charge fine.
+  const credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate');
+  if (!credits.ok) return credits.response;
+
   // ── City segment mode — generate one city's days at a time ─────────────────
   // When citySegment is provided, we focus this call on one chunk of the trip:
   //  - For multi-city trips, a chunk is a city's days (e.g. days 4–6 in Rome
@@ -2011,6 +2028,15 @@ export async function POST(request: NextRequest) {
 
         if (dayIndex < requestedLength) {
           console.warn(`[generate-itinerary] Trip ended with ${dayIndex}/${requestedLength} days after ${contAttempt} continuation attempt(s)`);
+        }
+
+        // Charge the credit only when at least one day made it through —
+        // otherwise the user got nothing and shouldn't be charged. The
+        // partial-generation case (got 3 of 7 days, then truncation) is
+        // judgment-call territory; we charge in that case since the user
+        // did get usable output and can resume from add-day.
+        if (dayIndex > 0) {
+          await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
         }
 
         // Signal stream end to client. Include total days emitted so the client

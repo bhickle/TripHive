@@ -75,6 +75,10 @@ export const AI_CREDIT_COSTS = {
   // operation. Free tier (10 credits/mo) gets ~10 parses/month before the
   // server returns CREDITS_EXHAUSTED.
   parse_itinerary: 1,
+  // Single-day AI generation via /api/trips/[id]/add-day. Roughly 1/Nth of
+  // a full itinerary_generate; charged 2 credits as a round number — free
+  // tier gets ~5 add-day calls per month.
+  add_day: 2,
 } as const;
 
 export type AiAction = keyof typeof AI_CREDIT_COSTS;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -77,6 +78,10 @@ export async function POST(request: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY', message: 'API key not configured' }, { status: 503 });
   }
+
+  // Credit gate (two-phase). Charged after the suggestion is parsed.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'activity_suggest');
+  if (!credits.ok) return credits.response;
 
   try {
     const body = await request.json();
@@ -204,6 +209,10 @@ IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — halluci
     cleaned = cleaned.slice(objStart, objEnd + 1);
 
     const activity = JSON.parse(cleaned);
+
+    // Charge after a successful suggestion. Failed suggestions (caught
+    // below) don't consume credits.
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json({ activity });
   } catch (err) {

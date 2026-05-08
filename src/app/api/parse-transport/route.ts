@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth, requireFeature } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -51,6 +52,12 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
   const denied = requireFeature(auth.ctx.tier, 'canUseTransportParser');
   if (denied) return denied;
+
+  // Credit gate (two-phase). Tier-feature gate above handles "is this user
+  // allowed to use the parser at all?"; this handles "how many can they
+  // run this period?".
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'transport_parse');
+  if (!credits.ok) return credits.response;
 
   try {
     const body = await request.json();
@@ -122,6 +129,9 @@ export async function POST(request: NextRequest) {
 
     // Generate a unique id for the new leg
     parsed.id = `trn_parsed_${Date.now()}`;
+
+    // Charge after success; failed parses (caught below) don't consume credits.
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json({ transportLeg: parsed });
 
