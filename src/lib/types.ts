@@ -70,11 +70,12 @@ export const AI_CREDIT_COSTS = {
   itinerary_regenerate: 5,
   transport_parse: 1,
   activity_suggest: 2,
-  // PDF / text itinerary parse via /api/parse-itinerary. Charged 1 credit
-  // per parse — same as transport_parse since it's a comparable extraction
-  // operation. Free tier (10 credits/mo) gets ~10 parses/month before the
-  // server returns CREDITS_EXHAUSTED.
-  parse_itinerary: 1,
+  // PDF / text itinerary parse via /api/parse-itinerary. Charged 3 credits
+  // because PDFs ship as document blocks — a 5–10 page PDF burns ~10–20K
+  // input tokens before output, costing ~$0.10–0.15 per parse. 1 credit was
+  // 5–10× underpriced relative to other actions (where 1 credit ≈ $0.01).
+  // Free tier (10/mo) now gets ~3 parses, explorer ~33, nomad ~116.
+  parse_itinerary: 3,
   // Single-day AI generation via /api/trips/[id]/add-day. Roughly 1/Nth of
   // a full itinerary_generate; charged 2 credits as a round number — free
   // tier gets ~5 add-day calls per month.

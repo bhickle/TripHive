@@ -687,6 +687,25 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 </div>
               )}
 
+              {/* Large-PDF warning. PDFs are billed as document blocks — input
+                  cost scales with page count. A 30-page travel-agent doc can
+                  cost 5x more than a 5-page one, push past max_tokens and
+                  truncate output. 2MB is a reasonable proxy for >10 pages.
+                  Soft warning only — user can still proceed. */}
+              {loadedFiles.some(f => f.pdfBase64 && f.size > 2_000_000) && (
+                <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-amber-900">
+                      Large PDF — parse may truncate or use extra credits
+                    </p>
+                    <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                      PDFs over ~10 pages can hit output limits and lose detail. For best results, extract just the trip-relevant pages or paste the text below instead.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Loaded files list */}
               {loadedFiles.length > 0 && (
                 <div className="space-y-2">
