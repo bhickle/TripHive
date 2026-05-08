@@ -1007,6 +1007,13 @@ function ItineraryPageContent() {
       // 4. Run all segments (or single call for single-city trips)
       let firstMeta: Record<string, unknown> | null = null;
 
+      // Track segments that throw outright (Anthropic 529, network blip, etc.)
+      // so we can surface a partial-build warning at the end without aborting
+      // the whole loop. A single chunk failure used to set liveBuildError and
+      // bail — leaving the user with chunk 1's 3 days for what was supposed
+      // to be a 10-day trip. Now we keep going and retry the failed chunks
+      // once at the end.
+      const failedSegments: Array<{ seg: Segment; prevContext: string | null }> = [];
       try {
         if (segments.length === 0) {
           // Single-city or unspecified: one full call, no citySegment
@@ -1017,7 +1024,20 @@ function ItineraryPageContent() {
           let prevContext: string | null = null;
           for (let i = 0; i < segments.length; i++) {
             const seg = segments[i];
-            const { days, meta } = await streamSegment(seg, prevContext);
+            let days: unknown[];
+            let meta: Record<string, unknown> | null;
+            try {
+              const result = await streamSegment(seg, prevContext);
+              days = result.days;
+              meta = result.meta;
+            } catch (chunkErr) {
+              // Don't abort the whole build — record the failure and move on.
+              // The next chunk's prevContext will be stale but the user gets
+              // every day we can reach. We'll retry failed segments at the end.
+              console.warn('[live-build] chunk failed, continuing:', seg, chunkErr);
+              failedSegments.push({ seg, prevContext });
+              continue;
+            }
             if (i === 0) firstMeta = meta;
 
             // Gap-fill: if the API's internal retry still came up short,
@@ -1091,6 +1111,32 @@ function ItineraryPageContent() {
         setLiveBuildError(e instanceof Error ? e.message : 'Something went wrong');
         setIsLiveBuilding(false);
         return;
+      }
+
+      // 4b. Retry any segments that threw mid-stream once. By this point the
+      // surrounding chunks have completed and the user has SOMETHING on
+      // screen, so a brief retry is much better UX than a fatal error.
+      if (failedSegments.length > 0) {
+        setLiveBuildStatus(`Retrying ${failedSegments.length} chunk${failedSegments.length === 1 ? '' : 's'}…`);
+        for (const { seg, prevContext } of failedSegments) {
+          try {
+            await streamSegment(seg, prevContext);
+          } catch (retryErr) {
+            console.warn('[live-build] chunk retry failed:', seg, retryErr);
+            // Still nothing for this segment — note it so the final toast
+            // can prompt the user to regenerate the missing days.
+          }
+        }
+      }
+
+      // If after retries we still don't have every day the user asked for,
+      // surface a soft warning. The trip page's regenerate button can fill
+      // the gaps. Better than a hard "Generation failed" wall.
+      const finalDayCount = (aiDaysRef.current ?? []).length;
+      if (finalDayCount < totalDays) {
+        const missing = totalDays - finalDayCount;
+        setActionError(`We built ${finalDayCount} of ${totalDays} days. Tap Regenerate to fill the missing ${missing} ${missing === 1 ? 'day' : 'days'}.`);
+        setTimeout(() => setActionError(null), 8000);
       }
 
       // 5. Final PATCH — complete days + meta + stamp itinerary_generated_at
