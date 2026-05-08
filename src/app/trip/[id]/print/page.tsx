@@ -2,12 +2,44 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import type { ItineraryDay, Activity, PhotoSpot } from '@/lib/types';
+
+// Types specific to the print view's local read of the itinerary blob.
+// `meta` is the itinerary.meta JSON column — only the fields the print
+// page reads are listed; everything else stays opaque.
+type FoodieTip = {
+  name: string;
+  type?: string;
+  priceRange?: string;
+  neighborhood?: string;
+  why?: string;
+  orderThis?: string;
+  bestFor?: string;
+};
+type BookedHotel = {
+  name: string;
+  address?: string;
+  checkIn?: string;
+  checkOut?: string;
+};
+type PrintMeta = {
+  destination?: string;
+  title?: string;
+  startDate?: string;
+  endDate?: string;
+  practicalNotes?: {
+    customs?: string;
+    entryRequirements?: string;
+    [key: string]: string | undefined;
+  };
+  bookedHotels?: BookedHotel[];
+};
 
 export default function PrintItineraryPage() {
   const params = useParams();
   const tripId = params.id as string;
-  const [days, setDays] = useState<any[]>([]);
-  const [meta, setMeta] = useState<any>(null);
+  const [days, setDays] = useState<ItineraryDay[]>([]);
+  const [meta, setMeta] = useState<PrintMeta | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,7 +80,7 @@ export default function PrintItineraryPage() {
     </div>
   );
 
-  const title = meta?.title ?? days[0]?.title ?? 'Trip Itinerary';
+  const title = meta?.title ?? 'Trip Itinerary';
   const destination = meta?.destination ?? '';
   const startDate = meta?.startDate ?? days[0]?.date ?? '';
   const endDate = meta?.endDate ?? '';
@@ -103,29 +135,31 @@ export default function PrintItineraryPage() {
       )}
 
       {/* Days */}
-      {days.map((day: any, di: number) => {
-        const allActivities = [
+      {days.map((day, di) => {
+        const allActivities: Activity[] = [
           ...(day.tracks?.shared ?? []),
           ...(day.tracks?.track_a ?? []),
           ...(day.tracks?.track_b ?? []),
         ]
           // Skip private activities — they are personal and not meant for printed itineraries
-          .filter((a: any) => !a.isPrivate)
-          .sort((a: any, b: any) => (a.timeSlot ?? '').localeCompare(b.timeSlot ?? ''));
+          .filter(a => !a.isPrivate)
+          .sort((a, b) => (a.timeSlot ?? '').localeCompare(b.timeSlot ?? ''));
 
         // Show a city banner when the city changes between days
         const prevCity = di > 0 ? days[di - 1]?.city : null;
         const showCityBanner = day.city && day.city !== prevCity;
 
-        // Collect foodie tips for this day
-        const foodieTips: any[] = day.foodieTips ?? [];
+        // Collect foodie tips for this day. day.foodieTips is FoodieTip[]
+        // on the canonical type (lib/types.ts) — but the saved blob may have
+        // older shapes, so cast at the boundary rather than fight inference.
+        const foodieTips: FoodieTip[] = (day.foodieTips ?? []) as unknown as FoodieTip[];
 
         // Collect photo spots for this day
-        const photoSpots: any[] = day.photoSpots ?? [];
+        const photoSpots: PhotoSpot[] = day.photoSpots ?? [];
 
         // Find tonight's hotel(s) — same date-range logic as the itinerary page
-        const bookedHotels: any[] = meta?.bookedHotels ?? [];
-        const todaysHotels = bookedHotels.filter((h: any) => {
+        const bookedHotels: BookedHotel[] = meta?.bookedHotels ?? [];
+        const todaysHotels = bookedHotels.filter(h => {
           if (!h.checkIn && !h.checkOut) return true;
           const dayDate = day.date ?? null;
           if (!dayDate) return true;
@@ -151,7 +185,7 @@ export default function PrintItineraryPage() {
             </div>
 
             <div className="space-y-4">
-              {allActivities.map((act: any, ai: number) => (
+              {allActivities.map((act, ai) => (
                 <div key={ai} className="flex gap-4">
                   <div className="w-20 flex-shrink-0 text-right">
                     <p className="text-xs text-zinc-400 font-mono">{act.timeSlot?.split('–')[0] ?? ''}</p>
@@ -165,7 +199,7 @@ export default function PrintItineraryPage() {
                     </p>
                     {act.address && <p className="text-xs text-zinc-400 mt-0.5">{act.address}</p>}
                     {act.description && <p className="text-xs text-zinc-600 mt-1 leading-relaxed">{act.description}</p>}
-                    {act.packingTips?.length > 0 && (
+                    {act.packingTips && act.packingTips.length > 0 && (
                       <p className="text-xs text-amber-600 mt-1">Bring: {act.packingTips.join(' · ')}</p>
                     )}
                     {act.transportToNext && (
@@ -181,7 +215,7 @@ export default function PrintItineraryPage() {
               <div className="mt-6 pl-24">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400 mb-2">📷 Photo Spots</p>
                 <div className="space-y-2">
-                  {photoSpots.map((spot: any, si: number) => (
+                  {photoSpots.map((spot, si) => (
                     <div key={si} className="pl-4 border-l-2 border-violet-100">
                       <p className="text-xs font-semibold text-violet-800">
                         {spot.name}
@@ -199,7 +233,7 @@ export default function PrintItineraryPage() {
               <div className="mt-6 pl-24">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-orange-400 mb-2">🍜 Foodie Tips</p>
                 <div className="space-y-2">
-                  {foodieTips.map((tip: any, ti: number) => (
+                  {foodieTips.map((tip, ti) => (
                     <div key={ti} className="pl-4 border-l-2 border-orange-100">
                       <p className="text-xs font-semibold text-orange-800">
                         {tip.name}
@@ -224,7 +258,7 @@ export default function PrintItineraryPage() {
               <div className="mt-6 pl-24">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-2">🛏️ Tonight's Stay</p>
                 <div className="space-y-2">
-                  {todaysHotels.map((h: any, hi: number) => (
+                  {todaysHotels.map((h, hi) => (
                     <div key={hi} className="pl-4 border-l-2 border-amber-100">
                       <p className="text-xs font-semibold text-amber-800">{h.name}</p>
                       {h.address && <p className="text-[10px] text-amber-600">{h.address}</p>}

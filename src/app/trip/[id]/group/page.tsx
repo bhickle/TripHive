@@ -888,14 +888,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       const paidByCanonical = canonicaliseName(exp.paidBy);
       paidByName[paidByCanonical] = (paidByName[paidByCanonical] || 0) + exp.amount;
 
-      const rawParticipants: string[] = (exp as any).splitAmong?.length
-        ? (exp as any).splitAmong
+      const rawParticipants: string[] = exp.splitAmong?.length
+        ? exp.splitAmong
         : groupMembers.map(m => m.name);
       const participants = rawParticipants.map(canonicaliseName);
 
-      if ((exp as any).splitType === 'custom' && (exp as any).customAmounts) {
+      if (exp.splitType === 'custom' && exp.customAmounts) {
         // Use explicit per-person amounts (also canonicalised)
-        Object.entries((exp as any).customAmounts).forEach(([name, amt]) => {
+        Object.entries(exp.customAmounts).forEach(([name, amt]) => {
           const canon = canonicaliseName(name);
           owedByName[canon] = (owedByName[canon] || 0) + (amt as number);
         });
@@ -1572,7 +1572,22 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               ) : (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
                   {allExpenses.map((rawExp, idx) => {
-                    const exp = rawExp as any;
+                    // allExpenses merges mock `Expense` (has description) with
+                    // `localExpenses` (has name). Normalised to a render-only
+                    // shape that admits either label field plus the optional
+                    // settle/category/split metadata both share.
+                    const exp = rawExp as {
+                      id: string;
+                      name?: string;
+                      description?: string;
+                      title?: string;
+                      paidBy: string;
+                      amount: number;
+                      category?: string;
+                      splitType?: 'equal' | 'custom';
+                      splitAmong?: string[];
+                      settled?: boolean;
+                    };
                     const CATEGORY_ICONS: Record<string, string> = {
                       dining: '🍽️', transport: '🚗', accommodation: '🏨', activity: '🎯',
                       shopping: '🛍️', nightlife: '🍸', other: '📌',

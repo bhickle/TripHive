@@ -47,11 +47,27 @@ function getPhoto(destination: string): string {
 
 // ─── Extract summary fields from a raw day object ────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function summariseDay(raw: any): GeneratedDay {
-  const shared: Array<{ isRestaurant?: boolean; mealType?: string; name?: string; title?: string }> =
-    raw?.tracks?.shared ?? [];
-  const trackA: typeof shared = raw?.tracks?.track_a ?? [];
+// The raw day shape at this point is whatever the streaming SSE chunk
+// produced — typed as GeneratedDayRaw rather than `any` so the field
+// reads below are checked.
+type RawTrackItem = {
+  isRestaurant?: boolean;
+  mealType?: string;
+  name?: string;
+  title?: string;
+};
+type GeneratedDayRaw = {
+  day?: unknown;
+  theme?: string;
+  tracks?: {
+    shared?: RawTrackItem[];
+    track_a?: RawTrackItem[];
+  };
+};
+
+function summariseDay(raw: GeneratedDayRaw): GeneratedDay {
+  const shared: RawTrackItem[] = raw?.tracks?.shared ?? [];
+  const trackA: RawTrackItem[] = raw?.tracks?.track_a ?? [];
   const all = [...shared, ...trackA];
 
   const getName = (item: { name?: string; title?: string }) =>
@@ -241,8 +257,7 @@ export default function GeneratingPage() {
     const reader  = res.body!.getReader();
     const decoder = new TextDecoder();
     let sseBuffer = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const collectedDays: any[] = [];
+    const collectedDays: GeneratedDayRaw[] = [];
     let tripMeta: TripMeta = {};
 
     try {
@@ -275,9 +290,9 @@ export default function GeneratingPage() {
 
               case 'day': {
                 const idx = parsed.index as number;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                collectedDays[idx] = parsed.data as any;
-                const summary = summariseDay(parsed.data);
+                const dayData = parsed.data as GeneratedDayRaw;
+                collectedDays[idx] = dayData;
+                const summary = summariseDay(dayData);
 
                 // Mark the previous "writing" day as done, add the new completed day
                 setCurrentDayIdx(idx + 1 < length ? idx + 1 : null);
@@ -310,14 +325,14 @@ export default function GeneratingPage() {
     setCurrentDayIdx(null);
 
     // Deduplicate by day field (same logic as trip/new)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const byDayNum: Record<number, any> = {};
+    const byDayNum: Record<number, GeneratedDayRaw> = {};
     for (const d of collectedDays) {
       if (d && typeof d.day === 'number') byDayNum[d.day] = d;
       else if (d) byDayNum[Object.keys(byDayNum).length + 1] = d;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dedupedDays = (Object.values(byDayNum) as any[]).sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+    const dedupedDays = Object.values(byDayNum).sort(
+      (a, b) => (typeof a.day === 'number' ? a.day : 0) - (typeof b.day === 'number' ? b.day : 0),
+    );
 
     const tripMetaFull = {
       ...metaBase,

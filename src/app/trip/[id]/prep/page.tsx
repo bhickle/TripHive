@@ -28,6 +28,9 @@ import Link from 'next/link';
 
 interface PrepTask { id: string; category: string; title: string; dueDate?: string; completed: boolean; urgent?: boolean; }
 interface PackingItem { id: string; name: string; category: string; packed: boolean; affiliateUrl?: string; }
+// Inbound row shape from /api/trips/[id]/packing (and the gen route's
+// post-create reload). Same shape on every endpoint, used in 4 mappers.
+type PackingApiRow = { id: string; name: string; category: string; packed: boolean };
 interface SouvenirItem { id: string; person: string; idea: string; purchased: boolean; }
 
 interface TranslationPhrase {
@@ -140,8 +143,23 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         console.error('[prep] Failed to load trip data:', tripRes.reason);
         setPrepLoadError(true);
       }
+      // Inbound row shapes from each /api/trips/[id]/* endpoint. Snake_case
+      // because the routes return DB column names; we camelCase at the
+      // boundary before storing in state.
+      type PrepTaskRow = {
+        id: string;
+        category: 'document' | 'packing' | 'logistics';
+        title: string;
+        due_date?: string;
+        completed: boolean;
+        urgent?: boolean;
+      };
+      type PackingRow = { id: string; name: string; category: string; packed: boolean };
+      type SouvenirRow = { id: string; person: string; idea: string; purchased: boolean };
+
       if (prepRes.status === 'fulfilled' && prepRes.value?.tasks) {
-        const tasks: PrepTask[] = prepRes.value.tasks.map((t: any) => ({
+        const rows: PrepTaskRow[] = prepRes.value.tasks;
+        const tasks: PrepTask[] = rows.map(t => ({
           id: t.id,
           category: t.category,
           title: t.title,
@@ -154,7 +172,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       }
       // Group Pack items
       if (groupPackingRes.status === 'fulfilled' && groupPackingRes.value?.items) {
-        const items: PackingItem[] = groupPackingRes.value.items.map((i: any) => ({
+        const rows: PackingRow[] = groupPackingRes.value.items;
+        const items: PackingItem[] = rows.map(i => ({
           id: i.id, name: i.name, category: i.category, packed: i.packed,
         }));
         setGroupPackItems(items);
@@ -167,7 +186,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       setPackingLoaded(true);
       // My Pack items
       if (myPackingRes.status === 'fulfilled' && myPackingRes.value?.items) {
-        const items: PackingItem[] = myPackingRes.value.items.map((i: any) => ({
+        const rows: PackingRow[] = myPackingRes.value.items;
+        const items: PackingItem[] = rows.map(i => ({
           id: i.id, name: i.name, category: i.category, packed: i.packed,
         }));
         setMyPackItems(items);
@@ -176,7 +196,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       setMyPackLoaded(true);
       // Souvenirs
       if (souvenirsRes.status === 'fulfilled' && souvenirsRes.value?.items) {
-        setSouvenirItems(souvenirsRes.value.items.map((i: any) => ({
+        const rows: SouvenirRow[] = souvenirsRes.value.items;
+        setSouvenirItems(rows.map(i => ({
           id: i.id, person: i.person, idea: i.idea, purchased: i.purchased,
         })));
       }
@@ -355,7 +376,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       const reloadRes = await fetch(`/api/trips/${params.id}/packing`);
       if (reloadRes.ok) {
         const reloadData = await reloadRes.json();
-        const items: PackingItem[] = (reloadData.items ?? []).map((i: any) => ({
+        const items: PackingItem[] = ((reloadData.items ?? []) as PackingApiRow[]).map(i => ({
           id: i.id, name: i.name, category: i.category, packed: i.packed,
         }));
         setPackingItems(items);
@@ -422,7 +443,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       const reloadRes = await fetch(`/api/trips/${params.id}/packing?scope=group`);
       if (reloadRes.ok) {
         const reloadData = await reloadRes.json();
-        const items: PackingItem[] = (reloadData.items ?? []).map((i: any) => ({ id: i.id, name: i.name, category: i.category, packed: i.packed }));
+        const items: PackingItem[] = ((reloadData.items ?? []) as PackingApiRow[]).map(i => ({ id: i.id, name: i.name, category: i.category, packed: i.packed }));
         setGroupPackItems(items);
         setGroupPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
       }
@@ -486,7 +507,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       const reloadRes = await fetch(`/api/trips/${params.id}/packing?scope=mine`);
       if (reloadRes.ok) {
         const reloadData = await reloadRes.json();
-        const items: PackingItem[] = (reloadData.items ?? []).map((i: any) => ({ id: i.id, name: i.name, category: i.category, packed: i.packed }));
+        const items: PackingItem[] = ((reloadData.items ?? []) as PackingApiRow[]).map(i => ({ id: i.id, name: i.name, category: i.category, packed: i.packed }));
         setMyPackItems(items);
         setMyPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
       }
@@ -628,9 +649,9 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const allLogTasks = [...logisticsTasks, ...customLogTasks];
   const allPackItems = [...packingItems, ...customPackItems];
 
-  const docCompleted = allDocTasks.filter(t => completedTasks.has(t.id) || (customDocTasks.some((ct: any) => ct.id === t.id) && customDocTasks.find((ct: any) => ct.id === t.id)?.completed)).length;
-  const logCompleted = allLogTasks.filter(t => completedTasks.has(t.id) || (customLogTasks.some((ct: any) => ct.id === t.id) && customLogTasks.find((ct: any) => ct.id === t.id)?.completed)).length;
-  const packCompleted = allPackItems.filter((i: any) => packedItems.has(i.id) || (customPackItems.some(cp => cp.id === i.id) && customPackItems.find(cp => cp.id === i.id)?.packed)).length;
+  const docCompleted = allDocTasks.filter(t => completedTasks.has(t.id) || (customDocTasks.some(ct => ct.id === t.id) && customDocTasks.find(ct => ct.id === t.id)?.completed)).length;
+  const logCompleted = allLogTasks.filter(t => completedTasks.has(t.id) || (customLogTasks.some(ct => ct.id === t.id) && customLogTasks.find(ct => ct.id === t.id)?.completed)).length;
+  const packCompleted = allPackItems.filter(i => packedItems.has(i.id) || (customPackItems.some(cp => cp.id === i.id) && customPackItems.find(cp => cp.id === i.id)?.packed)).length;
 
   const totalCompleted = docCompleted + logCompleted + packCompleted;
   const totalItems = (allDocTasks.length || 1) + (allLogTasks.length || 1) + (allPackItems.length || 1);
@@ -650,7 +671,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
   const renderDocumentsTab = () => {
     const all = [...documentTasks, ...customDocTasks];
-    const completed = all.filter(t => completedTasks.has(t.id) || customDocTasks.find((ct: any) => ct.id === t.id)?.completed).length;
+    const completed = all.filter(t => completedTasks.has(t.id) || customDocTasks.find(ct => ct.id === t.id)?.completed).length;
     const total = all.length || 1;
     return (
       <div className="space-y-6">
@@ -1084,7 +1105,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
   const renderLogisticsTab = () => {
     const all = [...logisticsTasks, ...customLogTasks];
-    const completed = all.filter(t => completedTasks.has(t.id) || customLogTasks.find((ct: any) => ct.id === t.id)?.completed).length;
+    const completed = all.filter(t => completedTasks.has(t.id) || customLogTasks.find(ct => ct.id === t.id)?.completed).length;
     const total = all.length || 1;
     return (
       <div className="space-y-6">
