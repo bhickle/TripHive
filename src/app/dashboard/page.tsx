@@ -462,9 +462,13 @@ export default function DashboardPage() {
 
                 {/* Panel Footer */}
                 <div className="px-5 py-3 border-t border-zinc-100">
-                  <button className="w-full text-center text-sm font-medium text-sky-700 hover:text-sky-900 transition-colors">
+                  <Link
+                    href="/notifications"
+                    onClick={() => setShowNotifications(false)}
+                    className="block w-full text-center text-sm font-medium text-sky-700 hover:text-sky-900 transition-colors"
+                  >
                     View All Notifications
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>

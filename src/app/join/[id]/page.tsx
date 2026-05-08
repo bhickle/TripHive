@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock, Loader } from 'lucide-react';
 
@@ -59,6 +60,13 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
   // Use params.id directly (always available from route props) to avoid
   // the useParams() first-render undefined race that can set notFound too early.
   const tripId = params?.id as string;
+  // Email/SMS invites embed an `invite` token in the URL. We read it here
+  // and pass it to the members POST so the server can validate + consume
+  // the trip_invites row. Tokenless joins still work today (open share-link),
+  // but a tokened join generates an audit row + lays groundwork for the
+  // privacy gate.
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams?.get('invite') ?? null;
 
   const [step, setStep] = useState<JoinStep>('intro');
   const [tripData, setTripData] = useState<TripData | null>(null);
@@ -205,6 +213,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 accommodation: guestData.accommodation,
                 curiosity: guestData.curiosity,
               },
+              ...(inviteToken ? { inviteToken } : {}),
             }),
           });
         } catch (err) {

@@ -166,7 +166,9 @@ function FeaturedItineraryCard({ item, days, loadingDays }: FeaturedItineraryCar
                           <a
                             href={act.affiliate_url}
                             target="_blank"
-                            rel="noopener noreferrer"
+                            rel="noopener noreferrer sponsored"
+                            title="Affiliate link — opens an external booking site. tripcoord may earn a commission."
+                            aria-label={`${act.affiliate_label.replace(' →', '')} — affiliate link, opens external site`}
                             onClick={e => e.stopPropagation()}
                             className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}
                           >
@@ -304,16 +306,22 @@ function DestinationCard({
         </div>
         <div className="grid grid-cols-3 gap-2">
           <a href={dest.affiliateLinks.flights} target="_blank" rel="noopener noreferrer sponsored"
+            title="Affiliate link — opens an external booking site. tripcoord may earn a commission."
+            aria-label={`Search flights to ${dest.name} — affiliate link`}
             className="flex flex-col items-center gap-1 p-2.5 bg-sky-50 hover:bg-sky-100 rounded-xl transition-colors text-center">
             <Plane className="w-4 h-4 text-sky-700" />
             <span className="text-[10px] font-bold text-sky-700">Flights</span>
           </a>
           <a href={dest.affiliateLinks.hotels} target="_blank" rel="noopener noreferrer sponsored"
+            title="Affiliate link — opens an external booking site. tripcoord may earn a commission."
+            aria-label={`Search hotels in ${dest.name} — affiliate link`}
             className="flex flex-col items-center gap-1 p-2.5 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors text-center">
             <Hotel className="w-4 h-4 text-emerald-700" />
             <span className="text-[10px] font-bold text-emerald-700">Hotels</span>
           </a>
           <a href={dest.affiliateLinks.experiences} target="_blank" rel="noopener noreferrer sponsored"
+            title="Affiliate link — opens an external booking site. tripcoord may earn a commission."
+            aria-label={`Search experiences in ${dest.name} — affiliate link`}
             className="flex flex-col items-center gap-1 p-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors text-center">
             <Ticket className="w-4 h-4 text-amber-700" />
             <span className="text-[10px] font-bold text-amber-700">Things to do</span>
@@ -610,7 +618,7 @@ export default function DiscoverPage() {
                     : 'Curated Destinations'}
                 </h2>
                 {!isFiltering && (
-                  <p className="text-sm text-zinc-400 mt-0.5">Flights, hotels &amp; experiences — one click away</p>
+                  <p className="text-sm text-zinc-400 mt-0.5">Flights, hotels &amp; experiences — affiliate links, one click away</p>
                 )}
               </div>
               {isFiltering && (

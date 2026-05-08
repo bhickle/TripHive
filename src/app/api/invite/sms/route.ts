@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
   const { phone, tripId, tripName, inviterName } = await request.json();
 
   // Verify the caller is the organizer of this trip
+  let inviteToken: string | null = null;
   if (tripId) {
     const supabase = createAdminClient();
     const { data: trip } = await supabase
@@ -34,6 +35,25 @@ export async function POST(request: NextRequest) {
 
     if (!trip || trip.organizer_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Issue an invite token (Phase 1 of the invite-token system — token is
+    // optional on join today, but this populates trip_invites for audit
+    // and lays groundwork for the privacy gate). DB column defaults
+    // generate the token + 7-day expires_at.
+    try {
+      const { data: invite, error } = await supabase
+        .from('trip_invites')
+        .insert({ trip_id: tripId, invited_by: userId, phone: (phone || '').trim() })
+        .select('token')
+        .single();
+      if (error) {
+        console.warn('[invite/sms] trip_invites insert failed:', error.message);
+      } else {
+        inviteToken = invite?.token ?? null;
+      }
+    } catch (err) {
+      console.warn('[invite/sms] trip_invites insert threw:', err);
     }
   }
 
@@ -56,7 +76,11 @@ export async function POST(request: NextRequest) {
   }
 
   const appUrl  = process.env.NEXT_PUBLIC_APP_URL || 'https://tripcoord.app';
-  const joinUrl = `${appUrl}/join/${tripId}`;
+  // Embed the invite token in the URL so the join flow can validate + consume
+  // it. Falls back to the open share-link form if token issuance failed.
+  const joinUrl = inviteToken
+    ? `${appUrl}/join/${tripId}?invite=${inviteToken}`
+    : `${appUrl}/join/${tripId}`;
   const body    = `${inviterName || 'Someone'} invited you to ${tripName || 'a trip'} on tripcoord! Join here: ${joinUrl}`;
 
   try {

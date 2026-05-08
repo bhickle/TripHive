@@ -38,6 +38,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // ── Issue an invite token ─────────────────────────────────────────────────
+  // Insert a trip_invites row up-front. The DB generates a 32-byte hex token
+  // and a 7-day expires_at via the column defaults; we just capture the
+  // token to embed in the URL. Phase 1 of the invite-token system: token is
+  // optional on join (open share-link still works), but a tokened join is
+  // tracked + consumed and gives us the audit trail. Phase 2 will add a
+  // privacy flag on trips that requires the token.
+  let inviteToken: string | null = null;
+  try {
+    const { data: invite, error: inviteError } = await supabase
+      .from('trip_invites')
+      .insert({ trip_id: tripId, invited_by: userId, email: email.trim() })
+      .select('token')
+      .single();
+    if (inviteError) {
+      console.warn('[invite/email] trip_invites insert failed:', inviteError.message);
+    } else {
+      inviteToken = invite?.token ?? null;
+    }
+  } catch (err) {
+    console.warn('[invite/email] trip_invites insert threw:', err);
+  }
+
   // ── Check if invitee already has a TripCoord account ─────────────────────
   // If yes, create an in-app notification instead of (or in addition to) email.
   //
@@ -79,7 +102,11 @@ export async function POST(request: NextRequest) {
 
   const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'hello@tripcoord.ai';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
-  const joinUrl = `${appUrl}/join/${tripId}`;
+  // Embed the invite token in the URL so the join flow can validate + consume
+  // it. Falls back to the open share-link form if token issuance failed.
+  const joinUrl = inviteToken
+    ? `${appUrl}/join/${tripId}?invite=${inviteToken}`
+    : `${appUrl}/join/${tripId}`;
   const subject = `${inviterName || 'Someone'} invited you to join ${tripName || 'a trip'} on TripCoord`;
   const bodyHtml = message
     ? message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

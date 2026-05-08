@@ -130,10 +130,47 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const body = await req.json();
-    const { name, email, preferences } = body as { name?: string; email?: string; preferences?: object };
+    const { name, email, preferences, inviteToken } = body as {
+      name?: string;
+      email?: string;
+      preferences?: object;
+      inviteToken?: string;
+    };
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'name is required' }, { status: 400 });
+    }
+
+    // ── Validate + consume invite token if present ─────────────────────────
+    // Phase 1 of the invite-token system: token is OPTIONAL on join (tokenless
+    // joins still work today for the open share-link UX). When a token IS
+    // provided, validate it against trip_invites — if invalid/expired/already
+    // consumed, reject the join. On success mark the row accepted so the same
+    // token can't be reused. Phase 2 will add a privacy flag on trips that
+    // makes the token required.
+    let consumedInviteId: string | null = null;
+    if (inviteToken) {
+      const { data: invite } = await supabase
+        .from('trip_invites')
+        .select('id, trip_id, status, expires_at')
+        .eq('token', inviteToken)
+        .maybeSingle();
+      if (!invite) {
+        return NextResponse.json({ error: 'Invalid invite token' }, { status: 400 });
+      }
+      if (invite.trip_id !== params.id) {
+        return NextResponse.json({ error: 'Invite token does not match this trip' }, { status: 400 });
+      }
+      if (invite.status === 'accepted') {
+        // Idempotent re-join is fine; return ok without re-consuming. The
+        // trip_members row check below will catch dupes.
+      } else if (invite.status && invite.status !== 'pending') {
+        return NextResponse.json({ error: `Invite is ${invite.status}` }, { status: 400 });
+      }
+      if (invite.expires_at && new Date(invite.expires_at).getTime() < Date.now()) {
+        return NextResponse.json({ error: 'Invite expired' }, { status: 400 });
+      }
+      consumedInviteId = invite.id;
     }
 
     // Try to detect an authenticated user
@@ -189,6 +226,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (insertErr) {
       console.error('POST members insert error:', insertErr);
       return NextResponse.json({ error: 'Failed to join trip' }, { status: 500 });
+    }
+
+    // Mark the invite as accepted so the same token can't be reused. Best-
+    // effort: don't fail the join if this update errors — the member is in,
+    // we just lose the audit signal.
+    if (consumedInviteId) {
+      await supabase
+        .from('trip_invites')
+        .update({ status: 'accepted' })
+        .eq('id', consumedInviteId);
     }
 
     return NextResponse.json({ ok: true });
