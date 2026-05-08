@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Compass, Map, Radar, Settings, Menu, X, ChevronRight, Globe2, LogOut } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/context/AuthContext';
+import { signOutAction } from '@/app/auth/signout/actions';
 
 interface SidebarProps {
   activeTrip?: { id: string; title: string; destination: string; };
@@ -41,7 +42,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
 
   const handleSignOut = async () => {
     setShowUserMenu(false);
-    await signOut();
+
+    // 1. Server action first — clears auth cookies via Set-Cookie response
+    //    headers. This is the authoritative cookie-clearer for SSR cookies
+    //    that document.cookie can't always reach.
+    // 2. Client-side signOut — resets AuthContext state and clears the
+    //    browser's local session/Web Lock.
+    // 3. Hard navigation — full page reload so the next page renders with
+    //    a clean AuthContext that re-reads the now-empty cookies.
+    //
+    // Each step is wrapped in its own try and bounded by a Promise.race
+    // timeout. If any step hangs (Web Lock desync after sign-in → sign-out
+    // → sign-in → sign-out, which Brandon hit), we still proceed to the
+    // hard navigation so the click never freezes the UI.
+    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+      Promise.race([
+        p.catch(() => null),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+      ]);
+
+    await withTimeout(signOutAction(), 4000);
+    await withTimeout(signOut(), 2000);
+
     // Hard navigation rather than router.push: any authenticated-only page
     // has its own "redirect to login when session is null" effect, and that
     // can win the race against router.push('/'), landing the user on
