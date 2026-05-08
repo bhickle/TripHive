@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { getTripRole, verifyTripAccess } from '@/lib/supabase/tripAccess';
+import type { Json } from '@/lib/supabase/database.types';
 
 /**
  * GET /api/trips/[id]
@@ -102,12 +103,19 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { days, metaPatch, tripPatch } = body as {
-      days?: any[];
-      metaPatch?: Record<string, any>;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tripPatch?: { destination?: string; title?: string; start_date?: string; end_date?: string; itinerary_generated_at?: string; booked_hotels?: any[]; booked_flight?: any; is_private?: boolean };
+      days?: Json[];
+      metaPatch?: { [key: string]: Json | undefined };
+      tripPatch?: {
+        destination?: string;
+        title?: string;
+        start_date?: string;
+        end_date?: string;
+        itinerary_generated_at?: string;
+        booked_hotels?: Json[];
+        booked_flight?: Json;
+        is_private?: boolean;
+      };
     };
 
     if (!Array.isArray(days) && !metaPatch && !tripPatch) {
@@ -198,8 +206,10 @@ export async function PATCH(
         .eq('trip_id', params.id)
         .single();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mergedMeta = { ...((existing?.meta as Record<string, any>) ?? {}), ...metaPatch };
+      const mergedMeta: { [key: string]: Json | undefined } = {
+        ...((existing?.meta as { [key: string]: Json | undefined } | null) ?? {}),
+        ...metaPatch,
+      };
 
       const { error } = await supabase
         .from('itineraries')

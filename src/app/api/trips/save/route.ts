@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { Database, Json } from '@/lib/supabase/database.types';
+
+type TripInsert = Database['public']['Tables']['trips']['Insert'];
+type ItineraryInsert = Database['public']['Tables']['itineraries']['Insert'];
 
 /**
  * POST /api/trips/save
@@ -24,15 +28,15 @@ export async function POST(request: NextRequest) {
         tripLength?: number;
         budget: number;
         budgetBreakdown: Record<string, number>;
-        bookedHotels: unknown[];
-        bookedFlight: unknown | null;
-        preferences: Record<string, unknown>;
-        practicalNotes?: unknown;
-        hotelSuggestions?: unknown;
+        bookedHotels: Json[];
+        bookedFlight: Json | null;
+        preferences: { [key: string]: Json | undefined };
+        practicalNotes?: Json;
+        hotelSuggestions?: Json;
         isCruise?: boolean;
         cruiseLine?: string;
       };
-      itinerary: unknown[] | null;
+      itinerary: Json[] | null;
       /** skeleton=true: create trip + empty itinerary row immediately, before generation starts.
        *  Used by the live-build flow so the itinerary page has a real trip ID to work with. */
       skeleton?: boolean;
@@ -59,8 +63,7 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient();
 
     // ── 1. Insert the trip row ────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tripInsert: any = {
+    const tripInsert: TripInsert = {
       organizer_id: userId,
       // title is NOT NULL — fall back to 'My Trip' if AI didn't return one
       title: tripMeta.title || 'My Trip',
@@ -96,8 +99,7 @@ export async function POST(request: NextRequest) {
     // so the PATCH route can update them incrementally during live-build generation.
     // For draft saves (invite-first flow): skip the itinerary row entirely.
     if (!isDraft) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const itinInsert: any = {
+      const itinInsert: ItineraryInsert = {
         trip_id: trip.id,
         days: isSkeleton ? [] : itinerary,
         meta: {

@@ -29,7 +29,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (error) return NextResponse.json({ votes: [] });
 
     // For each vote, count responses per option
-    const enriched = await Promise.all((votes ?? []).map(async (vote: any) => {
+    type VoteOptionRow = { id: string; label: string; display_order: number };
+    type VoteRow = {
+      id: string;
+      title: string;
+      status: string;
+      closes_at: string | null;
+      created_by_name: string;
+      result: string | null;
+      created_at: string;
+      vote_options: VoteOptionRow[] | null;
+    };
+    const enriched = await Promise.all(((votes ?? []) as VoteRow[]).map(async (vote) => {
       const { data: responses } = await supabase
         .from('vote_responses')
         .select('option_id, voter_name')
@@ -43,8 +54,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       }
 
       const options = (vote.vote_options ?? [])
-        .sort((a: any, b: any) => a.display_order - b.display_order)
-        .map((opt: any) => ({
+        .sort((a, b) => a.display_order - b.display_order)
+        .map((opt) => ({
           id: opt.id,
           label: opt.label,
           votes: countByOption[opt.id] ?? 0,
