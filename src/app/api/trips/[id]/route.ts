@@ -61,17 +61,22 @@ export async function GET(
       .maybeSingle();
 
     // ── newPrefsCount: members whose preferences arrived after the last itinerary build ──
-    // Only meaningful for Explorer/Nomad (who see the regenerate banner), but we compute it
-    // for all tiers — clients can gate on it however they like.
+    // Compare on `preferences.submittedAt` (when the member actually answered)
+    // rather than `joined_at`, because Trip Pass members typically join first
+    // and fill the mini-wizard later. Surfaces the regenerate banner correctly
+    // when a member submits or updates preferences post-generation.
     let newPrefsCount = 0;
     if (trip.itinerary_generated_at) {
-      const { count } = await supabase
+      const generatedAt = trip.itinerary_generated_at;
+      const { data: prefsRows } = await supabase
         .from('trip_members')
-        .select('id', { count: 'exact', head: true })
+        .select('preferences')
         .eq('trip_id', params.id)
-        .gt('joined_at', trip.itinerary_generated_at)
         .not('preferences', 'is', null);
-      newPrefsCount = count ?? 0;
+      newPrefsCount = (prefsRows ?? []).filter(row => {
+        const p = row.preferences as { submittedAt?: string } | null;
+        return !!p?.submittedAt && p.submittedAt > generatedAt;
+      }).length;
     }
 
     return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount });

@@ -2383,9 +2383,11 @@ function ItineraryPageContent() {
           </p>
         )}
 
-        {/* Regenerate with group input banner — Explorer/Nomad only, organizer only */}
+        {/* Regenerate with group input banner — paid tiers only, organizer only.
+            Trip Pass is the primary use case (per-member preferences mini-wizard
+            drives this); Explorer/Nomad keep access for legacy behaviour. */}
         {newPrefsCount > 0
-          && (tier === 'explorer' || tier === 'nomad')
+          && (tier === 'trip_pass' || tier === 'explorer' || tier === 'nomad')
           && currentUser.id
           && tripRow?.organizer_id === currentUser.id
           && (
