@@ -277,12 +277,37 @@ export default function DashboardPage() {
   const mockActiveSoon = baseTripData.filter(
     (t) => t.status === 'planning' || t.status === 'active'
   );
-  // Merge user-uploaded trips (from localStorage) with base trips — user trips first
+  // Merge user-uploaded trips (from localStorage) with base trips, then sort
+  // chronologically. Active/upcoming sort soonest-first so the next trip lands
+  // at the top of the grid; completed sort most-recent-first so The Archives
+  // reads like a reverse-chronological scrapbook. Trips missing a startDate
+  // (still being planned) drop to the end of either list.
+  const parseTripTime = (d?: string) => {
+    if (!d) return null;
+    const t = new Date(d).getTime();
+    return isNaN(t) ? null : t;
+  };
   const activeSoon = [
     ...userTrips.filter((t) => t.status === 'planning' || t.status === 'active'),
     ...mockActiveSoon,
-  ];
-  const completedTrips = baseTripData.filter((t) => t.status === 'completed');
+  ].sort((a, b) => {
+    const aTime = parseTripTime(a.startDate);
+    const bTime = parseTripTime(b.startDate);
+    if (aTime === null && bTime === null) return 0;
+    if (aTime === null) return 1;
+    if (bTime === null) return -1;
+    return aTime - bTime;
+  });
+  const completedTrips = baseTripData
+    .filter((t) => t.status === 'completed')
+    .sort((a, b) => {
+      const aTime = parseTripTime(a.startDate);
+      const bTime = parseTripTime(b.startDate);
+      if (aTime === null && bTime === null) return 0;
+      if (aTime === null) return 1;
+      if (bTime === null) return -1;
+      return bTime - aTime;
+    });
 
   const allTrips = [...userTrips, ...baseTripData];
   const totalTrips = allTrips.length;
