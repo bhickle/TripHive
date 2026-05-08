@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Download, Share2, Pause, Play, Lock } from 'lucide-react';
-import { trips, itineraryDays, groupMembers, expenses, tripPhotos, messages } from '@/data/mock';
+import { trips, itineraryDays, groupMembers, expenses, tripPhotos, messages, MOCK_TRIP_IDS } from '@/data/mock';
 import { Trip } from '@/lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -874,6 +874,21 @@ export function TripStoryModal({ mode, trip, onClose }: TripStoryModalProps) {
   const activeTripData = trip ?? trips[0];
   const currentYear = new Date().getFullYear();
 
+  // The slide deck below pulls heavily from hardcoded mock data:
+  // hardcoded "laugh moments" referencing made-up names, mock photo URLs,
+  // mock chat history, mock expenses. Showing this on a real trip leaks
+  // demo content (e.g. "Marcus tried to pronounce Þingvellir") regardless
+  // of the actual destination — which is misleading at best, embarrassing
+  // at worst. Until the modal is rewritten to consume real trip data,
+  // gate it behind the MOCK_TRIP_IDS set: real trips get a friendly
+  // placeholder explaining the recap is in development. Yearly mode is
+  // also gated since its personality / laugh slides depend on the same
+  // mock pool.
+  const isMockData = mode === 'trip'
+    ? (trip?.id ? MOCK_TRIP_IDS.has(trip.id) : true) // no trip prop → mock fallback applies
+    : false;
+  const showComingSoon = !isMockData;
+
   // Pull bg photos from tripPhotos (cycling)
   const bgPhotos = tripPhotos.map(p => p.url);
   const getBg = (idx: number) => bgPhotos[idx % bgPhotos.length];
@@ -1000,6 +1015,46 @@ export function TripStoryModal({ mode, trip, onClose }: TripStoryModalProps) {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [showEditor, goNext, goPrev, onClose]);
+
+  // ── Coming soon view (real trips / yearly mode) ──
+  // The slides below depend on hardcoded mock data — the laughs reference
+  // made-up names from the Iceland demo, photos cycle through stock URLs,
+  // expenses come from mock.ts. Showing this on a real trip leaks demo
+  // content. Until the modal is rewritten to consume real trip data,
+  // gate it: real trips and yearly mode show this placeholder.
+  if (showComingSoon) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="max-w-md w-full bg-gradient-to-br from-sky-700 to-violet-800 rounded-3xl p-10 text-white text-center shadow-2xl">
+          <div className="text-6xl mb-5">✨</div>
+          <h2 className="font-script italic text-3xl font-semibold mb-3">
+            {mode === 'yearly' ? 'Year in Review' : 'Trip Story'}
+          </h2>
+          <p className="text-base text-white/85 leading-relaxed mb-6">
+            {mode === 'yearly'
+              ? "Your year-in-review recap is being built — it'll pull from your real trips, photos, and group highlights once it's ready."
+              : "Your personalized trip recap is being built — it'll pull from your real photos, group chat highlights, and expense breakdowns once it's ready."}
+          </p>
+          <p className="text-xs text-white/60 mb-6">
+            Coming soon. Keep adding photos and notes — they'll all be woven in.
+          </p>
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 bg-white text-sky-900 font-semibold rounded-full hover:bg-white/90 transition-colors"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Slide editor view ──
   if (showEditor) {

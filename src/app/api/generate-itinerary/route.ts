@@ -437,27 +437,13 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
   const hasNightlifePriority = priorities.includes('nightlife');
   const hasShoppingPriority = priorities.includes('shopping');
 
-  // ── Sidebar tip-block priorities ─────────────────────────────────────────────
-  // Food / nightlife / shopping have their own custom blocks above. Photography
-  // is covered by the per-day `photoSpots` array. Every OTHER selected priority
-  // gets a generic `priorityHighlights[<id>]` block (5-7 curated spots).
-  const PRIORITY_HIGHLIGHT_GUIDANCE: Record<string, { focus: string; types: string }> = {
-    nature:        { focus: 'parks, trails, viewpoints, gardens, wildlife & natural landscapes',                      types: 'park | trail | viewpoint | garden | nature reserve | wildlife | forest' },
-    history:       { focus: 'monuments, museums, historic districts, walking tours, local lore',                       types: 'monument | museum | historic district | landmark | walking tour | ruin | memorial' },
-    sports:        { focus: 'stadiums, arenas, training facilities, halls of fame, fan zones, sports bars',           types: 'stadium | arena | hall of fame | fan zone | sports bar | training facility | iconic venue' },
-    wellness:      { focus: 'spas, hot springs, yoga studios, hammams, wellness retreats, restorative spots',         types: 'spa | hot spring | yoga | hammam | retreat | sauna | bathhouse | meditation' },
-    adventure:     { focus: 'high-energy outdoor activities — hiking, climbing, water sports, ziplines, off-road',    types: 'hiking | climbing | water sport | zipline | off-road | rafting | paragliding | dive site' },
-    culture:       { focus: 'galleries, performance venues, traditional arts, immersive experiences, cultural districts', types: 'gallery | theater | performance | dance | craft workshop | cultural district | traditional venue' },
-    beach:         { focus: 'beaches, coves, beach clubs, water activities, coastal viewpoints',                       types: 'beach | cove | beach club | water sport | coastal viewpoint | snorkel | swim spot' },
-    themepark:     { focus: 'theme parks, water parks, signature rides, character meet-ups, ticket strategy notes',   types: 'theme park | water park | ride | attraction | character experience | parade' },
-    family:        { focus: 'kid-friendly attractions, family-paced experiences, parks, zoos, aquariums, playgrounds', types: 'kid-friendly | playground | zoo | aquarium | family park | interactive museum' },
-    budget:        { focus: 'free sights, money-saving picks, budget eats, free walking tours, off-peak deals',        types: 'free attraction | budget eat | free walking tour | discount pass | off-peak deal' },
-    accessibility: { focus: 'mobility-friendly venues, accessible transit, sensory-friendly options, step-free routes', types: 'accessible venue | step-free route | sensory-friendly | accessible transit' },
-  };
-  const sidebarPriorities = priorities.filter(
-    p => p in PRIORITY_HIGHLIGHT_GUIDANCE,
-  );
-  const hasSidebarPriorities = sidebarPriorities.length > 0;
+  // Note: there used to be a `priorityHighlights` block here that produced
+  // per-priority sidebar reference cards (nature/history/etc.) for the
+  // itinerary page. The sidebar redesign moved those priorities into the
+  // daily activities themselves — the model weaves them into the itinerary
+  // via the priority text blocks below (natureText, historyText, etc.) —
+  // and the sidebar now only carries discovery add-ons (food/photo/
+  // nightlife/shopping) in a unified Day Highlights section.
   const foodText = hasFoodPriority
     ? `\n- FOODIE PRIORITY — ELEVATED STANDARDS FOR EVERY MEAL AND FOOD EXPERIENCE:
   This group is serious about food. Eating is not a logistical checkpoint — it is the highlight of the day. Apply these rules across every single meal slot in the itinerary:
@@ -1651,17 +1637,15 @@ export async function POST(request: NextRequest) {
           // The original prompt contains "generate a ${tripLength}-day itinerary
           // starting from Day 1" which conflicts with the continuation directive
           // and causes the model to regenerate from Day 1 instead of continuing.
-          //
-          // Per-day sidebar priorities — recomputed here because the buildPrompt
-          // closure isn't accessible. Keep the sidebar id list in sync with
-          // PRIORITY_HIGHLIGHT_GUIDANCE in buildPrompt above.
+          // Per-priority discovery flags — recomputed here because the
+          // buildPrompt closure isn't accessible. Used to conditionally
+          // include the per-day discovery arrays (foodieTips,
+          // nightlifeHighlights, shoppingGuide) in the continuation
+          // schema.
           const contPriorities = body.priorities as string[];
           const contHasFood = contPriorities.includes('food');
           const contHasNightlife = contPriorities.includes('nightlife');
           const contHasShopping = contPriorities.includes('shopping');
-          const CONT_SIDEBAR_IDS = ['nature', 'history', 'sports', 'wellness', 'adventure', 'culture', 'beach', 'themepark', 'family', 'budget', 'accessibility'];
-          const contSidebarPriorities = contPriorities.filter(p => CONT_SIDEBAR_IDS.includes(p));
-          const contHasSidebar = contSidebarPriorities.length > 0;
           const compactContPrompt = [
             `You are an expert travel planner. Continue an in-progress itinerary.`,
             ``,

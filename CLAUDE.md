@@ -2,7 +2,7 @@
 
 > **App name:** TripCoord (brand) / **Repo:** TripHive / **Domain:** tripcoord.ai  
 > **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · Supabase · Anthropic Claude API · Stripe  
-> **Last updated:** 2026-05-06
+> **Last updated:** 2026-05-07
 
 ---
 
@@ -225,12 +225,18 @@ These are the active items to build/fix, in rough priority order:
 - [ ] **Build Trip Pass purchase flow** — trip selector + extra people picker + Stripe checkout. Not yet built.
 - [ ] **Split Tracks + Co-organizer → Trip Pass tier** — currently gated at Explorer. Move to Trip Pass.
 - [ ] **Wishlist for free users (no AI preview)** — free users can add to wishlist but can't get AI destination previews.
+- [ ] **Invite-token system for `/join/[id]`** — currently anyone with a trip UUID can POST to `/api/trips/[id]/members` and add themselves as a guest, by design (open share-link flow). For private trips this should require a one-time token issued by the email/sms invite routes. Schema: add `trip_invites` table (already in `database.types.ts`), populate it from `/api/invite/email` + `/api/invite/sms`, validate token in `members POST`, mark consumed. Documented inline at `src/app/api/trips/[id]/members/route.ts` POST handler.
+- [ ] **Trip Story real-data implementation** — `src/components/TripStoryModal.tsx` is currently mock-only. Real trips and the Year-in-Review now show a "Coming soon" placeholder. Rewrite the slide deck to consume real trip data: actual `tripPhotos` rows, real expenses + members + chat highlights instead of the hardcoded "Marcus tried to pronounce Þingvellir" laughs. Gated by `MOCK_TRIP_IDS` check; remove that gate once real-data slides land.
+- [ ] **Per-priority difficulty UI** — design + build sliders on each selected priority chip in the Trip Builder so users can set "Adventure: Easy" or "Wellness: Challenging." State and `difficultyLevels` constant were removed; reintroduce when designing.
+- [ ] **`#10` sidebar formatting fix** — user reported the sidebar items "aren't formatted properly for a screen" but couldn't describe specifically. Waiting on a screenshot. Don't speculate — confirm with the user before attempting a fix.
 
 ### 🟡 Polish & UX
 - [ ] **Unsplash integration** (`#78`) — dynamic destination photos on trip cards. Code scaffold is ready; just needs `UNSPLASH_ACCESS_KEY` env var + wiring in `src/app/trips/page.tsx` and `dashboard/page.tsx`.
 - [ ] **Ticketmaster events** (`#69`) — real event data on Discover/What's Out There. Needs `TICKETMASTER_API_KEY`.
 - [ ] **Viator/GetYourGuide affiliate links** (`#70`) — "Book This" links on activity cards in the itinerary. Scaffold at `scripts/enrich-affiliate-links.ts`. Needs affiliate registration + API keys (blocked until site is live for affiliate approval).
-- [ ] **Trip Story repositioning** — move Trip Story CTA from active itinerary toolbar to a "Memories" section on the dashboard that appears only after trip end date. (`src/app/trip/[id]/itinerary/page.tsx` + `dashboard/page.tsx`)
+- [ ] **Trip Story repositioning** — move Trip Story CTA from active itinerary toolbar to a "Memories" section on the dashboard that appears only after trip end date. (`src/app/trip/[id]/itinerary/page.tsx` + `dashboard/page.tsx`). Gates behind `tripEnded`; the placeholder "Coming soon" view will still show until the real-data implementation lands.
+- [ ] **Dashboard "View All Notifications" button** — non-functional today, no `onClick`. Either build a `/notifications` page or remove the button. Per the wire-up rule, prefer building.
+- [ ] **Affiliate disclosure** — Discover page renders Flights / Hotels / Things-to-Do affiliate links without per-link FTC disclosure. Add a small "(affiliate)" tag inline.
 
 ### 🟢 Go-Live Prerequisites (Brandon-owned)
 - [ ] Re-enable email confirmation in Supabase (currently OFF for testing ease)
@@ -273,26 +279,44 @@ Before every `git push`:
 ### Mock Data Scope
 `src/data/mock.ts` is **only** for the demo/preview experience (unauthenticated users). All authenticated user flows must use real Supabase data. Never fall back to mock data for logged-in users.
 
+### Supabase Browser Client Singleton
+**ALWAYS** import the singleton from `@/lib/supabase/client`, never call `createBrowserClient` from `@supabase/ssr` directly:
+```ts
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
+const supabase = createSupabaseBrowserClient();
+```
+Multiple instances fight over the same auth Web Lock and silently drop the auth session, which makes calls run as anonymous and silently fail RLS. This was the root cause of the photo-upload-vanishes-on-refresh bug (commit after `9191974`).
+
 ---
 
-## Recently Shipped (Last Few Sessions)
+## Recently Shipped (May 7 session)
+
+- **Sidebar redesign — unified Day Highlights** — collapsed five separate sidebar sections (Photo Spots / Foodie Finds / Nightlife Guide / Shopping Guide / per-priority Highlights) into one mixed-category section with icon-coded items. Activity-shaping priorities (nature/culture/beach/history/sports/etc.) no longer appear as sidebar lists — they're woven into the daily activities themselves (commit `0088024`).
+- **Client-side chunking for long trips** — escapes the Vercel 5-min function ceiling. Long single-city trips and long-city legs of multi-city trips are now chunked into 3-day pieces, each its own HTTP request with its own 300s budget. The infrastructure already existed for multi-city via `streamSegment()` — extended to within-city. `sameCity` + `totalTripDays` flags drive prompt phrasing for arrival/departure logistics on chunk boundaries (commit `306d2e6`).
+- **TRIP POSITION fix for chunk 1** — chunk 1 of long single-city trips previously skipped the "not the trip's final day" framing because the gate required `sameCity`. Widened to fire whenever `totalTripDays` is set; "not first day" framing still gated on `sameCity` to avoid contradicting the multi-city CONTINUITY block (commit `1c1355b`).
+- **Anthropic prompt caching** — extracts the 14 priority guidance blocks (food/nightlife/photo/etc.) into a separate cacheable system block. After the first call seeds the cache, every subsequent call within the 5-min TTL reads the prefix from cache (~90% cheaper, much faster). Cache hit/miss surfaced in `[generate-itinerary] cache:` log lines (commit `9244b82`).
+- **Photo upload silent-failure fix** — Memories page was creating its own Supabase browser client, fighting the singleton's auth lock, losing the session, and silently failing RLS on `trip_photos` insert. Switched to the singleton in 4 files (memories, settings, onboarding, group). Photos that genuinely fail to upload now surface a banner instead of vanishing on refresh (commit `1c7b032` + earlier batch).
+- **Per-day sidebar conversion** — `nightlifeHighlights` / `shoppingGuide` / `priorityHighlights` moved from trip-wide 5-7 to per-day 2 anchored to that day's neighborhoods. `foodieTips` 3-4/day → 2/day. `photoSpots` capped at 2/day. Server stops stripping these to trip meta; itinerary page reads from `currentDayData` with `aiMeta` fallback for old trips.
+- **Bundles 1–7 error handling sweep** — realtime subscription cleanup leak, hotel delete rollback, trip edit error surfacing, Stripe checkout/portal `res.ok` checks, role change feedback, emoji reaction rollback, mark-paid partial-failure detection, expense add rollback, receipt scan error context, replace-Nay rollback, multi-city per-segment save toast, defensive null guards. `voteError` and `suggestError` consolidated to `actionError`.
+- **API auth + model fixes** — souvenirs POST now uses `requireTripAccess`; parse-receipt model bumped from retired `claude-opus-4-5` → `claude-opus-4-7`; SMS invite surfaces Twilio error code; SendGrid retry handles non-JSON 5xx; members POST documented as intentionally open share-link (invite-token system tracked above as future work).
+- **Trip Builder wires** — `groupSize` added to API payload (was collected but never sent); `flexibleDates` toggle wired into a new `flexibleDatesText` prompt branch; orphan `difficultyPrefs` state removed; "Local insider mode" → "I've been here before — focus on hidden gems" with reframed prompt that overrides Rule 11's iconic-landmarks requirement.
+- **Demo Iceland banner removed** — hardcoded "Demo itinerary · Iceland · Personalized just for you" was leaking onto real trips; deleted entirely.
+- **TripStoryModal mock-data gate** — real trips and Year-in-Review mode now show a "Coming soon" placeholder instead of leaking hardcoded "Marcus tried to pronounce Þingvellir" content. Mock trips still get the full demo experience (commit after `1c1355b`).
+- **Schema trim** — `priorityHighlights` items dropped per-item `type` (redundant with parent priority key) and `description` tightened to one sentence. Continuation prompt schema cleaned up — inline `(EXACTLY 2 per day)` parentheticals moved into the Rules block where they belong (commit `2cd0c7d`).
+
+## Recently Shipped (Earlier sessions)
 
 - **Generation reliability hardening** — Anthropic `overloaded_error` / 5xx retry on first-pass open + mid-stream fallthrough into continuation loop; `MAX_CONTINUATIONS` 4→6; two-zero-pass guard (commit `cab5bab`)
 - **Role-based trip writes** — `getTripRole` helper; any member can save vote/day edits, only organizer + co-organizer can edit destination/dates/meta (commit `cab5bab`)
-- **Vote/delete failure surfacing + create-vote rollback** — silent failures replaced with error toasts; failed vote create rolls back optimistic UI (commit `247a5f0`)
-- **Group page optimistic vote rollback** — `handleCastVote` captures pre-update state and restores it on API failure with a toast (`group/page.tsx:543`)
-- **Itinerary render gate on empty activeDays** — page no longer crashes when Supabase returns no days yet (commit `6ba3b18`)
-- **4–5 day cutoff fix in generation** — segment-aware final-day prompt + client gap-fill retry resolves the truncation bug (commits `88b248d`, `d6081bf`)
-- **Realtime + notifications wired end-to-end** — chat + vote notifications, notification bell deep-links to chat/votes/join, SELECT RLS published on collab tables (commits `1f8ee5d`, `773576f`, `da7fbd0`, `fe810a5`)
 - **Live-build SSE itinerary generation** — trips generate live into the itinerary page; skeleton mode prevents old data bleed
 - **Multi-city itinerary with day-5 fix** — city headers, per-city segments, Day 5 continuation bug fixed
 - **Add Day feature** — modal to insert AI-generated or blank day at any position; renumbers all subsequent days
-- **Toolbar cleanup** — standalone Add Someone removed; Invite Someone + Day now in Add dropdown; icons standardized
-- **Auto-collapse Photo Spots + Where to Stay** — both sidebar sections start collapsed at load
 - **Pack This tab rebuilt** — Group Pack / My Pack / Gifts sub-tabs with Supabase-backed souvenir items
 - **Expense tracking + group chat** — Who Owes Who tab, Realtime chat, emoji reactions
 - **Stripe integration** — checkout, portal, webhook, tier update pipeline all working (test mode)
+- **Realtime + notifications wired end-to-end** — chat + vote notifications, notification bell deep-links to chat/votes/join, SELECT RLS published on collab tables (commits `1f8ee5d`, `773576f`, `da7fbd0`, `fe810a5`)
 - **Avatar uploads persisted to Supabase Storage** — survives navigation, propagates across trips (commit `8953a0a`)
+- **4–5 day cutoff fix in generation** — segment-aware final-day prompt + client gap-fill retry resolves the truncation bug (commits `88b248d`, `d6081bf`)
 
 ---
 

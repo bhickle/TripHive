@@ -37,7 +37,6 @@ import {
   Users,
   DollarSign,
   AlertCircle,
-  Camera,
   Backpack,
   Flag,
   Pencil,
@@ -609,7 +608,6 @@ function ItineraryPageContent() {
       description?: string; bestFor?: string; bestTime?: string; tip?: string;
     }>>;
   } | null>(null);
-  const [showAiBanner, setShowAiBanner] = useState(false);
 
   // Rebuild the itinerary incorporating new member preferences (Explorer/Nomad)
   // Declared after aiMeta so it can reference it without a forward-reference error
@@ -667,7 +665,6 @@ function ItineraryPageContent() {
         syncAiDays(null);
         setAiMeta(null);
         setTripRow(null);
-        setShowAiBanner(false);
         // Skip loading — the live-build effect will populate data as it streams in
         return;
       }
@@ -683,7 +680,6 @@ function ItineraryPageContent() {
             if (typeof npc === 'number') setNewPrefsCount(npc);
             if (itinerary && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
               syncAiDays(itinerary.days);
-              setShowAiBanner(true);
               if (itinerary.meta) {
                 // Merge tripRow.preferences into meta if missing — backward compat for trips
                 // saved before preferences was included in itinerary.meta
@@ -735,7 +731,6 @@ function ItineraryPageContent() {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
             syncAiDays(parsed);
-            setShowAiBanner(true);
             if (meta) setAiMeta(JSON.parse(meta));
             seedVotesFromActivities(parsed);
           }
@@ -919,7 +914,6 @@ function ItineraryPageContent() {
                   else merged.push(dayData as ItineraryDay);
                   merged.sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
                   syncAiDays(merged);
-                  setShowAiBanner(true);
                   setLiveBuildDone(prev => prev + 1);
                   // Status shows progress against total days. The previous
                   // "Building day N…" label was set AFTER day N had already
@@ -1160,7 +1154,6 @@ function ItineraryPageContent() {
     localStorage.removeItem('currentTripId');
     syncAiDays(null);
     setAiMeta(null);
-    setShowAiBanner(false);
     setSelectedDay(1);
   }, []);
 
