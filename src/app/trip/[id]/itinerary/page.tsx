@@ -52,6 +52,7 @@ import {
   CalendarPlus,
   PlusSquare,
   Wand2,
+  Globe2,
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -425,6 +426,10 @@ function ItineraryPageContent() {
   // Group input / regenerate state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [tripRow, setTripRow] = useState<Record<string, any> | null>(null);
+  // Public-to-community toggle saving flag (small spinner overlay on the
+  // header globe button). The actual is_public_template value is read
+  // directly from tripRow so it stays in sync with any other writes.
+  const [communityToggleSaving, setCommunityToggleSaving] = useState(false);
   const [newPrefsCount, setNewPrefsCount] = useState(0);
   // Members who joined but haven't filled preferences. Drives the confirm
   // dialog when the buyer clicks Regenerate so they're explicitly warned
@@ -2310,6 +2315,47 @@ function ItineraryPageContent() {
                   <Pencil className="w-3 h-3" />
                 </button>
               )}
+              {/* Community-share toggle — organizer only. Small icon button
+                  with hover tooltip; explicit on/off colour swap so state is
+                  glanceable. is_public_template is opt-in, default off. */}
+              {currentUser.id && tripRow?.organizer_id === currentUser.id && (() => {
+                const isPublic = !!tripRow?.is_public_template;
+                return (
+                  <button
+                    onClick={async () => {
+                      if (communityToggleSaving) return;
+                      const next = !isPublic;
+                      setCommunityToggleSaving(true);
+                      // Optimistic
+                      setTripRow(prev => prev ? { ...prev, is_public_template: next } : prev);
+                      try {
+                        const res = await fetch(`/api/trips/${trip.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ tripPatch: { is_public_template: next } }),
+                        });
+                        if (!res.ok) throw new Error();
+                      } catch {
+                        setTripRow(prev => prev ? { ...prev, is_public_template: !next } : prev);
+                      } finally {
+                        setCommunityToggleSaving(false);
+                      }
+                    }}
+                    disabled={communityToggleSaving}
+                    title={isPublic
+                      ? 'Shared to Discover community — click to unshare. Group chat & expenses stay private either way.'
+                      : 'Click to share this itinerary publicly on Discover. Anyone can like or fork it as a starting point. Group chat & expenses stay private.'}
+                    aria-label={isPublic ? 'Stop sharing publicly' : 'Share publicly to community'}
+                    className={`p-0.5 rounded transition-colors ${
+                      isPublic
+                        ? 'text-sky-700 hover:text-sky-900'
+                        : 'text-zinc-300 hover:text-zinc-500 hover:bg-zinc-100'
+                    } ${communityToggleSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <Globe2 className="w-3.5 h-3.5" />
+                  </button>
+                );
+              })()}
             </div>
             <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
               {new Date(currentDayData.date + 'T00:00:00').toLocaleDateString('en-US', {

@@ -32,7 +32,6 @@ import {
   X,
   MessageCircle,
   Vote,
-  Globe2,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
@@ -135,9 +134,6 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         }
         if (tripRes.status === 'fulfilled' && typeof tripRes.value?.trip?.is_private === 'boolean') {
           setTripIsPrivate(tripRes.value.trip.is_private);
-        }
-        if (tripRes.status === 'fulfilled' && typeof tripRes.value?.trip?.is_public_template === 'boolean') {
-          setTripIsPublicTemplate(tripRes.value.trip.is_public_template);
         }
         if (tripRes.status === 'fulfilled' && tripRes.value?.itinerary?.days) {
           const days: ItineraryDay[] = tripRes.value.itinerary.days;
@@ -296,8 +292,6 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   // rejected with 403 by the members POST. UI toggle on the Overview tab.
   const [tripIsPrivate, setTripIsPrivate] = useState<boolean>(false);
   const [privacyToggleSaving, setPrivacyToggleSaving] = useState(false);
-  const [tripIsPublicTemplate, setTripIsPublicTemplate] = useState<boolean>(false);
-  const [publicToggleSaving, setPublicToggleSaving] = useState(false);
 
   // Discover Wishlist — items voted on in the What's Out There tab
   type WishlistItem = {
@@ -1240,71 +1234,6 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       </div>
                     </>
                   )}
-                </div>
-              );
-            })()}
-
-            {/* Public template toggle — organizer/co-organizer only. When on,
-                this trip surfaces in the Discover community feed and is
-                viewable read-only by anyone via /community/[id]. Independent
-                of is_private (which only governs join access). Default off —
-                opt-in only, never expose someone's trip without consent. */}
-            {(() => {
-              const viewerRole = currentUserId
-                ? groupMembers.find(m => m.id === currentUserId)?.role
-                : null;
-              if (viewerRole !== 'organizer' && viewerRole !== 'co_organizer') return null;
-              return (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Globe2 className={`w-4 h-4 ${tripIsPublicTemplate ? 'text-sky-700' : 'text-zinc-400'}`} />
-                        <h3 className="font-semibold text-zinc-900 text-sm">
-                          {tripIsPublicTemplate ? 'Shared with the community' : 'Share publicly to community'}
-                        </h3>
-                      </div>
-                      <p className="text-xs text-zinc-500 leading-relaxed">
-                        {tripIsPublicTemplate
-                          ? 'Anyone can find this itinerary on the Discover page and use it as a starting point for their own trip. Your group chat and expenses stay private — only the itinerary itself is visible.'
-                          : 'Add this itinerary to the public Discover feed so other travelers can like it, save it, or fork it as a template. Group chat, expenses, and members stay private regardless.'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (publicToggleSaving) return;
-                        const next = !tripIsPublicTemplate;
-                        setPublicToggleSaving(true);
-                        setTripIsPublicTemplate(next);
-                        try {
-                          const res = await fetch(`/api/trips/${params.id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ tripPatch: { is_public_template: next } }),
-                          });
-                          if (!res.ok) throw new Error(`save failed: ${res.status}`);
-                        } catch {
-                          setTripIsPublicTemplate(!next);
-                          setActionError('Couldn\'t update public sharing. Please try again.');
-                          setTimeout(() => setActionError(null), 4000);
-                        } finally {
-                          setPublicToggleSaving(false);
-                        }
-                      }}
-                      disabled={publicToggleSaving}
-                      role="switch"
-                      aria-checked={tripIsPublicTemplate}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                        tripIsPublicTemplate ? 'bg-sky-700' : 'bg-zinc-300'
-                      } ${publicToggleSaving ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                          tripIsPublicTemplate ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
                 </div>
               );
             })()}
