@@ -3728,11 +3728,16 @@ function ItineraryPageContent() {
         </div>
       )}
 
-      {/* Upgrade Modal */}
+      {/* Upgrade Modal — pass tripId + group size so the modal can offer
+          the Trip Pass purchase CTA in addition to the generic /pricing link.
+          Per design memo: Trip Pass is bought in context of a specific trip,
+          never as a generic standalone purchase. */}
       {upgradePromptKey && (
         <UpgradeModal
           prompt={getUpgradePrompt(upgradePromptKey)}
           onClose={() => setUpgradePromptKey(null)}
+          tripId={tripPageId ?? undefined}
+          tripGroupSize={tripRow?.group_size ?? undefined}
         />
       )}
 

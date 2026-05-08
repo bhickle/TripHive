@@ -480,6 +480,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       : 'overview';
   })();
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+  // Trip Pass post-checkout landing — Stripe sends the buyer back here with
+  // ?checkout=success. Show a one-time toast so they know the purchase went
+  // through and can immediately invite the crew via the panel above.
+  const [showPassPurchasedToast, setShowPassPurchasedToast] = useState(
+    searchParams?.get('checkout') === 'success',
+  );
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [uploadedReceipt, setUploadedReceipt] = useState<File | null>(null);
@@ -975,6 +981,22 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       {actionError && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
           <span className="text-sm font-semibold">{actionError}</span>
+        </div>
+      )}
+      {showPassPurchasedToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-start gap-3 bg-emerald-700 text-white px-5 py-3.5 rounded-2xl shadow-xl max-w-sm">
+          <CheckCircle2 className="w-5 h-5 text-emerald-200 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">Trip Pass active</p>
+            <p className="text-xs text-emerald-100 mt-0.5">Invite your crew to share preferences before generating.</p>
+          </div>
+          <button
+            onClick={() => setShowPassPurchasedToast(false)}
+            className="text-emerald-200 hover:text-white"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
       <div className="max-w-5xl mx-auto">
@@ -2480,11 +2502,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* Traveler limit upgrade modal */}
+      {/* Traveler limit upgrade modal — pass trip context so the buyer sees
+          a Trip Pass purchase CTA scoped to this trip + group size. */}
       {showTravelerUpgrade && (
         <UpgradeModal
           prompt={getUpgradePrompt('traveler_limit')}
           onClose={() => setShowTravelerUpgrade(false)}
+          tripId={params.id}
+          tripGroupSize={groupMembers.length + 1}
         />
       )}
       </div>{/* /max-w-5xl */}

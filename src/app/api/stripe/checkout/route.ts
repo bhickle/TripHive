@@ -87,11 +87,18 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Create the Checkout Session ────────────────────────────────────────
+    // For Trip Pass purchases (mode='payment' + tripId), land the buyer back
+    // on the trip's group page so they can immediately invite the crew and
+    // see the Crew Readiness panel — that's the primary post-purchase action
+    // for Trip Pass per the design memo. Subscriptions still land on /settings.
+    const successUrl = mode === 'payment' && tripId
+      ? `${appUrl}/trip/${tripId}/group?checkout=success`
+      : `${appUrl}/settings?checkout=success`;
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode,
       line_items: lineItems,
-      success_url: `${appUrl}/settings?checkout=success`,
+      success_url: successUrl,
       cancel_url:  `${appUrl}/pricing?checkout=cancelled`,
       metadata: {
         supabase_user_id: user.id,
