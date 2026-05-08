@@ -542,7 +542,10 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [voteCreated, setVoteCreated] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [settledUp, setSettledUp] = useState(false);
-  const [paidTransactions, setPaidTransactions] = useState<Set<number>>(new Set());
+  // The "Mark Paid" badge is now derived from whether all merged expenses
+  // are settled — see the inline check at the Suggested Payments button.
+  // Previously this state was a Set<number> keyed by settlement-array index,
+  // which kept showing "Paid" on stale rows after new expenses arrived.
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Member profile photo uploads (keyed by member id → data URL)
@@ -1342,6 +1345,15 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   <p className="text-emerald-700 font-semibold">All settled up! 🎉</p>
                 </div>
               );
+              // Derived "all paid" — true when every expense feeding the
+              // current settlements has been marked settled. This replaces
+              // the previous Set<number>(index) tracking that went stale
+              // when new expenses arrived. The mock Expense type doesn't
+              // include `settled`; cast each row to read the optional flag
+              // off either shape uniformly.
+              const mergedExpenses = [...expenses, ...localExpenses];
+              const allExpensesSettled = mergedExpenses.length > 0 &&
+                mergedExpenses.every(e => (e as { settled?: boolean }).settled === true);
               return (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
                   <div className="px-5 py-4 bg-sky-800 text-white">
@@ -1361,7 +1373,6 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           {!isMockTrip && (
                             <button
                               onClick={async () => {
-                                setPaidTransactions(prev => new Set(Array.from(prev).concat(idx)));
                                 // Track per-expense success so a partial failure doesn't
                                 // claim "All settled up" while leaving rows unmarked on
                                 // the server. Run requests in parallel and collect
@@ -1391,14 +1402,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                                   setTimeout(() => setActionError(null), 4500);
                                 }
                               }}
-                              disabled={paidTransactions.has(idx)}
+                              disabled={allExpensesSettled}
                               className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                                paidTransactions.has(idx)
+                                allExpensesSettled
                                   ? 'bg-emerald-100 text-emerald-700'
                                   : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
                               }`}
                             >
-                              {paidTransactions.has(idx) ? '✓ Paid' : 'Mark Paid'}
+                              {allExpensesSettled ? '✓ Paid' : 'Mark Paid'}
                             </button>
                           )}
                         </div>
