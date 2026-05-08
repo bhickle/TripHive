@@ -1200,6 +1200,13 @@ export async function POST(request: NextRequest) {
   // totalTripDays — the FULL trip length, so the server can tell whether the
   //                final day of this chunk is also the final day of the trip
   //                (departure framing only when true).
+  // excludeVenues — names of venues / restaurants / activities / photo spots /
+  //                bars / shops that have ALREADY appeared on earlier chunks.
+  //                Each Anthropic call only sees its own chunk's prompt — the
+  //                model has no other knowledge of prior days, so without this
+  //                list it freely re-suggests the same museum / bar / market
+  //                across chunks. We inject a "DO NOT REUSE" section so the
+  //                model picks fresh alternatives.
   const citySegment = body.citySegment as {
     cityName: string;
     dayStart: number;
@@ -1207,6 +1214,7 @@ export async function POST(request: NextRequest) {
     prevContext?: string;
     sameCity?: boolean;
     totalTripDays?: number;
+    excludeVenues?: string[];
   } | undefined;
 
   // Resolve effective params — citySegment overrides some body fields
@@ -1369,6 +1377,16 @@ export async function POST(request: NextRequest) {
       } else {
         finalPrompt += `\n\nCONTINUITY — arriving from previous destination: ${citySegment.prevContext} Reference this naturally in Day ${citySegment.dayStart}'s morning (e.g. just checked in, settling into the new city). Do not repeat any venues or activities mentioned in the continuity context.`;
       }
+    }
+
+    // Inject the "already used" venue list when the client passes one.
+    // Each chunk is its own Anthropic call with no memory of prior chunks
+    // — without this, the model freely re-uses the same museum, restaurant,
+    // photo spot, etc. on day 7 that was already on day 2. The list is
+    // deduped + capped client-side; we just format it for the model.
+    if (citySegment.excludeVenues && citySegment.excludeVenues.length > 0) {
+      const venueLines = citySegment.excludeVenues.map(v => `- ${v}`).join('\n');
+      finalPrompt += `\n\nALREADY USED — these venues, restaurants, activities, photo spots, bars, shops, and tips have ALREADY appeared on earlier days of this trip. The traveler does NOT want to revisit them. Do NOT include any of these in the new days you generate; pick fresh, different alternatives. Match by name even if spelling or capitalization differs.\n${venueLines}`;
     }
   }
 
@@ -1586,11 +1604,39 @@ export async function POST(request: NextRequest) {
           console.log(`[generate-itinerary] Pass ${contAttempt}: have ${dayIndex}/${resolvedTripLength} days — requesting days ${contFromDay}–${contToDay}`);
 
           // Build a compact summary of already-generated days so the model
-          // knows exactly what exists and won't regenerate any of it.
+          // knows exactly what exists and won't regenerate any of it. Also
+          // list each day's venues — without this, the continuation pass
+          // sees only day themes ("Day 1: Riverwalk & Water Street") and
+          // happily re-suggests the same restaurants, museums, and photo
+          // spots on day 4 that it already used on day 1. Listing venues
+          // explicitly is the dedup signal.
+          const collectVenueNames = (d: Record<string, unknown>): string[] => {
+            const names = new Set<string>();
+            const tracks = (d.tracks as Record<string, unknown>) ?? {};
+            for (const trackKey of ['shared', 'track_a', 'track_b']) {
+              const arr = tracks[trackKey] as Array<Record<string, unknown>> | undefined;
+              if (!Array.isArray(arr)) continue;
+              for (const a of arr) {
+                const n = (a.name as string) || (a.title as string);
+                if (n) names.add(n);
+              }
+            }
+            for (const key of ['photoSpots', 'foodieTips', 'nightlifeHighlights', 'shoppingGuide']) {
+              const arr = d[key] as Array<Record<string, unknown>> | undefined;
+              if (!Array.isArray(arr)) continue;
+              for (const item of arr) {
+                const n = (item.name as string) || (item.title as string);
+                if (n) names.add(n);
+              }
+            }
+            return Array.from(names);
+          };
           const generatedSummary = collectedDays
             .map((d) => {
               const cityNote = d.city ? ` (${String(d.city)})` : '';
-              return `Day ${String(d.day ?? '')}: ${String(d.theme ?? 'generated')}${cityNote}`;
+              const venues = collectVenueNames(d);
+              const venuesNote = venues.length > 0 ? `\n    Venues: ${venues.join(', ')}` : '';
+              return `Day ${String(d.day ?? '')}: ${String(d.theme ?? 'generated')}${cityNote}${venuesNote}`;
             })
             .join('\n');
 

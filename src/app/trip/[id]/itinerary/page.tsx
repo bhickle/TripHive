@@ -842,6 +842,35 @@ function ItineraryPageContent() {
         || (payload.tripLength as number) || 7;
       setLiveBuildTotal(totalDays);
 
+      // Extract every venue / restaurant / activity / photo spot / food tip /
+      // bar / shop name from a day. Used to build the cross-chunk dedup list
+      // so the model in chunk N+1 doesn't re-suggest a venue from chunks 1..N.
+      // Without this, each Anthropic call only knows its own chunk's prompt
+      // and freely re-uses the same museum/cafe across days.
+      const collectDayVenues = (d: ItineraryDay): string[] => {
+        const names = new Set<string>();
+        for (const trackKey of ['shared', 'track_a', 'track_b'] as const) {
+          for (const a of (d.tracks?.[trackKey] ?? [])) {
+            const n = (a as { name?: string; title?: string }).name
+                  ?? (a as { name?: string; title?: string }).title;
+            if (n) names.add(n);
+          }
+        }
+        for (const s of (d.photoSpots ?? [])) {
+          if (s.name) names.add(s.name);
+        }
+        for (const t of (d.foodieTips ?? [])) {
+          if (t.name) names.add(t.name);
+        }
+        for (const s of (d.nightlifeHighlights ?? [])) {
+          if (s.name) names.add(s.name);
+        }
+        for (const s of (d.shoppingGuide ?? [])) {
+          if (s.name) names.add(s.name);
+        }
+        return Array.from(names);
+      };
+
       // 3. Inner helper: stream one segment (or the full trip when no segments)
       const streamSegment = async (
         seg: Segment | null,
@@ -849,6 +878,18 @@ function ItineraryPageContent() {
       ): Promise<{ days: unknown[]; meta: Record<string, unknown> | null }> => {
         const body: Record<string, unknown> = { ...payload };
         if (seg) {
+          // Build the cross-chunk "already used" list from every day already
+          // in aiDaysRef — venues from chunks 1..(N-1) plus any gap-fill
+          // retries within those chunks. Cap at 100 to keep the prompt lean
+          // while preserving the most likely duplicates.
+          const priorDays = (aiDaysRef.current ?? []).filter(d => {
+            const dn = (d.day as number | undefined) ?? 0;
+            return dn < seg.dayStart;
+          });
+          const excludeVenues = Array.from(
+            new Set(priorDays.flatMap(collectDayVenues))
+          ).slice(0, 100);
+
           body.citySegment = {
             cityName: seg.cityName,
             dayStart: seg.dayStart,
@@ -860,6 +901,7 @@ function ItineraryPageContent() {
             sameCity: seg.sameCity,
             totalTripDays: totalDays,
             ...(prevContext ? { prevContext } : {}),
+            ...(excludeVenues.length > 0 ? { excludeVenues } : {}),
           };
         }
 
