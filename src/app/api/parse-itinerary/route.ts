@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { AI_CREDIT_COSTS, TIER_LIMITS } from '@/lib/types';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const PARSE_COST = AI_CREDIT_COSTS.parse_itinerary;
 
 const SYSTEM_PROMPT = `You are an expert travel itinerary parser. Given raw itinerary text (from a PDF, email, travel agent doc, etc.), you extract and restructure it into a clean JSON format.
 
@@ -54,7 +58,12 @@ Important rules:
 
 Also include a "meta" object AFTER the array, like this:
 Return the response as:
-{ "itinerary": [...days], "meta": { "destination": "<city, country>", "startDate": "<YYYY-MM-DD>", "endDate": "<YYYY-MM-DD>", "tripLength": <number> } }`;
+{ "itinerary": [...days], "meta": { "destination": "<city, country>", "startDate": "<YYYY-MM-DD>", "endDate": "<YYYY-MM-DD>", "tripLength": <number>, "isCruise": <true|false>, "cruiseLine": "<cruise line name if applicable, else empty string>" } }
+
+Cruise detection rules:
+- isCruise = true ONLY when the source clearly references cruise terminology: "cruise", "ship", "port stop", "embarkation", "disembarkation", "all aboard time", "stateroom", "cabin", or a recognised cruise line.
+- cruiseLine: extract from explicit mentions ("Royal Caribbean", "Carnival", "Norwegian", "MSC", "Disney", "Princess", "Holland America", "Celebrity", "Virgin Voyages", "Viking", etc.). Empty string if not stated.
+- When uncertain, set isCruise = false. The user can correct from the itinerary page if needed.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -72,6 +81,41 @@ export async function POST(req: NextRequest) {
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 500 });
+  }
+
+  // ── Credit gate ──────────────────────────────────────────────────────────
+  // Free tier gets ~10 parses/month before the server rejects with 402. Paid
+  // tiers (trip_pass, explorer, nomad) and admin (no monthly cap configured)
+  // pass through without enforcement — their cap is effectively the plan
+  // limit but we don't enforce paid-tier ceilings here yet.
+  //
+  // TODO(launch): apply this same credit-gate pattern to generate-itinerary,
+  // suggest-activity, and parse-transport. None of those routes currently
+  // enforce credits server-side, so the credit counter on the settings page
+  // is advisory only. Without server enforcement, a free user can't actually
+  // be stopped from running unlimited generations. Tracked as a launch
+  // blocker in CLAUDE.md.
+  const admin = createAdminClient();
+  let creditsUsedAtStart = 0;
+  if (auth.ctx.tier === 'free') {
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('ai_credits_used')
+      .eq('id', auth.ctx.userId)
+      .single();
+    creditsUsedAtStart = profile?.ai_credits_used ?? 0;
+    const limit = TIER_LIMITS.free.aiCreditsPerMonth as number;
+    if (creditsUsedAtStart + PARSE_COST > limit) {
+      return NextResponse.json(
+        {
+          error: 'CREDITS_EXHAUSTED',
+          message: `You've used your ${limit} AI credits for the month. Upgrade to a Trip Pass or higher tier for more.`,
+          used: creditsUsedAtStart,
+          limit,
+        },
+        { status: 402 },
+      );
+    }
   }
 
   try {
@@ -134,6 +178,19 @@ export async function POST(req: NextRequest) {
 
     if (!parsed.itinerary || !Array.isArray(parsed.itinerary)) {
       throw new Error('Invalid structure — missing itinerary array');
+    }
+
+    // Charge the credit AFTER a successful parse. Failed parses don't
+    // consume credits — the user can retry without burning quota for an
+    // error that wasn't their fault. Race condition: two simultaneous
+    // parses both pass the cap check then both increment, allowing 1
+    // over-charge. Acceptable on a 10-credit/mo free tier; tighten via
+    // a Postgres RPC with atomic increment if it matters at scale.
+    if (auth.ctx.tier === 'free') {
+      await admin
+        .from('profiles')
+        .update({ ai_credits_used: creditsUsedAtStart + PARSE_COST })
+        .eq('id', auth.ctx.userId);
     }
 
     return NextResponse.json({

@@ -218,7 +218,7 @@ Claude cannot set these — Brandon must add them manually.
 These are the active items to build/fix, in rough priority order. Note: this list goes stale fast. Always cross-check against `git log` before assuming a task is unfinished — many "open" items here are knocked out within a session and not removed promptly.
 
 ### 🔴 Must-Fix Before Any More Testing
-- _All previously listed items shipped. Add new launch-blockers here as they surface._
+- [ ] **Server-side AI credit enforcement** — only `/api/parse-itinerary` enforces credits server-side (charges 1 credit per parse, returns 402 when free tier hits the monthly cap). The other AI routes (`generate-itinerary`, `suggest-activity`, `parse-transport`) check NOTHING server-side, so the credit counter on the settings page is advisory only — a free user can run unlimited generations. Pre-launch: replicate the same `creditsUsedAtStart`/`update profiles.ai_credits_used` pattern in those three routes. Worth factoring a `consumeAiCredit(userId, tier, action)` helper in `lib/supabase/requireAuth.ts` so the four routes stay consistent.
 
 ### 🟠 Feature Work (Active)
 - [ ] **Enable Google OAuth** (`#183`) — Google sign-in buttons exist but OAuth is not configured. Steps: Google Cloud Console → create OAuth Client ID → redirect URI: `https://pqizuvmtertpxhhxyemj.supabase.co/auth/v1/callback` → Supabase dashboard → Authentication → Providers → Google → enable + paste keys.

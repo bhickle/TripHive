@@ -86,6 +86,11 @@ interface ParsedMeta {
   startDate?: string;
   endDate?: string;
   tripLength?: number;
+  // Returned by /api/parse-itinerary when the source content clearly
+  // signals a cruise (terminology, ports, named cruise line). Used to
+  // skip the manual "Is this a cruise?" step entirely when AI is confident.
+  isCruise?: boolean;
+  cruiseLine?: string;
 }
 
 interface UploadItineraryModalProps {
@@ -311,6 +316,13 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
       if (!res.ok || data.error) {
         if (data.error === 'NO_API_KEY') {
           setErrorMsg('No AI API key configured. Add your Anthropic API key to .env.local to enable parsing.');
+        } else if (data.error === 'CREDITS_EXHAUSTED') {
+          // 402 from the server — surface the upgrade path explicitly.
+          // The server already includes used/limit; show the friendly
+          // message it sent. Trip Pass CTA on the done step is gone for
+          // this flow since we never reach 'done', but the user can
+          // upgrade from Settings.
+          setErrorMsg(data.message || 'You\'ve used your AI credits for the month. Upgrade to keep parsing.');
         } else {
           setErrorMsg(data.message || 'Failed to parse the itinerary. Please try again.');
         }
@@ -435,7 +447,27 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
       }
 
       setSavingPreview(false);
-      setStep('cruise-check');
+
+      // Skip the manual "Is this a cruise?" step when the parser already
+      // identified it. cruiseLine empty → still ask for confirmation since
+      // the AI may have detected a cruise generically without a name.
+      const aiCruise = parsedMeta?.isCruise === true;
+      const aiCruiseLine = parsedMeta?.cruiseLine?.trim() ?? '';
+      if (aiCruise && aiCruiseLine) {
+        setIsCruise(true);
+        setCruiseLine(aiCruiseLine);
+        // Persist the cruise flag immediately so the itinerary page picks
+        // up cruise-mode rendering on first load. Same metaPatch the manual
+        // confirmation path uses.
+        updateMetaWithCruise(true, aiCruiseLine);
+        setStep('done');
+      } else if (parsedMeta?.isCruise === false) {
+        setIsCruise(false);
+        updateMetaWithCruise(false, '');
+        setStep('done');
+      } else {
+        setStep('cruise-check');
+      }
     } catch (err) {
       setSavingPreview(false);
       setSavePreviewError(err instanceof Error ? err.message : 'Could not save the trip.');
@@ -633,6 +665,24 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                     </div>
                     <p className="font-semibold text-zinc-700">Drop your itinerary files here</p>
                     <p className="text-xs text-zinc-400">or click to browse · PDF, .txt, or .md · multiple files OK</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Multi-PDF warning. The parse route accepts ONE document
+                  block per request — extra PDFs would be silently dropped
+                  unless we surface this here so the user can either remove
+                  duplicates or convert them to text. */}
+              {loadedFiles.filter(f => f.pdfBase64).length > 1 && (
+                <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-amber-900">
+                      Multiple PDFs detected
+                    </p>
+                    <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                      Only the first PDF will be parsed in full detail. The rest will be ignored. To merge multiple PDFs into one trip, copy each one's text and paste below.
+                    </p>
                   </div>
                 </div>
               )}

@@ -70,6 +70,11 @@ export const AI_CREDIT_COSTS = {
   itinerary_regenerate: 5,
   transport_parse: 1,
   activity_suggest: 2,
+  // PDF / text itinerary parse via /api/parse-itinerary. Charged 1 credit
+  // per parse — same as transport_parse since it's a comparable extraction
+  // operation. Free tier (10 credits/mo) gets ~10 parses/month before the
+  // server returns CREDITS_EXHAUSTED.
+  parse_itinerary: 1,
 } as const;
 
 export type AiAction = keyof typeof AI_CREDIT_COSTS;
