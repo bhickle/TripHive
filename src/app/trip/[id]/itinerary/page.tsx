@@ -2123,25 +2123,25 @@ function ItineraryPageContent() {
 
         {/* Toasts */}
         {activityAdded && (
-          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             <span className="text-sm font-semibold">{editingActivity ? 'Activity updated' : 'Activity added to itinerary'}</span>
           </div>
         )}
         {activityDeleted && (
-          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
             <Trash2 className="w-5 h-5 text-rose-400" />
             <span className="text-sm font-semibold">Activity removed</span>
           </div>
         )}
         {actionError && (
-          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
             <AlertCircle className="w-5 h-5 text-rose-300" />
             <span className="text-sm font-semibold">{actionError}</span>
           </div>
         )}
         {bookingSaved && (
-          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             <span className="text-sm font-semibold">{bookingSaved}</span>
           </div>

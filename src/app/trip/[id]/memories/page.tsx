@@ -23,14 +23,17 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const groupMembers = isMockTrip ? mockGroupMembers : [];
   const [tripDestinationFromApi, setTripDestinationFromApi] = useState<string | null>(null);
 
+  const [photosLoadError, setPhotosLoadError] = useState(false);
+
   // Load photos and trip destination from Supabase for real trips
   useEffect(() => {
     if (isMockTrip) return;
     const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
     if (!looksLikeUuid) return;
 
+    setPhotosLoadError(false);
     Promise.allSettled([
-      fetch(`/api/trips/${params.id}/photos`).then(r => r.ok ? r.json() : null),
+      fetch(`/api/trips/${params.id}/photos`).then(r => r.ok ? r.json() : { __failed: true }),
       fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
     ]).then(([photosRes, tripRes]) => {
       if (photosRes.status === 'fulfilled' && photosRes.value?.photos) {
@@ -42,6 +45,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           day: p.dayNumber || 1,
           timestamp: p.createdAt || new Date().toISOString(),
         })));
+      } else if (photosRes.status === 'rejected' || (photosRes.status === 'fulfilled' && photosRes.value?.__failed)) {
+        // Photo fetch failed — surface so the empty grid isn't ambiguous.
+        setPhotosLoadError(true);
       }
       if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
         setTripDestinationFromApi(tripRes.value.trip.destination);
@@ -251,6 +257,19 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   <p className="text-xs text-rose-700">
                     {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
                   </p>
+                </div>
+              )}
+              {photosLoadError && (
+                <div className="mt-4 mx-auto max-w-md flex items-start justify-between gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-left">
+                  <p className="text-xs text-amber-900">
+                    We couldn&apos;t load your saved photos. New uploads will still work.
+                  </p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-xs font-medium text-amber-900 underline hover:text-amber-700 whitespace-nowrap"
+                  >
+                    Retry
+                  </button>
                 </div>
               )}
             </div>

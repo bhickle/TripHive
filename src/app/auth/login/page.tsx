@@ -3,15 +3,28 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Mail, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { signInAction } from './actions';
+
+const REMEMBERED_EMAIL_KEY = 'tc_remembered_email';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Prefill email from a previous "Remember me" if one is stored. Supabase
+  // already handles session persistence — this checkbox controls whether we
+  // remember the email *address* (not the password) for the login form.
+  useEffect(() => {
+    try {
+      const remembered = localStorage.getItem(REMEMBERED_EMAIL_KEY);
+      if (remembered) { setEmail(remembered); setRememberMe(true); }
+    } catch { /* localStorage unavailable */ }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +43,10 @@ export default function LoginPage() {
       setError(result.error);
       setIsLoading(false);
     } else {
+      try {
+        if (rememberMe) localStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim());
+        else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      } catch { /* localStorage unavailable */ }
       // Hard redirect — forces a full page reload so auth cookies are picked up
       window.location.href = '/dashboard';
     }
@@ -85,6 +102,7 @@ export default function LoginPage() {
                 <input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -104,6 +122,7 @@ export default function LoginPage() {
                 <input
                   id="password"
                   type="password"
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -116,7 +135,12 @@ export default function LoginPage() {
             {/* Remember & Forgot */}
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded border-slate-300" />
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300"
+                />
                 <span className="text-sm text-zinc-600">Remember me</span>
               </label>
               <Link href="/auth/reset-password" className="text-sm font-medium text-sky-700 hover:text-sky-800">

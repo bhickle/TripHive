@@ -973,6 +973,20 @@ export default function WishlistPage() {
               <p className="text-sm text-sky-700 mt-1 text-center">Search anywhere and save for later</p>
             </button>
 
+            {/* Loading skeletons — show while initial wishlist fetch is in
+                flight so the grid doesn't read as "you have no destinations"
+                during the brief loading window after auth resolves. */}
+            {wishlistLoading && filteredItems.length === 0 && Array.from({ length: 3 }).map((_, i) => (
+              <div key={`skel-${i}`} className="rounded-2xl overflow-hidden bg-white border border-zinc-100 shadow-sm animate-pulse">
+                <div className="h-52 bg-zinc-200" />
+                <div className="p-4 space-y-3">
+                  <div className="h-4 bg-zinc-200 rounded w-3/4" />
+                  <div className="h-3 bg-zinc-200 rounded w-1/2" />
+                  <div className="h-3 bg-zinc-200 rounded w-2/3" />
+                </div>
+              </div>
+            ))}
+
             {/* Wishlist Cards */}
             {filteredItems.map((item) => (
               <div key={item.id} className="group rounded-2xl overflow-hidden bg-white border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
