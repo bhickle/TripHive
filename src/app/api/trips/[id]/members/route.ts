@@ -27,10 +27,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .eq('id', params.id)
       .single();
 
-    // Fetch members from trip_members (non-organizer rows)
+    // Fetch members from trip_members (non-organizer rows). `preferences` is
+    // included so the Crew Readiness panel can show per-member submission
+    // state without a second round-trip.
     const { data: members } = await supabase
       .from('trip_members')
-      .select('id, user_id, email, name, role, joined_at')
+      .select('id, user_id, email, name, role, joined_at, preferences')
       .eq('trip_id', params.id)
       .order('joined_at', { ascending: true });
 
@@ -53,6 +55,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       avatarUrl: string | null;
       role: string;
       joinedAt: string;
+      preferencesSubmittedAt: string | null;
     }> = [];
 
     if (organizer) {
@@ -65,6 +68,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           avatarUrl: organizer.avatar_url,
           role: 'organizer',
           joinedAt: new Date().toISOString(),
+          // Organizer fills the full Trip Builder, not the mini-wizard, so
+          // their readiness is always "ready" for the Crew Readiness panel.
+          preferencesSubmittedAt: new Date().toISOString(),
         });
       }
     }
@@ -80,6 +86,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           .single();
         profile = data;
       }
+      // Pull submittedAt off the JSON if present. Guests joining via the
+      // open share-link flow always set this on submit; tokenless joins
+      // before this commit may not have it, in which case we fall back to
+      // joined_at so the panel doesn't flag long-standing members as pending.
+      const prefs = m.preferences as { submittedAt?: string } | null;
+      const preferencesSubmittedAt = prefs?.submittedAt ?? null;
       result.push({
         id: m.user_id ?? m.id,
         name: profile?.name ?? m.name ?? m.email?.split('@')[0] ?? 'Member',
@@ -87,6 +99,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         avatarUrl: profile?.avatar_url ?? null,
         role: m.role,
         joinedAt: m.joined_at,
+        preferencesSubmittedAt,
       });
     }
 

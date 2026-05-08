@@ -11,7 +11,7 @@ import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/clie
 
 interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }
 interface Vote { id: string; title: string; status: 'open' | 'closed'; closesAt?: string; options: VoteOption[]; }
-interface GroupMemberData { id: string; name: string; email?: string | null; avatarUrl?: string | null; role: string; joinedAt?: string; interests?: string[]; }
+interface GroupMemberData { id: string; name: string; email?: string | null; avatarUrl?: string | null; role: string; joinedAt?: string; interests?: string[]; preferencesSubmittedAt?: string | null; }
 import {
   UserPlus,
   Send,
@@ -1029,6 +1029,79 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         })()}
         {activeTab === 'overview' && (
           <div className="space-y-8">
+            {/* ─── Crew Readiness ─────────────────────────────────────────
+                Shown to the organizer/co-organizer only. Pending = members
+                who haven't filled the preferences mini-wizard yet. The
+                `Generate Itinerary` button on the itinerary page will read
+                this same data via the soft generation gate (step 6). */}
+            {(() => {
+              const viewerIsOrganizer = currentUserId
+                ? groupMembers.find(m => m.id === currentUserId)?.role === 'organizer' ||
+                  groupMembers.find(m => m.id === currentUserId)?.role === 'co_organizer'
+                : false;
+              if (!viewerIsOrganizer || groupMembers.length <= 1) return null;
+              const ready = groupMembers.filter(m => !!m.preferencesSubmittedAt);
+              const pending = groupMembers.filter(m => !m.preferencesSubmittedAt);
+              const total = groupMembers.length;
+              const allReady = pending.length === 0;
+              const inviteUrl = typeof window !== 'undefined'
+                ? `${window.location.origin}/join/${params.id}`
+                : '';
+
+              return (
+                <div className={`rounded-2xl border p-6 ${allReady ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                      <h2 className="font-script italic text-2xl font-semibold text-zinc-900 mb-1">
+                        {allReady ? 'Crew is ready' : 'Crew Readiness'}
+                      </h2>
+                      <p className="text-sm text-zinc-700">
+                        {allReady
+                          ? 'Everyone\'s preferences are in. Generate the itinerary whenever you\'re ready.'
+                          : `${ready.length} of ${total} ready · ${pending.length} still need to share preferences.`}
+                      </p>
+                    </div>
+                    <div className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full ${allReady ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'}`}>
+                      {ready.length}/{total}
+                    </div>
+                  </div>
+                  {!allReady && (
+                    <>
+                      <div className="space-y-2 mb-4">
+                        {pending.map(m => (
+                          <div key={m.id} className="flex items-center justify-between gap-3 px-3 py-2 bg-white rounded-xl border border-amber-200">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-600 flex-shrink-0">
+                                {(m.name?.[0] ?? '?').toUpperCase()}
+                              </div>
+                              <span className="text-sm font-medium text-zinc-900 truncate">{m.name}</span>
+                            </div>
+                            <span className="text-xs text-amber-700 font-medium flex-shrink-0">Not yet</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(inviteUrl);
+                              setActionError(null);
+                            } catch {
+                              setActionError('Could not copy invite link');
+                            }
+                          }}
+                          className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-full transition-colors"
+                        >
+                          Copy invite link
+                        </button>
+                        <p className="text-xs text-amber-800">Share this with anyone still pending — they&apos;ll fill preferences after joining.</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Members Grid */}
             <div>
               <div className="flex items-center justify-between mb-6">
