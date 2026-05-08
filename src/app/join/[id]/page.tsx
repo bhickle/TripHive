@@ -59,8 +59,8 @@ const priorityOptions = [
   { id: 'beach',         label: 'Beach',         icon: '🏖️' },
   { id: 'themepark',     label: 'Theme Parks',   icon: '🎢' },
   { id: 'family',        label: 'Family/Kids',   icon: '👨‍👩‍👧' },
-  { id: 'budget',        label: 'Budget',        icon: '💰' },
-  { id: 'accessibility', label: 'Accessibility', icon: '♿' },
+  // 'budget' + 'accessibility' chips removed — both are collected elsewhere
+  // (budget-tier slider in Trip Builder, accessibilityNeeds question).
 ];
 const accommodationOptions = ['Luxury Hotels', 'Mid-Range Hotels', 'Boutique Stays', 'Hostels', 'Airbnb/Vacation Rentals'];
 const curiosityLevels = ['Exploring casually', 'Moderate pace', 'Packed schedule'];

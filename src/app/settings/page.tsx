@@ -59,8 +59,9 @@ const PRIORITY_OPTIONS = [
   { id: 'beach',         label: 'Beach',         icon: '🏖️' },
   { id: 'themepark',     label: 'Theme Parks',   icon: '🎢' },
   { id: 'family',        label: 'Family/Kids',   icon: '👨‍👩‍👧' },
-  { id: 'budget',        label: 'Budget',        icon: '💰' },
-  { id: 'accessibility', label: 'Accessibility', icon: '♿' },
+  // 'budget' chip removed — overlaps with the budget-tier slider in the Trip
+  // Builder. 'accessibility' chip removed — collected as a dedicated wizard
+  // question, not a priority chip.
 ];
 
 // ─── Subscription display helpers ─────────────────────────────────────────────

@@ -48,8 +48,9 @@ const PRIORITY_TAGS: { id: string; label: string; emoji: string }[] = [
   { id: 'beach',         label: 'Beach',         emoji: '🏖️' },
   { id: 'themepark',     label: 'Theme Parks',   emoji: '🎢' },
   { id: 'family',        label: 'Family/Kids',   emoji: '👨‍👩‍👧' },
-  { id: 'budget',        label: 'Budget',        emoji: '💰' },
-  { id: 'accessibility', label: 'Accessibility', emoji: '♿' },
+  // 'budget' + 'accessibility' chips removed from priority filters — both
+  // overlap with dedicated wizard fields. Existing wishlist items tagged with
+  // either keep the tag in their data; the filter row no longer offers them.
 ];
 
 const VIBE_OPTIONS: { id: TravelVibe; label: string; icon: React.ReactNode }[] = [

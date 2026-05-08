@@ -121,8 +121,10 @@ const priorityOptions = [
   { id: 'beach',        label: 'Beach',          icon: '🏖️', tooltip: 'Beaches, water activities & coastal views' },
   { id: 'themepark',    label: 'Theme Parks',    icon: '🎢', tooltip: 'Parks, rides, strategy tips & entertainment' },
   { id: 'family',       label: 'Family/Kids',    icon: '👨‍👩‍👧', tooltip: 'Kid-friendly picks, family pacing & activities' },
-  { id: 'budget',       label: 'Budget',         icon: '💰', tooltip: 'Free sights, local eats & money-saving tips' },
-  { id: 'accessibility', label: 'Accessibility', icon: '♿', tooltip: 'Accessible venues & mobility-friendly options' },
+  // Removed 'budget' priority chip — overlapped with the budget-tier slider in
+  // Step 7 (a 'Budget' priority on a luxury tier sent conflicting signals).
+  // Removed 'accessibility' priority chip — accessibility is collected as a
+  // dedicated wizard question (Step 5 accessibilityNeeds), not a priority chip.
 ];
 
 const mockDestinations = [
@@ -668,11 +670,27 @@ function TripBuilderPage() {
     })();
 
     // ── Build the API payload ──────────────────────────────────────────────────
+    // Empty-date fallback: previously hardcoded to 2026-09-15 / 2026-09-21
+    // which would silently age out (we're already past mid-2026 by go-live).
+    // Now derives a rolling default of "today + 90 days" for the start, and
+    // start + tripLength for the end. The flexibleDates flag tells the AI
+    // these are placeholder defaults so it can suggest a better season.
+    const tripLengthSafe = state.tripLength || 7;
+    const fallbackStart = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 90);
+      return d.toISOString().slice(0, 10);
+    })();
+    const fallbackEnd = (() => {
+      const d = new Date(fallbackStart + 'T00:00:00');
+      d.setDate(d.getDate() + tripLengthSafe - 1);
+      return d.toISOString().slice(0, 10);
+    })();
     const payload: Record<string, unknown> = {
       destination: canonicalDestination,
-      startDate: state.startDate || '2026-09-15',
-      endDate: state.endDate || '2026-09-21',
-      tripLength: state.tripLength || 7,
+      startDate: state.startDate || fallbackStart,
+      endDate: state.endDate || fallbackEnd,
+      tripLength: tripLengthSafe,
       // groupSize was previously omitted from the payload, so the prompt
       // (which reads it for group-pacing logic and meeting points) silently
       // fell back to defaults — itineraries didn't reflect the actual party

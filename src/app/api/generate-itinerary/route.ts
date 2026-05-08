@@ -474,7 +474,7 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
   // requirement to anchor every day with the iconic landmark in photoSpots,
   // because the user has been to those before.
   const localModeText = localMode
-    ? '\n- REPEAT-VISITOR MODE (override): This traveler has been to this destination before and has already visited the famous tourist landmarks. SKIP or strongly de-emphasize the iconic must-see spots (Eiffel Tower, Trevi Fountain, Hagia Sophia, etc.) — INCLUDING in the photoSpots arrays. Replace them with hidden gems, local-only neighborhoods, off-the-beaten-path experiences, second-tier neighborhoods worth exploring, lesser-known museums and galleries, locals\' favorite restaurants and cafes, niche markets, craft and design districts, residential pockets with character, and cultural spots first-time visitors typically miss. Treat this as a deeper-cut itinerary — depth over breadth, locals over tourists. This rule overrides rule 11\'s "always include iconic must-photograph landmarks" instruction.'
+    ? '\n- REPEAT-VISITOR MODE (override): This traveler has been to this destination before and has already visited the famous tourist landmarks. SKIP or strongly de-emphasize the iconic must-see SIGHTS, MUSEUMS, AND ATTRACTIONS (Eiffel Tower, Trevi Fountain, Hagia Sophia, the Louvre, the Acropolis, etc.) — INCLUDING in the photoSpots arrays. Replace them with: lesser-known museums and galleries, second-tier neighborhoods worth exploring, niche markets, craft and design districts, residential pockets with character, hidden viewpoints, off-the-beaten-path historic sites, and cultural spots first-time visitors typically miss. SCOPE: this rule applies to ATTRACTIONS, sights, museums, and photo spots — NOT to restaurants or food venues. Food picks (breakfast, lunch, dinner, foodie tips, nightlife) must continue to respect the budget tier above; do not downgrade or upgrade food choices based on this flag. This rule overrides rule 11\'s "always include iconic must-photograph landmarks" instruction.'
     : '';
 
   const dateNightText = dateNight
@@ -819,7 +819,14 @@ You MUST follow ALL of these rules:
   // mobility needs > elderly (65+) > default. Even without an explicit
   // accessibility selection, an elderly traveler tightens the walking budget
   // because the default 4-mile/day limit is unrealistic for many seniors.
-  const hasLimitedMobility = accessibilityNeeds.includes('Wheelchair accessible') || accessibilityNeeds.includes('Limited mobility');
+  //
+  // Match by keyword rather than exact label so the rule survives wizard
+  // copy changes ("Wheelchair access" vs "Wheelchair accessible" etc.) and
+  // catches any near-miss phrasing the user might encounter.
+  const hasLimitedMobility = accessibilityNeeds.some(n => {
+    const lc = (n ?? '').toLowerCase();
+    return lc.includes('wheelchair') || lc.includes('mobility') || lc.includes('cane') || lc.includes('walker');
+  });
   const hasElderly = ageRanges.includes('65+');
   const hasSeniors = hasElderly || ageRanges.includes('51-65');
   const walkingRuleText = hasLimitedMobility
