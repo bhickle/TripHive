@@ -16,11 +16,17 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
     setError('');
 
+    // 15s timeout — without this, an unreachable backend leaves the button
+    // stuck on "Sending…" forever and the user has no recovery path.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
     try {
       const res = await fetch('/api/auth/send-reset-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
+        signal: controller.signal,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok && data.error) {
@@ -28,10 +34,16 @@ export default function ResetPasswordPage() {
         setIsLoading(false);
         return;
       }
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        setError('Request timed out. Check your connection and try again.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
       setIsLoading(false);
       return;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     setSent(true);

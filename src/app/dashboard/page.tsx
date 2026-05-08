@@ -77,7 +77,18 @@ export default function DashboardPage() {
     setTripsLoading(true);
     setTripsLoadError(false);
     fetch('/api/trips')
-      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load trips')))
+      .then(async r => {
+        // 401 means the browser still has a stale session but the server
+        // rejected it (e.g. token expired between auth resolve and this fetch).
+        // Bounce to login so the user can re-auth instead of staring at a
+        // blank dashboard.
+        if (r.status === 401) {
+          router.replace('/auth/login');
+          throw new Error('unauthorized');
+        }
+        if (!r.ok) throw new Error('Failed to load trips');
+        return r.json();
+      })
       .then(({ trips }) => {
         if (Array.isArray(trips)) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,7 +112,7 @@ export default function DashboardPage() {
           })));
         }
       })
-      .catch(() => setTripsLoadError(true))
+      .catch(err => { if (err?.message !== 'unauthorized') setTripsLoadError(true); })
       .finally(() => setTripsLoading(false));
   };
 

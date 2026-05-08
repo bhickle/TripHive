@@ -65,6 +65,13 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [chatMessages, setChatMessages] = useState(isMockTrip ? mockMessages : []);
   const [votes, setVotes] = useState<Vote[]>([]);
   const [dataLoading, setDataLoading] = useState(!isMockTrip);
+  // Tracks which group resources failed their initial fetch so we can surface
+  // an inline error banner instead of silently rendering an empty tab. Without
+  // this, a failed /expenses or /messages fetch looked identical to "no data
+  // yet" — users had no way to tell something was broken.
+  const [tabLoadErrors, setTabLoadErrors] = useState<{ votes: boolean; chat: boolean; expenses: boolean; members: boolean }>(
+    { votes: false, chat: false, expenses: false, members: false }
+  );
 
   // Current user info (for message attribution)
   const [currentUserName, setCurrentUserName] = useState<string>('You');
@@ -90,16 +97,28 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
     const loadAll = async () => {
       setDataLoading(true);
+      setTabLoadErrors({ votes: false, chat: false, expenses: false, members: false });
+      // ok=false signals "fetch ran but the server returned an error". The
+      // tabLoadErrors flags below are derived from this so we can show banners.
+      const fetchOrFlag = (url: string) =>
+        fetch(url).then(r => r.ok ? r.json() : { __failed: true, status: r.status });
       try {
         // Fetch trip title, members, votes, messages, wishlist, expenses in parallel
         const [tripRes, membersRes, votesRes, messagesRes, wishlistRes, expensesRes] = await Promise.allSettled([
-          fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
-          fetch(`/api/trips/${params.id}/members`).then(r => r.ok ? r.json() : null),
-          fetch(`/api/trips/${params.id}/group-votes`).then(r => r.ok ? r.json() : null),
-          fetch(`/api/trips/${params.id}/messages`).then(r => r.ok ? r.json() : null),
-          fetch(`/api/trips/${params.id}/discover-wishlist`).then(r => r.ok ? r.json() : null),
-          fetch(`/api/trips/${params.id}/expenses`).then(r => r.ok ? r.json() : null),
+          fetchOrFlag(`/api/trips/${params.id}`),
+          fetchOrFlag(`/api/trips/${params.id}/members`),
+          fetchOrFlag(`/api/trips/${params.id}/group-votes`),
+          fetchOrFlag(`/api/trips/${params.id}/messages`),
+          fetchOrFlag(`/api/trips/${params.id}/discover-wishlist`),
+          fetchOrFlag(`/api/trips/${params.id}/expenses`),
         ]);
+
+        setTabLoadErrors({
+          members: membersRes.status === 'rejected' || (membersRes.status === 'fulfilled' && membersRes.value?.__failed),
+          votes: votesRes.status === 'rejected' || (votesRes.status === 'fulfilled' && votesRes.value?.__failed),
+          chat: messagesRes.status === 'rejected' || (messagesRes.status === 'fulfilled' && messagesRes.value?.__failed),
+          expenses: expensesRes.status === 'rejected' || (expensesRes.status === 'fulfilled' && expensesRes.value?.__failed),
+        });
 
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.title) {
           setTripName(tripRes.value.trip.title);
@@ -985,6 +1004,29 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       </div>
 
       <div>
+        {(() => {
+          // Per-tab error banner. Only shows when the relevant tab's data
+          // failed to load — so users on a working tab don't see noise.
+          const failed =
+            (activeTab === 'overview' && tabLoadErrors.members) ||
+            (activeTab === 'votes' && tabLoadErrors.votes) ||
+            (activeTab === 'chat' && tabLoadErrors.chat) ||
+            (activeTab === 'expenses' && tabLoadErrors.expenses);
+          if (!failed) return null;
+          return (
+            <div className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-3">
+              <p className="text-sm text-amber-900">
+                We couldn&apos;t load this tab&apos;s data. Some items may be missing.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="text-sm font-medium text-amber-900 underline hover:text-amber-700 whitespace-nowrap"
+              >
+                Retry
+              </button>
+            </div>
+          );
+        })()}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Members Grid */}

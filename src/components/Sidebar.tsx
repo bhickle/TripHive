@@ -42,7 +42,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
   const handleSignOut = async () => {
     setShowUserMenu(false);
     await signOut();
-    router.push('/');
+    // Hard navigation rather than router.push: any authenticated-only page
+    // has its own "redirect to login when session is null" effect, and that
+    // can win the race against router.push('/'), landing the user on
+    // /auth/login instead of the homepage. window.location forces a full
+    // reload so the homepage renders cleanly with no stale state.
+    window.location.href = '/';
   };
 
   const navItems = [
