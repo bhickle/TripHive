@@ -65,21 +65,29 @@ export async function GET(
     // rather than `joined_at`, because Trip Pass members typically join first
     // and fill the mini-wizard later. Surfaces the regenerate banner correctly
     // when a member submits or updates preferences post-generation.
+    //
+    // pendingPrefsCount: members who joined but haven't submitted preferences
+    // at all. Used by the regenerate confirm dialog to warn the buyer that
+    // those members will be treated as "no preferences" if they generate now.
     let newPrefsCount = 0;
-    if (trip.itinerary_generated_at) {
-      const generatedAt = trip.itinerary_generated_at;
-      const { data: prefsRows } = await supabase
+    let pendingPrefsCount = 0;
+    {
+      const { data: memberRows } = await supabase
         .from('trip_members')
         .select('preferences')
-        .eq('trip_id', params.id)
-        .not('preferences', 'is', null);
-      newPrefsCount = (prefsRows ?? []).filter(row => {
+        .eq('trip_id', params.id);
+      const generatedAt = trip.itinerary_generated_at;
+      for (const row of memberRows ?? []) {
         const p = row.preferences as { submittedAt?: string } | null;
-        return !!p?.submittedAt && p.submittedAt > generatedAt;
-      }).length;
+        if (!p?.submittedAt) {
+          pendingPrefsCount++;
+        } else if (generatedAt && p.submittedAt > generatedAt) {
+          newPrefsCount++;
+        }
+      }
     }
 
-    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount });
+    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount, pendingPrefsCount });
   } catch (err) {
     console.error('Load trip error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });

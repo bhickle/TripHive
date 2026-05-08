@@ -320,6 +320,7 @@ function ItineraryPageContent() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [suggestingActivityId, setSuggestingActivityId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -370,6 +371,7 @@ function ItineraryPageContent() {
   useModalUX(showAddDayModal, () => { if (!addDayGenerating) { setShowAddDayModal(false); setAddDayError(null); } });
   useModalUX(showAddHotelModal, () => { setShowAddHotelModal(false); setBookingError(null); setEditingHotelIndex(null); });
   useModalUX(showAddFlightModal, () => { setShowAddFlightModal(false); setBookingError(null); });
+  useModalUX(showRegenConfirm, () => setShowRegenConfirm(false));
   // Hotel form state
   const [hotelFormName, setHotelFormName] = useState('');
   const [hotelFormCity, setHotelFormCity] = useState('');
@@ -425,6 +427,13 @@ function ItineraryPageContent() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [tripRow, setTripRow] = useState<Record<string, any> | null>(null);
   const [newPrefsCount, setNewPrefsCount] = useState(0);
+  // Members who joined but haven't filled preferences. Drives the confirm
+  // dialog when the buyer clicks Regenerate so they're explicitly warned
+  // that pending members will be treated as "no preferences" — the soft
+  // 24h fallback rule from the Trip Pass design memo.
+  const [pendingPrefsCount, setPendingPrefsCount] = useState(0);
+  // showRegenConfirm is hoisted up next to the other show* states (above)
+  // so useModalUX can reference it without a forward-reference TS error.
 
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
     // Compute new vote counts using the current votes state via functional updater
@@ -689,9 +698,10 @@ function ItineraryPageContent() {
         try {
           const res = await fetch(`/api/trips/${tripPageId}`);
           if (res.ok) {
-            const { trip: tripData, itinerary, newPrefsCount: npc } = await res.json();
+            const { trip: tripData, itinerary, newPrefsCount: npc, pendingPrefsCount: ppc } = await res.json();
             if (tripData) setTripRow(tripData);
             if (typeof npc === 'number') setNewPrefsCount(npc);
+            if (typeof ppc === 'number') setPendingPrefsCount(ppc);
             if (itinerary && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
               syncAiDays(itinerary.days);
               if (itinerary.meta) {
@@ -2398,12 +2408,47 @@ function ItineraryPageContent() {
               {' '}since this itinerary was built.
             </p>
             <button
-              onClick={handleRegenerate}
+              onClick={() => {
+                if (pendingPrefsCount > 0) {
+                  setShowRegenConfirm(true);
+                } else {
+                  handleRegenerate();
+                }
+              }}
               className="flex items-center gap-1.5 px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-full transition-all whitespace-nowrap"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Regenerate
             </button>
+          </div>
+        )}
+
+        {/* Regenerate confirm — fires the "pending members default to no
+            preferences" warning from the Trip Pass design. The buyer can
+            wait or generate anyway; we never block. */}
+        {showRegenConfirm && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRegenConfirm(false)}>
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+              <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">Generate now?</h3>
+              <p className="text-sm text-zinc-700 mb-5">
+                <span className="font-semibold text-zinc-900">{pendingPrefsCount}</span> {pendingPrefsCount === 1 ? 'member hasn\'t' : 'members haven\'t'} shared preferences yet. If you generate now, {pendingPrefsCount === 1 ? 'their answers' : 'their answers'} won&apos;t be factored in — the AI will use only the input it has.
+              </p>
+              <p className="text-xs text-zinc-500 mb-6">You can always regenerate later when more answers come in.</p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowRegenConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-zinc-700 hover:text-zinc-900"
+                >
+                  Wait
+                </button>
+                <button
+                  onClick={() => { setShowRegenConfirm(false); handleRegenerate(); }}
+                  className="px-5 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold rounded-full transition-colors"
+                >
+                  Generate now
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
