@@ -172,6 +172,89 @@ interface LayoverResult {
   hotelSuggestions?: HotelSuggestion[];
 }
 
+// ─── Day-pass shortcut strips ────────────────────────────────────────────────
+// Plain links to third-party day-pass services. Affiliate IDs can be added
+// later via env vars (RESORTPASS_AFFILIATE_ID, etc.) without touching the UI.
+// Only LoungeBuddy has a reliable public airport-page URL pattern; the others
+// land on a homepage / search page since their deep-link formats are
+// JS-driven and easy to break.
+
+function HotelDayRoomStrip({ city }: { city: string }) {
+  const q = encodeURIComponent(city);
+  // utm_source kept simple — switch to a per-link affiliate URL when programs are enrolled.
+  const links = [
+    { label: 'ResortPass',     href: `https://www.resortpass.com/?utm_source=tripcoord` },
+    { label: 'DayUse',         href: `https://www.dayuse.com/search?q=${q}&utm_source=tripcoord` },
+    { label: 'DayBreak Hotels', href: `https://www.daybreakhotels.com/?utm_source=tripcoord` },
+  ];
+  return (
+    <div className="mb-4 p-4 bg-violet-50/60 border border-violet-200 rounded-xl">
+      <div className="flex items-start gap-3">
+        <span className="text-xl flex-shrink-0">💧</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-violet-900 mb-1">Search day rooms near {city}</p>
+          <p className="text-xs text-violet-700 mb-3 leading-relaxed">
+            Day-use rooms include pool, spa, and gym access — ideal for a refresh between flights.
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {links.map(l => (
+              <a
+                key={l.label}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-violet-300 rounded-full text-xs font-semibold text-violet-800 hover:bg-violet-100 transition-colors"
+              >
+                {l.label}
+                <span className="text-violet-400">↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoungeDayPassStrip({ airportCode }: { airportCode: string }) {
+  const code = airportCode.toUpperCase();
+  const links = [
+    { label: 'Priority Pass', href: `https://www.prioritypass.com/?utm_source=tripcoord` },
+    // LoungeBuddy hosts public per-airport pages at /airports/<code>
+    { label: 'LoungeBuddy',   href: `https://loungebuddy.com/airports/${code}?utm_source=tripcoord` },
+  ];
+  return (
+    <div className="mb-3 p-4 bg-purple-50/60 border border-purple-200 rounded-xl">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl flex-shrink-0">🛋️</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <p className="text-sm font-semibold text-purple-900">No lounge access via your card?</p>
+            <span className="text-[10px] px-2 py-0.5 bg-purple-200 text-purple-800 rounded-full font-bold uppercase tracking-wide">Day Pass</span>
+          </div>
+          <p className="text-xs text-purple-700 mb-3 leading-relaxed">
+            Most major airports sell single-visit lounge passes (~$30–60). Worth it for a 2+ hr break with food, Wi-Fi, and quiet seating.
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {links.map(l => (
+              <a
+                key={l.label}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-purple-300 rounded-full text-xs font-semibold text-purple-800 hover:bg-purple-100 transition-colors"
+              >
+                {l.label}
+                <span className="text-purple-400">↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Airport Search Component ─────────────────────────────────────────────────
 
 interface AirportSearchProps {
@@ -674,6 +757,10 @@ export default function LayoverPlannerPage() {
 
               {/* Activity suggestions */}
               <div className="space-y-4 mb-8">
+                {/* Lounge day-pass shortcut — slotted at the top of the list. Always
+                    relevant: short layovers benefit most (a 2-hr lounge pass is the
+                    best short-stop move), medium/long layovers also useful. */}
+                <LoungeDayPassStrip airportCode={result.airport.code} />
                 {result.suggestions.map((item) => (
                   <div key={item.id} className="card p-5 hover:shadow-md transition-shadow">
                     <div className="flex items-start gap-4">
@@ -730,6 +817,29 @@ export default function LayoverPlannerPage() {
                 ))}
               </div>
 
+              {/* Hotel day-room strip — medium layovers only (3–6 hr).
+                  Long layovers get this same strip nested inside the Rest &
+                  Recharge section below, alongside the AI's hotel picks. */}
+              {(() => {
+                const hours = parseFloat(layoverHours) || 0;
+                const hasAiHotels = !!result.hotelSuggestions && result.hotelSuggestions.length > 0;
+                if (hours >= 3 && hours < 6 && !hasAiHotels) {
+                  return (
+                    <div className="mb-8">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Hotel className="w-5 h-5 text-violet-600" />
+                        <h3 className="font-script italic text-lg font-semibold text-zinc-900">Hotel Day Rooms</h3>
+                        <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">
+                          Quick refresh
+                        </span>
+                      </div>
+                      <HotelDayRoomStrip city={result.airport.city} />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Hotel suggestions — only shown for 6+ hour layovers */}
               {result.hotelSuggestions && result.hotelSuggestions.length > 0 && (
                 <div className="mb-8">
@@ -743,6 +853,8 @@ export default function LayoverPlannerPage() {
                   <p className="text-sm text-zinc-500 mb-4">
                     With {layoverHours} hours to spare, a transit hotel lets you shower, nap, or relax properly before your next flight.
                   </p>
+                  {/* Day-room booking shortcut, above the AI hotel picks */}
+                  <HotelDayRoomStrip city={result.airport.city} />
                   <div className="space-y-3">
                     {result.hotelSuggestions.map((hotel, i) => (
                       <div key={i} className="card p-5 border-l-4 border-l-violet-400">

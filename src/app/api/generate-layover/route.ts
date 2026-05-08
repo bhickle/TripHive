@@ -54,6 +54,21 @@ function buildUserPrompt(
     suggestionCount = '8-10';
   }
 
+  // Booking-method hint applied to medium and long tiers. Skipped for short
+  // layovers where day-rooms aren't time-feasible. Phrased as "often
+  // bookable via …" because day-pass coverage is patchy outside major
+  // markets (ResortPass = US/MX/Caribbean, DayUse = strong in EU).
+  // Without the hedge, the model writes confident booking claims for
+  // hotels that aren't on those platforms.
+  const bookingTipGuidance = layoverHours >= 3
+    ? `
+
+BOOKING-METHOD HINT (write this into bookingTip when applicable):
+- For an airport lounge that's not card-access only: mention it's often bookable via Priority Pass or LoungeBuddy.
+- For a hotel with day-use / pool / spa access: mention it's often bookable via ResortPass, DayUse, or DayBreakHotels.
+Use hedged phrasing ("often bookable via …", "may be available on …") rather than firm claims, since coverage varies by airport and region.`
+    : '';
+
   // ── Hotel schema block (only injected for 6 + hr layovers) ──────────────────
   const hotelSchemaExample = layoverHours >= 6 ? `
   "hotelSuggestions": [
@@ -75,7 +90,7 @@ function buildUserPrompt(
 Layover duration: ${layoverHours} hours
 ${context}
 
-${tierInstructions}
+${tierInstructions}${bookingTipGuidance}
 ${hotelInstruction}
 Return JSON with this exact shape:
 {
