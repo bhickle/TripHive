@@ -590,12 +590,19 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
     ? `\n- FAMILY & KIDS PRIORITY: This group is traveling with children — plan every day with this in mind. Include: age-appropriate attractions (zoos, aquariums, children's museums, interactive science centers, playgrounds, and parks), family-friendly dining where kids are welcome and the menu has options beyond chicken tenders, and activities with manageable durations (no more than 90 minutes per stop for younger children). Build each day with a rest window — avoid scheduling more than 3 activity blocks without a break. For each activity, note minimum age or height requirements, family ticket options or discount availability, and practical facilities (restrooms, stroller access, nursing areas). Include at least one genuine "wow moment" activity per day that will be memorable for kids of any age — something they'll still be talking about at dinner.`
     : '';
 
-  // Budget-conscious priority
+  // Budget-conscious priority. Kept for backward-compat: the 'budget'
+  // chip was removed from the Trip Builder Top Priorities (2026-05-08)
+  // because the budget-tier slider already covers cost preferences. New
+  // trips will never set this flag, but trips generated before that
+  // change can still re-trigger this prompt branch on regenerate.
   const budgetConsciousText = priorities.includes('budget')
     ? `\n- BUDGET-CONSCIOUS PRIORITY: This group wants to experience the destination without overspending. Prioritize: free and low-cost attractions (public parks, free museum days, self-guided walking tours, public viewpoints, beaches, local markets), street food and affordable neighborhood restaurants over tourist-facing dining (with specific dish recommendations to order), free or cheap public transport options with day pass tips, and any destination-specific money-saving strategies (city tourism cards, combo tickets, happy hour windows, free entry days at major attractions). For each paid activity, note the approximate entry price. Suggest at least one free or lower-cost alternative for any high-cost activity. Flag common tourist traps where visitors routinely overpay for a mediocre experience.`
     : '';
 
-  // Accessibility priority
+  // Accessibility priority. Kept for backward-compat: the 'accessibility'
+  // chip was removed from the Trip Builder Top Priorities (2026-05-08)
+  // because mobility needs are already collected via a dedicated builder
+  // question. Same regenerate-only path as budgetConsciousText above.
   const accessibilityPriorityText = priorities.includes('accessibility')
     ? `\n- ACCESSIBILITY PRIORITY: This group includes travelers with mobility, sensory, or other accessibility needs — plan every activity with this as a baseline requirement. For every activity and venue, note: wheelchair and stroller accessibility (step-free entry, elevator or lift availability, accessible restrooms), availability of audio guides or assistive listening devices at museums and cultural sites, surface conditions for outdoor activities (paved paths vs. cobblestone vs. uneven terrain), and any alternatives for activities with limited accessibility. Prioritize venues with strong accessibility provisions. If the destination has known challenges (hilly terrain, cobblestone streets, limited elevator coverage), flag them explicitly and suggest practical workarounds. Include at least one activity per day that is fully accessible with no caveats.`
     : '';
