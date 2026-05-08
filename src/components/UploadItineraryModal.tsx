@@ -123,12 +123,21 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
     fetch('/api/trips')
       .then(r => r.ok ? r.json() : { trips: [] })
       .then(data => {
-        const trips: RealTrip[] = (data.trips ?? []).map((t: any) => ({
+        // /api/trips returns the trip rows in Supabase column shape.
+        type TripRow = {
+          id: string;
+          title: string;
+          destination: string;
+          start_date: string | null;
+          end_date: string | null;
+        };
+        const rows: TripRow[] = data.trips ?? [];
+        const trips: RealTrip[] = rows.map(t => ({
           id: t.id,
           title: t.title,
           destination: t.destination,
-          start_date: t.start_date,
-          end_date: t.end_date,
+          start_date: t.start_date ?? undefined,
+          end_date: t.end_date ?? undefined,
         }));
         setRealTrips(trips);
         if (trips.length > 0 && !selectedTripId) {

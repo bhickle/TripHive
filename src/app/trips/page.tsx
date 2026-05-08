@@ -62,15 +62,33 @@ export default function TripsPage() {
         .then(r => r.ok ? r.json() : { trips: [] })
         .then(({ trips: supaTrips }) => {
           if (Array.isArray(supaTrips)) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            setUserTrips(supaTrips.map((t: any) => ({
+            // Inbound row shape from /api/trips. Mix of Supabase column
+            // names (snake_case) for the trip row plus a few computed
+            // fields the API joins in (role, organizerName, memberNames).
+            type TripRow = {
+              id: string;
+              title: string;
+              destination: string;
+              start_date: string | null;
+              end_date: string | null;
+              trip_length?: number;
+              group_type?: string;
+              group_size?: number;
+              cover_image?: string | null;
+              budget_total?: number;
+              role?: 'organizer' | 'co_organizer' | 'member';
+              organizerName?: string | null;
+              memberNames?: string;
+            };
+            const rows: TripRow[] = supaTrips;
+            setUserTrips(rows.map(t => ({
               id: t.id,
               title: t.title,
               destination: t.destination,
               startDate: t.start_date,
               endDate: t.end_date,
               tripLength: t.trip_length,
-              status: computeStatus(t.start_date, t.end_date),
+              status: computeStatus(t.start_date ?? undefined, t.end_date ?? undefined),
               groupType: t.group_type,
               groupSize: t.group_size ?? 1,
               coverImage: t.cover_image ?? null,

@@ -754,7 +754,18 @@ export default function WishlistPage() {
     fetch('/api/wishlist')
       .then(r => r.ok ? r.json() : { items: [] })
       .then(({ items }) => {
-        const mapped: WishlistItem[] = (items ?? []).map((i: any) => ({
+        // Inbound row shape from /api/wishlist (already camelCased by the route).
+        type WishlistRow = {
+          id: string;
+          destination: string;
+          country?: string;
+          coverImage?: string;
+          bestSeason?: string;
+          estimatedCost?: number;
+          tags?: string[];
+        };
+        const rows: WishlistRow[] = items ?? [];
+        const mapped: WishlistItem[] = rows.map(i => ({
           id: i.id,
           destination: i.destination,
           country: i.country ?? '',

@@ -91,8 +91,23 @@ export default function DashboardPage() {
       })
       .then(({ trips }) => {
         if (Array.isArray(trips)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          setUserTrips(trips.map((t: any) => ({
+          // Inbound row shape from /api/auth/me trips list — Supabase
+          // column names (snake_case). Mapped to the camelCased UI Trip
+          // shape consumed by setUserTrips below.
+          type TripRow = {
+            id: string;
+            title: string;
+            destination: string;
+            start_date: string | null;
+            end_date: string | null;
+            trip_length?: number;
+            group_type?: string;
+            group_size?: number;
+            cover_image?: string | null;
+            budget_total?: number;
+          };
+          const rows: TripRow[] = trips;
+          setUserTrips(rows.map(t => ({
             id: t.id,
             title: t.title,
             destination: t.destination,
@@ -101,7 +116,7 @@ export default function DashboardPage() {
             tripLength: t.trip_length,
             // Compute status from dates — don't trust the stored column which
             // can lag and cause completed trips to be missed in totalDays.
-            status: computeStatus(t.start_date, t.end_date),
+            status: computeStatus(t.start_date ?? undefined, t.end_date ?? undefined),
             groupType: t.group_type,
             groupSize: Math.max(1, t.group_size ?? 1),
             coverImage: t.cover_image ?? null,

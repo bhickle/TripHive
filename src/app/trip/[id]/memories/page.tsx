@@ -14,15 +14,28 @@ import { Avatar } from '@/components/Avatar';
 // as anonymous and silently fail RLS on the trip_photos insert.
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import type { ItineraryDay } from '@/lib/types';
+
+// Photo shape used both by the local mock pool and the API response.
+// Ordered to match the photo grid + lightbox render needs.
+type MemoryPhoto = {
+  id: string;
+  url: string;
+  activity: string;
+  uploadedBy: string;
+  day: number;
+  timestamp: string;
+  location?: string;
+};
 
 export default function MemoriesPage({ params }: { params: { id: string } }) {
   const currentUser = useCurrentUser();
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
-  const [tripPhotos, setTripPhotos] = useState<any[]>(isMockTrip ? mockTripPhotos : []);
+  const [tripPhotos, setTripPhotos] = useState<MemoryPhoto[]>(isMockTrip ? (mockTripPhotos as MemoryPhoto[]) : []);
   // itineraryDays drives the day-by-day photo grouping. Real trips load
   // them from /api/trips/[id] (itinerary.days). Without this, real-trip
   // photos never appear because photosByDay is built from itineraryDays.
-  const [itineraryDays, setItineraryDays] = useState<any[]>(isMockTrip ? mockItineraryDays : []);
+  const [itineraryDays, setItineraryDays] = useState<ItineraryDay[]>(isMockTrip ? mockItineraryDays : []);
   const [groupMembers, setGroupMembers] = useState<Array<{ id: string; name: string }>>(
     isMockTrip ? mockGroupMembers : []
   );
@@ -50,10 +63,27 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       fetch(`/api/trips/${params.id}/members`).then(r => r.ok ? r.json() : null),
     ]).then(([photosRes, tripRes, membersRes]) => {
       if (photosRes.status === 'fulfilled' && photosRes.value?.photos) {
-        setTripPhotos(photosRes.value.photos.map((p: any) => ({
+        // Inbound shape from /api/trips/[id]/photos. The endpoint returns
+        // url + day + activity + uploadedBy + timestamp; older payloads
+        // used caption/uploaderName/dayNumber/createdAt — keep the
+        // fallbacks until the API is fully migrated.
+        type PhotoApiRow = {
+          id: string;
+          url: string;
+          activity?: string;
+          caption?: string;
+          uploadedBy?: string;
+          uploaderName?: string;
+          day?: number;
+          dayNumber?: number;
+          timestamp?: string;
+          createdAt?: string;
+        };
+        const rows: PhotoApiRow[] = photosRes.value.photos;
+        setTripPhotos(rows.map(p => ({
           id: p.id,
           url: p.url,
-          activity: p.caption || 'Photo',
+          activity: p.caption || p.activity || 'Photo',
           uploadedBy: p.uploaderName || p.uploadedBy || 'You',
           day: p.dayNumber || p.day || 1,
           timestamp: p.createdAt || p.timestamp || new Date().toISOString(),
@@ -69,13 +99,16 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
         setItineraryDays(tripRes.value.itinerary.days);
       }
       if (membersRes.status === 'fulfilled' && Array.isArray(membersRes.value?.members)) {
-        setGroupMembers(membersRes.value.members.map((m: any) => ({ id: m.id, name: m.name })));
+        const members: { id: string; name: string }[] = membersRes.value.members.map(
+          (m: { id: string; name: string }) => ({ id: m.id, name: m.name })
+        );
+        setGroupMembers(members);
       }
       setPhotosLoading(false);
     });
   }, [isMockTrip, params.id]);
 
-  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<MemoryPhoto | null>(null);
   const [filterDay, setFilterDay] = useState<number | null>(null);
   const [filterPerson, setFilterPerson] = useState<string | null>(null);
   const [shareMode, setShareMode] = useState(false);
