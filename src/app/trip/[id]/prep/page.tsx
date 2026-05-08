@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info, Gift, Trash2, Users } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info, Gift, Trash2, Users, Pencil } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -77,6 +77,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [newLogItem, setNewLogItem] = useState('');
   const [newPackItem, setNewPackItem] = useState('');
   const [newPackCategory, setNewPackCategory] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskValue, setEditingTaskValue] = useState('');
 
   // Trip data load error state
   const [prepLoadError, setPrepLoadError] = useState(false);
@@ -340,6 +342,68 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       }).catch(() => setPrepTasks(prev => prev.filter(t => t.id !== tempId)));
     }
     setNewLogItem('');
+  };
+
+  const startEditTask = (taskId: string, currentTitle: string) => {
+    setEditingTaskId(taskId);
+    setEditingTaskValue(currentTitle);
+  };
+
+  const cancelEditTask = () => {
+    setEditingTaskId(null);
+    setEditingTaskValue('');
+  };
+
+  const commitEditTask = (taskId: string) => {
+    const trimmed = editingTaskValue.trim();
+    if (!trimmed) { cancelEditTask(); return; }
+
+    if (isMockTrip) {
+      setPrepTasks(prev => prev.map(t => t.id === taskId ? { ...t, title: trimmed } : t));
+      setCustomDocTasks(prev => prev.map(t => t.id === taskId ? { ...t, title: trimmed } : t));
+      setCustomLogTasks(prev => prev.map(t => t.id === taskId ? { ...t, title: trimmed } : t));
+    } else {
+      const prevTasks = prepTasks;
+      setPrepTasks(prev => prev.map(t => t.id === taskId ? { ...t, title: trimmed } : t));
+      fetch(`/api/trips/${params.id}/prep`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, title: trimmed }),
+      }).then(r => { if (!r.ok) setPrepTasks(prevTasks); })
+        .catch(() => setPrepTasks(prevTasks));
+    }
+    cancelEditTask();
+  };
+
+  const deletePrepTask = (taskId: string) => {
+    if (editingTaskId === taskId) cancelEditTask();
+    if (isMockTrip) {
+      setPrepTasks(prev => prev.filter(t => t.id !== taskId));
+      setCustomDocTasks(prev => prev.filter(t => t.id !== taskId));
+      setCustomLogTasks(prev => prev.filter(t => t.id !== taskId));
+    } else {
+      const prevTasks = prepTasks;
+      const prevCompleted = completedTasks;
+      setPrepTasks(prev => prev.filter(t => t.id !== taskId));
+      if (completedTasks.has(taskId)) {
+        const next = new Set(completedTasks);
+        next.delete(taskId);
+        setCompletedTasks(next);
+      }
+      fetch(`/api/trips/${params.id}/prep`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId }),
+      }).then(r => {
+        if (!r.ok) {
+          setPrepTasks(prevTasks);
+          setCompletedTasks(prevCompleted);
+        }
+      }).catch(() => {
+        setPrepTasks(prevTasks);
+        setCompletedTasks(prevCompleted);
+      });
+    }
   };
 
   const addPackItem = (name: string, category: string) => {
@@ -672,7 +736,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const renderDocumentsTab = () => {
     const all = [...documentTasks, ...customDocTasks];
     const completed = all.filter(t => completedTasks.has(t.id) || customDocTasks.find(ct => ct.id === t.id)?.completed).length;
-    const total = all.length || 1;
+    const total = all.length;
     return (
       <div className="space-y-6">
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
@@ -685,14 +749,28 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <p className="text-sm text-zinc-600 mt-0.5">Passport, visas, travel papers — don't leave without these</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${Math.round((completed / total) * 100)}%` }} />
+          {total > 0 && (
+            <div className="space-y-2">
+              <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${Math.round((completed / total) * 100)}%` }} />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-zinc-900">{completed}/{total} completed</span>
+                <span className="text-xs text-zinc-500">{total - completed} remaining</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-semibold text-zinc-900">{completed}/{total} completed</span>
-              <span className="text-xs text-zinc-500">{total - completed} remaining</span>
-            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+          <div className="flex gap-2">
+            <input type="text" placeholder="Add a document or note..." value={newDocItem} onChange={(e) => setNewDocItem(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addDocTask(newDocItem); }}
+              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
+            <button onClick={() => addDocTask(newDocItem)}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
+              <Plus className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -749,38 +827,78 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           </>
         )}
 
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
-          <div className="flex gap-2">
-            <input type="text" placeholder="Add a document or note..." value={newDocItem} onChange={(e) => setNewDocItem(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addDocTask(newDocItem); }}
-              className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-            <button onClick={() => addDocTask(newDocItem)}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 text-white flex items-center justify-center transition-colors">
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           {documentTasks.map((task: PrepTask, index: number) => (
-            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 ${index !== documentTasks.length - 1 ? 'border-b border-zinc-100' : ''} ${completedTasks.has(task.id) ? 'bg-zinc-50' : ''}`}>
+            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 group ${index !== documentTasks.length - 1 ? 'border-b border-zinc-100' : ''} ${completedTasks.has(task.id) ? 'bg-zinc-50' : ''}`}>
               <button onClick={() => toggleDocTask(task.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
                 {completedTasks.has(task.id) ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
-              <div className="flex-1">
-                <p className={`font-medium ${completedTasks.has(task.id) ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+              <div className="flex-1 min-w-0">
+                {editingTaskId === task.id ? (
+                  <input
+                    type="text"
+                    value={editingTaskValue}
+                    autoFocus
+                    onChange={(e) => setEditingTaskValue(e.target.value)}
+                    onBlur={() => commitEditTask(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitEditTask(task.id);
+                      if (e.key === 'Escape') cancelEditTask();
+                    }}
+                    className="w-full px-2 py-1 border border-zinc-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-700"
+                  />
+                ) : (
+                  <p className={`font-medium ${completedTasks.has(task.id) ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+                )}
                 {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString()}</p>}
               </div>
-              {task.urgent && !completedTasks.has(task.id) && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
+              {task.urgent && !completedTasks.has(task.id) && editingTaskId !== task.id && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
+              {editingTaskId !== task.id && (
+                <>
+                  <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => deletePrepTask(task.id)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-zinc-300 hover:text-rose-400 transition-all flex-shrink-0" aria-label="Delete task">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ))}
           {customDocTasks.map((task) => (
-            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 border-t border-zinc-100 ${task.completed ? 'bg-zinc-50' : ''}`}>
+            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 border-t border-zinc-100 group ${task.completed ? 'bg-zinc-50' : ''}`}>
               <button onClick={() => setCustomDocTasks(prev => prev.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
                 {task.completed ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
-              <p className={`font-medium flex-1 ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+              <div className="flex-1 min-w-0">
+                {editingTaskId === task.id ? (
+                  <input
+                    type="text"
+                    value={editingTaskValue}
+                    autoFocus
+                    onChange={(e) => setEditingTaskValue(e.target.value)}
+                    onBlur={() => commitEditTask(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitEditTask(task.id);
+                      if (e.key === 'Escape') cancelEditTask();
+                    }}
+                    className="w-full px-2 py-1 border border-zinc-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-700"
+                  />
+                ) : (
+                  <p className={`font-medium ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+                )}
+              </div>
               <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">Custom</span>
+              {editingTaskId !== task.id && (
+                <>
+                  <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => deletePrepTask(task.id)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-zinc-300 hover:text-rose-400 transition-all flex-shrink-0" aria-label="Delete task">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -972,7 +1090,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           {([
             { id: 'group', label: 'Group Pack', icon: Users, count: totalGroupItems, packed: totalGroupPacked },
             { id: 'mine', label: 'My Pack', icon: Backpack, count: totalMyItems, packed: totalMyPacked },
-            { id: 'gifts', label: 'Gifts 🎁', icon: Gift, count: totalGifts, packed: totalGiftsBought },
+            { id: 'gifts', label: 'Gifts', icon: Gift, count: totalGifts, packed: totalGiftsBought },
           ] as const).map(tab => {
             const Icon = tab.icon;
             const isActive = packSubTab === tab.id;
@@ -1037,7 +1155,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         {packSubTab === 'gifts' && (
           <>
             <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-              <p className="text-xs text-amber-700"><span className="font-semibold">Gifts 🎁</span> — your private souvenir list. Track who you want to buy for and what to get them. Only you can see this.</p>
+              <p className="text-xs text-amber-700"><span className="font-semibold">Gifts</span> — your private souvenir list. Track who you want to buy for and what to get them. Only you can see this.</p>
             </div>
             {user ? (
               <>
@@ -1106,7 +1224,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const renderLogisticsTab = () => {
     const all = [...logisticsTasks, ...customLogTasks];
     const completed = all.filter(t => completedTasks.has(t.id) || customLogTasks.find(ct => ct.id === t.id)?.completed).length;
-    const total = all.length || 1;
+    const total = all.length;
     return (
       <div className="space-y-6">
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
@@ -1119,15 +1237,17 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <p className="text-sm text-zinc-600 mt-0.5">Flights, transport, and the boring-but-necessary stuff</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${Math.round((completed / total) * 100)}%` }} />
+          {total > 0 && (
+            <div className="space-y-2">
+              <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${Math.round((completed / total) * 100)}%` }} />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-zinc-900">{completed}/{total} completed</span>
+                <span className="text-xs text-zinc-500">{total - completed} remaining</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-semibold text-zinc-900">{completed}/{total} completed</span>
-              <span className="text-xs text-zinc-500">{total - completed} remaining</span>
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
@@ -1144,24 +1264,76 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           {logisticsTasks.map((task: PrepTask, index: number) => (
-            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 ${index !== logisticsTasks.length - 1 ? 'border-b border-zinc-100' : ''} ${completedTasks.has(task.id) ? 'bg-zinc-50' : ''}`}>
+            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 group ${index !== logisticsTasks.length - 1 ? 'border-b border-zinc-100' : ''} ${completedTasks.has(task.id) ? 'bg-zinc-50' : ''}`}>
               <button onClick={() => toggleDocTask(task.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
                 {completedTasks.has(task.id) ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
-              <div className="flex-1">
-                <p className={`font-medium ${completedTasks.has(task.id) ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+              <div className="flex-1 min-w-0">
+                {editingTaskId === task.id ? (
+                  <input
+                    type="text"
+                    value={editingTaskValue}
+                    autoFocus
+                    onChange={(e) => setEditingTaskValue(e.target.value)}
+                    onBlur={() => commitEditTask(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitEditTask(task.id);
+                      if (e.key === 'Escape') cancelEditTask();
+                    }}
+                    className="w-full px-2 py-1 border border-zinc-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-700"
+                  />
+                ) : (
+                  <p className={`font-medium ${completedTasks.has(task.id) ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+                )}
                 {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString()}</p>}
               </div>
-              {task.urgent && !completedTasks.has(task.id) && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
+              {task.urgent && !completedTasks.has(task.id) && editingTaskId !== task.id && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
+              {editingTaskId !== task.id && (
+                <>
+                  <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => deletePrepTask(task.id)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-zinc-300 hover:text-rose-400 transition-all flex-shrink-0" aria-label="Delete task">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ))}
           {customLogTasks.map((task) => (
-            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 border-t border-zinc-100 ${task.completed ? 'bg-zinc-50' : ''}`}>
+            <div key={task.id} className={`flex items-center gap-4 px-6 py-4 border-t border-zinc-100 group ${task.completed ? 'bg-zinc-50' : ''}`}>
               <button onClick={() => setCustomLogTasks(prev => prev.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
                 {task.completed ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
-              <p className={`font-medium flex-1 ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+              <div className="flex-1 min-w-0">
+                {editingTaskId === task.id ? (
+                  <input
+                    type="text"
+                    value={editingTaskValue}
+                    autoFocus
+                    onChange={(e) => setEditingTaskValue(e.target.value)}
+                    onBlur={() => commitEditTask(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitEditTask(task.id);
+                      if (e.key === 'Escape') cancelEditTask();
+                    }}
+                    className="w-full px-2 py-1 border border-zinc-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-700"
+                  />
+                ) : (
+                  <p className={`font-medium ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
+                )}
+              </div>
               <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">Custom</span>
+              {editingTaskId !== task.id && (
+                <>
+                  <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => deletePrepTask(task.id)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-zinc-300 hover:text-rose-400 transition-all flex-shrink-0" aria-label="Delete task">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
