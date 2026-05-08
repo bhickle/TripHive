@@ -809,6 +809,29 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   // For real trips, actual data lives in localExpenses (Supabase-loaded);
   // for mock trips it lives in expenses (static). Merge both for calculations.
   const allExpenses = [...expenses, ...localExpenses];
+
+  // Resolve any name variant (full name "Mallory Hixon", first-only "Mallory",
+  // case-different "MALLORY") to the canonical groupMember.name so the balance
+  // calculation lines up regardless of how the expense was saved. Without this,
+  // "Mallory Hixon" paid amounts went into a different bucket than the "Mallory"
+  // entry in groupMembers and the totals didn't sum to zero.
+  const canonicaliseName = (raw: string): string => {
+    if (!raw) return raw;
+    const trimmed = raw.trim();
+    const lc = trimmed.toLowerCase();
+    // Exact match first
+    const exact = groupMembers.find(m => m.name?.toLowerCase() === lc);
+    if (exact) return exact.name;
+    // First-name prefix: "Mallory Hixon" → "Mallory" (or vice versa)
+    const firstWord = lc.split(/\s+/)[0];
+    const byFirst = groupMembers.find(m => {
+      const memberFirst = (m.name ?? '').trim().toLowerCase().split(/\s+/)[0];
+      return memberFirst && (memberFirst === firstWord || lc.startsWith(memberFirst + ' '));
+    });
+    if (byFirst) return byFirst.name;
+    return trimmed;
+  };
+
   const calculateExpenses = () => {
     const totalSpent = allExpenses.reduce((sum, exp) => sum + exp.amount, 0);
     // owedByName: how much each person owes (their share of all expenses)
@@ -819,14 +842,19 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     groupMembers.forEach((m) => { owedByName[m.name] = 0; paidByName[m.name] = 0; });
 
     allExpenses.forEach((exp) => {
-      paidByName[exp.paidBy] = (paidByName[exp.paidBy] || 0) + exp.amount;
+      const paidByCanonical = canonicaliseName(exp.paidBy);
+      paidByName[paidByCanonical] = (paidByName[paidByCanonical] || 0) + exp.amount;
 
-      const participants: string[] = (exp as any).splitAmong?.length ? (exp as any).splitAmong : groupMembers.map(m => m.name);
+      const rawParticipants: string[] = (exp as any).splitAmong?.length
+        ? (exp as any).splitAmong
+        : groupMembers.map(m => m.name);
+      const participants = rawParticipants.map(canonicaliseName);
 
       if ((exp as any).splitType === 'custom' && (exp as any).customAmounts) {
-        // Use explicit per-person amounts
+        // Use explicit per-person amounts (also canonicalised)
         Object.entries((exp as any).customAmounts).forEach(([name, amt]) => {
-          owedByName[name] = (owedByName[name] || 0) + (amt as number);
+          const canon = canonicaliseName(name);
+          owedByName[canon] = (owedByName[canon] || 0) + (amt as number);
         });
       } else {
         // Equal split among participants
@@ -1406,6 +1434,15 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     };
                     const icon = CATEGORY_ICONS[exp.category ?? ''] ?? '💳';
                     const displayName = exp.name ?? exp.description ?? exp.title ?? 'Expense';
+                    // Show split type so the buyer can tell at a glance how a
+                    // line item was divided (was hidden until you opened edit).
+                    const splitTypeLabel = exp.splitType === 'custom' ? 'Custom split' : 'Equal split';
+                    const splitParticipants: string[] = Array.isArray(exp.splitAmong) && exp.splitAmong.length > 0
+                      ? exp.splitAmong
+                      : [];
+                    const splitDetail = splitParticipants.length > 0
+                      ? `${splitTypeLabel} · ${splitParticipants.length} ${splitParticipants.length === 1 ? 'person' : 'people'}`
+                      : splitTypeLabel;
                     return (
                       <div key={exp.id ?? idx} className={`flex items-center gap-4 px-5 py-4 ${idx < allExpenses.length - 1 ? 'border-b border-zinc-50' : ''} ${exp.settled ? 'opacity-50' : ''}`}>
                         <div className="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center text-lg flex-shrink-0">
@@ -1413,7 +1450,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-zinc-900 truncate">{displayName}</p>
-                          <p className="text-xs text-zinc-400 mt-0.5">Paid by {exp.paidBy}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5">Paid by {exp.paidBy} · {splitDetail}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="font-bold text-zinc-900">${exp.amount.toFixed(2)}</p>
