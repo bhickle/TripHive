@@ -5,7 +5,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { trips, MOCK_TRIP_IDS } from '@/data/mock';
-import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock, Loader } from 'lucide-react';
+import { ChevronRight, MapPin, Users, Calendar, Heart, ArrowRight, Download, Lock, Loader, Sparkles } from 'lucide-react';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import type { PaceLevel, TripMemberPreferences } from '@/lib/types';
 
 type JoinStep = 'intro' | 'preferences' | 'confirmation';
 
@@ -16,6 +18,15 @@ interface GuestJoinData {
   accommodation: string;
   curiosity: string;
 }
+
+// Map the join page's existing curiosity copy to the canonical PaceLevel
+// values so guest joiners' answers slot into TripMemberPreferences cleanly.
+// The standalone mini-wizard at /trip/[id]/preferences uses the same shape.
+const CURIOSITY_TO_PACE: Record<string, PaceLevel> = {
+  'Exploring casually': 'relaxed',
+  'Moderate pace':       'balanced',
+  'Packed schedule':     'packed',
+};
 
 interface TripData {
   title: string;
@@ -67,6 +78,12 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
   // privacy gate.
   const searchParams = useSearchParams();
   const inviteToken = searchParams?.get('invite') ?? null;
+
+  // Authenticated joiners get routed to the full mini-wizard at
+  // /trip/[id]/preferences after the join completes. Guests stay in this
+  // open share-link flow with the lighter inline questions below.
+  const currentUser = useCurrentUser();
+  const isAuthenticated = !currentUser.isLoading && !!currentUser.id && !currentUser.isDemo;
 
   const [step, setStep] = useState<JoinStep>('intro');
   const [tripData, setTripData] = useState<TripData | null>(null);
@@ -202,17 +219,28 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       if (isRealTrip) {
         setJoining(true);
         try {
+          // Normalise to the TripMemberPreferences shape so the AI prompt
+          // merger can read every member's row uniformly. The 3-field guest
+          // form here is a subset — dietary/accessibility/budget come back
+          // empty and the user can fill them in later via the full mini-
+          // wizard once they sign up. `accommodation` is preserved as a
+          // sidecar field on the JSON; it's not part of the schema but it's
+          // useful signal for the buyer when picking lodging.
+          const preferences: TripMemberPreferences & { accommodation?: string } = {
+            priorities: guestData.priorities,
+            pace: CURIOSITY_TO_PACE[guestData.curiosity] ?? 'balanced',
+            dietary: { tags: [] },
+            accessibility: { needs: [] },
+            submittedAt: new Date().toISOString(),
+            accommodation: guestData.accommodation,
+          };
           await fetch(`/api/trips/${tripId}/members`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               name: guestData.name.trim(),
               email: guestData.email.trim() || undefined,
-              preferences: {
-                priorities: guestData.priorities,
-                accommodation: guestData.accommodation,
-                curiosity: guestData.curiosity,
-              },
+              preferences,
               ...(inviteToken ? { inviteToken } : {}),
             }),
           });
@@ -539,41 +567,63 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              {/* Upsell Card */}
-              <div className="bg-gradient-to-br from-sky-50 to-green-50 rounded-lg p-6 mb-6 border border-sky-200">
-                <div className="flex items-start gap-3 mb-3">
-                  <Lock className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <h4 className="font-semibold text-zinc-900">Get more from this trip</h4>
+              {/* Authenticated joiners → full mini-wizard CTA. Their join row
+                  exists in trip_members (POST above), so the standalone page
+                  will load their existing answers and let them fill in the
+                  fuller fields (dietary, accessibility, budget). */}
+              {isAuthenticated ? (
+                <div className="bg-gradient-to-br from-amber-50 to-sky-50 rounded-lg p-6 mb-6 border border-amber-200">
+                  <div className="flex items-start gap-3 mb-3">
+                    <Sparkles className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+                    <h4 className="font-semibold text-zinc-900">One more 30 seconds — make it personal</h4>
+                  </div>
+                  <p className="text-sm text-zinc-700 mb-4">
+                    Tell {tripData.organizerName} about your dietary needs, accessibility, and food budget so the AI can build an itinerary that actually works for you.
+                  </p>
+                  <Link
+                    href={`/trip/${tripId}/preferences`}
+                    className="w-full px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Complete my preferences
+                  </Link>
                 </div>
-                <p className="text-sm text-zinc-700 mb-4">
-                  Your preferences have been submitted. But the app is where the trip really comes alive. For $7.99/month (Explorer plan), you get:
-                </p>
-                <ul className="space-y-2 text-sm text-zinc-700 mb-4">
-                  <li className="flex items-center space-x-2">
-                    <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
-                    <span>Group chat with other travelers</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
-                    <span>Log and split expenses automatically</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
-                    <span>Full itinerary editing and real-time collaboration</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
-                    <span>Plan and organize your own trips</span>
-                  </li>
-                </ul>
-                <button
-                  onClick={() => alert('Opening tripcoord App Store page...')}
-                  className="w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Download the tripcoord App
-                </button>
-              </div>
+              ) : (
+                <div className="bg-gradient-to-br from-sky-50 to-green-50 rounded-lg p-6 mb-6 border border-sky-200">
+                  <div className="flex items-start gap-3 mb-3">
+                    <Lock className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                    <h4 className="font-semibold text-zinc-900">Get more from this trip</h4>
+                  </div>
+                  <p className="text-sm text-zinc-700 mb-4">
+                    Your preferences have been submitted. But the app is where the trip really comes alive. For $7.99/month (Explorer plan), you get:
+                  </p>
+                  <ul className="space-y-2 text-sm text-zinc-700 mb-4">
+                    <li className="flex items-center space-x-2">
+                      <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
+                      <span>Group chat with other travelers</span>
+                    </li>
+                    <li className="flex items-center space-x-2">
+                      <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
+                      <span>Log and split expenses automatically</span>
+                    </li>
+                    <li className="flex items-center space-x-2">
+                      <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
+                      <span>Full itinerary editing and real-time collaboration</span>
+                    </li>
+                    <li className="flex items-center space-x-2">
+                      <ChevronRight className="w-4 h-4 text-sky-700 flex-shrink-0" />
+                      <span>Plan and organize your own trips</span>
+                    </li>
+                  </ul>
+                  <button
+                    onClick={() => alert('Opening tripcoord App Store page...')}
+                    className="w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download the tripcoord App
+                  </button>
+                </div>
+              )}
 
               {/* CTA - View Trip */}
               <a
