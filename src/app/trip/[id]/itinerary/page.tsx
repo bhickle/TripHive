@@ -4145,12 +4145,15 @@ function ItineraryPageContent() {
         </div>
       )}
 
-      {/* Trip Story Modal */}
+      {/* Trip Story Modal — pass the actual itinerary days so data-driven
+          slides (Top Picks, Numbers, Day Highlights) reflect the trip
+          being recapped instead of falling back to demo mock data. */}
       {showStoryModal && (
         <TripStoryModal
           mode="trip"
           trip={trip}
           onClose={() => setShowStoryModal(false)}
+          itineraryDays={activeDays as import('@/lib/types').ItineraryDay[]}
         />
       )}
 

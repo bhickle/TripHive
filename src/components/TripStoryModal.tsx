@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Download, Share2, Pause, Play, Lock } from 'lucide-react';
-import { trips, itineraryDays, groupMembers, expenses, tripPhotos, messages, MOCK_TRIP_IDS } from '@/data/mock';
+import { trips, itineraryDays as mockItineraryDays, groupMembers, expenses, tripPhotos, messages, MOCK_TRIP_IDS } from '@/data/mock';
 import { Trip } from '@/lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -13,6 +13,11 @@ interface TripStoryModalProps {
   mode: StoryMode;
   trip?: Trip;
   onClose: () => void;
+  /** The actual itinerary days for the trip being recapped. When provided,
+   *  data-driven slides (Top Picks, etc.) use these instead of falling back
+   *  to mock data. Optional so the demo path still works without a parent
+   *  passing days explicitly. */
+  itineraryDays?: import('@/lib/types').ItineraryDay[];
 }
 
 interface SlideDefinition {
@@ -180,10 +185,10 @@ function CoverSlide({ trip }: { trip: Trip }) {
   );
 }
 
-function NumbersSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string }) {
+function NumbersSlide({ trip, bgPhoto, days: tripDays }: { trip: Trip; bgPhoto?: string; days: import('@/lib/types').ItineraryDay[] }) {
   const days = getDayCount(trip);
-  const activities = itineraryDays.reduce((s, d) =>
-    s + d.tracks.shared.length + d.tracks.track_a.length + d.tracks.track_b.length, 0);
+  const activities = tripDays.reduce((s, d) =>
+    s + (d.tracks?.shared?.length ?? 0) + (d.tracks?.track_a?.length ?? 0) + (d.tracks?.track_b?.length ?? 0), 0);
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
   const stats = [
     { value: days,       label: 'Days Out There',     sub: 'of actual living',     color: 'text-sky-300' },
@@ -220,10 +225,14 @@ function NumbersSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string }) {
   );
 }
 
-function DayHighlightsSlide({ trip, bgPhoto }: { trip: Trip; bgPhoto?: string }) {
-  const highlights = itineraryDays.slice(0, 5).map(day => {
-    const notable = [...day.tracks.shared, ...day.tracks.track_a, ...day.tracks.track_b]
-      .find(a => a.category !== 'transport' && a.category !== 'accommodation') ?? day.tracks.shared[0];
+function DayHighlightsSlide({ trip, bgPhoto, days: tripDays }: { trip: Trip; bgPhoto?: string; days: import('@/lib/types').ItineraryDay[] }) {
+  const highlights = tripDays.slice(0, 5).map(day => {
+    const all = [
+      ...(day.tracks?.shared ?? []),
+      ...(day.tracks?.track_a ?? []),
+      ...(day.tracks?.track_b ?? []),
+    ];
+    const notable = all.find(a => a.category !== 'transport' && a.category !== 'accommodation') ?? all[0];
     return { day: day.day, theme: day.theme, activity: notable?.title ?? 'Free time' };
   });
   return (
@@ -295,14 +304,18 @@ function CrewSlide({ bgPhoto }: { bgPhoto?: string }) {
 // experiences themselves. Picks 3 standout activities across the whole
 // trip — non-meal, non-transport, non-accommodation — ranked by category
 // distinctiveness (one adventure, one cultural, one scenic when available).
-function TopPicksSlide({ bgPhoto }: { bgPhoto?: string }) {
+//
+// Reads days from props so the slide reflects the trip actually being
+// recapped, not hardcoded mock data. The parent (itinerary page) passes
+// the trip's real days; the demo path passes the mock import.
+function TopPicksSlide({ bgPhoto, days: tripDays }: { bgPhoto?: string; days: import('@/lib/types').ItineraryDay[] }) {
   // Collect every non-utility activity across all days, then pick the
   // first 3 with distinct categories so the slide isn't all the same
   // type of thing.
-  const allActivities = itineraryDays.flatMap(d => [
-    ...d.tracks.shared,
-    ...d.tracks.track_a,
-    ...d.tracks.track_b,
+  const allActivities = tripDays.flatMap(d => [
+    ...(d.tracks?.shared ?? []),
+    ...(d.tracks?.track_a ?? []),
+    ...(d.tracks?.track_b ?? []),
   ]).filter(a => {
     const cat = (a.category ?? '').toLowerCase();
     return cat !== 'transport' && cat !== 'accommodation' && !a.isRestaurant;
@@ -895,7 +908,14 @@ function SlideEditor({ mode, enabledIds, onToggle, onStart, onClose }: SlideEdit
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
-export function TripStoryModal({ mode, trip, onClose }: TripStoryModalProps) {
+export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStoryModalProps) {
+  // effectiveDays: prefer real trip days passed by the parent. Fall back to
+  // the mock Iceland days only when no prop is supplied (the demo path).
+  // This keeps every data-driven slide reflective of the trip actually being
+  // recapped — no Iceland data leaking into a real Lisbon trip's recap.
+  const effectiveDays = (itineraryDays && itineraryDays.length > 0)
+    ? itineraryDays
+    : mockItineraryDays;
   const activeTripData = trip ?? trips[0];
   const currentYear = new Date().getFullYear();
 
@@ -968,10 +988,10 @@ export function TripStoryModal({ mode, trip, onClose }: TripStoryModalProps) {
   // Build full slide render arrays
   const allTripSlides = [
     { id: 'cover',   render: () => <CoverSlide trip={activeTripData} /> },
-    { id: 'numbers', render: () => <NumbersSlide trip={activeTripData} bgPhoto={getBg(0)} /> },
-    { id: 'days',    render: () => <DayHighlightsSlide trip={activeTripData} bgPhoto={getBg(1)} /> },
+    { id: 'numbers', render: () => <NumbersSlide trip={activeTripData} bgPhoto={getBg(0)} days={effectiveDays} /> },
+    { id: 'days',    render: () => <DayHighlightsSlide trip={activeTripData} bgPhoto={getBg(1)} days={effectiveDays} /> },
     { id: 'crew',    render: () => <CrewSlide bgPhoto={getBg(2)} /> },
-    { id: 'toppicks', render: () => <TopPicksSlide bgPhoto={getBg(3)} /> },
+    { id: 'toppicks', render: () => <TopPicksSlide bgPhoto={getBg(3)} days={effectiveDays} /> },
     { id: 'laughs',  render: () => <LaughsSlide bgPhoto={getBg(4)} /> },
     { id: 'photos',  render: () => <PhotosSlide photos={tripPhotos.slice(0, 7)} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotos.slice(0, 7), idx)} /> },
     { id: 'share',   render: () => <ShareSlide trip={activeTripData} onDownload={handleDownload} /> },
