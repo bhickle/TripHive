@@ -7,6 +7,9 @@ import {
   PlusCircle, ChevronRight, AlertCircle,
   Sparkles, Anchor, Ship, Trash2,
 } from 'lucide-react';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { PRICING } from '@/hooks/useEntitlements';
+import { STRIPE_PRICES } from '@/lib/stripe-prices';
 
 type Step = 'upload' | 'trip-choice' | 'processing' | 'cruise-check' | 'done' | 'error';
 type TripChoice = 'new' | 'existing';
@@ -84,6 +87,16 @@ const LOADING_MESSAGES = [
 export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const currentUser = useCurrentUser();
+
+  // Show the Trip Pass CTA on the "done" step ONLY for free-tier users —
+  // paid users (trip_pass / explorer / nomad) already have what they need
+  // and we don't want to upsell at the moment they're trying to view their
+  // imported itinerary.
+  const isFreeTier = currentUser.subscriptionTier === 'free';
+
+  const [tripPassPurchasing, setTripPassPurchasing] = useState(false);
+  const [tripPassError, setTripPassError] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>('upload');
   const [tripChoice, setTripChoice] = useState<TripChoice>('new');
@@ -372,6 +385,40 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
     const tripId = savedTripId ?? (tripChoice === 'existing' ? selectedTripId : `upload_${Date.now()}`);
     router.push(`/trip/${tripId}/itinerary`);
     onClose();
+  };
+
+  // ── Trip Pass quick-buy from the "Itinerary imported!" step ──────────────
+  // Only fires for free-tier users on a real (UUID) trip ID. Sends the user
+  // to Stripe Checkout with the base pass for this trip — base price only,
+  // since the parser doesn't extract traveler count and we'd rather under-
+  // charge by default than surprise them. They can add extras later from
+  // the trip's UpgradeModal if the group grows beyond 6.
+  const handleUploadTripPassPurchase = async () => {
+    if (!savedTripId || !/^[0-9a-f-]{36}$/i.test(savedTripId)) return;
+    setTripPassPurchasing(true);
+    setTripPassError(null);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: STRIPE_PRICES.trip_pass.base,
+          mode: 'payment',
+          tripId: savedTripId,
+          extraPeople: 0,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        setTripPassError(data.error ?? 'Could not start checkout.');
+        setTripPassPurchasing(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setTripPassError('Could not start checkout. Please try again.');
+      setTripPassPurchasing(false);
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -716,6 +763,36 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   <p className="text-xs text-zinc-400 mt-0.5">{loadedFiles.length} files merged and parsed.</p>
                 )}
               </div>
+
+              {/* Trip Pass proactive CTA — free-tier users only, on a real
+                  Supabase trip (savedTripId is a UUID after a successful
+                  parse). Hides for paid users so they don't see a buy
+                  button for something they already have. */}
+              {isFreeTier && savedTripId && /^[0-9a-f-]{36}$/i.test(savedTripId) && (
+                <div className="w-full bg-amber-50 border border-amber-200 rounded-2xl p-4 text-left">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-zinc-900 text-sm">Unlock everything for this trip</p>
+                      <p className="text-xs text-amber-800 mt-0.5 leading-snug">
+                        Trip Pass adds AI itinerary tweaks, transport parser, group expense tracking, split tracks, and group preferences for ${PRICING.trip_pass.base}.
+                      </p>
+                      {tripPassError && (
+                        <p className="text-xs text-rose-600 mt-2">{tripPassError}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleUploadTripPassPurchase}
+                    disabled={tripPassPurchasing}
+                    className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {tripPassPurchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {tripPassPurchasing ? 'Starting checkout…' : `Buy Trip Pass — $${PRICING.trip_pass.base}`}
+                  </button>
+                </div>
+              )}
+
               <div className="flex gap-3 w-full">
                 <button
                   onClick={onClose}
