@@ -17,6 +17,44 @@ export interface TripPass {
   aiCreditsUsed: number;
 }
 
+// ─── Trip Pass per-member preferences ─────────────────────────────────────────
+// The buyer fills the full Trip Builder. Other group members fill a trimmed
+// mini-wizard that captures these fields, stored on `trip_members.preferences`
+// and merged into the AI generation prompt. See memory project_trip_pass_design.
+
+export type DietaryTag =
+  | 'vegetarian'
+  | 'vegan'
+  | 'pescatarian'
+  | 'gluten_free'
+  | 'dairy_free'
+  | 'halal'
+  | 'kosher'
+  | 'nut_allergy'
+  | 'shellfish_allergy';
+
+export type AccessibilityNeed =
+  | 'wheelchair'
+  | 'low_stamina'
+  | 'no_stairs'
+  | 'visual_impairment'
+  | 'hearing_impairment'
+  | 'service_animal';
+
+export type PaceLevel = 'relaxed' | 'balanced' | 'packed';
+
+export interface TripMemberPreferences {
+  /** Subset of the buyer-side priorityOptions IDs (e.g. 'food', 'nature'). */
+  priorities: string[];
+  pace: PaceLevel;
+  dietary: { tags: DietaryTag[]; notes?: string };
+  accessibility: { needs: AccessibilityNeed[]; notes?: string };
+  /** Per-person daily food budget in USD. Most-restrictive wins for food only. */
+  budgetPerDay?: number;
+  /** ISO timestamp the member submitted. Used for the 24h fallback. */
+  submittedAt: string;
+}
+
 export interface AiCredits {
   /** Credits included per billing period */
   total: number;
