@@ -292,7 +292,15 @@ function buildPrompt(params: {
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
   multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
   organizerPersona?: { priorities: string[]; vibes?: string[] } | null;
-  memberPersonas?: Array<{ name: string; priorities: string[]; curiosity?: string }>;
+  memberPersonas?: Array<{
+    name: string;
+    priorities: string[];
+    pace?: string;
+    curiosity?: string;
+    dietary?: { tags: string[]; notes?: string };
+    accessibility?: { needs: string[]; notes?: string };
+    budgetPerDay?: number;
+  }>;
   groupSize?: number;
 }) {
   const {
@@ -344,7 +352,9 @@ ${personaOnly.length > 0 ? `The organizer also personally values ${personaOnly.j
     // real group-level data to create splits that genuinely serve the whole crew.
     if (memberPersonas.length > 0) {
       const memberLines = memberPersonas.map(m => {
-        const pace = m.curiosity ? ` (pace: ${m.curiosity})` : '';
+        // Prefer the structured `pace` field; fall back to legacy `curiosity` string.
+        const paceText = m.pace ?? m.curiosity;
+        const pace = paceText ? ` (pace: ${paceText})` : '';
         return `  - ${m.name}: ${m.priorities.join(', ')}${pace}`;
       }).join('\n');
       text += `
@@ -352,6 +362,52 @@ ${personaOnly.length > 0 ? `The organizer also personally values ${personaOnly.j
 GROUP MEMBER PREFERENCES (collected at join time):
 ${memberLines}
 Use these to understand the diversity of interests in the group. Where member priorities diverge significantly from the organizer's, this strengthens the case for a split day — propose a track that serves each interest cluster. Merge overlapping preferences (e.g. multiple members interested in food → it's a genuine group priority).`;
+
+      // ── Cross-group constraints — Trip Pass mini-wizard fields ──────────
+      // Dietary tags are unioned across the group: every food venue must
+      // satisfy ALL of them simultaneously. Accessibility needs are unioned
+      // and applied as hard constraints on every SHARED activity (split
+      // tracks can be more strenuous, but members must be able to opt out).
+      // Food budget is the *minimum* across the group and applies ONLY to
+      // food picks — never to attractions or activities.
+      const allDietary = Array.from(new Set(memberPersonas.flatMap(m => m.dietary?.tags ?? [])));
+      const dietaryNotes = memberPersonas.map(m => m.dietary?.notes).filter(Boolean) as string[];
+      if (allDietary.length > 0 || dietaryNotes.length > 0) {
+        const tagLines = allDietary.map(t => `  - ${t.replace(/_/g, ' ')}`).join('\n');
+        const notesBlock = dietaryNotes.length > 0
+          ? `\nAdditional notes: ${dietaryNotes.join(' · ')}`
+          : '';
+        text += `
+
+GROUP DIETARY REQUIREMENTS (hard constraints — every food venue MUST accommodate ALL of these):
+${tagLines}${notesBlock}
+When picking restaurants, cafés, and food spots, only choose venues with menu options that satisfy every requirement above. If a venue can't accommodate (e.g., a traditional steakhouse for a strict vegan), pick a different venue. Don't bury this in a footnote — it's a hard filter.`;
+      }
+
+      const allAccessibility = Array.from(new Set(memberPersonas.flatMap(m => m.accessibility?.needs ?? [])));
+      const accessibilityNotes = memberPersonas.map(m => m.accessibility?.notes).filter(Boolean) as string[];
+      if (allAccessibility.length > 0 || accessibilityNotes.length > 0) {
+        const needsLines = allAccessibility.map(n => `  - ${n.replace(/_/g, ' ')}`).join('\n');
+        const notesBlock = accessibilityNotes.length > 0
+          ? `\nAdditional notes: ${accessibilityNotes.join(' · ')}`
+          : '';
+        text += `
+
+GROUP ACCESSIBILITY NEEDS (hard constraints on every SHARED activity):
+${needsLines}${notesBlock}
+Every activity in the SHARED track must accommodate these needs. Split tracks (Track A / Track B) MAY be more strenuous if members can comfortably opt out, but the shared/full-group portions cannot. If a flagship attraction can't be made accessible, propose an alternative or surface the workaround as a daily Tip (e.g., "Skip the stairs at the Acropolis; the visitor centre on the south slope has a step-free elevator route").`;
+      }
+
+      const memberBudgets = memberPersonas
+        .map(m => m.budgetPerDay)
+        .filter((b): b is number => typeof b === 'number' && b > 0);
+      if (memberBudgets.length > 0) {
+        const minBudget = Math.min(...memberBudgets);
+        text += `
+
+GROUP FOOD BUDGET CAP: $${minBudget}/person/day
+Apply this cap ONLY to food venue picks (restaurants, cafés, food markets, food tours). Keep meal recommendations within this per-person daily ceiling so the lowest-budget member of the group isn't priced out of group meals. Do NOT apply this cap to museums, attractions, tours, or activities — those can exceed the food budget freely; members can opt out individually if they don't want to spend.`;
+      }
     }
 
     // Split track guidance — only for groups of 4+ (solo/couple/small groups don't need to split)
@@ -1144,10 +1200,22 @@ export async function POST(request: NextRequest) {
 
   // ── Layer 2: member preferences from trip_members ─────────────────────────
   // When the request includes a tripId and the trip has members who joined via
-  // the invite flow, fetch their saved preferences (priorities, accommodation,
-  // curiosity). These feed into the split-track prompt so the AI proposes tracks
-  // that genuinely serve the group's divergent interests.
-  let memberPersonas: Array<{ name: string; priorities: string[]; curiosity?: string }> = [];
+  // the invite flow OR completed the standalone preferences mini-wizard, fetch
+  // their saved preferences. These feed into the prompt as:
+  //   - priorities → split-track suggestions when divergent
+  //   - dietary tags → hard constraint on food venues
+  //   - accessibility needs → hard constraint on every shared activity
+  //   - budgetPerDay → most-restrictive wins for food venues only
+  //   - pace → calibrates daily activity density per member
+  let memberPersonas: Array<{
+    name: string;
+    priorities: string[];
+    pace?: string;
+    curiosity?: string;
+    dietary?: { tags: string[]; notes?: string };
+    accessibility?: { needs: string[]; notes?: string };
+    budgetPerDay?: number;
+  }> = [];
   const requestBodyTripId = body?.tripId as string | undefined;
   if (requestBodyTripId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestBodyTripId)) {
     try {
@@ -1162,10 +1230,23 @@ export async function POST(request: NextRequest) {
         for (const m of members) {
           const prefs = m.preferences as Record<string, unknown> | null;
           if (prefs && Array.isArray(prefs.priorities) && prefs.priorities.length > 0) {
+            // Pull the structured TripMemberPreferences fields when present.
+            // Legacy guest-form rows only have priorities + curiosity — those
+            // still work; the optional fields are simply absent.
+            const dietaryRaw = prefs.dietary as { tags?: unknown; notes?: unknown } | undefined;
+            const accessRaw  = prefs.accessibility as { needs?: unknown; notes?: unknown } | undefined;
             memberPersonas.push({
               name: m.name ?? 'A member',
               priorities: prefs.priorities as string[],
+              pace: typeof prefs.pace === 'string' ? prefs.pace : undefined,
               curiosity: typeof prefs.curiosity === 'string' ? prefs.curiosity : undefined,
+              dietary: dietaryRaw && Array.isArray(dietaryRaw.tags)
+                ? { tags: dietaryRaw.tags as string[], notes: typeof dietaryRaw.notes === 'string' ? dietaryRaw.notes : undefined }
+                : undefined,
+              accessibility: accessRaw && Array.isArray(accessRaw.needs)
+                ? { needs: accessRaw.needs as string[], notes: typeof accessRaw.notes === 'string' ? accessRaw.notes : undefined }
+                : undefined,
+              budgetPerDay: typeof prefs.budgetPerDay === 'number' ? prefs.budgetPerDay : undefined,
             });
           }
         }
