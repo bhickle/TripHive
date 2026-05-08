@@ -2439,8 +2439,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         )}
 
         {!dataLoading && activeTab === 'chat' && (
-          <div className="flex flex-col h-screen max-h-[600px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-6 bg-parchment" onClick={() => setShowReactionPicker(null)}>
+          <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 py-4 bg-parchment" onClick={() => setShowReactionPicker(null)}>
               {chatMessages.map((message) => {
                 const msgReactions = reactions[message.id] || {};
                 const activeReactions = Object.entries(msgReactions).filter(([, users]) => users.length > 0);
@@ -2520,8 +2520,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t border-zinc-100 p-6 bg-white">
-              <div className="flex items-center gap-3">
+            {/* Composer — pill input with the send button embedded inside on
+                the right. No border-top divider; the white-on-parchment
+                transition does the work and keeps the chat feeling continuous
+                instead of footer-stamped. */}
+            <div className="px-4 py-3 bg-white">
+              <div className="relative">
                 <input
                   type="text"
                   value={messageInput}
@@ -2533,15 +2537,15 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     }
                   }}
                   placeholder="Say something to the crew..."
-                  className="flex-1 px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                  className="w-full pl-4 pr-12 py-3 bg-zinc-50 border border-zinc-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!messageInput.trim()}
-                  className="bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white font-semibold p-3 rounded-full transition-colors inline-flex items-center justify-center"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full flex items-center justify-center transition-colors"
                   title="Send message"
                 >
-                  <Send className="w-5 h-5" />
+                  <Send className="w-4 h-4" />
                 </button>
               </div>
             </div>
