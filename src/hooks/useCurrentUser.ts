@@ -23,6 +23,7 @@ const BLANK_USER = {
   name: '',
   avatarUrl: undefined as string | undefined,
   subscriptionTier: 'free' as SubscriptionTier,
+  homeCountry: null as string | null,
   aiCredits: {
     total: 10,
     used: 0,
@@ -113,6 +114,7 @@ export function useCurrentUser() {
     name: displayName,
     avatarUrl: profile?.avatar_url ?? undefined,
     subscriptionTier: tier,
+    homeCountry: profile?.home_country ?? null,
     aiCredits: {
       total: aiTotal,
       used: profile?.ai_credits_used ?? 0,

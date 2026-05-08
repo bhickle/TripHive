@@ -156,6 +156,7 @@ export default function SettingsPage() {
     name: '',
     email: '',
     avatarUrl: undefined as string | undefined,
+    homeCountry: '' as string,
   });
 
   // Settings is an authenticated page — redirect to login if auth resolves with no user.
@@ -166,14 +167,19 @@ export default function SettingsPage() {
     }
   }, [authLoading, user, router]);
 
-  // Populate profile from real auth data once it loads
+  // Populate profile from real auth data once it loads. homeCountry comes
+  // from a separate /api/auth/me fetch below (the AuthContext profile carries
+  // it but we use the same fetch path for both fields), so we preserve any
+  // already-loaded homeCountry on this update.
   useEffect(() => {
     if (!authLoading && user) {
-      setProfile({
+      setProfile(prev => ({
+        ...prev,
         name: authProfile?.name ?? (user.user_metadata as Record<string, string> | undefined)?.full_name ?? user.email?.split('@')[0] ?? '',
         email: user.email ?? authProfile?.email ?? '',
         avatarUrl: authProfile?.avatar_url ?? undefined,
-      });
+        homeCountry: authProfile?.home_country ?? prev.homeCountry ?? '',
+      }));
     }
   }, [authLoading, user, authProfile]);
 
@@ -195,10 +201,17 @@ export default function SettingsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (user) {
-      // Real user — fetch from Supabase
+      // Real user — fetch from Supabase. The /api/auth/me response carries
+      // both `travelPersona` (the personal Travel Persona — distinct from
+      // per-trip priorities collected in the Trip Builder) and `homeCountry`
+      // which we use to exclude domestic trips from the dashboard's
+      // "Countries Visited" lifetime count.
       fetch('/api/auth/me')
         .then(r => r.ok ? r.json() : null)
         .then(data => {
+          if (data?.homeCountry) {
+            setProfile(prev => ({ ...prev, homeCountry: data.homeCountry }));
+          }
           if (data?.travelPersona) {
             const p = data.travelPersona;
             const loaded = {
@@ -297,7 +310,10 @@ export default function SettingsPage() {
         const res = await fetch('/api/auth/me', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: profile.name }),
+          body: JSON.stringify({
+            name: profile.name,
+            home_country: profile.homeCountry?.trim() ?? '',
+          }),
         });
         if (!res.ok) savedOk = false;
       } catch { savedOk = false; }
@@ -314,7 +330,13 @@ export default function SettingsPage() {
   };
 
   const savePersona = async () => {
-    // Always write to localStorage so trip builder / onboarding stay in sync
+    // Always write to localStorage so trip builder / onboarding can read this
+    // as a default for new trips. NOTE: this is the user's PERSONAL Travel
+    // Persona — completely separate from per-trip priorities the Trip Builder
+    // collects (which save to trip.preferences and trip_members.preferences).
+    // Trip Builder reads this localStorage as a starting point only and never
+    // writes back to it, so editing trip-specific priorities will not change
+    // the user's personal persona.
     try {
       const existing = JSON.parse(localStorage.getItem('tripcoord_profile') || '{}');
       localStorage.setItem('tripcoord_profile', JSON.stringify({
@@ -325,10 +347,15 @@ export default function SettingsPage() {
       }));
     } catch { /* ignore */ }
 
-    // For real logged-in users, also persist to Supabase so it survives across devices/logins
+    // For real logged-in users, also persist to Supabase so it survives across
+    // devices/logins. Now we check res.ok and surface failures via the
+    // existing personaSaved/cancel UI — previously the call was fire-and-
+    // forget so a server-side validation reject would silently leave the
+    // user staring at "✓ Saved!" while nothing actually saved.
+    let serverSavedOk = true;
     if (user) {
       try {
-        await fetch('/api/auth/me', {
+        const res = await fetch('/api/auth/me', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -339,8 +366,27 @@ export default function SettingsPage() {
             },
           }),
         });
-      } catch { /* ignore network errors */ }
+        if (!res.ok) serverSavedOk = false;
+      } catch { serverSavedOk = false; }
     }
+
+    if (!serverSavedOk) {
+      // Don't close the editor — let the user retry. Surface via actionError
+      // toast pattern would be ideal, but we don't have a global toast on
+      // settings; using window.alert is the only thing that's visible without
+      // adding a new state slot. Acceptable since this is rare.
+      window.alert("Couldn't save your Travel Persona. Please try again.");
+      return;
+    }
+
+    // Persist the just-saved state so Cancel later restores to THIS, not the
+    // older value from initial load. Without this, editing → save → re-edit
+    // → cancel would revert to the original load, losing the saved value.
+    lastSavedPersonaRef.current = {
+      vibes:      [...persona.vibes],
+      groupType:  persona.groupType,
+      priorities: [...persona.priorities],
+    };
 
     setEditingPersona(false);
     setPersonaSaved(true);
@@ -733,6 +779,17 @@ export default function SettingsPage() {
                         />
                         <p className="text-xs text-slate-400 mt-1">Email is your login credential and can't be changed here.</p>
                       </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">Home Country</label>
+                        <input
+                          type="text"
+                          value={profile.homeCountry}
+                          onChange={e => setProfile({ ...profile, homeCountry: e.target.value })}
+                          placeholder="e.g. United States"
+                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Trips to your home country won&apos;t count toward &quot;Countries Visited&quot; on the dashboard.</p>
+                      </div>
                       <div className="flex space-x-3 pt-4">
                         <button
                           onClick={saveProfile}
@@ -742,7 +799,17 @@ export default function SettingsPage() {
                           {profileSaved ? '✓ Saved!' : profileSaving ? 'Saving…' : profileSaveError ? '✕ Save failed' : 'Save Changes'}
                         </button>
                         <button
-                          onClick={() => { setProfile({ name: currentUser.name, email: currentUser.email, avatarUrl: currentUser.avatarUrl }); setEditingProfile(false); }}
+                          onClick={() => {
+                            // Preserve homeCountry on cancel — currentUser
+                            // doesn't carry it, so spreading would clear it.
+                            setProfile(prev => ({
+                              ...prev,
+                              name: currentUser.name,
+                              email: currentUser.email,
+                              avatarUrl: currentUser.avatarUrl,
+                            }));
+                            setEditingProfile(false);
+                          }}
                           className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
                         >
                           Cancel
@@ -758,6 +825,9 @@ export default function SettingsPage() {
                             <p className="font-semibold text-slate-900">{profile.name || '—'}</p>
                             <p className="text-slate-600">{profile.email || '—'}</p>
                             <p className="text-sm text-slate-500 mt-1 capitalize">{tierLabel}</p>
+                            {profile.homeCountry && (
+                              <p className="text-xs text-slate-400 mt-0.5">Home: {profile.homeCountry}</p>
+                            )}
                           </div>
                         </div>
                         <button
@@ -793,7 +863,10 @@ export default function SettingsPage() {
               {/* ── TRAVEL PERSONA ── */}
               {activeSection === 'persona' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">Travel Persona</h2>
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-1">Travel Persona</h2>
+                  <p className="text-sm text-slate-500 mb-6">
+                    Your personal travel identity — how you tend to travel in general. Different from any specific trip&apos;s priorities, which you&apos;ll set per-trip in the Trip Builder.
+                  </p>
 
                   {editingPersona ? (
                     <div className="space-y-6">
@@ -845,18 +918,18 @@ export default function SettingsPage() {
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-sm font-semibold text-slate-900">Top Priorities</label>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            persona.priorities.length >= 4
+                            persona.priorities.length >= 1
                               ? 'bg-green-100 text-green-700'
                               : 'bg-slate-100 text-slate-500'
                           }`}>
-                            {persona.priorities.length}/4 selected
+                            {persona.priorities.length}/8 selected
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mb-3">Pick up to 4</p>
+                        <p className="text-xs text-slate-500 mb-3">Pick up to 8 — these describe how you generally travel, not any specific trip.</p>
                         <div className="flex flex-wrap gap-2">
                           {PRIORITY_OPTIONS.map(p => {
                             const isSelected = persona.priorities.includes(p.id);
-                            const isDisabled = !isSelected && persona.priorities.length >= 4;
+                            const isDisabled = !isSelected && persona.priorities.length >= 8;
                             return (
                             <button
                               key={p.id}

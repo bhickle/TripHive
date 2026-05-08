@@ -563,6 +563,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string | null
+          home_country: string | null
           id: string
           name: string | null
           notification_preferences: Json | null
@@ -579,6 +580,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          home_country?: string | null
           id: string
           name?: string | null
           notification_preferences?: Json | null
@@ -595,6 +597,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          home_country?: string | null
           id?: string
           name?: string | null
           notification_preferences?: Json | null

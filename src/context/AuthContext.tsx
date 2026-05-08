@@ -17,6 +17,7 @@ export interface UserProfile {
   subscription_tier: 'free' | 'trip_pass' | 'explorer' | 'nomad';
   ai_credits_used: number;
   ai_credits_reset_at: string | null;
+  home_country: string | null;
 }
 
 // ─── Context shape ────────────────────────────────────────────────────────────

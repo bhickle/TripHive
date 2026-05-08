@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { name, avatar_url, notification_preferences, travel_persona } = body;
+    const { name, avatar_url, notification_preferences, travel_persona, home_country } = body;
 
     // Build the update payload — only include fields that were sent
     const updates: TablesUpdate<'profiles'> = {};
@@ -76,6 +76,16 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Invalid travel_persona structure' }, { status: 400 });
       }
       updates.travel_persona = travel_persona;
+    }
+    // home_country accepts string (set) or empty-string/null (clear)
+    if (home_country === null || home_country === '') {
+      updates.home_country = null;
+    } else if (typeof home_country === 'string') {
+      const trimmed = home_country.trim();
+      if (trimmed.length > 100) {
+        return NextResponse.json({ error: 'home_country too long' }, { status: 400 });
+      }
+      updates.home_country = trimmed.length > 0 ? trimmed : null;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -113,7 +123,7 @@ export async function GET() {
     const supabase = createAdminClient();
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, name, email, avatar_url, subscription_tier, notification_preferences, travel_persona')
+      .select('id, name, email, avatar_url, subscription_tier, notification_preferences, travel_persona, home_country')
       .eq('id', user.id)
       .single();
 
@@ -127,6 +137,7 @@ export async function GET() {
       subscriptionTier: profile?.subscription_tier ?? 'free',
       notificationPreferences: profile?.notification_preferences ?? null,
       travelPersona: profile?.travel_persona ?? null,
+      homeCountry: profile?.home_country ?? null,
     });
   } catch {
     return NextResponse.json({ user: null }, { status: 401 });

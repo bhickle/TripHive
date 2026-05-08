@@ -272,16 +272,22 @@ export default function DashboardPage() {
   const allTrips = [...userTrips, ...baseTripData];
   const totalTrips = allTrips.length;
   // "Countries Visited" should reflect places you've actually been — count
-  // only trips with status === 'completed'. Previously this included
-  // planning/active trips, which gave a misleading high number for users
-  // with only one or two completed trips. The .split(',')[1] grab handles
-  // "Paris, France" → "France"; single-word destinations that have no
-  // comma fall through the filter(Boolean).
+  // only trips with status === 'completed'. The .split(',')[1] grab handles
+  // "Paris, France" → "France"; single-word destinations with no comma fall
+  // through the filter(Boolean).
+  //
+  // Home country exclusion: if the user has set their home country in
+  // Settings, trips to that country don't count as "visited" — most people
+  // don't think of their own country as a destination they've travelled to.
+  // Case-insensitive match so "United States" / "united states" / "USA" all
+  // collide with the user's stored value.
+  const homeCountryNormalised = (currentUser.homeCountry ?? '').trim().toLowerCase();
   const countriesVisited = new Set(
     allTrips
       .filter((t) => t.status === 'completed')
       .map((t) => t.destination.split(',')[1]?.trim())
       .filter(Boolean)
+      .filter((c) => !homeCountryNormalised || c!.toLowerCase() !== homeCountryNormalised)
   ).size;
   // Only count days from trips you've actually completed — not planning/future trips.
   // Prefer the builder-selected trip length over date-diff: for flexible-date trips
