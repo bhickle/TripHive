@@ -139,10 +139,47 @@ function getCuratedPhoto(destination: string): string | null {
 
 const FALLBACK_PHOTO = DEST_PHOTOS.default;
 
+// Photo metadata returned by /api/unsplash/photo. Photographer + links are
+// surfaced in the bottom-right attribution chip when present (required for
+// Unsplash production approval).
+interface DynamicPhoto {
+  url: string;
+  photographer: string | null;
+  photographerUrl: string | null;
+  photoUrl: string | null;
+  downloadLocation: string | null;
+}
+
 // Module-level cache so multiple TripCards rendering the same destination
 // hit the API at most once per page load. Survives only this React tree —
 // the API route itself caches at the Next.js fetch layer for 7 days.
-const dynamicPhotoCache = new Map<string, string | null>();
+const dynamicPhotoCache = new Map<string, DynamicPhoto | null>();
+
+// Unsplash requires a UTM-tagged link back to their site / photographer
+// profile. Production-approval reviewers actually check this.
+const UTM = '?utm_source=tripcoord&utm_medium=referral';
+
+// Fires the Unsplash download-tracking call for this photo, gated by
+// sessionStorage so each photo is tracked at most once per browser
+// session even across multiple cards or revisits to the same page.
+function maybeTrackDownload(photo: DynamicPhoto | null | undefined) {
+  if (!photo?.downloadLocation) return;
+  if (typeof window === 'undefined') return;
+  const key = `unsplash_tracked_${photo.downloadLocation}`;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  } catch {
+    // sessionStorage can throw in private mode; fall through and just
+    // fire the track call — over-tracking is harmless, under-tracking
+    // would fail Unsplash review.
+  }
+  fetch('/api/unsplash/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ downloadLocation: photo.downloadLocation }),
+  }).catch(() => { /* silent */ });
+}
 
 interface TripCardProps {
   trip: Trip;
@@ -167,24 +204,40 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
   //   4. FALLBACK_PHOTO placeholder while the dynamic fetch is in flight or fails
   const curatedPhoto = trip.coverImage ?? getCuratedPhoto(trip.destination);
   const cachedDynamic = dynamicPhotoCache.get(trip.destination);
-  const [dynamicPhoto, setDynamicPhoto] = useState<string | null>(cachedDynamic ?? null);
+  const [dynamicPhoto, setDynamicPhoto] = useState<DynamicPhoto | null>(cachedDynamic ?? null);
 
   useEffect(() => {
     if (curatedPhoto) return;
-    if (dynamicPhotoCache.has(trip.destination)) return;
+    if (dynamicPhotoCache.has(trip.destination)) {
+      // Already fetched this session — but we may still need to fire the
+      // download-tracking call if this is a fresh component mount
+      // (sessionStorage keeps the gate consistent).
+      maybeTrackDownload(dynamicPhotoCache.get(trip.destination));
+      return;
+    }
     let aborted = false;
     fetch(`/api/unsplash/photo?q=${encodeURIComponent(trip.destination)}`)
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
-        const url = data?.photo?.url ?? null;
-        dynamicPhotoCache.set(trip.destination, url);
-        if (!aborted) setDynamicPhoto(url);
+        const photo: DynamicPhoto | null = data?.photo?.url ? data.photo : null;
+        dynamicPhotoCache.set(trip.destination, photo);
+        if (!aborted) {
+          setDynamicPhoto(photo);
+          maybeTrackDownload(photo);
+        }
       })
       .catch(() => { /* silent — placeholder stays */ });
     return () => { aborted = true; };
   }, [trip.destination, curatedPhoto]);
 
-  const photoSrc = curatedPhoto ?? dynamicPhoto ?? FALLBACK_PHOTO;
+  const photoSrc = curatedPhoto ?? dynamicPhoto?.url ?? FALLBACK_PHOTO;
+  // Only show the chip for live Unsplash photos with full attribution.
+  // Curated DEST_PHOTOS bypass the API and have no per-photo metadata
+  // — TODO before launch: migrate them or stitch in photographer info.
+  const showAttribution =
+    !curatedPhoto &&
+    dynamicPhoto?.photographer &&
+    dynamicPhoto?.photographerUrl;
 
   const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
@@ -225,6 +278,34 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
           className="object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+        {/* Unsplash attribution — required by API guidelines.
+            Only renders for live API photos; clicks open in a new tab and
+            stop propagation so the parent Link doesn't navigate. */}
+        {showAttribution && dynamicPhoto && (
+          <div className="absolute bottom-2 right-3 text-[10px] text-white/70 z-10">
+            Photo by{' '}
+            <a
+              href={`${dynamicPhoto.photographerUrl}${UTM}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="underline-offset-2 hover:underline hover:text-white transition-colors"
+            >
+              {dynamicPhoto.photographer}
+            </a>
+            {' '}on{' '}
+            <a
+              href={`${dynamicPhoto.photoUrl ?? 'https://unsplash.com'}${UTM}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="underline-offset-2 hover:underline hover:text-white transition-colors"
+            >
+              Unsplash
+            </a>
+          </div>
+        )}
 
         {/* Status badge — Cormorant italic */}
         <div className="absolute top-3 left-3">
