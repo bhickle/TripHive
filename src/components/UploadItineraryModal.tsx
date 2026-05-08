@@ -5,14 +5,46 @@ import { useRouter } from 'next/navigation';
 import {
   X, Upload, FileText, Loader2, CheckCircle2,
   PlusCircle, ChevronRight, AlertCircle,
-  Sparkles, Anchor, Ship, Trash2,
+  Sparkles, Anchor, Ship, Trash2, Users, Pencil, Copy, Check,
 } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { PRICING } from '@/hooks/useEntitlements';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
 
-type Step = 'upload' | 'trip-choice' | 'processing' | 'cruise-check' | 'done' | 'error';
+// `preview` is a new pre-save confirmation step where the user can edit
+// destination / dates / group size before the trip is committed. `blank-form`
+// is the no-AI path — fills a placeholder trip so free / group users can use
+// the collaboration features without ever running the parser.
+type Step = 'upload' | 'blank-form' | 'processing' | 'preview' | 'cruise-check' | 'done' | 'error';
 type TripChoice = 'new' | 'existing';
+
+// Build N empty days between startDate and endDate (inclusive). Returns one
+// placeholder day when dates are missing — the user can edit/duplicate from
+// the itinerary page. Shape matches the canonical ItineraryDay so downstream
+// code (Add Day, Add Activity, etc.) works without special-casing.
+function buildBlankDays(startDate: string, endDate: string) {
+  const empty = (day: number, date: string) => ({
+    day,
+    date,
+    theme: '',
+    tracks: { shared: [], track_a: [], track_b: [] },
+    transportLegs: [],
+    photoSpots: [],
+    foodieTips: [],
+  });
+  if (!startDate || !endDate) return [empty(1, '')];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return [empty(1, startDate)];
+  const days: ReturnType<typeof empty>[] = [];
+  let i = 0;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    days.push(empty(i + 1, d.toISOString().slice(0, 10)));
+    i++;
+    if (i > 60) break; // sanity cap
+  }
+  return days;
+}
 
 // Destination → Unsplash cover image lookup
 const COVER_IMAGES: Record<string, string> = {
@@ -111,6 +143,30 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   const [savedTripId, setSavedTripId] = useState<string | null>(null);
   const [isCruise, setIsCruise] = useState<boolean | null>(null);
   const [cruiseLine, setCruiseLine] = useState('');
+
+  // ── Preview step (between parse and save). Editable defaults pulled from
+  // the parsed meta so the user can correct mis-parses before commit. ──
+  const [parsedItinerary, setParsedItinerary] = useState<unknown[] | null>(null);
+  const [previewDestination, setPreviewDestination] = useState('');
+  const [previewStartDate, setPreviewStartDate] = useState('');
+  const [previewEndDate, setPreviewEndDate] = useState('');
+  const [previewGroupSize, setPreviewGroupSize] = useState<number>(2);
+  const [savePreviewError, setSavePreviewError] = useState<string | null>(null);
+  const [savingPreview, setSavingPreview] = useState(false);
+
+  // ── Blank-trip form (no AI parse). Lets the user create a placeholder
+  // trip and use the group/collaboration features without running the
+  // parser. The whole reason this entry point exists. ──
+  const [blankTitle, setBlankTitle] = useState('');
+  const [blankDestination, setBlankDestination] = useState('');
+  const [blankStartDate, setBlankStartDate] = useState('');
+  const [blankEndDate, setBlankEndDate] = useState('');
+  const [blankGroupSize, setBlankGroupSize] = useState<number>(2);
+  const [blankSaving, setBlankSaving] = useState(false);
+  const [blankError, setBlankError] = useState<string | null>(null);
+
+  // ── Done-step invite UX ──
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Real trips loaded from Supabase
   const [realTrips, setRealTrips] = useState<RealTrip[]>([]);
@@ -224,6 +280,10 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   }
 
   // ── AI parsing ────────────────────────────────────────────────────────────
+  // Parses the uploaded content but does NOT save. Save happens after the
+  // user reviews + confirms in the preview step. This protects users from
+  // committing a bad parse and lets them edit destination/dates/group size
+  // before commit.
 
   const handleProcess = async () => {
     if (!hasContent) return;
@@ -258,105 +318,188 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
         return;
       }
 
-      localStorage.setItem('generatedItinerary', JSON.stringify(data.itinerary));
       const meta: ParsedMeta = data.meta || {};
       setParsedMeta(meta);
+      setParsedItinerary(data.itinerary);
 
-      const destination = meta.destination || 'Uploaded Trip';
+      // Seed preview-step fields with the parser's best guesses. If the
+      // user is uploading INTO an existing trip, prefer the existing trip's
+      // destination/dates over the parser's guesses (the user already
+      // committed those values; the upload is supplemental content).
+      if (tripChoice === 'existing') {
+        const trip = realTrips.find(t => t.id === selectedTripId);
+        setPreviewDestination(trip?.destination || meta.destination || '');
+        setPreviewStartDate(trip?.start_date || meta.startDate || '');
+        setPreviewEndDate(trip?.end_date || meta.endDate || '');
+      } else {
+        setPreviewDestination(meta.destination || '');
+        setPreviewStartDate(meta.startDate || '');
+        setPreviewEndDate(meta.endDate || '');
+      }
+      setSavePreviewError(null);
+      setStep('preview');
+    } catch (err) {
+      clearInterval(interval);
+      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.');
+      setStep('error');
+    }
+  };
 
+  // ── Save after preview confirmation ───────────────────────────────────────
+  // Now writes the parsed itinerary + edited meta to Supabase. Hardcoded
+  // budget defaults removed — uploaded trips start at 0; the user fills in
+  // the actual budget on the itinerary page if they want that view to mean
+  // anything. groupSize comes from the preview form (no more silent 1).
+
+  const handleConfirmAndSave = async () => {
+    if (!parsedItinerary) return;
+    setSavingPreview(true);
+    setSavePreviewError(null);
+
+    const destination = previewDestination.trim() || parsedMeta?.destination || 'Uploaded Trip';
+    const startDate = previewStartDate || parsedMeta?.startDate || '';
+    const endDate = previewEndDate || parsedMeta?.endDate || '';
+
+    try {
       if (tripChoice === 'new') {
         const tripMetaForStorage = {
           destination,
-          startDate: meta.startDate || '',
-          endDate: meta.endDate || '',
-          budget: 5000,
-          budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
+          startDate,
+          endDate,
+          budget: 0,
+          budgetBreakdown: {},
           fromUpload: true,
         };
         localStorage.setItem('generatedTripMeta', JSON.stringify(tripMetaForStorage));
+        localStorage.setItem('generatedItinerary', JSON.stringify(parsedItinerary));
 
-        let finalTripId = `upload_${Date.now()}`;
-        try {
-          const saveRes = await fetch('/api/trips/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tripMeta: {
-                destination,
-                title: destination,
-                startDate: meta.startDate || '',
-                endDate: meta.endDate || '',
-                groupType: 'friends',
-                groupSize: 1,
-                budget: 5000,
-                budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
-                bookedHotels: [],
-                bookedFlight: null,
-                preferences: { fromUpload: true },
-              },
-              itinerary: data.itinerary,
-            }),
-          });
-          if (saveRes.ok) {
-            const { tripId } = await saveRes.json();
-            finalTripId = tripId;
-            setSavedTripId(tripId);
-            localStorage.setItem('currentTripId', tripId);
+        const saveRes = await fetch('/api/trips/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tripMeta: {
+              destination,
+              title: destination,
+              startDate,
+              endDate,
+              groupType: 'friends',
+              groupSize: previewGroupSize,
+              budget: 0,
+              budgetBreakdown: {},
+              bookedHotels: [],
+              bookedFlight: null,
+              preferences: { fromUpload: true },
+            },
+            itinerary: parsedItinerary,
+          }),
+        });
 
-            // Kick off AI packing list generation in the background (non-blocking)
-            fetch('/api/generate-packing', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tripId, destination, startDate: meta.startDate, endDate: meta.endDate }),
-            }).catch(() => { /* non-fatal */ });
-          }
-        } catch {
-          // Silently fall back to localStorage-only if Supabase save fails
+        if (!saveRes.ok) {
+          const errBody = await saveRes.json().catch(() => ({}));
+          throw new Error(errBody?.error ?? `Save failed (${saveRes.status})`);
         }
+
+        const { tripId } = await saveRes.json();
+        setSavedTripId(tripId);
+        localStorage.setItem('currentTripId', tripId);
+
+        // Kick off AI packing list generation in the background (non-blocking)
+        fetch('/api/generate-packing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripId, destination, startDate, endDate }),
+        }).catch(() => { /* non-fatal */ });
       } else {
-        // Existing trip — write localStorage then PATCH Supabase with the new itinerary
-        const trip = realTrips.find(t => t.id === selectedTripId);
-        const tripDestination = trip?.destination || destination;
-        localStorage.setItem('generatedTripMeta', JSON.stringify({
-          destination: tripDestination,
-          startDate: trip?.start_date || meta.startDate || '',
-          endDate: trip?.end_date || meta.endDate || '',
-          budget: 5000,
-          budgetBreakdown: { flights: 1500, hotel: 1200, food: 800, experiences: 900, transport: 600 },
-          fromUpload: true,
-        }));
+        // Existing-trip branch — patches the day list onto an already-saved
+        // trip. The user explicitly chose to add to this trip, so the
+        // overwrite is intentional (warned in the preview UI).
         localStorage.setItem('currentTripId', selectedTripId);
         setSavedTripId(selectedTripId);
 
-        // Persist the newly-parsed itinerary into Supabase, replacing the old one
-        try {
-          await fetch(`/api/trips/${selectedTripId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ days: data.itinerary }),
-          });
-        } catch {
-          // Non-fatal — localStorage fallback is still set
+        const patchRes = await fetch(`/api/trips/${selectedTripId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: parsedItinerary }),
+        });
+        if (!patchRes.ok) {
+          const errBody = await patchRes.json().catch(() => ({}));
+          throw new Error(errBody?.error ?? `Save failed (${patchRes.status})`);
         }
 
         // Regenerate packing list for the updated itinerary (fire-and-forget)
         fetch('/api/generate-packing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tripId: selectedTripId,
-            destination: tripDestination,
-            startDate: trip?.start_date || meta.startDate,
-            endDate: trip?.end_date || meta.endDate,
-          }),
+          body: JSON.stringify({ tripId: selectedTripId, destination, startDate, endDate }),
         }).catch(() => { /* non-fatal */ });
       }
 
+      setSavingPreview(false);
       setStep('cruise-check');
     } catch (err) {
-      clearInterval(interval);
-      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.');
-      setStep('error');
+      setSavingPreview(false);
+      setSavePreviewError(err instanceof Error ? err.message : 'Could not save the trip.');
+    }
+  };
+
+  // ── Blank-trip save (no AI) ───────────────────────────────────────────────
+  // Creates a Supabase trip row with N empty days (one per calendar day in
+  // the date range, or a single placeholder when dates are missing). Used
+  // by free / group users who want to spin up a placeholder trip and invite
+  // their crew without ever running the parser.
+
+  const handleSaveBlank = async () => {
+    const destination = blankDestination.trim();
+    if (!destination) {
+      setBlankError('Destination is required.');
+      return;
+    }
+    setBlankSaving(true);
+    setBlankError(null);
+
+    const days = buildBlankDays(blankStartDate, blankEndDate);
+    const title = blankTitle.trim() || destination;
+
+    try {
+      const saveRes = await fetch('/api/trips/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripMeta: {
+            destination,
+            title,
+            startDate: blankStartDate,
+            endDate: blankEndDate,
+            groupType: 'friends',
+            groupSize: blankGroupSize,
+            budget: 0,
+            budgetBreakdown: {},
+            bookedHotels: [],
+            bookedFlight: null,
+            preferences: { fromUpload: true, blankTrip: true },
+          },
+          itinerary: days,
+        }),
+      });
+
+      if (!saveRes.ok) {
+        const errBody = await saveRes.json().catch(() => ({}));
+        throw new Error(errBody?.error ?? `Save failed (${saveRes.status})`);
+      }
+
+      const { tripId } = await saveRes.json();
+      setSavedTripId(tripId);
+      localStorage.setItem('currentTripId', tripId);
+      // Mirror the parsedMeta shape so the done step can show a summary.
+      setParsedMeta({ destination, startDate: blankStartDate, endDate: blankEndDate, tripLength: days.length });
+      setBlankSaving(false);
+      // Skip cruise-check entirely for blank trips — there's no parsed
+      // content to be a cruise. User can mark it cruise-mode later from
+      // the itinerary page if needed.
+      setStep('done');
+    } catch (err) {
+      setBlankSaving(false);
+      setBlankError(err instanceof Error ? err.message : 'Could not create the trip.');
     }
   };
 
@@ -444,9 +587,9 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
             <div className="w-9 h-9 bg-sky-800 rounded-xl flex items-center justify-center flex-shrink-0">
               <Upload className="w-4 h-4 text-white" />
             </div>
-            <h2 className="font-script italic text-xl font-semibold text-zinc-900">Upload Itinerary</h2>
+            <h2 className="font-script italic text-xl font-semibold text-zinc-900">Bring a Trip In</h2>
           </div>
-          <p className="text-sm text-zinc-500 pl-12">Import an existing itinerary and let AI structure it for you.</p>
+          <p className="text-sm text-zinc-500 pl-12">Upload an itinerary or create a blank trip — invite your group to collaborate either way.</p>
           <button
             onClick={onClose}
             className="absolute top-6 right-6 w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center transition-colors"
@@ -642,6 +785,234 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 Parse with AI
                 <ChevronRight className="w-4 h-4" />
               </button>
+
+              {/* Skip parsing — create a blank trip instead. The whole point
+                  of this entry point for free / group users who just want
+                  the collaboration features. */}
+              {tripChoice === 'new' && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-zinc-100" />
+                  <button
+                    onClick={() => setStep('blank-form')}
+                    className="text-xs font-medium text-zinc-500 hover:text-sky-700 whitespace-nowrap transition-colors"
+                  >
+                    Or skip — create a blank trip and invite your group →
+                  </button>
+                  <div className="flex-1 h-px bg-zinc-100" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Step: Blank-trip form (no AI) ── */}
+          {step === 'blank-form' && (
+            <div className="space-y-5">
+              <div className="flex items-start gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                <Users className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  Skip the parser. Create a placeholder trip with empty days, then invite your group to collaborate on chat, votes, expenses, and packing.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Destination *</label>
+                <input
+                  type="text"
+                  value={blankDestination}
+                  onChange={e => setBlankDestination(e.target.value)}
+                  placeholder="e.g. Lisbon, Portugal"
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-zinc-700 mb-1.5">
+                  Trip name <span className="text-xs font-normal text-zinc-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={blankTitle}
+                  onChange={e => setBlankTitle(e.target.value)}
+                  placeholder="e.g. Sarah's bachelorette"
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                />
+                <p className="text-xs text-zinc-400 mt-1.5">Defaults to the destination if left blank.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Start date</label>
+                  <input
+                    type="date"
+                    value={blankStartDate}
+                    onChange={e => setBlankStartDate(e.target.value)}
+                    className="w-full px-3 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-1.5">End date</label>
+                  <input
+                    type="date"
+                    value={blankEndDate}
+                    onChange={e => setBlankEndDate(e.target.value)}
+                    className="w-full px-3 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-zinc-700 mb-1.5">How many travelers?</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={blankGroupSize}
+                  onChange={e => setBlankGroupSize(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-32 px-3 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                />
+              </div>
+
+              {blankError && (
+                <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-2xl">
+                  <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-rose-700">{blankError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setStep('upload'); setBlankError(null); }}
+                  className="px-5 py-3 border border-zinc-200 text-zinc-600 font-semibold rounded-full hover:bg-zinc-50 transition-colors text-sm"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={handleSaveBlank}
+                  disabled={blankSaving || !blankDestination.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-full transition-colors text-sm"
+                >
+                  {blankSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                  {blankSaving ? 'Creating…' : 'Create trip & invite group'}
+                  {!blankSaving && <ChevronRight className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step: Preview (between parse and save) ── */}
+          {step === 'preview' && (
+            <div className="space-y-5">
+              <div className="flex items-start gap-3 p-3 bg-sky-50 border border-sky-200 rounded-2xl">
+                <Pencil className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-sky-800 leading-relaxed">
+                  Quick check — anything wrong with what we parsed? Edit before saving so the rest of the app gets the right data.
+                </p>
+              </div>
+
+              {/* Parsed summary */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-zinc-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-black text-zinc-900">{Array.isArray(parsedItinerary) ? parsedItinerary.length : 0}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mt-0.5">days</p>
+                </div>
+                <div className="bg-zinc-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-black text-zinc-900">
+                    {Array.isArray(parsedItinerary)
+                      ? parsedItinerary.reduce((s: number, d: unknown) => {
+                          const day = d as { tracks?: { shared?: unknown[]; track_a?: unknown[]; track_b?: unknown[] } };
+                          return s + (day.tracks?.shared?.length ?? 0) + (day.tracks?.track_a?.length ?? 0) + (day.tracks?.track_b?.length ?? 0);
+                        }, 0)
+                      : 0}
+                  </p>
+                  <p className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mt-0.5">activities</p>
+                </div>
+                <div className="bg-zinc-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-black text-zinc-900">{loadedFiles.length || (pasteText ? 1 : 0)}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mt-0.5">{loadedFiles.length === 1 ? 'file' : 'sources'}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Destination</label>
+                <input
+                  type="text"
+                  value={previewDestination}
+                  onChange={e => setPreviewDestination(e.target.value)}
+                  placeholder="e.g. Lisbon, Portugal"
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Start date</label>
+                  <input
+                    type="date"
+                    value={previewStartDate}
+                    onChange={e => setPreviewStartDate(e.target.value)}
+                    className="w-full px-3 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-1.5">End date</label>
+                  <input
+                    type="date"
+                    value={previewEndDate}
+                    onChange={e => setPreviewEndDate(e.target.value)}
+                    className="w-full px-3 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  />
+                </div>
+              </div>
+
+              {tripChoice === 'new' && (
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-1.5">How many travelers?</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={previewGroupSize}
+                    onChange={e => setPreviewGroupSize(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-32 px-3 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  />
+                </div>
+              )}
+
+              {tripChoice === 'existing' && (
+                <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    This will <strong>replace</strong> the existing days on{' '}
+                    <strong>{realTrips.find(t => t.id === selectedTripId)?.title || 'this trip'}</strong>.
+                    The current itinerary will be overwritten.
+                  </p>
+                </div>
+              )}
+
+              {savePreviewError && (
+                <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-2xl">
+                  <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-rose-700">{savePreviewError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setStep('upload'); setSavePreviewError(null); }}
+                  className="px-5 py-3 border border-zinc-200 text-zinc-600 font-semibold rounded-full hover:bg-zinc-50 transition-colors text-sm"
+                >
+                  ← Re-parse
+                </button>
+                <button
+                  onClick={handleConfirmAndSave}
+                  disabled={savingPreview}
+                  className="flex-1 flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-full transition-colors text-sm"
+                >
+                  {savingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {savingPreview ? 'Saving…' : 'Save & continue'}
+                  {!savingPreview && <ChevronRight className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           )}
 
@@ -751,10 +1122,12 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 <CheckCircle2 className="w-8 h-8 text-emerald-600" />
               </div>
               <div>
-                <p className="font-script italic text-xl font-semibold text-zinc-900 mb-1">Itinerary imported!</p>
+                <p className="font-script italic text-xl font-semibold text-zinc-900 mb-1">
+                  {parsedItinerary ? 'Itinerary imported!' : 'Trip created!'}
+                </p>
                 {parsedMeta?.destination && (
                   <p className="text-sm text-zinc-500">
-                    Parsed <span className="font-semibold text-zinc-700">{parsedMeta.destination}</span>
+                    <span className="font-semibold text-zinc-700">{parsedMeta.destination}</span>
                     {parsedMeta.tripLength ? ` · ${parsedMeta.tripLength} days` : ''}
                   </p>
                 )}
@@ -764,14 +1137,65 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   </p>
                 )}
                 <p className="text-xs text-zinc-400 mt-1">
-                  {tripChoice === 'new'
-                    ? 'A new trip has been created with your itinerary.'
-                    : `Added to ${realTrips.find(t => t.id === selectedTripId)?.title || 'your trip'}.`}
+                  {!parsedItinerary
+                    ? 'Empty days are ready — fill them in or invite your group.'
+                    : tripChoice === 'new'
+                      ? 'A new trip has been created with your itinerary.'
+                      : `Added to ${realTrips.find(t => t.id === selectedTripId)?.title || 'your trip'}.`}
                 </p>
                 {loadedFiles.length > 1 && (
                   <p className="text-xs text-zinc-400 mt-0.5">{loadedFiles.length} files merged and parsed.</p>
                 )}
               </div>
+
+              {/* Group invite CTA — surfaced prominently on done because the
+                  upload feature exists primarily so free / group users can
+                  collaborate without paying for AI. Real Supabase trip only
+                  (UUID) since /join/[id] needs a saved trip row. */}
+              {savedTripId && /^[0-9a-f-]{36}$/i.test(savedTripId) && (
+                <div className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-left">
+                  <div className="flex items-start gap-3 mb-3">
+                    <Users className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-zinc-900 text-sm">Invite your travelers</p>
+                      <p className="text-xs text-emerald-800 mt-0.5 leading-snug">
+                        Share the join link so the group can vote on activities, split expenses, chat, and track packing — together.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => {
+                        if (typeof window === 'undefined' || !savedTripId) return;
+                        const url = `${window.location.origin}/join/${savedTripId}`;
+                        navigator.clipboard.writeText(url).then(
+                          () => {
+                            setInviteCopied(true);
+                            setTimeout(() => setInviteCopied(false), 2500);
+                          },
+                          () => { /* clipboard blocked — user can still use the View Group button */ },
+                        );
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-emerald-300 text-emerald-800 text-sm font-semibold rounded-full hover:bg-emerald-100 transition-colors"
+                    >
+                      {inviteCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {inviteCopied ? 'Link copied!' : 'Copy invite link'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!savedTripId) return;
+                        router.push(`/trip/${savedTripId}/group`);
+                        onClose();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-full transition-colors"
+                    >
+                      <Users className="w-4 h-4" />
+                      Open the group page
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Trip Pass proactive CTA — free-tier users only, on a real
                   Supabase trip (savedTripId is a UUID after a successful
