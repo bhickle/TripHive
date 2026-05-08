@@ -4,10 +4,22 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { User, Mail, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+// Next.js 14 requires useSearchParams() consumers to live inside a Suspense
+// boundary so the static prerender can bail to client rendering for just
+// the search-param-dependent slice. Hoisting the page body into a separate
+// component lets us wrap it without restructuring everything else.
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupPageInner />
+    </Suspense>
+  );
+}
+
+function SignupPageInner() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

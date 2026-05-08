@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
@@ -130,7 +130,19 @@ interface PickerTrip {
   group_size?: number | null;
 }
 
+// Next.js 14 requires useSearchParams() consumers to live inside a Suspense
+// boundary so the static prerender can bail to client rendering for just
+// the search-param-dependent slice. Hoisting the body into an inner
+// component keeps the existing JSX intact.
 export default function PricingPage() {
+  return (
+    <Suspense fallback={null}>
+      <PricingPageInner />
+    </Suspense>
+  );
+}
+
+function PricingPageInner() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
