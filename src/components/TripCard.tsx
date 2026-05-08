@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Calendar, Users, ArrowRight, Trash2, X } from 'lucide-react';
@@ -127,13 +127,22 @@ const DEST_PHOTOS: Record<string, string> = {
   default:        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=416&fit=crop',
 };
 
-function getDestinationPhoto(destination: string): string {
+// Returns a curated photo if the destination matches a known keyword,
+// or null to signal that the caller should fetch dynamically from Unsplash.
+function getCuratedPhoto(destination: string): string | null {
   const lower = destination.toLowerCase();
   for (const key of Object.keys(DEST_PHOTOS)) {
     if (key !== 'default' && lower.includes(key)) return DEST_PHOTOS[key];
   }
-  return DEST_PHOTOS.default;
+  return null;
 }
+
+const FALLBACK_PHOTO = DEST_PHOTOS.default;
+
+// Module-level cache so multiple TripCards rendering the same destination
+// hit the API at most once per page load. Survives only this React tree —
+// the API route itself caches at the Next.js fetch layer for 7 days.
+const dynamicPhotoCache = new Map<string, string | null>();
 
 interface TripCardProps {
   trip: Trip;
@@ -150,6 +159,32 @@ const statusConfig = {
 export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Photo resolution order:
+  //   1. Trip's saved coverImage (set by upload modal etc.)
+  //   2. Curated DEST_PHOTOS lookup (synchronous, instant for known destinations)
+  //   3. Dynamic Unsplash search via /api/unsplash/photo
+  //   4. FALLBACK_PHOTO placeholder while the dynamic fetch is in flight or fails
+  const curatedPhoto = trip.coverImage ?? getCuratedPhoto(trip.destination);
+  const cachedDynamic = dynamicPhotoCache.get(trip.destination);
+  const [dynamicPhoto, setDynamicPhoto] = useState<string | null>(cachedDynamic ?? null);
+
+  useEffect(() => {
+    if (curatedPhoto) return;
+    if (dynamicPhotoCache.has(trip.destination)) return;
+    let aborted = false;
+    fetch(`/api/unsplash/photo?q=${encodeURIComponent(trip.destination)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        const url = data?.photo?.url ?? null;
+        dynamicPhotoCache.set(trip.destination, url);
+        if (!aborted) setDynamicPhoto(url);
+      })
+      .catch(() => { /* silent — placeholder stays */ });
+    return () => { aborted = true; };
+  }, [trip.destination, curatedPhoto]);
+
+  const photoSrc = curatedPhoto ?? dynamicPhoto ?? FALLBACK_PHOTO;
 
   const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
@@ -184,7 +219,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
       {/* Image — tall, editorial */}
       <div className="relative h-52 overflow-hidden bg-zinc-200">
         <Image
-          src={trip.coverImage || getDestinationPhoto(trip.destination)}
+          src={photoSrc}
           alt={trip.destination}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-500"
