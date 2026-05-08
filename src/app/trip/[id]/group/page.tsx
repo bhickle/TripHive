@@ -29,8 +29,10 @@ import {
   Crown,
   CalendarDays,
   CheckCircle2,
+  X,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { useModalUX } from '@/hooks/useModalUX';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 
 type TabType = 'overview' | 'expenses' | 'chat' | 'votes';
@@ -629,6 +631,15 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   // Add Expense Modal
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+
+  // ── Shared modal UX (Escape key + body scroll lock) ──────────────────────
+  // Inline arrows are fine — state setters are stable per React's guarantee,
+  // so the hook re-registers cheaply on each render.
+  useModalUX(showInviteModal, () => setShowInviteModal(false));
+  useModalUX(showVoteModal, () => setShowVoteModal(false));
+  useModalUX(showAddExpenseModal, () => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); });
+  useModalUX(addToItinVote !== null, () => { if (!addToItinSaving) { setAddToItinVote(null); setAddToItinError(null); } });
+
   const [newExpenseName, setNewExpenseName] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
   const [newExpensePaidBy, setNewExpensePaidBy] = useState(isMockTrip ? 'Brandon' : '');
@@ -1282,7 +1293,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             {showAddExpenseModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); }}>
                 <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                  <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-5">Add Expense</h3>
+                  <div className="flex items-start justify-between mb-5">
+                    <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Add Expense</h3>
+                    <button
+                      onClick={() => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); }}
+                      className="p-1.5 rounded-full hover:bg-zinc-100 transition-colors -mt-1 -mr-1"
+                      aria-label="Close"
+                    >
+                      <X className="w-4 h-4 text-zinc-500" />
+                    </button>
+                  </div>
 
                   {/* Receipt Scanner */}
                   <div className="mb-5 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
@@ -1865,7 +1885,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             {showVoteModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowVoteModal(false)}>
                 <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-                  <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Put It to a Vote</h3>
+                  <div className="flex items-start justify-between mb-6">
+                    <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Put It to a Vote</h3>
+                    <button
+                      onClick={() => setShowVoteModal(false)}
+                      className="p-1.5 rounded-full hover:bg-zinc-100 transition-colors -mt-1 -mr-1"
+                      aria-label="Close"
+                    >
+                      <X className="w-4 h-4 text-zinc-500" />
+                    </button>
+                  </div>
 
                   {/* Question */}
                   <div className="mb-4">
@@ -2155,7 +2184,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Invite to Trip</h3>
+            <div className="flex items-start justify-between mb-6">
+              <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Invite to Trip</h3>
+              <button
+                onClick={() => setShowInviteModal(false)}
+                className="p-1.5 rounded-full hover:bg-zinc-100 transition-colors -mt-1 -mr-1"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
 
             {/* Method Toggle */}
             <div className="flex gap-2 mb-4">

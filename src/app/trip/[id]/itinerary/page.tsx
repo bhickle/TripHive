@@ -60,6 +60,7 @@ import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { MapView } from '@/components/MapView';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { useModalUX } from '@/hooks/useModalUX';
 import { WeatherWidget } from '@/components/WeatherWidget';
 
 // ─── Transport helpers ────────────────────────────────────────────────────────
@@ -356,6 +357,19 @@ function ItineraryPageContent() {
   const [showAddFlightModal, setShowAddFlightModal] = useState(false);
   const [savingBooking, setSavingBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+
+  // ── Shared modal UX (Escape key + body scroll lock) ──────────────────────
+  // Each call wires up Esc-to-close + page-scroll lock for a modal.
+  // Inline arrow close handlers are fine; the hook re-registers cheaply
+  // on render. State setters (set...) are stable per React's guarantee.
+  useModalUX(showAddActivityModal, () => setShowAddActivityModal(false));
+  useModalUX(showStoryModal, () => setShowStoryModal(false));
+  useModalUX(showParseModal, () => setShowParseModal(false));
+  useModalUX(showInviteModal, () => setShowInviteModal(false));
+  useModalUX(showEditTripModal, () => setShowEditTripModal(false));
+  useModalUX(showAddDayModal, () => { if (!addDayGenerating) { setShowAddDayModal(false); setAddDayError(null); } });
+  useModalUX(showAddHotelModal, () => { setShowAddHotelModal(false); setBookingError(null); setEditingHotelIndex(null); });
+  useModalUX(showAddFlightModal, () => { setShowAddFlightModal(false); setBookingError(null); });
   // Hotel form state
   const [hotelFormName, setHotelFormName] = useState('');
   const [hotelFormCity, setHotelFormCity] = useState('');
