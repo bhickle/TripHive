@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Download, Share2, Pause, Play, Lock } from 'lucide-react';
-import { trips, itineraryDays as mockItineraryDays, groupMembers, expenses, tripPhotos, messages, MOCK_TRIP_IDS } from '@/data/mock';
+import {
+  trips,
+  itineraryDays as mockItineraryDays,
+  groupMembers as mockGroupMembers,
+  tripPhotos as mockTripPhotos,
+  messages as mockMessages,
+  MOCK_TRIP_IDS,
+} from '@/data/mock';
 import { Trip } from '@/lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,12 +62,84 @@ const dayColors = [
   { bg: 'bg-amber-900/60',   border: 'border-amber-700/40',   text: 'text-amber-300',  num: 'bg-amber-700' },
 ];
 
-// Fun laugh moments for the "The Laughs" slide (mock chat highlights)
-const laughMoments = [
+// Mock laugh moments — used only for the demo Iceland trip. Real trips
+// derive their laugh moments from `effectiveMessages` (top-reacted chat).
+const mockLaughMoments = [
   { text: 'Marcus tried to pronounce "Þingvellir" for 5 whole minutes 💀', from: 'Brandon' },
   { text: "A puffin literally yoinked Sarah's sandwich off the cliff 😂😂", from: 'Alex Rivera' },
   { text: 'Jordan fell asleep at the glacier before the hike even started 🤣', from: 'Emily Park' },
 ];
+
+// ─── Story data shapes (unified for mock + real-trip data) ────────────────────
+
+type StoryMember = {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+};
+
+type StoryPhoto = {
+  id: string;
+  url: string;
+  activity?: string;
+  day?: number;
+  uploadedBy?: string;
+};
+
+type StoryMessage = {
+  id: string;
+  senderName: string;
+  content: string;
+  // Reactions shape from the API: { '😂': ['user_id', ...], ... }.
+  // Mock messages don't include this.
+  reactions?: Record<string, string[]> | null;
+};
+
+type LaughMoment = { text: string; from: string };
+
+// Sums every reaction across the message's reactions map.
+function totalReactions(m: StoryMessage): number {
+  if (!m.reactions) return 0;
+  return Object.values(m.reactions).reduce((s, arr) => s + (arr?.length ?? 0), 0);
+}
+
+// Heuristic match for "this message made people laugh." Used both to count
+// laugh-y messages and to surface them in the slide.
+const laughEmojiSet = new Set(['😂', '🤣', '💀', '😆', '🤪']);
+
+function laughScore(m: StoryMessage): number {
+  let score = 0;
+  if (m.reactions) {
+    for (const [emoji, users] of Object.entries(m.reactions)) {
+      if (laughEmojiSet.has(emoji)) score += (users?.length ?? 0) * 2; // weight reactions
+      else score += (users?.length ?? 0);
+    }
+  }
+  // Light boost when the message itself contains a laugh marker.
+  if (/😂|🤣|💀|lol|haha|lmao/i.test(m.content)) score += 1;
+  return score;
+}
+
+function getLaughCount(msgs: StoryMessage[]): number {
+  return msgs.reduce((sum, m) => {
+    const fromReactions = m.reactions
+      ? Object.entries(m.reactions).reduce(
+          (s, [emoji, users]) => s + (laughEmojiSet.has(emoji) ? (users?.length ?? 0) : 0),
+          0,
+        )
+      : 0;
+    const fromText = /😂|🤣|💀|lol|haha|lmao/i.test(m.content) ? 1 : 0;
+    return sum + fromReactions + fromText;
+  }, 0);
+}
+
+function pickLaughMoments(msgs: StoryMessage[], n: number): LaughMoment[] {
+  const ranked = msgs
+    .map(m => ({ m, score: laughScore(m) }))
+    .filter(r => r.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked.slice(0, n).map(r => ({ text: r.m.content, from: r.m.senderName }));
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,11 +171,6 @@ function getPersonality(tripsArr: Trip[]) {
   if (dests.includes('tokyo') || dests.includes('bangkok') || dests.includes('paris')) return travelPersonalities.foodie;
   if (avgBudget > 4000) return travelPersonalities.luxury;
   return travelPersonalities.culture;
-}
-
-function getLaughCount() {
-  const laughPattern = /😂|🤣|lol|haha|lmao|💀/i;
-  return messages.filter(m => laughPattern.test(m.content)).length + 24; // 24 = demo offset for fun
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -151,7 +225,7 @@ function SlideWithPhotoBg({ bgPhoto, children }: { bgPhoto?: string; children: R
 
 // ─── Trip Story Slides ────────────────────────────────────────────────────────
 
-function CoverSlide({ trip }: { trip: Trip }) {
+function CoverSlide({ trip, members }: { trip: Trip; members: StoryMember[] }) {
   const photo = getCoverPhoto(trip.destination);
   const dest = trip.destination.split(',')[0].toUpperCase();
   const country = trip.destination.split(',')[1]?.trim() || '';
@@ -170,31 +244,46 @@ function CoverSlide({ trip }: { trip: Trip }) {
         <h2 className="text-6xl font-black text-white leading-none mb-3 drop-shadow-lg">{dest}</h2>
         <p className="text-white/80 text-lg font-semibold mb-1">{trip.title}</p>
         <p className="text-white/60 text-sm mb-6">{formatDateRange(trip)}</p>
-        <div className="flex items-center gap-2">
-          <div className="flex -space-x-2">
-            {groupMembers.slice(0, 5).map((m, i) => (
-              <div key={m.id} className="ring-2 ring-white/30 rounded-full" style={{ zIndex: 10 - i }}>
-                <StoryAvatar name={m.name} avatarUrl={m.avatarUrl} size={32} />
-              </div>
-            ))}
+        {members.length > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              {members.slice(0, 5).map((m, i) => (
+                <div key={m.id} className="ring-2 ring-white/30 rounded-full" style={{ zIndex: 10 - i }}>
+                  <StoryAvatar name={m.name} avatarUrl={m.avatarUrl ?? undefined} size={32} />
+                </div>
+              ))}
+            </div>
+            <span className="text-white/70 text-sm">
+              {members.length} {members.length === 1 ? 'person' : 'people'}
+            </span>
           </div>
-          <span className="text-white/70 text-sm">{groupMembers.length} people</span>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-function NumbersSlide({ trip, bgPhoto, days: tripDays }: { trip: Trip; bgPhoto?: string; days: import('@/lib/types').ItineraryDay[] }) {
+function NumbersSlide({
+  trip,
+  bgPhoto,
+  days: tripDays,
+  memberCount,
+  photoCount,
+}: {
+  trip: Trip;
+  bgPhoto?: string;
+  days: import('@/lib/types').ItineraryDay[];
+  memberCount: number;
+  photoCount: number;
+}) {
   const days = getDayCount(trip);
   const activities = tripDays.reduce((s, d) =>
     s + (d.tracks?.shared?.length ?? 0) + (d.tracks?.track_a?.length ?? 0) + (d.tracks?.track_b?.length ?? 0), 0);
-  const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
   const stats = [
-    { value: days,       label: 'Days Out There',     sub: 'of actual living',     color: 'text-sky-300' },
-    { value: activities, label: 'Activities Planned',  sub: 'zero of them boring',  color: 'text-violet-300' },
-    { value: `$${Math.round(totalSpent / groupMembers.length)}`, label: 'Per Person', sub: 'worth every penny', color: 'text-emerald-300' },
-    { value: groupMembers.length, label: 'People',     sub: 'who made it happen',   color: 'text-rose-300' },
+    { value: days,        label: 'Days Out There',    sub: 'of actual living',    color: 'text-sky-300' },
+    { value: activities,  label: 'Activities Planned', sub: 'zero of them boring', color: 'text-violet-300' },
+    { value: photoCount,  label: 'Photos Taken',       sub: 'memories made',       color: 'text-emerald-300' },
+    { value: memberCount, label: 'People',             sub: 'who made it happen',  color: 'text-rose-300' },
   ];
   return (
     <SlideWithPhotoBg bgPhoto={bgPhoto}>
@@ -271,16 +360,16 @@ function DayHighlightsSlide({ trip, bgPhoto, days: tripDays }: { trip: Trip; bgP
 
 const crewRoles = ['The Organizer', 'The Adventurer', 'The Foodie', 'The Navigator', 'The Photographer', 'The Vibe'];
 
-function CrewSlide({ bgPhoto }: { bgPhoto?: string }) {
+function CrewSlide({ bgPhoto, members }: { bgPhoto?: string; members: StoryMember[] }) {
   return (
     <SlideWithPhotoBg bgPhoto={bgPhoto}>
       <div className="flex flex-col p-8 pt-10 h-full">
         <p className="text-zinc-400 text-xs font-semibold uppercase tracking-widest mb-2">Who made it happen</p>
         <h2 className="text-white text-3xl font-black mb-6 leading-tight">The Crew 🫂</h2>
         <div className="grid grid-cols-2 gap-3 flex-1">
-          {groupMembers.slice(0, 6).map((m, i) => (
+          {members.slice(0, 6).map((m, i) => (
             <div key={m.id} className="bg-white/8 backdrop-blur-sm border border-white/10 rounded-2xl p-4 flex flex-col items-center text-center">
-              <StoryAvatar name={m.name} avatarUrl={m.avatarUrl} size={48} />
+              <StoryAvatar name={m.name} avatarUrl={m.avatarUrl ?? undefined} size={48} />
               <p className="text-white font-bold text-sm mt-2 leading-tight">{m.name}</p>
               <p className="text-zinc-400 text-xs mt-0.5">{crewRoles[i % crewRoles.length]}</p>
             </div>
@@ -378,8 +467,7 @@ function TopPicksSlide({ bgPhoto, days: tripDays }: { bgPhoto?: string; days: im
   );
 }
 
-function LaughsSlide({ bgPhoto }: { bgPhoto?: string }) {
-  const laughCount = getLaughCount();
+function LaughsSlide({ bgPhoto, moments, laughCount }: { bgPhoto?: string; moments: LaughMoment[]; laughCount: number }) {
   return (
     <SlideWithPhotoBg bgPhoto={bgPhoto}>
       <div className="flex flex-col p-8 pt-10 h-full">
@@ -392,12 +480,19 @@ function LaughsSlide({ bgPhoto }: { bgPhoto?: string }) {
           </div>
         </div>
         <div className="flex flex-col gap-3 flex-1">
-          {laughMoments.map((m, i) => (
-            <div key={i} className="bg-white/8 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
-              <p className="text-white text-sm leading-relaxed mb-2">"{m.text}"</p>
-              <p className="text-zinc-500 text-xs font-semibold">— {m.from}</p>
+          {moments.length === 0 ? (
+            <div className="bg-white/8 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center">
+              <p className="text-white/80 text-sm leading-relaxed">No memorable chat moments yet.</p>
+              <p className="text-zinc-500 text-xs mt-2">React to messages in the group chat and they'll show up here.</p>
             </div>
-          ))}
+          ) : (
+            moments.map((m, i) => (
+              <div key={i} className="bg-white/8 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
+                <p className="text-white text-sm leading-relaxed mb-2">"{m.text}"</p>
+                <p className="text-zinc-500 text-xs font-semibold">— {m.from}</p>
+              </div>
+            ))
+          )}
         </div>
         <p className="text-zinc-600 text-xs text-center mt-4">based on group chat activity</p>
       </div>
@@ -405,7 +500,9 @@ function LaughsSlide({ bgPhoto }: { bgPhoto?: string }) {
   );
 }
 
-type TripPhoto = typeof tripPhotos[0];
+// Photo shape used by the lightbox + photo slides. Mirrors the mock shape
+// (`tripPhotos[0]`) and the API response from /api/trips/[id]/photos.
+type TripPhoto = StoryPhoto;
 
 // ─── Shared Lightbox (rendered in card root at z-40, above tap zones) ─────────
 
@@ -717,7 +814,7 @@ function YearlyPersonalitySlide({ bgPhoto }: { bgPhoto?: string }) {
 }
 
 function YearlyPhotosSlide({ reactions, onOpen }: { reactions: Record<string, Record<string, number>>; onOpen: (idx: number) => void }) {
-  const photos = tripPhotos;
+  const photos = mockTripPhotos;
   const firstPair = photos.slice(0, 2);
   const rest = photos.slice(2, 8);
   return (
@@ -764,9 +861,9 @@ function YearlyPhotosSlide({ reactions, onOpen }: { reactions: Record<string, Re
 
 function YearlyShareSlide({ year, onDownload, reactions, onOpen }: { year: number; onDownload: () => void; reactions: Record<string, Record<string, number>>; onOpen: (idx: number) => void }) {
   const upcomingCount = trips.filter(t => t.status === 'planning').length;
-  // heroPhotos are a subset — we pass their indices relative to tripPhotos so the lightbox navigates the full set
+  // heroPhotos are a subset — we pass their indices relative to mockTripPhotos so the lightbox navigates the full set
   const heroIndices = [0, 3, 6];
-  const heroPhotos = heroIndices.map(i => tripPhotos[i]).filter(Boolean);
+  const heroPhotos = heroIndices.map(i => mockTripPhotos[i]).filter(Boolean);
   return (
     <div className="relative w-full h-full overflow-hidden bg-zinc-950 flex flex-col">
       <div className="flex gap-1 flex-none" style={{ height: '38%' }}>
@@ -816,7 +913,7 @@ const TRIP_SLIDE_DEFS: SlideDefinition[] = [
   { id: 'numbers', label: 'By The Numbers', emoji: '📊', defaultEnabled: true },
   { id: 'days',    label: 'Day by Day',     emoji: '🗓️', defaultEnabled: true },
   { id: 'crew',    label: 'The Crew',       emoji: '👥', defaultEnabled: true },
-  { id: 'budget',  label: 'Budget',         emoji: '💰', defaultEnabled: true },
+  { id: 'toppicks', label: 'Top Picks',     emoji: '⭐', defaultEnabled: true },
   { id: 'laughs',  label: 'The Laughs',     emoji: '😂', defaultEnabled: true },
   { id: 'photos',  label: 'Trip Photos',    emoji: '📷', defaultEnabled: true },
   { id: 'share',   label: 'Share Card',     emoji: '🎉', locked: true,  defaultEnabled: true },
@@ -919,24 +1016,79 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
   const activeTripData = trip ?? trips[0];
   const currentYear = new Date().getFullYear();
 
-  // The slide deck below pulls heavily from hardcoded mock data:
-  // hardcoded "laugh moments" referencing made-up names, mock photo URLs,
-  // mock chat history, mock expenses. Showing this on a real trip leaks
-  // demo content (e.g. "Marcus tried to pronounce Þingvellir") regardless
-  // of the actual destination — which is misleading at best, embarrassing
-  // at worst. Until the modal is rewritten to consume real trip data,
-  // gate it behind the MOCK_TRIP_IDS set: real trips get a friendly
-  // placeholder explaining the recap is in development. Yearly mode is
-  // also gated since its personality / laugh slides depend on the same
-  // mock pool.
+  // isMockData = the demo Iceland trip (or no trip prop). Mock trips keep
+  // their hardcoded slide content. Real trips pull live data from the API.
+  // Yearly mode still aggregates across the mock trips array — that slide
+  // deck remains gated behind a "Coming soon" placeholder until we add a
+  // real cross-trip aggregation pipeline.
   const isMockData = mode === 'trip'
-    ? (trip?.id ? MOCK_TRIP_IDS.has(trip.id) : true) // no trip prop → mock fallback applies
+    ? (trip?.id ? MOCK_TRIP_IDS.has(trip.id) : true)
     : false;
-  const showComingSoon = !isMockData;
+  const showComingSoon = mode === 'yearly';
 
-  // Pull bg photos from tripPhotos (cycling)
-  const bgPhotos = tripPhotos.map(p => p.url);
-  const getBg = (idx: number) => bgPhotos[idx % bgPhotos.length];
+  // ── Real-trip data fetch ─────────────────────────────────────────────────
+  // Only fires for real trips (mode === 'trip', !isMockData, trip.id present).
+  // Pulls members, photos, and messages from the existing trip API in parallel
+  // so the slide deck reflects what actually happened on this trip.
+  const [fetchedMembers, setFetchedMembers] = useState<StoryMember[] | null>(null);
+  const [fetchedPhotos, setFetchedPhotos] = useState<StoryPhoto[] | null>(null);
+  const [fetchedMessages, setFetchedMessages] = useState<StoryMessage[] | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'trip' || isMockData || !trip?.id) return;
+    let cancelled = false;
+    const tripId = trip.id;
+    (async () => {
+      const [mRes, pRes, msgRes] = await Promise.all([
+        fetch(`/api/trips/${tripId}/members`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`/api/trips/${tripId}/photos`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`/api/trips/${tripId}/messages`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      if (cancelled) return;
+      const members: StoryMember[] = (mRes?.members ?? []).map((m: { id: string; name: string; avatarUrl: string | null }) => ({
+        id: m.id, name: m.name, avatarUrl: m.avatarUrl,
+      }));
+      const photos: StoryPhoto[] = (pRes?.photos ?? []).map((p: { id: string; url: string; activity?: string; day?: number; uploadedBy?: string }) => ({
+        id: p.id, url: p.url, activity: p.activity, day: p.day, uploadedBy: p.uploadedBy,
+      }));
+      const messages: StoryMessage[] = (msgRes?.messages ?? []).map((m: { id: string; senderName: string; content: string; reactions?: Record<string, string[]> | null }) => ({
+        id: m.id, senderName: m.senderName, content: m.content, reactions: m.reactions ?? null,
+      }));
+      setFetchedMembers(members);
+      setFetchedPhotos(photos);
+      setFetchedMessages(messages);
+    })();
+    return () => { cancelled = true; };
+  }, [mode, trip?.id, isMockData]);
+
+  // Mock data adapted to the unified Story* shapes for the demo Iceland trip.
+  const mockStoryMembers: StoryMember[] = mockGroupMembers.map(m => ({ id: m.id, name: m.name }));
+  const mockStoryPhotos: StoryPhoto[] = mockTripPhotos.map(p => ({
+    id: p.id, url: p.url, activity: p.activity, day: p.day, uploadedBy: p.uploadedBy,
+  }));
+  const mockStoryMessages: StoryMessage[] = mockMessages.map(m => ({
+    id: m.id, senderName: m.senderName, content: m.content,
+  }));
+
+  // effective* — what the slides actually consume. Mock trips use the
+  // hardcoded Iceland pools (so the demo still works without auth). Real
+  // trips use whatever the API returned; an empty array is fine — slides
+  // with nothing to show are filtered out below.
+  const effectiveMembers: StoryMember[] = isMockData ? mockStoryMembers : (fetchedMembers ?? []);
+  const effectivePhotos: StoryPhoto[] = isMockData ? mockStoryPhotos : (fetchedPhotos ?? []);
+  const effectiveMessages: StoryMessage[] = isMockData ? mockStoryMessages : (fetchedMessages ?? []);
+
+  // For real trips: bgPhotos cycle through the trip's actual photos. For
+  // mocks: cycle through the mock pool. If a real trip has no photos yet,
+  // the slides just render without a background image.
+  const bgPhotos = effectivePhotos.map(p => p.url);
+  const getBg = (idx: number) => (bgPhotos.length > 0 ? bgPhotos[idx % bgPhotos.length] : undefined);
+
+  // Laugh moments derived from real chat (or mock for the demo trip).
+  const laughMomentsForSlide: LaughMoment[] = isMockData
+    ? mockLaughMoments
+    : pickLaughMoments(effectiveMessages, 3);
+  const laughCountForSlide = getLaughCount(effectiveMessages);
 
   // Slide editor state
   const slideDefs = mode === 'trip' ? TRIP_SLIDE_DEFS : YEARLY_SLIDE_DEFS;
@@ -986,14 +1138,15 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
   };
 
   // Build full slide render arrays
+  const tripPhotosForSlide = effectivePhotos.slice(0, 7);
   const allTripSlides = [
-    { id: 'cover',   render: () => <CoverSlide trip={activeTripData} /> },
-    { id: 'numbers', render: () => <NumbersSlide trip={activeTripData} bgPhoto={getBg(0)} days={effectiveDays} /> },
+    { id: 'cover',   render: () => <CoverSlide trip={activeTripData} members={effectiveMembers} /> },
+    { id: 'numbers', render: () => <NumbersSlide trip={activeTripData} bgPhoto={getBg(0)} days={effectiveDays} memberCount={effectiveMembers.length} photoCount={effectivePhotos.length} /> },
     { id: 'days',    render: () => <DayHighlightsSlide trip={activeTripData} bgPhoto={getBg(1)} days={effectiveDays} /> },
-    { id: 'crew',    render: () => <CrewSlide bgPhoto={getBg(2)} /> },
+    { id: 'crew',    render: () => <CrewSlide bgPhoto={getBg(2)} members={effectiveMembers} /> },
     { id: 'toppicks', render: () => <TopPicksSlide bgPhoto={getBg(3)} days={effectiveDays} /> },
-    { id: 'laughs',  render: () => <LaughsSlide bgPhoto={getBg(4)} /> },
-    { id: 'photos',  render: () => <PhotosSlide photos={tripPhotos.slice(0, 7)} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotos.slice(0, 7), idx)} /> },
+    { id: 'laughs',  render: () => <LaughsSlide bgPhoto={getBg(4)} moments={laughMomentsForSlide} laughCount={laughCountForSlide} /> },
+    { id: 'photos',  render: () => <PhotosSlide photos={tripPhotosForSlide} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotosForSlide, idx)} /> },
     { id: 'share',   render: () => <ShareSlide trip={activeTripData} onDownload={handleDownload} /> },
   ];
 
@@ -1002,14 +1155,24 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
     { id: 'stats',        render: () => <YearlyStatsSlide year={currentYear} bgPhoto={getBg(0)} /> },
     { id: 'destinations', render: () => <YearlyDestinationsSlide /> },
     { id: 'personality',  render: () => <YearlyPersonalitySlide bgPhoto={getBg(1)} /> },
-    { id: 'photos',       render: () => <YearlyPhotosSlide reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotos, idx)} /> },
-    { id: 'share',        render: () => <YearlyShareSlide year={currentYear} onDownload={handleDownload} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotos, idx)} /> },
+    { id: 'photos',       render: () => <YearlyPhotosSlide reactions={photoReactions} onOpen={(idx) => openLightbox(mockTripPhotos, idx)} /> },
+    { id: 'share',        render: () => <YearlyShareSlide year={currentYear} onDownload={handleDownload} reactions={photoReactions} onOpen={(idx) => openLightbox(mockTripPhotos, idx)} /> },
   ];
 
   const allSlides = mode === 'trip' ? allTripSlides : allYearlySlides;
 
-  // Active slides = those enabled by the editor
-  const slides = allSlides.filter(s => enabledIds.has(s.id));
+  // Active slides = enabled by the editor AND have data to show. Slides
+  // that depend on data the trip doesn't have yet (no photos uploaded,
+  // no chat reactions) drop out so the deck doesn't show empty cards.
+  const slides = allSlides.filter(s => {
+    if (!enabledIds.has(s.id)) return false;
+    if (mode === 'trip' && !isMockData) {
+      if (s.id === 'photos' && effectivePhotos.length === 0) return false;
+      if (s.id === 'crew' && effectiveMembers.length === 0) return false;
+      if (s.id === 'laughs' && laughMomentsForSlide.length === 0) return false;
+    }
+    return true;
+  });
   const totalSlides = slides.length;
 
   const goNext = useCallback(() => {
@@ -1061,12 +1224,11 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
     return () => window.removeEventListener('keydown', handleKey);
   }, [showEditor, goNext, goPrev, onClose]);
 
-  // ── Coming soon view (real trips / yearly mode) ──
-  // The slides below depend on hardcoded mock data — the laughs reference
-  // made-up names from the Iceland demo, photos cycle through stock URLs,
-  // expenses come from mock.ts. Showing this on a real trip leaks demo
-  // content. Until the modal is rewritten to consume real trip data,
-  // gate it: real trips and yearly mode show this placeholder.
+  // ── Coming soon view (yearly mode only) ──
+  // Trip mode now consumes real trip data via the API fetch above. Yearly
+  // mode still aggregates across the mock `trips` array — gate it until
+  // we add a real cross-trip aggregation pipeline that pulls every trip
+  // for the user, computes year stats, and surfaces the highlights.
   if (showComingSoon) {
     return (
       <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
