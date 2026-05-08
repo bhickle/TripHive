@@ -36,10 +36,11 @@ interface ApiNotificationRow {
 
 function dbTypeToUi(t: string): NotifType {
   switch (t) {
-    case 'trip_invite':  return 'member';
-    case 'new_message':  return 'chat';
-    case 'new_vote':     return 'vote';
-    default:             return 'reminder';
+    case 'trip_invite':         return 'member';
+    case 'new_message':         return 'chat';
+    case 'new_vote':            return 'vote';
+    case 'pass_pending_prefs':  return 'reminder';
+    default:                    return 'reminder';
   }
 }
 
@@ -47,10 +48,11 @@ function buildTitle(row: ApiNotificationRow): string {
   const who = row.inviter_name ?? 'Someone';
   const trip = row.trip_name ?? 'a trip';
   switch (row.type) {
-    case 'trip_invite': return `${who} invited you to ${trip}`;
-    case 'new_message': return `New message from ${who}`;
-    case 'new_vote':    return `${who} started a vote`;
-    default:            return who;
+    case 'trip_invite':        return `${who} invited you to ${trip}`;
+    case 'new_message':        return `New message from ${who}`;
+    case 'new_vote':           return `${who} started a vote`;
+    case 'pass_pending_prefs': return `${trip}: heads up before generating`;
+    default:                   return who;
   }
 }
 
@@ -91,10 +93,13 @@ function destinationUrl(notif: Notification): string | null {
   switch (notif.dbType) {
     // trip_invite → same URL the email/SMS link uses, so guests get the same
     // intro/preferences flow whether they came in via email or the bell.
-    case 'trip_invite': return `/join/${notif.tripId}`;
-    case 'new_message': return `/trip/${notif.tripId}/group?tab=chat`;
-    case 'new_vote':    return `/trip/${notif.tripId}/group?tab=votes`;
-    default:            return `/trip/${notif.tripId}/itinerary`;
+    case 'trip_invite':         return `/join/${notif.tripId}`;
+    case 'new_message':         return `/trip/${notif.tripId}/group?tab=chat`;
+    case 'new_vote':            return `/trip/${notif.tripId}/group?tab=votes`;
+    // Land the buyer on the group page where the Crew Readiness panel
+    // lives — that's the actionable surface for chasing pending members.
+    case 'pass_pending_prefs':  return `/trip/${notif.tripId}/group`;
+    default:                    return `/trip/${notif.tripId}/itinerary`;
   }
 }
 
