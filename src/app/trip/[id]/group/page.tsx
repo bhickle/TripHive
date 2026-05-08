@@ -1038,14 +1038,21 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         </div>
       )}
       <div className="max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">
-          {tripName}
-        </h1>
-        <p className="text-lg text-zinc-600">
-          {groupMembers.length} {groupMembers.length === 1 ? 'person' : 'people'} on this trip
-        </p>
-      </div>
+      {dataLoading ? (
+        <div className="mb-8 space-y-3">
+          <div className="h-9 w-72 bg-zinc-200 rounded animate-pulse" />
+          <div className="h-5 w-44 bg-zinc-100 rounded animate-pulse" />
+        </div>
+      ) : (
+        <div className="mb-8">
+          <h1 className="font-script italic text-4xl font-semibold text-zinc-900 mb-2">
+            {tripName}
+          </h1>
+          <p className="text-lg text-zinc-600">
+            {groupMembers.length} {groupMembers.length === 1 ? 'person' : 'people'} on this trip
+          </p>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 flex gap-1 mb-8 inline-flex flex-wrap">
         {(['overview', 'expenses', 'chat', 'votes'] as TabType[]).map((tab) => (
@@ -1064,7 +1071,29 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       </div>
 
       <div>
+        {/* Tab-content skeleton — shows during the initial parallel fetch so
+            users see a loading state instead of an empty tab. Disappears
+            as soon as `dataLoading` flips to false (all fetches resolved). */}
+        {dataLoading && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-zinc-100 p-6 space-y-4">
+              <div className="h-5 w-40 bg-zinc-200 rounded animate-pulse" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl">
+                    <div className="w-10 h-10 rounded-full bg-zinc-200 animate-pulse" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-24 bg-zinc-200 rounded animate-pulse" />
+                      <div className="h-3 w-16 bg-zinc-100 rounded animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {(() => {
+          if (dataLoading) return null;
           // Per-tab error banner. Only shows when the relevant tab's data
           // failed to load — so users on a working tab don't see noise.
           const failed =
@@ -1087,7 +1116,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             </div>
           );
         })()}
-        {activeTab === 'overview' && (
+        {!dataLoading && activeTab === 'overview' && (
           <div className="space-y-8">
             {/* ─── Crew Readiness ─────────────────────────────────────────
                 Shown to the organizer/co-organizer only. Pending = members
@@ -1354,7 +1383,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         )}
 
 
-        {activeTab === 'expenses' && (
+        {!dataLoading && activeTab === 'expenses' && (
           <div className="space-y-6">
             {/* Tier gate for free users */}
             {!hasExpenses && (
@@ -1817,7 +1846,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {activeTab === 'votes' && (
+        {!dataLoading && activeTab === 'votes' && (
           <div className="space-y-6">
             {/* Two-column layout: Group Votes (left) + Activity Pulse (right) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -2336,7 +2365,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {activeTab === 'chat' && (
+        {!dataLoading && activeTab === 'chat' && (
           <div className="flex flex-col h-screen max-h-[600px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
             <div className="flex-1 overflow-y-auto p-6 bg-parchment" onClick={() => setShowReactionPicker(null)}>
               {chatMessages.map((message) => {

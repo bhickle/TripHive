@@ -19,31 +19,44 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const currentUser = useCurrentUser();
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
   const [tripPhotos, setTripPhotos] = useState<any[]>(isMockTrip ? mockTripPhotos : []);
-  const itineraryDays = isMockTrip ? mockItineraryDays : [];
-  const groupMembers = isMockTrip ? mockGroupMembers : [];
+  // itineraryDays drives the day-by-day photo grouping. Real trips load
+  // them from /api/trips/[id] (itinerary.days). Without this, real-trip
+  // photos never appear because photosByDay is built from itineraryDays.
+  const [itineraryDays, setItineraryDays] = useState<any[]>(isMockTrip ? mockItineraryDays : []);
+  const [groupMembers, setGroupMembers] = useState<Array<{ id: string; name: string }>>(
+    isMockTrip ? mockGroupMembers : []
+  );
   const [tripDestinationFromApi, setTripDestinationFromApi] = useState<string | null>(null);
 
   const [photosLoadError, setPhotosLoadError] = useState(false);
+  // Initial-fetch loading state. True until photos + trip + members all
+  // resolve (or fail). Used to show a skeleton grid instead of the empty
+  // "no photos" state during the first few hundred ms.
+  const [photosLoading, setPhotosLoading] = useState(!isMockTrip);
 
-  // Load photos and trip destination from Supabase for real trips
+  // Load photos, itinerary, and members from Supabase for real trips
   useEffect(() => {
     if (isMockTrip) return;
     const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
-    if (!looksLikeUuid) return;
+    if (!looksLikeUuid) {
+      setPhotosLoading(false);
+      return;
+    }
 
     setPhotosLoadError(false);
     Promise.allSettled([
       fetch(`/api/trips/${params.id}/photos`).then(r => r.ok ? r.json() : { __failed: true }),
       fetch(`/api/trips/${params.id}`).then(r => r.ok ? r.json() : null),
-    ]).then(([photosRes, tripRes]) => {
+      fetch(`/api/trips/${params.id}/members`).then(r => r.ok ? r.json() : null),
+    ]).then(([photosRes, tripRes, membersRes]) => {
       if (photosRes.status === 'fulfilled' && photosRes.value?.photos) {
         setTripPhotos(photosRes.value.photos.map((p: any) => ({
           id: p.id,
           url: p.url,
           activity: p.caption || 'Photo',
-          uploadedBy: p.uploaderName || 'You',
-          day: p.dayNumber || 1,
-          timestamp: p.createdAt || new Date().toISOString(),
+          uploadedBy: p.uploaderName || p.uploadedBy || 'You',
+          day: p.dayNumber || p.day || 1,
+          timestamp: p.createdAt || p.timestamp || new Date().toISOString(),
         })));
       } else if (photosRes.status === 'rejected' || (photosRes.status === 'fulfilled' && photosRes.value?.__failed)) {
         // Photo fetch failed — surface so the empty grid isn't ambiguous.
@@ -52,6 +65,13 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
         setTripDestinationFromApi(tripRes.value.trip.destination);
       }
+      if (tripRes.status === 'fulfilled' && Array.isArray(tripRes.value?.itinerary?.days)) {
+        setItineraryDays(tripRes.value.itinerary.days);
+      }
+      if (membersRes.status === 'fulfilled' && Array.isArray(membersRes.value?.members)) {
+        setGroupMembers(membersRes.value.members.map((m: any) => ({ id: m.id, name: m.name })));
+      }
+      setPhotosLoading(false);
     });
   }, [isMockTrip, params.id]);
 
@@ -87,6 +107,14 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
     theme: day.theme,
     photos: filteredPhotos.filter(p => p.day === day.day),
   })).filter(d => d.photos.length > 0);
+
+  // Photos that don't match any itinerary day (e.g. uploaded with a day
+  // number that's been deleted, or a trip with no itinerary at all). Without
+  // this fallback, real-trip photos with default day=1 against an empty
+  // itineraryDays array would render nothing.
+  const ungroupedPhotos = filteredPhotos.filter(
+    p => !itineraryDays.some(d => d.day === p.day)
+  );
 
   const totalPhotos = tripPhotos.length;
   const totalDays = itineraryDays.length;
@@ -516,6 +544,72 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             </div>
           )}
         </div>
+
+        {/* Loading skeleton — shown only on first load for real trips */}
+        {photosLoading && tripPhotos.length === 0 && (
+          <div className="mb-12">
+            <div className="mb-6 space-y-2">
+              <div className="h-6 w-56 bg-zinc-200 rounded animate-pulse" />
+              <div className="h-3 w-32 bg-zinc-100 rounded animate-pulse" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[0, 1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="aspect-square rounded-lg bg-zinc-200 animate-pulse" />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state — done loading, no photos uploaded yet */}
+        {!photosLoading && !photosLoadError && tripPhotos.length === 0 && !isMockTrip && (
+          <div className="text-center py-16 bg-white rounded-2xl border border-zinc-100">
+            <Camera className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+            <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">No photos yet</h3>
+            <p className="text-zinc-600 text-sm">Upload some above to start your trip album.</p>
+          </div>
+        )}
+
+        {/* Photos that don't fall under any itinerary day — surface them
+            in their own bucket so they aren't silently dropped. */}
+        {ungroupedPhotos.length > 0 && (
+          <div className="mb-12">
+            <div className="mb-6">
+              <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
+                {photosByDay.length > 0 ? 'More Photos' : 'All Photos'}
+              </h2>
+              <p className="text-zinc-600 text-sm">
+                {ungroupedPhotos.length} photo{ungroupedPhotos.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {ungroupedPhotos.map((photo, index) => {
+                const isWide = index % 5 === 0;
+                const isTall = index % 7 === 0;
+                return (
+                  <button
+                    key={photo.id}
+                    onClick={() => setSelectedPhoto(photo)}
+                    className={`relative overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all group cursor-pointer bg-slate-200 ${
+                      isWide ? 'md:col-span-2' : ''
+                    } ${isTall ? 'row-span-2' : 'aspect-square'}`}
+                  >
+                    <Image
+                      src={photo.url}
+                      alt={photo.activity}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all" />
+                    <div className="absolute bottom-0 left-0 right-0 p-3 text-white opacity-0 group-hover:opacity-100 transition-all">
+                      <p className="text-sm font-semibold">{photo.activity}</p>
+                      <p className="text-xs text-gray-200">by {photo.uploadedBy}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {photosByDay.map(dayGroup => (
           <div key={dayGroup.day} className="mb-12">
