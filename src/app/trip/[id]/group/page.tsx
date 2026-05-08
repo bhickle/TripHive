@@ -376,6 +376,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [addToItinDays, setAddToItinDays] = useState<number>(7);
   const [addToItinSaving, setAddToItinSaving] = useState(false);
   const [addToItinDone, setAddToItinDone] = useState<string | null>(null);
+  const [addToItinError, setAddToItinError] = useState<string | null>(null);
 
   const openAddToItinerary = async (voteId: string, label: string) => {
     setAddToItinVote({ voteId, label });
@@ -395,10 +396,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const confirmAddToItinerary = async () => {
     if (!addToItinVote) return;
     setAddToItinSaving(true);
+    setAddToItinError(null);
     try {
       if (!isMockTrip) {
-        // Fetch current itinerary, inject new activity, save
+        // Fetch current itinerary, inject new activity, save.
+        // Without explicit res.ok checks the previous handler showed
+        // "Added!" unconditionally — even when the PATCH failed silently.
+        // The activity would then vanish on refresh and the user would
+        // think they'd added it.
         const r = await fetch(`/api/trips/${params.id}`);
+        if (!r.ok) throw new Error(`Couldn't load itinerary (${r.status})`);
         const data = await r.json();
         const days: any[] = data?.itinerary?.days ?? [];
         const dayIdx = days.findIndex((d: any) => d.day === addToItinDay);
@@ -424,15 +431,19 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             },
           };
         }
-        await fetch(`/api/trips/${params.id}`, {
+        const patchRes = await fetch(`/api/trips/${params.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ days }),
         });
+        if (!patchRes.ok) throw new Error(`Save failed (${patchRes.status})`);
       }
       setAddToItinDone(addToItinVote.label);
       setTimeout(() => setAddToItinVote(null), 1800);
-    } catch { /* ignore */ } finally {
+    } catch (err) {
+      console.error('Add-to-itinerary error:', err);
+      setAddToItinError(err instanceof Error ? err.message : 'Could not add to itinerary. Please try again.');
+    } finally {
       setAddToItinSaving(false);
     }
   };
@@ -2005,6 +2016,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         </div>
                         <p className="text-center text-xs text-zinc-400 mt-1">of {addToItinDays} days</p>
                       </div>
+                      {addToItinError && (
+                        <p className="mb-3 text-xs text-rose-600 text-center">{addToItinError}</p>
+                      )}
                       <div className="flex gap-3">
                         <button
                           onClick={() => setAddToItinVote(null)}

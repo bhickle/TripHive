@@ -1347,14 +1347,23 @@ export async function POST(request: NextRequest) {
       finalPrompt += `\n\nCRITICAL DAY NUMBERING: This segment covers days ${citySegment.dayStart}–${chunkLastDay} of the full trip. Every "day" field MUST start at ${citySegment.dayStart}, not at 1. The first day object is {"day": ${citySegment.dayStart}, "date": "${resolvedStartDate}", ...} and the last is {"day": ${chunkLastDay}, ...}. Do NOT include "title" or "practicalNotes" fields — those belong to the full trip's day 1 only.`;
     }
 
-    // For single-city chunks (sameCity: true), tell the model where this chunk
-    // sits in the trip so it doesn't add arrival/departure logistics on the
-    // wrong days. Without this, a chunk-2 of a 10-day trip would treat day 6
-    // as "the final day" (because the chunk is 3 days long) and add airport
-    // logistics where the traveler is actually mid-trip.
-    if (citySegment.sameCity && citySegment.totalTripDays) {
+    // Tell the model where this chunk sits in the full trip so it doesn't add
+    // arrival/departure logistics on the wrong days. The previous gate
+    // (sameCity && totalTripDays) skipped this for chunk 1 of a long single-
+    // city trip — that chunk has sameCity=false but resolvedTripLength=3
+    // (the chunk size), so the model treated day 3 as "the final day" of
+    // what it thought was a 3-day trip and emitted airport/departure
+    // logistics on day 3 of an actual 10-day stay.
+    //
+    // The gate now fires whenever totalTripDays is set (i.e. this is part of
+    // a chunked trip, single- or multi-city). The "not first day" framing is
+    // STILL only applied to same-city continuations — for multi-city handoffs
+    // (sameCity=false, dayStart>1) the CONTINUITY block handles the
+    // "settling into the new city" arrival framing instead, and we must not
+    // contradict it. The "not final day" framing applies regardless.
+    if (citySegment.totalTripDays) {
       const tripPositionNotes: string[] = [];
-      if (!isFirstDayOfTrip) {
+      if (!isFirstDayOfTrip && citySegment.sameCity) {
         tripPositionNotes.push(`Day ${citySegment.dayStart} is NOT the first day of the trip — the traveler is already settled in ${citySegment.cityName}. Do NOT include arrival, check-in, or "settling in" logistics.`);
       }
       if (!isFinalDayOfTrip) {
