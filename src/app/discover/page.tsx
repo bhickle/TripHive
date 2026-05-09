@@ -1104,7 +1104,11 @@ export default function DiscoverPage() {
             <section>
               <div className="mb-5">
                 <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Seasonal Collections</h2>
-                <p className="text-sm text-zinc-400 mt-0.5">The best destinations for every season and occasion</p>
+                <p className="text-sm text-zinc-500 mt-1 max-w-2xl leading-relaxed">
+                  Curated 7-day starter itineraries for the trips people ask us about most — Mediterranean
+                  summers, European Christmas markets, family theme parks, fall foliage. Click a destination
+                  to open its full week, then fork it into your own trip and customize from there.
+                </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {seasonal.map(collection => (

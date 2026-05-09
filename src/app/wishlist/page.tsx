@@ -8,12 +8,10 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { WishlistItem, WishlistLink } from '@/lib/types';
 import {
   Heart, Plus, Sparkles, Calendar, DollarSign, Search,
-  MapPin, Loader2, X, ArrowRight, Check, Mountain, Waves,
-  Compass, Utensils, Music, ShoppingBag, ChevronRight, Lock,
-  Camera, Dumbbell, Landmark, Leaf, Globe, Pencil,
+  MapPin, X, ArrowRight, Check, ChevronRight, Lock,
+  Globe, Pencil,
 } from 'lucide-react';
 import Image from 'next/image';
-import { usePlacesSearch } from '@/hooks/usePlacesSearch';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { WishlistLinksSection } from '@/components/WishlistLinksSection';
@@ -23,7 +21,9 @@ import Link from 'next/link';
 
 type FilterType = string; // 'all' or a priority tag id
 type SortType = 'cost-low' | 'cost-high' | 'name';
-type TravelVibe = 'adventure' | 'culture' | 'food' | 'photography' | 'nature' | 'wellness' | 'nightlife' | 'sports' | 'history' | 'shopping';
+type TravelVibe =
+  | 'nature' | 'food' | 'nightlife' | 'history' | 'sports' | 'photography'
+  | 'wellness' | 'shopping' | 'adventure' | 'culture' | 'beach' | 'themepark' | 'family';
 
 interface TripLengthOption {
   label: string;
@@ -53,17 +53,24 @@ const PRIORITY_TAGS: { id: string; label: string; emoji: string }[] = [
   // either keep the tag in their data; the filter row no longer offers them.
 ];
 
-const VIBE_OPTIONS: { id: TravelVibe; label: string; icon: React.ReactNode }[] = [
-  { id: 'adventure',   label: 'Adventure',   icon: <Mountain   className="w-3.5 h-3.5" /> },
-  { id: 'culture',     label: 'Culture',     icon: <Compass    className="w-3.5 h-3.5" /> },
-  { id: 'food',        label: 'Food',        icon: <Utensils   className="w-3.5 h-3.5" /> },
-  { id: 'photography', label: 'Photography', icon: <Camera     className="w-3.5 h-3.5" /> },
-  { id: 'nature',      label: 'Nature',      icon: <Leaf       className="w-3.5 h-3.5" /> },
-  { id: 'wellness',    label: 'Wellness',    icon: <Waves      className="w-3.5 h-3.5" /> },
-  { id: 'nightlife',   label: 'Nightlife',   icon: <Music      className="w-3.5 h-3.5" /> },
-  { id: 'sports',      label: 'Sports',      icon: <Dumbbell   className="w-3.5 h-3.5" /> },
-  { id: 'history',     label: 'History',     icon: <Landmark   className="w-3.5 h-3.5" /> },
-  { id: 'shopping',    label: 'Shopping',    icon: <ShoppingBag className="w-3.5 h-3.5" /> },
+// VIBE_OPTIONS mirrors Trip Builder's priorityOptions (13 entries) so the
+// "Top Priorities" surface is consistent across the app: Trip Builder,
+// Travel Persona (Settings), Wishlist filters, and this Add-Destination
+// vibe picker. Order + ids + labels match exactly.
+const VIBE_OPTIONS: { id: TravelVibe; label: string; emoji: string }[] = [
+  { id: 'nature',      label: 'Nature',        emoji: '🌿' },
+  { id: 'food',        label: 'Food',          emoji: '🍽️' },
+  { id: 'nightlife',   label: 'Nightlife',     emoji: '🎶' },
+  { id: 'history',     label: 'History',       emoji: '📜' },
+  { id: 'sports',      label: 'Sports',        emoji: '⛹️' },
+  { id: 'photography', label: 'Photography',   emoji: '📷' },
+  { id: 'wellness',    label: 'Wellness',      emoji: '💆' },
+  { id: 'shopping',    label: 'Shopping',      emoji: '🛍️' },
+  { id: 'adventure',   label: 'Adventure',     emoji: '⚡' },
+  { id: 'culture',     label: 'Culture',       emoji: '🏛️' },
+  { id: 'beach',       label: 'Beach',         emoji: '🏖️' },
+  { id: 'themepark',   label: 'Theme Parks',   emoji: '🎢' },
+  { id: 'family',      label: 'Family/Kids',   emoji: '👨‍👩‍👧' },
 ];
 
 const TRIP_LENGTH_OPTIONS: TripLengthOption[] = [
@@ -127,6 +134,9 @@ const VIBE_HIGHLIGHTS: Record<TravelVibe, string[]> = {
   sports:      ['Surf lesson at dawn', 'Cycling countryside routes', 'Guided kayaking tour', 'Bouldering at the crag'],
   history:     ['Guided old town walk', 'Ancient ruins day trip', 'Local history museum', 'Evening folklore performance'],
   shopping:    ['Local market browsing', 'Artisan craft district', 'Design district stroll', 'Night market haul'],
+  beach:       ['Sunrise beach walk', 'Snorkel & swim cove day', 'Beach club lounging', 'Coastal cliff hike'],
+  themepark:   ['Park-opening early entry', 'Headliner ride strategy', 'Evening parade & fireworks', 'Day-pass at the second park'],
+  family:      ['Kid-friendly hands-on museum', 'Half-day excursion + rest', 'Beach or pool afternoon', 'Family-style dinner spot'],
 };
 
 // ─── Social URL destination extractor ────────────────────────────────────────
@@ -186,24 +196,15 @@ function AddDestinationModal({
   const [vibes, setVibes] = useState<TravelVibe[]>(['adventure']);
   const [tripDays, setTripDays] = useState<number>(7);
   const [socialUrl, setSocialUrl] = useState('');
-  const [showSocialInput, setShowSocialInput] = useState(false);
   const [socialExtractError, setSocialExtractError] = useState(false);
   const destInputRef = useRef<HTMLInputElement>(null);
 
-  const { query, setQuery, suggestions, loading } = usePlacesSearch(200, '/api/destinations/search');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-
-  // Close suggestions on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  // Places autocomplete intentionally removed (2026-05-09): "On My Radar" is a
+  // saved-link surface, not a planning surface. The Places API was billing us
+  // every keystroke for what amounts to a name/context label. The destination
+  // field is now plain text — users name the wishlist however they want
+  // ("That cliffside Greek place"), and the URL field above is the primary
+  // input that drives the card.
 
   // Save with static vibe highlights — no AI call. Users add destinations
   // as visual reminders / saved links; the wishlist isn't a planning surface.
@@ -264,72 +265,22 @@ function AddDestinationModal({
         </div>
 
         <div className="p-6 space-y-5 overflow-y-auto">
-            {/* Destination search */}
-            <div ref={searchRef} className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Where to?</label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  ref={destInputRef}
-                  type="text"
-                  placeholder="Search cities, countries, regions…"
-                  value={query || destination}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setDestination(e.target.value);
-                    setSocialExtractError(false);
-                    setShowSuggestions(e.target.value.length >= 2);
-                  }}
-                  onFocus={() => query.length >= 2 && setShowSuggestions(true)}
-                  className="w-full pl-9 pr-9 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600 focus:border-transparent"
-                  autoFocus
-                />
-                {loading
-                  ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
-                  : destination && <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sky-600" />
-                }
-              </div>
-
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s.placeId}
-                      type="button"
-                      onClick={() => {
-                        setDestination(s.name);
-                        setQuery(s.name);
-                        setShowSuggestions(false);
-                      }}
-                      className="w-full flex items-start gap-3 px-4 py-3 hover:bg-sky-50 transition-colors text-left"
-                    >
-                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-slate-900 text-sm">{s.name}</p>
-                        <p className="text-xs text-slate-500">{s.address}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Optional source URL — always visible. Saved as the first
-                link on the new wishlist item so the Globe source icon
-                renders on the card. The "Import" button additionally
-                tries to extract a destination keyword from supported
-                URLs (Pinterest, TikTok, Instagram board URLs) and
-                pre-fills the destination field. Was previously a
-                collapsed "Saw it on Pinterest…" CTA that users on
-                mobile reported as missing/hidden. */}
+            {/* PRIMARY INPUT — saved link.
+                Most "On My Radar" entries start as a URL the user
+                stumbled across (Pinterest pin, TikTok, IG reel, blog
+                post). Putting the URL first matches that flow: paste,
+                hit Import, and we'll pre-fill the destination label
+                from the URL when we can. The Where-to field below is
+                secondary and free-text only — see the comment on the
+                Places hook removal above for why we dropped Places. */}
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-slate-700">
-                Source link <span className="text-slate-400 font-normal">(optional)</span>
+              <label className="block text-sm font-medium text-slate-700">
+                Saw it somewhere? Paste the link
               </label>
               <div className="flex gap-2">
                 <input
                   type="url"
-                  placeholder="Paste a TripAdvisor / Pinterest / blog URL…"
+                  placeholder="Pinterest, TikTok, Instagram, Reddit, blog URL…"
                   value={socialUrl}
                   onChange={(e) => { setSocialUrl(e.target.value); setSocialExtractError(false); }}
                   onKeyDown={(e) => {
@@ -337,17 +288,17 @@ function AddDestinationModal({
                       e.preventDefault();
                       const extracted = extractDestinationFromUrl(socialUrl);
                       if (extracted) {
-                        setQuery(extracted);
                         setDestination(extracted);
-                        setShowSuggestions(true);
                         setSocialExtractError(false);
+                        destInputRef.current?.focus();
                       } else {
                         setSocialExtractError(true);
                         setTimeout(() => destInputRef.current?.focus(), 50);
                       }
                     }
                   }}
-                  className={`flex-1 min-w-0 px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:border-transparent ${
+                  autoFocus
+                  className={`flex-1 min-w-0 px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent ${
                     socialExtractError
                       ? 'border-red-300 focus:ring-red-400'
                       : 'border-slate-200 focus:ring-sky-600'
@@ -358,34 +309,55 @@ function AddDestinationModal({
                   onClick={() => {
                     const extracted = extractDestinationFromUrl(socialUrl);
                     if (extracted) {
-                      setQuery(extracted);
                       setDestination(extracted);
-                      setShowSuggestions(true);
                       setSocialExtractError(false);
+                      destInputRef.current?.focus();
                     } else {
                       setSocialExtractError(true);
                       setTimeout(() => destInputRef.current?.focus(), 50);
                     }
                   }}
                   disabled={!socialUrl.trim()}
-                  className="px-3 py-2 bg-sky-800 text-white text-xs font-semibold rounded-xl hover:bg-sky-900 disabled:opacity-40 transition-colors flex-shrink-0"
-                  title="Try to extract a destination from the URL"
+                  className="px-3 py-2.5 bg-sky-800 text-white text-xs font-semibold rounded-xl hover:bg-sky-900 disabled:opacity-40 transition-colors flex-shrink-0"
+                  title="Try to extract a destination name from the URL"
                 >
                   Import
                 </button>
               </div>
               {socialExtractError ? (
                 <p className="text-xs text-red-500">
-                  Couldn&apos;t detect a place from that link — but the URL will still be saved as a source link on this destination.
+                  Couldn&apos;t detect a place from that link — that&apos;s fine, just type a name below. The URL is still saved on the card.
                 </p>
               ) : (
-                <p className="text-xs text-slate-400">Saved as a source link. Pinterest / TikTok / Instagram board URLs can also pre-fill the destination above.</p>
+                <p className="text-xs text-slate-400">We&apos;ll save the link on this destination. Some URLs auto-fill the name below.</p>
               )}
             </div>
-            {/* showSocialInput is no longer used — kept the state in
-                place so existing keyboard handlers compile. Safe to
-                remove in a future cleanup. */}
-            {showSocialInput && null}
+
+            {/* Secondary field — name/label only.
+                Plain text, no API calls, no autocomplete. Users name
+                this however helps them remember it ("That hidden
+                Greek beach", "Cliffside ryokan"). The wishlist isn't
+                a planning surface, so we don't need a validated place. */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Give it a name <span className="text-slate-400 font-normal">(or destination)</span>
+              </label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  ref={destInputRef}
+                  type="text"
+                  placeholder="e.g. Santorini, that ryokan in Hakone, Tulum…"
+                  value={destination}
+                  onChange={(e) => {
+                    setDestination(e.target.value);
+                    setSocialExtractError(false);
+                  }}
+                  className="w-full pl-9 pr-9 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-600 focus:border-transparent"
+                />
+                {destination && <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sky-600" />}
+              </div>
+            </div>
 
             {/* Trip length */}
             <div>
@@ -443,7 +415,7 @@ function AddDestinationModal({
                           : 'border-slate-200 hover:border-slate-300 text-slate-600'
                       }`}
                     >
-                      <span className={`flex-shrink-0 ${selected ? 'text-sky-600' : 'text-slate-400'}`}>{v.icon}</span>
+                      <span className="flex-shrink-0 text-base leading-none">{v.emoji}</span>
                       <span className="truncate">{v.label}</span>
                     </button>
                   );
