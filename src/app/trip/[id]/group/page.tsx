@@ -2,11 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Avatar, AvatarStack } from '@/components/Avatar';
-import { ExpenseRow } from '@/components/ExpenseRow';
-import { VoteCard } from '@/components/VoteCard';
-import { ChatBubble } from '@/components/ChatBubble';
-import { groupMembers as mockGroupMembers, expenses as mockExpenses, groupVotes as mockGroupVotes, messages as mockMessages, MOCK_TRIP_IDS } from '@/data/mock';
+import { Avatar } from '@/components/Avatar';
+import { groupMembers as mockGroupMembers, expenses as mockExpenses, messages as mockMessages, MOCK_TRIP_IDS } from '@/data/mock';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }

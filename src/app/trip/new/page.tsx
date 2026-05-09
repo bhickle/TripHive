@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
@@ -16,7 +15,6 @@ import {
   ChevronRight,
   Users,
   MapPin,
-  Calendar,
   Zap,
   Plane,
   DollarSign,
@@ -25,9 +23,6 @@ import {
   User2,
   Users2,
   Heart,
-  Lightbulb,
-  Flame,
-  Dice6,
   Search,
   Shuffle,
   X,
@@ -132,27 +127,6 @@ const priorityOptions = [
   // Step 7 (a 'Budget' priority on a luxury tier sent conflicting signals).
   // Removed 'accessibility' priority chip — accessibility is collected as a
   // dedicated wizard question (Step 5 accessibilityNeeds), not a priority chip.
-];
-
-const mockDestinations = [
-  { name: 'Kyoto, Japan', match: 95 },
-  { name: 'Barcelona, Spain', match: 91 },
-  { name: 'Bali, Indonesia', match: 88 },
-  { name: 'Venice, Italy', match: 85 },
-  { name: 'Bangkok, Thailand', match: 82 },
-  { name: 'Lisbon, Portugal', match: 90 },
-  { name: 'Tokyo, Japan', match: 93 },
-  { name: 'Marrakech, Morocco', match: 87 },
-  { name: 'Santorini, Greece', match: 89 },
-  { name: 'Mexico City, Mexico', match: 86 },
-  { name: 'Cape Town, South Africa', match: 84 },
-  { name: 'Amsterdam, Netherlands', match: 88 },
-  { name: 'Buenos Aires, Argentina', match: 83 },
-  { name: 'Reykjavik, Iceland', match: 85 },
-  { name: 'Istanbul, Turkey', match: 87 },
-  { name: 'Queenstown, New Zealand', match: 86 },
-  { name: 'Prague, Czech Republic', match: 84 },
-  { name: 'Chiang Mai, Thailand', match: 82 },
 ];
 
 // ─── Guided Destination Browser ───────────────────────────────────────────────
@@ -608,18 +582,9 @@ function TripBuilderPage() {
     }));
   };
 
-  const handleSurpriseMe = () => {
-    // Pull from the full REGION_DESTINATIONS pool for a diverse pick
-    const allCities = Object.values(REGION_DESTINATIONS).flatMap(r => r.cities);
-    const randomCity = allCities[Math.floor(Math.random() * allCities.length)];
-    setState((prev) => ({
-      ...prev,
-      destination: randomCity.name,
-    }));
-    setShowDestinationSuggestions(false);
-  };
-
-  // generationStatus / generationError now live on /trip/generating — removed from here
+  // handleSurpriseMe was removed when the inline "Surprise Me" button
+  // was retired. generationStatus / generationError now live on
+  // /trip/generating — also moved away from here.
 
   // ── Places pre-warm cache ──────────────────────────────────────────────────
   // Kick off the Google Places fetch as soon as the user reaches Step 8 (Review)
@@ -950,29 +915,9 @@ function TripBuilderPage() {
     0
   );
 
-  const progressPercent = ((currentStep - 1) / 7) * 100;
-
-  // Destination photo map for loading screen
-  const destinationPhotos: Record<string, string> = {
-    iceland: 'https://images.unsplash.com/photo-1504829857797-ddff29c27927?w=1600&h=900&fit=crop',
-    tokyo: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1600&h=900&fit=crop',
-    japan: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1600&h=900&fit=crop',
-    barcelona: 'https://images.unsplash.com/photo-1583422409516-2895a77efded?w=1600&h=900&fit=crop',
-    bali: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=1600&h=900&fit=crop',
-    paris: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=1600&h=900&fit=crop',
-    italy: 'https://images.unsplash.com/photo-1555992336-03a23c7b20ee?w=1600&h=900&fit=crop',
-    default: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1600&h=900&fit=crop',
-  };
-
-  const getLoadingPhoto = () => {
-    const dest = state.destination.toLowerCase();
-    for (const key of Object.keys(destinationPhotos)) {
-      if (key !== 'default' && dest.includes(key)) return destinationPhotos[key];
-    }
-    return destinationPhotos.default;
-  };
-
-  // (Loading overlay removed — generation now happens on /trip/generating)
+  // (Loading overlay removed — generation now happens on /trip/generating.
+  // The unused progressPercent / destinationPhotos / getLoadingPhoto
+  // helpers from the old in-page overlay were removed along with it.)
 
   return (
     <div className="flex h-screen bg-parchment">

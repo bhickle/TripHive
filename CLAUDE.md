@@ -2,7 +2,7 @@
 
 > **App name:** TripCoord (brand) / **Repo:** TripHive / **Domain:** tripcoord.ai  
 > **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · Supabase · Anthropic Claude API · Stripe  
-> **Last updated:** 2026-05-08
+> **Last updated:** 2026-05-09
 
 ---
 
@@ -222,12 +222,13 @@ These are the active items to build/fix, in rough priority order. Note: this lis
 - ~~Server-side AI credit enforcement~~ — **Shipped 2026-05-08.** Factored shared helpers `checkAiCredits` / `incrementAiCreditsUsed` in `lib/supabase/aiCredits.ts` (two-phase: gate before, charge after success — failed AI calls don't burn credits). Wired into all five AI routes: `parse-itinerary`, `parse-transport`, `suggest-activity`, `generate-itinerary` (charge fires on stream `done` only when `daysEmitted > 0`), and `trips/[id]/add-day`. Free tier (10 cr/mo) → 1 generate-itinerary OR 5 add-days OR 10 parses. Paid tiers (explorer 100, nomad 350) enforced too. `trip_pass` left as exempt with a `TODO(launch)` to wire into per-pass billing on `trip_passes.ai_credits_used` — currently passes through without enforcement. Known limitation: client-side multi-city chunking calls `generate-itinerary` once per chunk, so a 3-chunk trip = 30 credits. Multi-city is gated upstream so free tier rarely hits this; explorer/nomad caps absorb it fine.
 
 ### 🟠 Feature Work (Active)
+- [ ] **Build durability Tier 2 (Inngest)** — Tier 1 shipped 2026-05-09 (server-owned abort + per-day persistence + resume detection). Tier 2 moves orchestration to an Inngest worker so builds complete even when the browser is fully closed. Blocked on Brandon's prep checklist (Inngest account + `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` in Vercel). See `memory/project_tier2_prep.md`.
 - [ ] **Enable Google OAuth** (`#183`) — Google sign-in buttons exist but OAuth is not configured. Steps: Google Cloud Console → create OAuth Client ID → redirect URI: `https://pqizuvmtertpxhhxyemj.supabase.co/auth/v1/callback` → Supabase dashboard → Authentication → Providers → Google → enable + paste keys.
-- ~~Invite-token system Phase 2 (privacy gate)~~ — **Shipped 2026-05-08, commit `8e575cb`.** `trips.is_private` column added (default false); `/api/trips/[id]/members` POST rejects tokenless joins with 403 when private; group page has an organizer-only toggle; join page surfaces the 403 with a "ask for an emailed/texted invite" hint instead of silently advancing.
-- ~~Trip Story real-data implementation~~ — **Shipped 2026-05-08.** `TripStoryModal` now fetches `trip_members` / `trip_photos` / `group_messages` on mount for real trips and threads them into Cover, Numbers, Crew, Laughs, and Photos slides. Numbers slide swapped the expense-driven "Per Person $" stat for "Photos Taken" so it works without an expense feed. Laughs slide picks the top 3 most-reacted messages and falls back to an empty-state card when chat has no reactions. Empty slides (no photos, no crew, no laughs) drop out of the deck. Yearly mode still shows the "Coming soon" placeholder — it aggregates across multiple trips and needs a separate cross-trip pipeline. Also fixed a pre-existing dead-code mismatch where `TopPicksSlide` rendered as `id: 'toppicks'` but the editor def was still `id: 'budget'` so the slide never appeared in real decks.
-- ~~Per-priority difficulty UI~~ — **Closed 2026-05-08, won't build.** Discussed adding sliders on each priority chip ("Adventure: Easy / Wellness: Challenging"). Brandon's call: skip it. The existing priority chip naming (Adventure vs Nature, Wellness vs Sports) already conveys intensity, and ages + budget tier give the AI enough calibration signal. If a user wants different intensity than what's generated, they can use the existing Add Activity / Add AI Day flows or pick from the Day Highlights sidebar. Don't reopen without evidence of users hitting the underlying pain.
 - [ ] **Yay/Nay dead-space layout decision** (PDF #3 deferred) — Brandon flagged a green-bordered empty area in the votes section's right column. Two options: (a) move Wishlist + Nay Watch into the right column of the votes grid so they fill space, (b) collapse to single-column on lg+ entirely. Needs Brandon's design call before implementing.
-- [ ] **Click expense line item to view/edit details** (PDF #3 deferred) — needs UX design for the detail panel (slide-over vs inline expand vs modal).
+- ~~Invite-token system Phase 2 (privacy gate)~~ — **Shipped 2026-05-08, commit `8e575cb`.**
+- ~~Trip Story real-data implementation~~ — **Shipped 2026-05-08.**
+- ~~Per-priority difficulty UI~~ — **Closed 2026-05-08, won't build.**
+- ~~Click expense line item to view/edit details~~ — **Shipped 2026-05-09.** Inline expand on expense rows reveals editable line items (description + amount, add/remove rows, optimistic save via PATCH). See `src/app/trip/[id]/group/page.tsx`.
 
 ### 🟡 Polish & UX
 - [ ] **Unsplash integration** (`#78`) — dynamic destination photos on trip cards. Code scaffold is ready; just needs `UNSPLASH_ACCESS_KEY` env var + wiring in `src/app/trips/page.tsx` and `dashboard/page.tsx`.
@@ -284,6 +285,78 @@ import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/clie
 const supabase = createSupabaseBrowserClient();
 ```
 Multiple instances fight over the same auth Web Lock and silently drop the auth session, which makes calls run as anonymous and silently fail RLS. This was the root cause of the photo-upload-vanishes-on-refresh bug (commit after `9191974`).
+
+---
+
+## Recently Shipped (May 9 session)
+
+Big session — fork-recovery, Tier 1 build durability, photo likes/comments full backend, two QA passes, polish + dead-code sweep. Roughly 30 commits on master.
+
+**Build durability (Tier 1)**
+- Server-owned `AbortController` replaces `request.signal` in `generate-itinerary/route.ts` so a closed tab no longer aborts the Anthropic stream — the function runs to its natural end (or `maxDuration`).
+- New `lib/supabase/persistGenerationDays.ts` snapshot-writes the full `days` array on every emitted day. Fire-and-forget; race-safe because every write is a complete superset. Final write is awaited synchronously before sending `done`.
+- `recoverTruncatedArray` (was dead code) now wired as a safety net on `stop_reason=max_tokens`. Salvages partial-buffer days that the streaming parser would otherwise drop.
+- Diagnostic log line for first-pass stop now includes `partialDayBuffered` / `bufferLen` / `braceDepth` for fast Vercel-log triage.
+- Token floor scales with discovery priority count — Rule 19 + food/nightlife/shopping no longer truncates mid-day-3. Per-chunk floor: 36000 when 2+ discovery priorities selected.
+- Continuation prompt explicitly forbids day-1 restart; dropped `[…]` wrapper directive that was confusing the model.
+- Gap-fill `prevContext` refreshed at the start of every retry from `aiDaysRef`, not just after non-zero retries.
+- 3s overloaded backoff before first continuation pass when first-pass tripped overloaded.
+- Resume detection added to itinerary page's live-build effect: fetches `/api/trips/[id]` before generating, narrows segments to the missing tail, short-circuits if everything's already persisted.
+
+**Photo likes + comments (full backend)**
+- New tables: `photo_likes`, `photo_comments` (RLS open-SELECT, owner-only INSERT/DELETE; both in `supabase_realtime`, REPLICA IDENTITY FULL). `photo_comments` got `updated_at` for "(edited)" indicator.
+- Routes: `POST/DELETE /photos/[photoId]/like`, `GET/POST /photos/[photoId]/comments`, `PATCH/DELETE /comments/[commentId]`, `GET /photos/[photoId]/stats` (surgical refetch endpoint for cross-user like changes).
+- `/photos` GET augmented to return `likeCount` / `commentCount` / `viewerLiked` per photo via two batched aggregate reads.
+- UI: real Like toggle (filled rose heart, optimistic with rollback), inline comment thread with edit/delete on own comments, custom in-app delete confirmation modal (no `window.confirm`), Realtime subscription on the open photo for cross-user sync, 500-char counter on inputs.
+- Comments GET joins `profiles` to return live commenter names (renaming in Settings flows through to old comments). `author_name` snapshot kept as fallback.
+
+**Default travel partner (#9)**
+- `profiles.default_partner_id` column + Settings UI (email lookup, validates against self-pair + unknown emails). New trips auto-add the partner as a member at create time in `/api/trips/save` POST. New trips only.
+
+**Editable expense line items (#14)**
+- Inline expand on expense rows reveals line items. Edit mode with description + amount inputs, add/remove rows, optimistic save via extended PATCH `/expenses` (with server-side validation stripping empty/invalid rows).
+
+**Discover + community polish**
+- Seasonal-collection match bug fix (first-segment matching for "Santorini, Greece" vs "Santorini") + empty-state chips for catalog-missing destinations.
+- Privacy: community grid + community detail render organizer first-name only.
+- Auth gate fix: `requireAuth` now waits for `currentUser.isLoading` so logged-in users no longer get bounced to login during the auth-resolve window. Login flow honors `?redirect=` with same-origin whitelist.
+- On My Radar source icons: globe (has links) / pencil (manual entry) on each wishlist card.
+- Wishlist persistence: both halves (`/discover` heart + `/wishlist` re-save toggle) now POST/DELETE to `/api/wishlist` instead of being local-only.
+
+**Truncation root-cause fixes from PDF testing pass**
+- 11 critical-launch items shipped from the 5/9 testing PDF including: sidebar text-wrap defensive fix, restaurant dedup (separate `excludeRestaurants` field with stronger prompt rule), regenerate error fallback nav (`?redirect=` honoring), Paid By dropdown regression, custom-split UX clarity (live total preview), reaction realtime null-handling fix, group pack realtime (added `packing_items` to publication + RLS SELECT policy), photo upload reorder + mandatory day/location, photo upload progress 88% stuck (timeout race on image preload), photo Like/Comment fully wired (was disabled "coming soon"), Trip Builder organizer pace question, theme park prompt rules (1 park/day max, opening-time start, kids midday rest), Rule 19 making per-day discovery arrays mandatory on first emission.
+
+**`'You'` API fallback purge**
+- `messages`, `auth/me`, `group-votes` routes no longer persist literal `'You'` / `'Unknown'` when profile resolution hiccups — fall through to email-local-part → "A traveler". Group + Day-Of pages default `currentUserName` to `''` (auth-still-loading) instead of `'You'`. Backfilled existing `trip_photos.uploader_name = 'You'` rows from current profile names. Photo filter switched to `user_id`-based (with display name resolved from group members) so "Mallory" and "You" no longer show as two filter entries for the same person.
+
+**Day-Of crew renders real members**
+- `dayof/page.tsx` now fetches `/api/trips/[id]/members`. Previously the non-mock branch hardcoded just the current user.
+
+**Polish + a11y**
+- 6 primary CTA color-drift instances normalized to `sky-800 / hover:sky-900`.
+- Date formatting: 7 call sites replaced bare `.toLocaleDateString()` with explicit `'en-US', { month: 'short', day: 'numeric' }`.
+- Modal close buttons (UpgradeModal, ParseTransportModal) get `aria-label="Close"`.
+- View-mode toggles on Trips page: `aria-label` + `aria-pressed`.
+- `currentDayData` fallback hardened: `EMPTY_DAY` constant with empty arrays instead of `{} as ItineraryDay`.
+- Error copy normalized: "Could not save…" → "Couldn't save…", "Vote didn't save" → "Couldn't save your vote. Please try again.", em-dash variants of "Something went wrong" replaced with periods.
+
+**Schema (all applied via MCP)**
+- `photo_likes`, `photo_comments` tables (with `updated_at` on comments).
+- `profiles.default_partner_id` uuid column + index.
+- `packing_items` added to `supabase_realtime` publication + REPLICA IDENTITY FULL + permissive SELECT policy (had RLS enabled with no policies, silently breaking the Realtime sub).
+- Backfill of `trip_photos.uploader_name` from current profile names where the literal `'You'` fallback was saved.
+- `database.types.ts` regenerated.
+
+**Dead-code sweep (2026-05-09)**
+- Deleted 4 unused component files: `ActivityCard.tsx`, `ChatBubble.tsx`, `VoteCard.tsx`, `ExpenseRow.tsx` (~700 LOC). Each was imported in `group/page.tsx` but never referenced.
+- Removed `AvatarStack` export from Avatar.tsx (also unused).
+- Stripped `MOCK_DETAILS` constant from `/api/places/details/route.ts` (~200 LOC; never referenced).
+- Cleaned out trip/new old loading-overlay leftovers (`mockDestinations`, `handleSurpriseMe`, `progressPercent`, `destinationPhotos`, `getLoadingPhoto`, `daysReceived`, `isGenerating`).
+- Cleaned out prep page solo-pack remnants (`addPackItem`, `generatePackingList`, `newPackItem`, `newPackCategory`, `packingGenerating`/`Error`/`Loaded` state).
+- Removed `clearAiItinerary` (defined but never called) and `hasSplitTracks` (computed but never read) from itinerary/page.tsx.
+- Total: ~970 LOC removed, no behavior change.
+
+**Memory updates** — `project_build_durability.md`, `project_tier2_prep.md`, `feedback_launch_philosophy.md` added to track Tier 2 prep + Brandon's "clean over fast" launch philosophy.
 
 ---
 

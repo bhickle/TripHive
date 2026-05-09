@@ -1437,15 +1437,6 @@ function ItineraryPageContent() {
   }, [aiDays, updateDayTabScroll]);
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const clearAiItinerary = useCallback(() => {
-    localStorage.removeItem('generatedItinerary');
-    localStorage.removeItem('generatedTripMeta');
-    localStorage.removeItem('currentTripId');
-    syncAiDays(null);
-    setAiMeta(null);
-    setSelectedDay(1);
-  }, []);
-
   const handleGenerateHotels = useCallback(async () => {
     const destination = aiMeta?.destination;
     if (!destination) {
@@ -2267,7 +2258,6 @@ function ItineraryPageContent() {
 
   const hasTrackA = (currentDayData.tracks?.track_a?.length ?? 0) > 0;
   const hasTrackB = (currentDayData.tracks?.track_b?.length ?? 0) > 0;
-  const hasSplitTracks = hasTrackA || hasTrackB;
 
   // If the day has a dinnerMeetupLocation but no dinner restaurant in the shared track,
   // synthesize a virtual dinner card so the meetup restaurant actually appears on the timeline.

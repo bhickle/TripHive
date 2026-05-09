@@ -76,8 +76,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [customPackItems, setCustomPackItems] = useState<Array<{id: string; name: string; category: string; packed: boolean; affiliateUrl?: string}>>([]);
   const [newDocItem, setNewDocItem] = useState('');
   const [newLogItem, setNewLogItem] = useState('');
-  const [newPackItem, setNewPackItem] = useState('');
-  const [newPackCategory, setNewPackCategory] = useState('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskValue, setEditingTaskValue] = useState('');
 
@@ -89,11 +87,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   // really still on the wire. Mock trips skip this since they hydrate
   // synchronously from local data.
   const [prepLoading, setPrepLoading] = useState(false);
-
-  // Packing generation state (legacy — used for mock trips + overall progress)
-  const [packingGenerating, setPackingGenerating] = useState(false);
-  const [packingGenError, setPackingGenError] = useState<string | null>(null);
-  const [packingLoaded, setPackingLoaded] = useState(false);
 
   // Pack This sub-tab state
   const [packSubTab, setPackSubTab] = useState<'group' | 'mine' | 'gifts'>('group');
@@ -193,7 +186,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         setPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
       }
       setGroupPackLoaded(true);
-      setPackingLoaded(true);
       // My Pack items
       if (myPackingRes.status === 'fulfilled' && myPackingRes.value?.items) {
         const rows: PackingRow[] = myPackingRes.value.items;
@@ -449,72 +441,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         setPrepTasks(prevTasks);
         setCompletedTasks(prevCompleted);
       });
-    }
-  };
-
-  const addPackItem = (name: string, category: string) => {
-    if (!name.trim()) return;
-    if (isMockTrip) {
-      setCustomPackItems(prev => [...prev, { id: `custom_pack_${Date.now()}`, name: name.trim(), category, packed: false }]);
-    } else {
-      const tempId = `temp_${Date.now()}`;
-      setPackingItems(prev => [...prev, { id: tempId, name: name.trim(), category, packed: false }]);
-      // Three failure modes to guard against:
-      //   - network rejection (.catch fires)
-      //   - non-ok HTTP status (res.ok === false; previously fell through
-      //     to .then(data => …) where data was null, leaving the temp id
-      //     in state forever)
-      //   - ok response but missing item (defensive)
-      // All three now roll back the optimistic insert.
-      fetch(`/api/trips/${params.id}/packing`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), category }),
-      }).then(async (r) => {
-        if (!r.ok) {
-          setPackingItems(prev => prev.filter(i => i.id !== tempId));
-          return;
-        }
-        const data = await r.json().catch(() => null);
-        if (data?.item) {
-          setPackingItems(prev => prev.map(i => i.id === tempId
-            ? { id: data.item.id, name: data.item.name, category: data.item.category, packed: data.item.packed }
-            : i));
-        } else {
-          setPackingItems(prev => prev.filter(i => i.id !== tempId));
-        }
-      }).catch(() => setPackingItems(prev => prev.filter(i => i.id !== tempId)));
-    }
-    setNewPackItem('');
-  };
-
-  const generatePackingList = async () => {
-    setPackingGenerating(true);
-    setPackingGenError(null);
-    try {
-      const res = await fetch('/api/generate-packing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tripId: params.id, destination: tripDestination }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.message || 'Generation failed');
-
-      // Reload packing items from Supabase so we have real IDs
-      const reloadRes = await fetch(`/api/trips/${params.id}/packing`);
-      if (reloadRes.ok) {
-        const reloadData = await reloadRes.json();
-        const items: PackingItem[] = ((reloadData.items ?? []) as PackingApiRow[]).map(i => ({
-          id: i.id, name: i.name, category: i.category, packed: i.packed,
-        }));
-        setPackingItems(items);
-        setPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
-        setExpandedCategories(new Set(['Clothing']));
-      }
-    } catch (err) {
-      setPackingGenError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setPackingGenerating(false);
     }
   };
 

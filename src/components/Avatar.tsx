@@ -12,17 +12,6 @@ interface AvatarProps {
   className?: string;
 }
 
-interface AvatarStackProps {
-  avatars: Array<{
-    src?: string;
-    initials?: string;
-    name?: string;
-  }>;
-  max?: number;
-  size?: 'sm' | 'md' | 'lg';
-  className?: string;
-}
-
 const sizeClasses = {
   sm: 'w-8 h-8 text-xs',
   md: 'w-10 h-10 text-sm',
@@ -74,32 +63,3 @@ export const Avatar: React.FC<AvatarProps> = ({
   );
 };
 
-export const AvatarStack: React.FC<AvatarStackProps> = ({
-  avatars,
-  max = 3,
-  size = 'md',
-  className = '',
-}) => {
-  const displayed = avatars.slice(0, max);
-  const remaining = avatars.length - max;
-
-  return (
-    <div className={`flex -space-x-2 ${className}`}>
-      {displayed.map((avatar, index) => (
-        <div key={index} className="ring-2 ring-white">
-          <Avatar
-            src={avatar.src}
-            initials={avatar.initials}
-            name={avatar.name}
-            size={size}
-          />
-        </div>
-      ))}
-      {remaining > 0 && (
-        <div className={`${sizeClasses[size]} rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600 ring-2 ring-white`}>
-          +{remaining}
-        </div>
-      )}
-    </div>
-  );
-};
