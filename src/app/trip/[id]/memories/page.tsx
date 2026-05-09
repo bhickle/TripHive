@@ -1189,8 +1189,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                 <div className="flex-1">
                   <p className="font-medium text-zinc-900">{selectedPhoto.uploadedBy}</p>
                   <p className="text-sm text-zinc-500">
-                    {new Date(selectedPhoto.timestamp).toLocaleDateString()} at{' '}
-                    {new Date(selectedPhoto.timestamp).toLocaleTimeString()}
+                    {new Date(selectedPhoto.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at{' '}
+                    {new Date(selectedPhoto.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                   </p>
                   {(selectedPhoto.location || selectedPhoto.activity) && selectedPhoto.activity !== 'Photo' && (
                     <p className="text-sm text-zinc-600 flex items-center gap-1 mt-1">

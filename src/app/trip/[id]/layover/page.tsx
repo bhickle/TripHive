@@ -607,7 +607,7 @@ export default function LayoverPlannerPage() {
                           <DollarSign className="w-3 h-3" /> {exc.cost}
                         </span>
                       </div>
-                      <button className="w-full px-4 py-2 bg-sky-900 text-white rounded-lg hover:bg-sky-900 transition-all text-sm font-semibold">
+                      <button className="w-full px-4 py-2 bg-sky-800 text-white rounded-lg hover:bg-sky-900 transition-all text-sm font-semibold">
                         Book Shore Excursion
                       </button>
                     </div>

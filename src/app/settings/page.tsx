@@ -315,7 +315,7 @@ export default function SettingsPage() {
         reader.readAsDataURL(file);
       }
     } catch {
-      setAvatarError('Something went wrong — please try again.');
+      setAvatarError('Something went wrong. Please try again.');
     } finally {
       setAvatarUploading(false);
       e.target.value = '';

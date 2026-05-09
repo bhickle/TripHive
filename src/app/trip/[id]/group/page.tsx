@@ -711,7 +711,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         // Rollback optimistic update on failure + surface the error
         setVotes(prevVotes);
         setUserVotes(prevUserVotes);
-        setActionError('Vote didn’t save. Try again.');
+        setActionError("Couldn't save your vote. Please try again.");
         setTimeout(() => setActionError(null), 4000);
       }
     }
@@ -1034,7 +1034,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       setScannedData({
         merchant: data.merchant,
         total: data.total,
-        date: data.date || new Date().toLocaleDateString(),
+        date: data.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         items: (data.lineItems || []).map((li: { description: string; amount: number }) =>
           `${li.description} — $${li.amount.toFixed(2)}`
         ),
@@ -1057,7 +1057,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       setScannedData({
         merchant: '',
         total: 0,
-        date: new Date().toLocaleDateString(),
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         items: [`Receipt scan failed (${reason}). Enter details manually below.`],
       });
     } finally {
@@ -1883,7 +1883,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           <button
                             onClick={handleScanReceipt}
                             disabled={isScanning}
-                            className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                           >
                             {isScanning ? (
                               <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scanning…</>

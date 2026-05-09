@@ -921,7 +921,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 ) : (
                   <p className={`font-medium ${completedTasks.has(task.id) ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
                 )}
-                {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString()}</p>}
+                {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>}
               </div>
               {task.urgent && !completedTasks.has(task.id) && editingTaskId !== task.id && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
               {editingTaskId !== task.id && (
@@ -1356,7 +1356,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 ) : (
                   <p className={`font-medium ${completedTasks.has(task.id) ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
                 )}
-                {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString()}</p>}
+                {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>}
               </div>
               {task.urgent && !completedTasks.has(task.id) && editingTaskId !== task.id && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
               {editingTaskId !== task.id && (

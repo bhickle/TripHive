@@ -73,6 +73,7 @@ export function UpgradeModal({ prompt, onClose, tripId, tripGroupSize }: Upgrade
         {/* Close */}
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute top-4 right-4 p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
         >
           <X className="w-4 h-4" />

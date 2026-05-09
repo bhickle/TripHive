@@ -38,7 +38,10 @@ function timeAgo(iso: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString();
+  // Explicit locale + options so dates read the same across en-US, en-GB,
+  // etc. Bare .toLocaleDateString() rendered "5/9/2026" or "09/05/2026"
+  // depending on locale — confusing for international users.
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // Map a notification to the right destination tab. Chat / vote notifications

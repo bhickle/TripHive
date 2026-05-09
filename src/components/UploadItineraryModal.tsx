@@ -470,7 +470,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
       }
     } catch (err) {
       setSavingPreview(false);
-      setSavePreviewError(err instanceof Error ? err.message : 'Could not save the trip.');
+      setSavePreviewError(err instanceof Error ? err.message : "Couldn't save the trip. Please try again.");
     }
   };
 

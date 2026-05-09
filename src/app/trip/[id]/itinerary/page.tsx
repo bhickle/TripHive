@@ -518,7 +518,7 @@ function ItineraryPageContent() {
       }).catch(() => {
         // Rollback vote indicator to pre-vote state on failure
         setVotes(prev => ({ ...prev, [activityId]: prevVoteState }));
-        setActionError('Vote didn’t save. Try again.');
+        setActionError("Couldn't save your vote. Please try again.");
         setTimeout(() => setActionError(null), 4000);
       });
     }
@@ -1726,11 +1726,20 @@ function ItineraryPageContent() {
   })();
   // Guard: if activeDays is empty, currentDayData will never be rendered (the
   // "no itinerary" empty state gate below returns early before any access).
-  // Cast is safe because every render path that uses currentDayData is gated on
-  // activeDays.length > 0 via the hasDays check.
-  const currentDayData: ItineraryDay = (
-    activeDays.find((d: { day: number }) => d.day === selectedDay) || activeDays[0] || {}
-  ) as ItineraryDay;
+  // Hardened fallback: rather than `{} as ItineraryDay` (which would let a
+  // future caller silently access undefined fields), provide a real
+  // empty-day shape. If we ever land in this branch unguarded, accessors
+  // like `currentDayData.tracks.shared.length` resolve to 0 instead of
+  // throwing, and any visible "Day 0" is a clear signal that something
+  // upstream skipped the activeDays.length > 0 gate.
+  const EMPTY_DAY: ItineraryDay = {
+    day: 0,
+    date: '',
+    theme: '',
+    tracks: { shared: [], track_a: [], track_b: [] },
+  };
+  const currentDayData: ItineraryDay =
+    activeDays.find((d: { day: number }) => d.day === selectedDay) ?? activeDays[0] ?? EMPTY_DAY;
 
   // ─── Persist updated days to state + localStorage + Supabase ─────────────────
   const persistDays = useCallback((updated: ItineraryDay[]) => {
@@ -2370,7 +2379,7 @@ function ItineraryPageContent() {
               </p>
               <button
                 onClick={() => window.location.reload()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-full transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-bold rounded-full transition-colors"
               >
                 Refresh
               </button>
@@ -2732,7 +2741,7 @@ function ItineraryPageContent() {
                   handleRegenerate();
                 }
               }}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-full transition-all whitespace-nowrap"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-full transition-all whitespace-nowrap"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Regenerate
@@ -4139,12 +4148,12 @@ function ItineraryPageContent() {
                     setBookingSaved(editingHotelIndex !== null ? 'Hotel updated ✓' : 'Hotel saved ✓');
                     setTimeout(() => setBookingSaved(null), 2500);
                   } catch {
-                    setBookingError('Could not save. Please try again.');
+                    setBookingError("Couldn't save. Please try again.");
                   } finally {
                     setSavingBooking(false);
                   }
                 }}
-                className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
               >
                 {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : editingHotelIndex !== null ? 'Update Hotel' : 'Save Hotel'}
               </button>
@@ -4257,7 +4266,7 @@ function ItineraryPageContent() {
               <button
                 disabled={addDayGenerating}
                 onClick={handleAddDay}
-                className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
               >
                 {addDayGenerating
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating day…</>
@@ -4375,12 +4384,12 @@ function ItineraryPageContent() {
                     setBookingSaved('Flight saved ✓');
                     setTimeout(() => setBookingSaved(null), 2500);
                   } catch {
-                    setBookingError('Could not save. Please try again.');
+                    setBookingError("Couldn't save. Please try again.");
                   } finally {
                     setSavingBooking(false);
                   }
                 }}
-                className="w-full py-2.5 bg-sky-700 hover:bg-sky-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
               >
                 {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Flight'}
               </button>

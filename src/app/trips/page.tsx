@@ -221,8 +221,11 @@ export default function TripsPage() {
               ))}
             </div>
 
-            {/* View mode toggle (lifted into the same row so the share filter
-                can sit on its own row below — keeps the visual hierarchy clean) */}
+            {/* View mode toggle — single render, repositioned via flex.
+                Was duplicated in the DOM (`hidden sm:flex` here, `flex
+                sm:hidden` below) which doubled tab targets for keyboard
+                + screen-reader users. Now hidden on mobile and rendered
+                separately below for that breakpoint. */}
             <div className="hidden sm:flex items-center gap-2 bg-white border border-zinc-200 rounded-lg p-1 ml-auto">
               <button
                 onClick={() => setViewMode('grid')}
@@ -230,6 +233,8 @@ export default function TripsPage() {
                   viewMode === 'grid' ? 'bg-sky-100 text-sky-700' : 'text-zinc-400 hover:text-zinc-600'
                 }`}
                 title="Grid view"
+                aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
               >
                 <LayoutGrid className="w-5 h-5" />
               </button>
@@ -239,6 +244,8 @@ export default function TripsPage() {
                   viewMode === 'list' ? 'bg-sky-100 text-sky-700' : 'text-zinc-400 hover:text-zinc-600'
                 }`}
                 title="List view"
+                aria-label="List view"
+                aria-pressed={viewMode === 'list'}
               >
                 <List className="w-5 h-5" />
               </button>
@@ -267,7 +274,9 @@ export default function TripsPage() {
             ))}
           </div>
 
-          {/* View mode toggle — mobile only (desktop has it inline above) */}
+          {/* View mode toggle — mobile only (desktop has it inline above).
+              Same toggle controls the same state; visually relocated
+              for the smaller layout but a11y attributes match. */}
           <div className="flex sm:hidden items-center gap-2 bg-white border border-zinc-200 rounded-lg p-1 self-start">
             <button
               onClick={() => setViewMode('grid')}
@@ -277,6 +286,8 @@ export default function TripsPage() {
                   : 'text-zinc-400 hover:text-zinc-600'
               }`}
               title="Grid view"
+              aria-label="Grid view"
+              aria-pressed={viewMode === 'grid'}
             >
               <LayoutGrid className="w-5 h-5" />
             </button>
@@ -288,6 +299,8 @@ export default function TripsPage() {
                   : 'text-zinc-400 hover:text-zinc-600'
               }`}
               title="List view"
+              aria-label="List view"
+              aria-pressed={viewMode === 'list'}
             >
               <List className="w-5 h-5" />
             </button>

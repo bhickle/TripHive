@@ -67,7 +67,9 @@ function relativeTime(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  // Same explicit format as notifications page so the side panel and
+  // the standalone page render dates consistently.
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function rowToNotification(row: ApiNotificationRow): Notification {

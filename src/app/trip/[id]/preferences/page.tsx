@@ -141,14 +141,14 @@ export default function PreferencesPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setSaveError(data.error ?? 'Could not save your preferences. Please try again.');
+        setSaveError(data.error ?? "Couldn't save your preferences. Please try again.");
         setSaving(false);
         return;
       }
       setSaved(true);
       setSaving(false);
     } catch {
-      setSaveError('Could not save your preferences. Please check your connection and try again.');
+      setSaveError("Couldn't save your preferences. Check your connection and try again.");
       setSaving(false);
     }
   };

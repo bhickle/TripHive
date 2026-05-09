@@ -205,13 +205,13 @@ export function ParseTransportModal({ dayNumber, dayDate, onAdd, onClose }: Pars
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        throw new Error(data.message ?? 'Something went wrong — please try again.');
+        throw new Error(data.message ?? 'Something went wrong. Please try again.');
       }
 
       setParsedLeg(data.transportLeg);
       setParseState('success');
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Something went wrong — please try again.');
+      setErrorMessage(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       setParseState('error');
     }
   };
@@ -251,6 +251,7 @@ export function ParseTransportModal({ dayNumber, dayDate, onAdd, onClose }: Pars
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors flex-shrink-0 ml-4"
           >
             <X className="w-5 h-5" />
