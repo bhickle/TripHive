@@ -53,6 +53,27 @@ Update the status emoji as you complete each item. CLAUDE.md links here for the 
 4. Update `SENDGRID_FROM_EMAIL` env var to `noreply@tripcoord.ai` (currently a Gmail)
 5. Send a test invite to a fresh inbox to confirm it lands in Inbox, not Spam/Promotions
 
+### 🟥 Supabase — upload branded auth email templates
+**Why:** Default Supabase auth emails (signup confirm, password reset) look generic/spammy. Branded HTML lives in `email-templates/` at the project root.
+
+**Steps:**
+1. Supabase Dashboard → Authentication → Email Templates
+2. Paste `email-templates/confirm-signup.html` into the **Confirm signup** template (subject: "Confirm your TripCoord account")
+3. Paste `email-templates/reset-password.html` into the **Reset Password** template (subject: "Reset your TripCoord password")
+4. Save both, send a test trigger from `/auth/signup` and the password reset flow
+
+### 🟥 Sentry — create project and set DSN env vars (optional but recommended)
+**Why:** Without it, you launch blind. Sentry SDK + config files are already wired up — they no-op cleanly without the DSN, so the app works either way. Adding the DSN flips on error monitoring with stack traces.
+
+**Steps:**
+1. Create a free account + project at https://sentry.io
+2. Copy the DSN
+3. Vercel → TripHive → Settings → Environment Variables → add:
+   - `NEXT_PUBLIC_SENTRY_DSN` (client-side errors) — same DSN value
+   - `SENTRY_DSN` (server-side errors) — same DSN value
+4. Redeploy
+5. (Later) for source maps in Sentry: add `SENTRY_AUTH_TOKEN` + wrap `next.config.js` with `withSentryConfig`. Not blocking — readable error frames work without it.
+
 ---
 
 ## 🔐 Auth / user setup
@@ -149,6 +170,7 @@ These are useful to track but won't block launch.
 - 🟥 **Comparison view on wishlist** — pick 2-3 saved destinations, see cost/season/flight-time side-by-side (deferred)
 - 🟥 **Calendar/seasonal strip on wishlist** — show items on a year ribbon by best season (deferred)
 - 🟥 **Seasonal Collections SEO landing pages** at `/discover/seasons/[slug]` — option B from the seasonal-collections discussion; A+C shipped instead
+- 🟥 **External legal review** — privacy + terms have been content-updated to match what's actually shipped (community sharing, OG link fetches, Sentry, analytics). Still worth a real lawyer pass before launch given AI use, payment data, and user content licensing.
 
 ---
 

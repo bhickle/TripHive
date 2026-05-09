@@ -563,7 +563,7 @@ function ItineraryPageContent() {
       const countLabels = (key: 'trackALabel' | 'trackBLabel'): string | null => {
         const freq: Record<string, number> = {};
         for (const d of deduped) {
-          const v = (d as unknown as Record<string, unknown>)[key];
+          const v = d[key];
           if (typeof v === 'string' && v.trim()) {
             freq[v] = (freq[v] ?? 0) + 1;
           }
@@ -574,15 +574,14 @@ function ItineraryPageContent() {
       };
       const canonA = countLabels('trackALabel');
       const canonB = countLabels('trackBLabel');
-      const normalized = deduped.map(d => {
-        const da = d as unknown as Record<string, unknown>;
-        const hasSplit = Array.isArray(da.track_a) && (da.track_a as unknown[]).length > 0;
+      const normalized: ItineraryDay[] = deduped.map(d => {
+        const hasSplit = Array.isArray(d.tracks?.track_a) && d.tracks.track_a.length > 0;
         if (!hasSplit) return d;
         return {
           ...d,
-          trackALabel: canonA ?? da.trackALabel,
-          trackBLabel: canonB ?? da.trackBLabel,
-        } as ItineraryDay;
+          trackALabel: canonA ?? d.trackALabel,
+          trackBLabel: canonB ?? d.trackBLabel,
+        };
       });
 
       aiDaysRef.current = normalized;

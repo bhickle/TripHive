@@ -273,6 +273,9 @@ export interface Activity {
   googleVerified?: boolean;
   /** What to bring / pack for this activity (AI-generated for excursions/hikes) */
   packingTips?: string[];
+  /** Set when the activity was added to the itinerary from the
+   *  trip's What's Out There discover tab (vs. AI-generated). */
+  fromDiscover?: boolean;
   /** For restaurant activities: which meal slot this fills */
   mealType?: 'breakfast' | 'lunch' | 'dinner' | null;
   /** Transport to the next activity (AI-generated) */

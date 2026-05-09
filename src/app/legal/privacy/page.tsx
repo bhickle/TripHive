@@ -21,7 +21,7 @@ export default function PrivacyPage() {
       {/* Content */}
       <main className="max-w-3xl mx-auto px-6 py-12">
         <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-400 mb-10">Last updated: April 2026</p>
+        <p className="text-sm text-zinc-400 mb-10">Last updated: May 2026</p>
 
         <div className="prose prose-zinc max-w-none space-y-8 text-zinc-700 leading-relaxed">
 
@@ -33,6 +33,8 @@ export default function PrivacyPage() {
               <li><strong>Trip data:</strong> Destinations, dates, group details, itineraries, and preferences you enter</li>
               <li><strong>Usage data:</strong> Pages visited, features used, and interactions with the Service</li>
               <li><strong>Photos:</strong> Images you upload to Trip Story or other features</li>
+              <li><strong>Saved links:</strong> URLs you paste to your wishlist (TripAdvisor, blog posts, etc.) — we fetch the page&apos;s public Open Graph metadata to render a preview card; we do not store or proxy the URL&apos;s content beyond title, description, and image URL</li>
+              <li><strong>Likes &amp; engagement:</strong> When you opt your itinerary into the community feed, likes on the itinerary or its activities are visible to anyone viewing it</li>
               <li><strong>Payment data:</strong> Billing information handled securely by Stripe — we do not store card numbers</li>
             </ul>
           </section>
@@ -59,6 +61,10 @@ export default function PrivacyPage() {
               <li><strong>Service providers:</strong> Supabase (database/auth), Stripe (payments), SendGrid (email), Twilio (SMS), Vercel (hosting) — each bound by data-processing agreements</li>
               <li><strong>AI providers:</strong> Anthropic (Claude) to generate itinerary content — prompts may include trip details but not payment or identity data</li>
               <li><strong>Trip members:</strong> Information you choose to share within your trip group is visible to that group</li>
+              <li><strong>The community feed (opt-in):</strong> If you toggle &quot;Share publicly to community&quot; on your itinerary, the itinerary contents — destination, days, activities, organizer name, photo — become viewable by anyone at <code>/community/[your-trip-id]</code> and may be forked into other users&apos; own trips. Group chat, expenses, and member roster stay private regardless. You can turn this off at any time from the itinerary header.</li>
+              <li><strong>Analytics:</strong> Vercel Analytics + Speed Insights collect anonymized page-view counts and Web Vitals. No personal identifiers are sent.</li>
+              <li><strong>Error reporting:</strong> If you encounter a bug, anonymized stack traces and the action that triggered the error may be sent to our error monitoring provider (Sentry) so we can fix it.</li>
+              <li><strong>Photo attribution:</strong> Cover photos sourced from Unsplash include the photographer&apos;s public name and profile link, per Unsplash&apos;s API terms.</li>
               <li><strong>Legal requirements:</strong> If required by law or to protect our rights</li>
             </ul>
           </section>

@@ -21,7 +21,7 @@ export default function TermsPage() {
       {/* Content */}
       <main className="max-w-3xl mx-auto px-6 py-12">
         <h1 className="text-4xl font-script italic font-semibold text-zinc-900 mb-2">Terms of Service</h1>
-        <p className="text-sm text-zinc-400 mb-10">Last updated: April 2026</p>
+        <p className="text-sm text-zinc-400 mb-10">Last updated: May 2026</p>
 
         <div className="prose prose-zinc max-w-none space-y-8 text-zinc-700 leading-relaxed">
 
@@ -72,6 +72,14 @@ export default function TermsPage() {
               You retain ownership of any content you upload (photos, notes, trip details). By uploading content, you
               grant tripcoord a non-exclusive, royalty-free licence to store and display that content solely to provide
               the Service to you and your trip group.
+            </p>
+            <p className="mt-3">
+              <strong>Public itinerary templates (opt-in).</strong> If you toggle &quot;Share publicly to community&quot;
+              on your itinerary, you grant tripcoord and other users a non-exclusive licence to view that itinerary at
+              <code>/community/[your-trip-id]</code> and to fork it into their own trips. Forked copies retain a
+              reference to your original. You can turn this off at any time from the itinerary header — existing forks
+              already created will not be affected, but new forks will be blocked. Your group chat, expenses, and member
+              roster stay private regardless of this setting.
             </p>
           </section>
 

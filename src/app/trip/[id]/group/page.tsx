@@ -328,30 +328,33 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       const dayIndex = days.findIndex(d => d.day === dayNumber);
       if (dayIndex === -1) throw new Error('Day not found');
 
-      const newActivity = {
+      // Explicit Activity type so the literal-string fields (track, mealType)
+      // narrow to their union members instead of being inferred as plain
+      // `string`. Previously the inline object needed a double cast at the
+      // assignment site to widen back into Activity — typing it up front
+      // means the ItineraryDay merge below works without any cast.
+      const newActivity: Activity = {
         id: `wish_${item.itemId}_${Date.now()}`,
         dayNumber,
         timeSlot: item.itemData.category === 'dining' ? '19:00–21:00' : '14:00–16:00',
         name: item.itemData.name ?? item.itemId,
         title: item.itemData.name ?? item.itemId,
         address: item.itemData.location ?? '',
-        website: null,
         isRestaurant: item.itemData.category === 'dining',
         mealType: item.itemData.category === 'dining' ? 'dinner' : null,
         track: 'shared',
         priceLevel: 2,
         description: item.itemData.description ?? '',
-        costEstimate: null,
+        costEstimate: 0,
         confidence: 0.8,
         verified: false,
         packingTips: [],
-        transportToNext: null,
         fromDiscover: true,
       };
 
       const updatedDays: ItineraryDay[] = days.map((d, i) => {
         if (i !== dayIndex) return d;
-        return { ...d, tracks: { ...d.tracks, shared: [...(d.tracks?.shared ?? []), newActivity as unknown as Activity] } };
+        return { ...d, tracks: { ...d.tracks, shared: [...(d.tracks?.shared ?? []), newActivity] } };
       });
 
       const patchRes = await fetch(`/api/trips/${params.id}`, {
