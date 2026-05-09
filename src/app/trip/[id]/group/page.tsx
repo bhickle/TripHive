@@ -676,6 +676,21 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           body: JSON.stringify({ voteId, optionId, prevOptionId: prevOptionId ?? null }),
         });
         if (!res.ok) throw new Error('Vote failed');
+        // Reconcile against the server's canonical counts. Catches
+        // concurrent votes from other members that our local +1/-1
+        // arithmetic missed — without this we'd show stale numbers
+        // until Realtime caught up.
+        const data = await res.json().catch(() => null);
+        const serverCounts = data?.counts as Record<string, number> | undefined;
+        if (serverCounts) {
+          setVotes(prev => prev.map(v => {
+            if (v.id !== voteId) return v;
+            return {
+              ...v,
+              options: v.options.map(o => ({ ...o, votes: serverCounts[o.id] ?? 0 })),
+            };
+          }));
+        }
       } catch {
         // Rollback optimistic update on failure + surface the error
         setVotes(prevVotes);

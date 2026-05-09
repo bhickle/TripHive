@@ -4232,7 +4232,12 @@ function ItineraryPageContent() {
                       body: JSON.stringify({ tripPatch: { booked_flight: newFlight } }),
                     });
                     if (!res.ok) throw new Error('Save failed');
-                    setTripRow(prev => prev ? { ...prev, booked_flight: newFlight } : prev);
+                    // Reconcile against the server's canonical row — covers any
+                    // future normalization (default fields, validation triggers)
+                    // that would otherwise drift the UI vs the persisted state.
+                    const data = await res.json().catch(() => null);
+                    const serverFlight = data?.trip?.booked_flight ?? newFlight;
+                    setTripRow(prev => prev ? { ...prev, booked_flight: serverFlight } : prev);
                     setShowAddFlightModal(false);
                     setFlightFormAirline(''); setFlightFormNumber(''); setFlightFormDep(''); setFlightFormArr(''); setFlightFormDepTime(''); setFlightFormArrTime(''); setFlightFormRetDepTime(''); setFlightFormRetArrTime('');
                     setBookingSaved('Flight saved ✓');

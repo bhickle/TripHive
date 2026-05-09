@@ -210,7 +210,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         console.error('vote_responses insert failed:', insErr);
         return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
       }
-      return NextResponse.json({ success: true });
+
+      // Return canonical counts so the client can reconcile against any
+      // concurrent votes from other members. Without this, two users
+      // voting simultaneously each see only their own +1 / -1 arithmetic
+      // until the next Realtime tick lands.
+      const { data: countRows } = await supabase
+        .from('vote_responses')
+        .select('option_id')
+        .eq('vote_id', voteId);
+      const counts: Record<string, number> = {};
+      for (const row of countRows ?? []) {
+        counts[row.option_id] = (counts[row.option_id] ?? 0) + 1;
+      }
+      return NextResponse.json({ success: true, counts });
     }
 
     if (action === 'close') {

@@ -169,19 +169,26 @@ export async function PATCH(
     const canEditTrip = role === 'organizer' || role === 'co_organizer';
 
     // ── Update trips table fields (destination, title, dates) ─────────────────
+    let updatedTrip: unknown = null;
     if (tripPatch && Object.keys(tripPatch).length > 0) {
       if (!canEditTrip) {
         return NextResponse.json({ error: 'Only organizers and co-organizers can edit trip details' }, { status: 403 });
       }
-      const { error } = await supabase
+      // Return the updated row so the caller can reconcile against the
+      // canonical server state — any future server-side normalization
+      // (defaults, validation, triggers) won't drift the UI silently.
+      const { data, error } = await supabase
         .from('trips')
         .update(tripPatch)
-        .eq('id', params.id);
+        .eq('id', params.id)
+        .select()
+        .single();
 
       if (error) {
         console.error('Trip fields update error:', JSON.stringify(error));
         return NextResponse.json({ error: 'Failed to update trip fields' }, { status: 500 });
       }
+      updatedTrip = data;
     }
 
     // ── Update itinerary days ──────────────────────────────────────────────────
@@ -225,7 +232,7 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, trip: updatedTrip });
   } catch (err) {
     console.error('Update trip error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
