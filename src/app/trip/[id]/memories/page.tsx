@@ -125,6 +125,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   // trip_photos table). They're still visible locally as blob URLs but will
   // disappear on refresh — surface this to the user instead of swallowing.
   const [uploadFailedCount, setUploadFailedCount] = useState(0);
+  // First failed-insert error message captured during the run, so the
+  // banner can show "Couldn't save: <reason>" instead of just a count.
+  const [uploadErrorDetail, setUploadErrorDetail] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const tripDestination = isMockTrip ? 'Iceland' : (tripDestinationFromApi ?? 'your trip');
@@ -290,6 +293,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             setIsUploading(true);
             setUploadProgress(0);
             setUploadFailedCount(0);
+            setUploadErrorDetail(null);
 
             const fileArray = Array.from(files);
             // Count storage / DB failures so we can show a banner at the end
@@ -358,22 +362,62 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                       .upload(path, file, { upsert: true });
                     clearInterval(ticker);
                     if (uploadError || !data) {
-                      // Storage upload failed — count it. The blob URL is
-                      // still visible to the user this session but won't
-                      // survive a refresh. Banner at end tells them to retry.
-                      console.warn('Storage upload failed for', file.name, uploadError?.message ?? 'no data returned');
+                      console.error('[memories] storage upload failed:', file.name, uploadError);
+                      if (!uploadErrorDetail) setUploadErrorDetail(uploadError?.message ?? 'Storage upload failed');
                       failedCount++;
                       setUploadProgress(fileEnd);
                       continue;
                     }
                     const { data: urlData } = supabase.storage.from('trip-photos').getPublicUrl(path);
                     if (!urlData?.publicUrl) {
-                      console.warn('No public URL for', file.name);
+                      console.error('[memories] no public URL for', file.name);
+                      if (!uploadErrorDetail) setUploadErrorDetail('Upload succeeded but the photo has no public URL.');
                       failedCount++;
                       setUploadProgress(fileEnd);
                       continue;
                     }
-                    // Swap local preview URL with the Supabase URL and revoke the blob URL
+
+                    // Insert the trip_photos row BEFORE swapping the blob URL.
+                    // If the insert fails (RLS, schema, missing trip_id, etc.)
+                    // we delete the storage object to avoid orphan files and
+                    // surface the actual error to the user — the previous
+                    // console.warn-and-continue pattern silently dropped
+                    // every upload to the empty trip_photos table.
+                    const { error: insertError } = await supabase.from('trip_photos').insert({
+                      trip_id: params.id,
+                      storage_path: path,
+                      public_url: urlData.publicUrl,
+                      uploader_name: uploaderName,
+                      uploaded_by: currentUser.id ?? null,
+                      day_number: 1,
+                      caption: photoLocation.trim() || null,
+                    });
+                    if (insertError) {
+                      console.error('[memories] trip_photos insert failed:', insertError);
+                      if (!uploadErrorDetail) setUploadErrorDetail(`${insertError.message}${insertError.code ? ` (${insertError.code})` : ''}`);
+                      failedCount++;
+                      // Best-effort orphan cleanup. If this fails too, log it
+                      // — we don't want to mask the real (insert) error.
+                      const { error: cleanupErr } = await supabase.storage.from('trip-photos').remove([path]);
+                      if (cleanupErr) console.error('[memories] storage cleanup also failed:', path, cleanupErr);
+                      setUploadProgress(fileEnd);
+                      continue;
+                    }
+
+                    // Insert succeeded — pre-load the Supabase URL before
+                    // swapping it into state. Without this, the <img> src
+                    // change forced a reload and the parent's bg-slate-200
+                    // briefly showed through, which read as "the photo
+                    // shrunk for a second" to users on slower connections.
+                    await new Promise<void>(resolve => {
+                      const img = new window.Image();
+                      const finish = () => resolve();
+                      img.onload = finish;
+                      img.onerror = finish; // proceed anyway — at worst the user sees the original loader
+                      img.src = urlData.publicUrl;
+                    });
+
+                    // Now swap the blob URL for the Supabase URL, in both state slices.
                     setUploadedPhotos(prev => {
                       const updated = [...prev];
                       const localIdx = updated.findIndex(p => p.name === file.name && p.url.startsWith('blob:'));
@@ -383,32 +427,16 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                       }
                       return updated;
                     });
-                    // Also swap in tripPhotos state
                     setTripPhotos(prev => prev.map(p =>
                       p.url.startsWith('blob:') && p.activity === (photoLocation.trim() || file.name.replace(/\.[^.]+$/, ''))
                         ? { ...p, url: urlData.publicUrl }
                         : p
                     ));
-                    // Record in trip_photos table with real uploader name and location caption.
-                    // Storage upload succeeded but DB insert can still fail (RLS,
-                    // missing trip_id, etc.) — count those as failures too,
-                    // because without the row the photo won't load on refresh.
-                    const { error: insertError } = await supabase.from('trip_photos').insert({
-                      trip_id: params.id,
-                      storage_path: path,
-                      public_url: urlData.publicUrl,
-                      uploader_name: uploaderName,
-                      day_number: 1,
-                      caption: photoLocation.trim() || null,
-                    });
-                    if (insertError) {
-                      console.warn('trip_photos insert:', insertError.message);
-                      failedCount++;
-                    }
                     setUploadProgress(fileEnd);
                   } catch (err) {
                     clearInterval(ticker);
-                    console.warn('Background upload failed for', file.name, err);
+                    console.error('[memories] upload threw:', file.name, err);
+                    if (!uploadErrorDetail) setUploadErrorDetail(err instanceof Error ? err.message : 'Unexpected upload error');
                     failedCount++;
                     setUploadProgress(fileEnd);
                   }
@@ -668,9 +696,14 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               {uploadFailedCount > 0 && (
                 <div className="mt-4 mx-auto max-w-md flex items-start gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-left">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
-                  <p className="text-xs text-rose-700">
-                    {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
-                  </p>
+                  <div className="text-xs text-rose-700 space-y-1">
+                    <p>
+                      {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
+                    </p>
+                    {uploadErrorDetail && (
+                      <p className="text-rose-800 font-medium">Reason: {uploadErrorDetail}</p>
+                    )}
+                  </div>
                 </div>
               )}
               {photosLoadError && (
