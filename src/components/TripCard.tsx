@@ -259,10 +259,12 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
             <button
               onClick={handleDelete}
               title={confirmDelete ? 'Click again to confirm delete' : 'Delete trip'}
+              aria-label={confirmDelete ? 'Confirm delete' : 'Delete trip'}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm transition-all ${
                 confirmDelete
                   ? 'bg-rose-600 text-white'
-                  : 'bg-black/40 text-white/70 hover:bg-rose-600/80 hover:text-white opacity-0 group-hover:opacity-100'
+                  // Always visible on touch (no hover); fades on desktop unless hovered.
+                  : 'bg-black/40 text-white/70 hover:bg-rose-600/80 hover:text-white md:opacity-0 md:group-hover:opacity-100'
               }`}
             >
               {confirmDelete ? (

@@ -26,6 +26,9 @@ function SignupPageInner() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  // True after a successful signup that requires email confirmation.
+  // Replaces the form with a "check your email" panel.
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -73,6 +76,17 @@ function SignupPageInner() {
         .eq('id', data.user.id);
     }
 
+    // When Supabase email confirmation is on, signUp returns a user but no
+    // session — the user must click the email link before they can log in.
+    // Without this branch, the previous code pushed to /onboarding unauthed
+    // and the user got a flash of unauthenticated state, then a bounce to
+    // login with no explanation. Now: surface the "check your email" UI.
+    if (data.user && !data.session) {
+      setAwaitingConfirmation(true);
+      setIsLoading(false);
+      return;
+    }
+
     router.push(safeRedirect);
     router.refresh();
   };
@@ -103,6 +117,31 @@ function SignupPageInner() {
 
         {/* Card */}
         <div className="card p-8 sm:p-10">
+          {awaitingConfirmation ? (
+            // ── Post-signup, email-confirmation-required state ─────────────
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">📧</span>
+              </div>
+              <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
+                Check your inbox
+              </h1>
+              <p className="text-zinc-600 text-sm mb-6">
+                We sent a confirmation link to <span className="font-semibold text-zinc-900">{email}</span>.
+                Click it to finish creating your account.
+              </p>
+              <p className="text-xs text-zinc-400 mb-6">
+                Didn&apos;t get it? Check spam or wait a minute and refresh your inbox.
+              </p>
+              <a
+                href="/auth/login"
+                className="inline-block text-sm font-semibold text-sky-700 hover:text-sky-900 underline-offset-2 hover:underline"
+              >
+                Already confirmed? Sign in →
+              </a>
+            </div>
+          ) : (
+            <>
           <h1 className="text-3xl font-script italic font-semibold text-zinc-900 mb-2">
             Create your account
           </h1>
@@ -175,7 +214,33 @@ function SignupPageInner() {
                   minLength={8}
                 />
               </div>
-              <p className="text-xs text-zinc-500 mt-2">At least 8 characters recommended</p>
+              {/* Live strength meter — three buckets keyed off length and
+                  character variety. Cheap to compute, far better feedback
+                  than the previous "8+ recommended" hint. */}
+              {(() => {
+                if (!password) return <p className="text-xs text-zinc-500 mt-2">At least 8 characters</p>;
+                const hasLower = /[a-z]/.test(password);
+                const hasUpper = /[A-Z]/.test(password);
+                const hasDigit = /\d/.test(password);
+                const hasSymbol = /[^A-Za-z0-9]/.test(password);
+                const variety = [hasLower, hasUpper, hasDigit, hasSymbol].filter(Boolean).length;
+                let strength: 'weak' | 'okay' | 'strong' = 'weak';
+                if (password.length >= 12 && variety >= 3) strength = 'strong';
+                else if (password.length >= 8 && variety >= 2) strength = 'okay';
+                const cfg = {
+                  weak:   { fill: 'w-1/3 bg-rose-500',    text: 'text-rose-600',   label: 'Weak — try a longer password or add a number/symbol' },
+                  okay:   { fill: 'w-2/3 bg-amber-500',   text: 'text-amber-700',  label: 'Good — adding length or a symbol would make it stronger' },
+                  strong: { fill: 'w-full bg-emerald-500', text: 'text-emerald-700', label: 'Strong password' },
+                }[strength];
+                return (
+                  <div className="mt-2 space-y-1">
+                    <div className="h-1 w-full bg-zinc-100 rounded-full overflow-hidden">
+                      <div className={`h-full transition-all duration-200 ${cfg.fill}`} />
+                    </div>
+                    <p className={`text-xs ${cfg.text}`}>{cfg.label}</p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Terms Checkbox */}
@@ -218,6 +283,8 @@ function SignupPageInner() {
               Log in
             </Link>
           </p>
+            </>
+          )}
         </div>
 
         {/* Footer Link */}

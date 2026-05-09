@@ -1047,32 +1047,34 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                             <span className="text-sky-700 font-semibold text-sm">{item.priceRange}</span>
                           </div>
                         </div>
-                        {/* Yay / Nay voting */}
+                        {/* Yay / Nay voting — touch targets meet 44px on mobile */}
                         <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
                           <button
                             onClick={() => handleVote(item, 'up')}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            className={`flex items-center gap-1 min-h-11 md:min-h-0 px-3 py-2 md:px-2 md:py-1 rounded-lg text-sm md:text-xs font-semibold transition-all ${
                               votes[item.id] === 'up'
                                 ? 'bg-emerald-500 text-white shadow-sm'
                                 : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
                             }`}
                             title="Yay — I want to do this"
+                            aria-label="Vote yay"
                           >
-                            <ThumbsUp className="w-3.5 h-3.5" />
+                            <ThumbsUp className="w-4 h-4 md:w-3.5 md:h-3.5" />
                             {(voteCounts[item.id]?.up ?? 0) > 0 && (
                               <span>{voteCounts[item.id].up}</span>
                             )}
                           </button>
                           <button
                             onClick={() => handleVote(item, 'down')}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            className={`flex items-center gap-1 min-h-11 md:min-h-0 px-3 py-2 md:px-2 md:py-1 rounded-lg text-sm md:text-xs font-semibold transition-all ${
                               votes[item.id] === 'down'
                                 ? 'bg-rose-500 text-white shadow-sm'
                                 : 'bg-rose-50 text-rose-500 hover:bg-rose-100'
                             }`}
                             title="Nay — not for me"
+                            aria-label="Vote nay"
                           >
-                            <ThumbsDown className="w-3.5 h-3.5" />
+                            <ThumbsDown className="w-4 h-4 md:w-3.5 md:h-3.5" />
                             {(voteCounts[item.id]?.down ?? 0) > 0 && (
                               <span>{voteCounts[item.id].down}</span>
                             )}

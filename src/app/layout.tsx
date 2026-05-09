@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Nunito, Cormorant_Garamond } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { AuthProvider } from '@/context/AuthContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './globals.css';
@@ -40,6 +42,11 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </ErrorBoundary>
+        {/* Vercel Analytics + Speed Insights — both auto-collect from
+            Vercel-hosted deployments. Free tier covers small-to-medium
+            traffic. No env vars needed; the components no-op locally. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

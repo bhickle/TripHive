@@ -941,7 +941,7 @@ function SlideEditor({ mode, enabledIds, onToggle, onStart, onClose }: SlideEdit
   const activeCount = defs.filter(d => enabledIds.has(d.id)).length;
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-[390px] bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+      <div className="w-full max-w-[min(390px,calc(100vw-2rem))] bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
         {/* Header */}
         <div className="px-6 pt-6 pb-5 border-b border-white/8 flex items-start justify-between">
           <div>
@@ -1321,7 +1321,7 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
       {/* Story card */}
       <div
         ref={cardRef}
-        className="relative w-full max-w-[390px] rounded-3xl overflow-hidden shadow-2xl"
+        className="relative w-full max-w-[min(390px,calc(100vw-2rem))] rounded-3xl overflow-hidden shadow-2xl"
         style={{ height: 'min(700px, calc(100vh - 80px))' }}
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
