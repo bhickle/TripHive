@@ -413,12 +413,30 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     } else {
       const tempId = `temp_${Date.now()}`;
       setPackingItems(prev => [...prev, { id: tempId, name: name.trim(), category, packed: false }]);
+      // Three failure modes to guard against:
+      //   - network rejection (.catch fires)
+      //   - non-ok HTTP status (res.ok === false; previously fell through
+      //     to .then(data => …) where data was null, leaving the temp id
+      //     in state forever)
+      //   - ok response but missing item (defensive)
+      // All three now roll back the optimistic insert.
       fetch(`/api/trips/${params.id}/packing`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), category }),
-      }).then(r => r.ok ? r.json() : null).then(data => {
-        if (data?.item) setPackingItems(prev => prev.map(i => i.id === tempId ? { id: data.item.id, name: data.item.name, category: data.item.category, packed: data.item.packed } : i));
+      }).then(async (r) => {
+        if (!r.ok) {
+          setPackingItems(prev => prev.filter(i => i.id !== tempId));
+          return;
+        }
+        const data = await r.json().catch(() => null);
+        if (data?.item) {
+          setPackingItems(prev => prev.map(i => i.id === tempId
+            ? { id: data.item.id, name: data.item.name, category: data.item.category, packed: data.item.packed }
+            : i));
+        } else {
+          setPackingItems(prev => prev.filter(i => i.id !== tempId));
+        }
       }).catch(() => setPackingItems(prev => prev.filter(i => i.id !== tempId)));
     }
     setNewPackItem('');
@@ -631,12 +649,19 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   };
 
   const deleteSouvenirItem = (itemId: string) => {
-    setSouvenirItems(prev => prev.filter(i => i.id !== itemId));
+    // Snapshot before optimistic removal so we can restore on failure —
+    // previously the .catch did nothing, leaving the item visibly gone
+    // locally but still present on the server. It would reappear on
+    // refresh, looking like a sync bug.
+    const prev = souvenirItems;
+    setSouvenirItems(curr => curr.filter(i => i.id !== itemId));
     fetch(`/api/trips/${params.id}/souvenirs`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemId }),
-    }).catch(() => {});
+    }).then(res => {
+      if (!res.ok) setSouvenirItems(prev);
+    }).catch(() => setSouvenirItems(prev));
   };
 
   const toggleCategory = (category: string) => {

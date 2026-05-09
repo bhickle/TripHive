@@ -1164,8 +1164,14 @@ function ItineraryPageContent() {
       }
 
       if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+        // The user just spent AI credits — silently swallowing the
+        // persistence error means the itinerary lives only in browser
+        // memory and vanishes on refresh. Surface the failure clearly.
+        // Days are kept in state either way so the user doesn't lose
+        // visible progress; the error banner gives them a path to retry.
+        let saveOk = false;
         try {
-          await fetch(`/api/trips/${tripPageId}`, {
+          const res = await fetch(`/api/trips/${tripPageId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1174,7 +1180,20 @@ function ItineraryPageContent() {
               tripPatch: { itinerary_generated_at: new Date().toISOString() },
             }),
           });
-        } catch { /* silent */ }
+          saveOk = res.ok;
+          if (!res.ok) {
+            console.error('[live-build] final PATCH failed:', res.status, await res.text().catch(() => ''));
+          }
+        } catch (err) {
+          console.error('[live-build] final PATCH threw:', err);
+        }
+        if (!saveOk) {
+          setActionError(
+            "We built your itinerary but couldn't save it to the cloud. " +
+            "Don't refresh — copy or screenshot anything you want to keep, then try Regenerate."
+          );
+          // Sticky banner: don't auto-dismiss the way other actionErrors do.
+        }
       }
 
       // 6. Cleanup: clear sessionStorage, strip ?mode=generating from URL

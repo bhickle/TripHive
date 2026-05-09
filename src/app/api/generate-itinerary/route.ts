@@ -2035,8 +2035,24 @@ export async function POST(request: NextRequest) {
         // partial-generation case (got 3 of 7 days, then truncation) is
         // judgment-call territory; we charge in that case since the user
         // did get usable output and can resume from add-day.
+        //
+        // Wrap in its own try/catch: a Supabase outage at charge time
+        // should NOT prevent us from telling the client the stream is
+        // complete. Better to under-charge once and reconcile from logs
+        // than to leave the client hanging waiting for the 'done' event
+        // and lose the user's already-generated days. Loud-log so the
+        // un-charged session shows up in error monitoring.
         if (dayIndex > 0) {
-          await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
+          try {
+            await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
+          } catch (chargeErr) {
+            console.error(
+              '[generate-itinerary] credit charge failed (user got days but was not charged):',
+              auth.ctx.userId,
+              credits.ctx,
+              chargeErr,
+            );
+          }
         }
 
         // Signal stream end to client. Include total days emitted so the client
