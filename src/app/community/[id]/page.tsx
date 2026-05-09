@@ -91,8 +91,17 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
   }, [params.id]);
 
   const requireAuth = (): boolean => {
+    // Auth state resolves async — if the user clicks before useCurrentUser
+    // has populated, we used to redirect to login despite a valid cookie.
+    // Now we treat "still loading" as a no-op rather than a failed auth;
+    // the click silently dropped is better than a phantom redirect.
+    if (currentUser.isLoading) return false;
     if (!currentUser.id || currentUser.isDemo) {
-      router.push('/auth/login');
+      // Round-trip back to this page after login so the user lands on the
+      // same trip they were trying to like / fork instead of being dropped
+      // on /dashboard (which had its own load issue).
+      const returnTo = typeof window !== 'undefined' ? window.location.pathname : `/community/${params.id}`;
+      router.push(`/auth/login?redirect=${encodeURIComponent(returnTo)}`);
       return false;
     }
     return true;
@@ -265,7 +274,7 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
                   <span className="inline-flex items-center gap-1.5"><Users className="w-4 h-4" /> {trip.groupSize} travelers</span>
                 )}
                 {trip.organizer?.name && (
-                  <span>by {trip.organizer.name}</span>
+                  <span>by {trip.organizer.name.split(/\s+/)[0]}</span>
                 )}
               </div>
             </div>

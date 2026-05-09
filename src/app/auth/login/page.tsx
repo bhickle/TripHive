@@ -9,6 +9,16 @@ import { signInAction } from './actions';
 
 const REMEMBERED_EMAIL_KEY = 'tc_remembered_email';
 
+// Whitelist of return paths the login flow honors. Open redirects are a
+// well-known phishing vector — bouncing the user to wherever the URL
+// param says would let an attacker craft tripcoord.ai/auth/login?redirect=
+// evil.example.com. We only allow same-origin paths starting with "/".
+function safeRedirect(raw: string | null): string {
+  if (!raw) return '/dashboard';
+  if (!raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
+  return raw;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,8 +57,15 @@ export default function LoginPage() {
         if (rememberMe) localStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim());
         else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
       } catch { /* localStorage unavailable */ }
-      // Hard redirect — forces a full page reload so auth cookies are picked up
-      window.location.href = '/dashboard';
+      // Hard redirect — forces a full page reload so auth cookies are picked up.
+      // Honors ?redirect= when present (e.g. clicked Like on /community/abc
+      // while logged out → bounced through login → returned to the same
+      // trip page). Reading from window.location keeps this client-only
+      // and avoids the Suspense boundary that useSearchParams would
+      // require. Only same-origin paths are allowed; everything else
+      // falls back to /dashboard.
+      const params = new URLSearchParams(window.location.search);
+      window.location.href = safeRedirect(params.get('redirect'));
     }
   };
 

@@ -561,9 +561,13 @@ export default function DiscoverPage() {
   };
 
   const handleCommunityLike = async (tripId: string) => {
+    // Don't redirect while auth is still resolving — useCurrentUser is
+    // briefly null on first paint, and the previous flow bounced
+    // already-logged-in users to /auth/login during that window.
+    if (currentUser.isLoading) return;
     if (!currentUser.id || currentUser.isDemo) {
-      // Unauthed → redirect to login. Could prompt instead.
-      window.location.href = '/auth/login';
+      // Round-trip back to /discover so the user keeps their place.
+      window.location.href = `/auth/login?redirect=${encodeURIComponent('/discover')}`;
       return;
     }
     const isLiked = communityLikedIds.has(tripId);
@@ -860,7 +864,7 @@ export default function DiscoverPage() {
                             )}
                           </div>
                           {trip.organizerName && (
-                            <p className="text-xs text-zinc-400">by {trip.organizerName}</p>
+                            <p className="text-xs text-zinc-400">by {trip.organizerName.split(/\s+/)[0]}</p>
                           )}
                           <div className="flex items-center gap-2 mt-auto">
                             <button

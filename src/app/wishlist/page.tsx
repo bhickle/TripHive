@@ -10,7 +10,7 @@ import {
   Heart, Plus, Sparkles, Calendar, DollarSign, Search,
   MapPin, Loader2, X, ArrowRight, Check, Mountain, Waves,
   Compass, Utensils, Music, ShoppingBag, ChevronRight, Lock,
-  Camera, Dumbbell, Landmark, Leaf,
+  Camera, Dumbbell, Landmark, Leaf, Globe, Pencil,
 } from 'lucide-react';
 import Image from 'next/image';
 import { usePlacesSearch } from '@/hooks/usePlacesSearch';
@@ -772,6 +772,26 @@ export default function WishlistPage() {
                   >
                     <Heart className={`w-5 h-5 transition-all ${savedIds.has(item.id) ? 'fill-sky-700 text-sky-700' : 'text-zinc-400 hover:text-sky-700'}`} />
                   </button>
+                  {/* Source indicator — globe = has external research/links
+                      (TripAdvisor / blog / Pinterest / etc.); pencil = pure
+                      manual entry. Lets the user tell at a glance which
+                      cards have additional context attached vs which are
+                      just remembered destinations. */}
+                  {(item.links ?? []).length > 0 ? (
+                    <span
+                      title="Has saved link(s)"
+                      className="absolute top-3 left-3 inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/95 text-sky-700 shadow-md"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                    </span>
+                  ) : (
+                    <span
+                      title="Added manually"
+                      className="absolute top-3 left-3 inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/95 text-zinc-400 shadow-md"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </span>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <p className="font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">{item.destination}, {item.country}</p>
