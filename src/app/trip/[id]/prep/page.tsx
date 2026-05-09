@@ -5,6 +5,7 @@ import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink,
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { WeatherWidget } from '@/components/WeatherWidget';
 
 // ─── Schengen Detection ───────────────────────────────────────────────────────
@@ -223,6 +224,43 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       }
     });
   }, [isMockTrip, params.id, authLoading, user]);
+
+  // Realtime: re-fetch group pack when any other user adds, deletes, or
+  // toggles an item. Without this, two users on the prep page disagree on
+  // group pack state until one of them refreshes — which read as items
+  // "disappearing" when one user added and the other navigated away/back.
+  // (packing_items was added to the supabase_realtime publication for this.)
+  useEffect(() => {
+    if (isMockTrip) return;
+    if (!/^[0-9a-f-]{36}$/i.test(params.id)) return;
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`packing:${params.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'packing_items', filter: `trip_id=eq.${params.id}` },
+        () => {
+          // Refetch group pack only — private items don't cross users so
+          // remote changes can't affect them. Cheap fetch; runs at most a
+          // few times per session.
+          fetch(`/api/trips/${params.id}/packing?scope=group`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (!data?.items) return;
+              type PackingRow = { id: string; name: string; category: string; packed: boolean };
+              const rows = data.items as PackingRow[];
+              const items: PackingItem[] = rows.map(i => ({
+                id: i.id, name: i.name, category: i.category, packed: i.packed,
+              }));
+              setGroupPackItems(items);
+              setGroupPackedItems(new Set(items.filter(i => i.packed).map(i => i.id)));
+            })
+            .catch(() => { /* swallow — realtime is best-effort */ });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [isMockTrip, params.id]);
 
   // Trip destination as state (not a one-time IIFE) so it updates when the API returns data.
   // For real trips the initial value reads from localStorage only when the stored trip ID matches

@@ -530,7 +530,23 @@ export default function GeneratingPage() {
               <p className="font-semibold text-red-800 mb-1">Something went wrong</p>
               <p className="text-sm text-red-600 mb-4">{errorMsg}</p>
               <button
-                onClick={() => router.push('/trip/new')}
+                onClick={() => {
+                  // Regenerate flow includes existingTripId in the payload
+                  // — bounce back to the trip page rather than the Trip
+                  // Builder so the user lands where they came from.
+                  try {
+                    const raw = sessionStorage.getItem('tripcoord_gen_payload');
+                    if (raw) {
+                      const p = JSON.parse(raw) as { existingTripId?: string };
+                      const eid = p?.existingTripId;
+                      if (eid && /^[0-9a-f-]{36}$/i.test(eid)) {
+                        router.push(`/trip/${eid}/itinerary`);
+                        return;
+                      }
+                    }
+                  } catch { /* fall through to Trip Builder */ }
+                  router.push('/trip/new');
+                }}
                 className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors"
               >
                 ← Go back and try again

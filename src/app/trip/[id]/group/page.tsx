@@ -785,15 +785,21 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         { event: 'UPDATE', schema: 'public', table: 'group_messages', filter: `trip_id=eq.${params.id}` },
         (payload) => {
           // UPDATE payloads land here when only `reactions` changes — typed
-          // narrowly to the columns we read.
+          // narrowly to the columns we read. Always update local state even
+          // when the new reactions value is null or {} so removing the last
+          // reaction syncs across browsers (the previous early-return on
+          // null left stale local state showing emojis that were already
+          // gone in the DB).
           const msg = payload.new as { id: string; reactions?: unknown };
-          if (msg.reactions && typeof msg.reactions === 'object') {
-            const normalized: Record<string, string[]> = {};
-            for (const [emoji, val] of Object.entries(msg.reactions as Record<string, unknown>)) {
-              normalized[emoji] = Array.isArray(val) ? (val as string[]) : [];
-            }
-            setReactions(prev => ({ ...prev, [msg.id]: normalized }));
+          if (!msg?.id) return;
+          const reactionsObj = (msg.reactions && typeof msg.reactions === 'object' && !Array.isArray(msg.reactions))
+            ? msg.reactions as Record<string, unknown>
+            : {};
+          const normalized: Record<string, string[]> = {};
+          for (const [emoji, val] of Object.entries(reactionsObj)) {
+            normalized[emoji] = Array.isArray(val) ? (val as string[]) : [];
           }
+          setReactions(prev => ({ ...prev, [msg.id]: normalized }));
         }
       )
       // Group polls: a new vote was created on this trip
@@ -1773,13 +1779,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Paid by</label>
-                      <input
-                        type="text"
-                        placeholder="Who paid?"
+                      <select
                         value={newExpensePaidBy}
                         onChange={e => setNewExpensePaidBy(e.target.value)}
-                        className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm"
-                      />
+                        className="w-full px-4 py-3 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm bg-white"
+                      >
+                        <option value="" disabled>Who paid?</option>
+                        {groupMembers.map(m => (
+                          <option key={m.id} value={m.name}>{m.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Split</label>
@@ -1798,28 +1807,53 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         </button>
                       </div>
                     </div>
-                    {newExpenseSplit === 'custom' && groupMembers.length > 0 && (
-                      <div className="space-y-2">
-                        <label className="block text-xs font-semibold text-zinc-600 uppercase tracking-wide">Custom amounts</label>
-                        {groupMembers.map(m => (
-                          <div key={m.id} className="flex items-center gap-3">
-                            <span className="text-sm text-zinc-700 flex-1">{m.name}</span>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={customAmounts[m.name] ?? ''}
-                                onChange={e => setCustomAmounts(prev => ({ ...prev, [m.name]: e.target.value }))}
-                                className="pl-7 pr-3 py-2 w-28 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
-                              />
+                    {newExpenseSplit === 'custom' && groupMembers.length > 0 && (() => {
+                      // Live total + payer-share preview. Users were
+                      // misreading the grid as "what each person paid out
+                      // of pocket" when the math actually treats it as
+                      // "what each person owes for this expense" — the
+                      // payer is owed back the difference. The preview
+                      // makes the intent unambiguous before submit.
+                      const customTotal = Object.values(customAmounts)
+                        .map(v => parseFloat(v))
+                        .filter(v => !isNaN(v))
+                        .reduce((a, b) => a + b, 0);
+                      const expenseTotalNum = parseFloat(newExpenseAmount) || 0;
+                      const totalsMatch = expenseTotalNum > 0 && Math.abs(customTotal - expenseTotalNum) < 0.01;
+                      return (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold text-zinc-600 uppercase tracking-wide">Each person&apos;s share of this expense</label>
+                          <p className="text-[11px] text-zinc-500 -mt-1">
+                            Enter what each person owes for this expense. Whoever paid will be reimbursed the difference between what they paid and what they owe.
+                          </p>
+                          {groupMembers.map(m => (
+                            <div key={m.id} className="flex items-center gap-3">
+                              <span className="text-sm text-zinc-700 flex-1">{m.name}</span>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={customAmounts[m.name] ?? ''}
+                                  onChange={e => setCustomAmounts(prev => ({ ...prev, [m.name]: e.target.value }))}
+                                  className="pl-7 pr-3 py-2 w-28 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          ))}
+                          {expenseTotalNum > 0 && (
+                            <div className={`mt-2 px-3 py-2 rounded-lg text-xs ${totalsMatch ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-amber-50 text-amber-800 border border-amber-100'}`}>
+                              Shares total ${customTotal.toFixed(2)} of ${expenseTotalNum.toFixed(2)}
+                              {!totalsMatch && expenseTotalNum > 0 && (
+                                <span> — {customTotal < expenseTotalNum ? `add $${(expenseTotalNum - customTotal).toFixed(2)} more` : `remove $${(customTotal - expenseTotalNum).toFixed(2)}`}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex gap-3 mt-6">

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
-  Filter, MapPin, Calendar, Users, AlertCircle,
+  Filter, MapPin, Calendar, Users, AlertCircle, Pencil, Trash2,
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, MOCK_TRIP_IDS } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
@@ -26,6 +26,25 @@ type MemoryPhoto = {
   day: number;
   timestamp: string;
   location?: string;
+  // Like + comment counts arrive denormalized on the photo list response
+  // so the grid can show counts without a per-photo round-trip. viewerLiked
+  // tracks whether the current caller has hearted this photo.
+  likeCount?: number;
+  commentCount?: number;
+  viewerLiked?: boolean;
+};
+
+type PhotoComment = {
+  id: string;
+  body: string;
+  authorName: string;
+  userId: string;
+  createdAt: string;
+  // updatedAt is set when the comment was edited; UI shows "(edited)"
+  // beside the timestamp when present. Backwards-compat: API may omit
+  // these fields for older clients/migrations, so both are optional.
+  updatedAt?: string | null;
+  edited?: boolean;
 };
 
 export default function MemoriesPage({ params }: { params: { id: string } }) {
@@ -78,6 +97,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           dayNumber?: number;
           timestamp?: string;
           createdAt?: string;
+          likeCount?: number;
+          commentCount?: number;
+          viewerLiked?: boolean;
         };
         const rows: PhotoApiRow[] = photosRes.value.photos;
         setTripPhotos(rows.map(p => ({
@@ -87,6 +109,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           uploadedBy: p.uploaderName || p.uploadedBy || 'You',
           day: p.dayNumber || p.day || 1,
           timestamp: p.createdAt || p.timestamp || new Date().toISOString(),
+          likeCount: p.likeCount ?? 0,
+          commentCount: p.commentCount ?? 0,
+          viewerLiked: !!p.viewerLiked,
         })));
       } else if (photosRes.status === 'rejected' || (photosRes.status === 'fulfilled' && photosRes.value?.__failed)) {
         // Photo fetch failed — surface so the empty grid isn't ambiguous.
@@ -109,6 +134,20 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   }, [isMockTrip, params.id]);
 
   const [selectedPhoto, setSelectedPhoto] = useState<MemoryPhoto | null>(null);
+  // Comments for the currently-open photo modal. Loaded fresh each time
+  // the modal opens so we don't keep stale comments around when the user
+  // jumps between photos.
+  const [photoComments, setPhotoComments] = useState<PhotoComment[]>([]);
+  const [photoCommentsLoading, setPhotoCommentsLoading] = useState(false);
+  const [newCommentBody, setNewCommentBody] = useState('');
+  const [postingComment, setPostingComment] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+  // Editing state for the user's own comments. editingCommentId tracks
+  // which comment is being edited (null = none); editingDraft holds the
+  // in-progress text. Only one comment can be edited at a time.
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
   const [filterDay, setFilterDay] = useState<number | null>(null);
   const [filterPerson, setFilterPerson] = useState<string | null>(null);
   const [shareMode, setShareMode] = useState(false);
@@ -134,6 +173,321 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   // banner can show "Couldn't save: <reason>" instead of just a count.
   const [uploadErrorDetail, setUploadErrorDetail] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Like + comment handlers (real backend, see /api/.../photos/[photoId]/...) ──
+  // Like is a fire-and-forget toggle with optimistic UI; failure rolls
+  // back to the prior viewerLiked state. Comments load lazily when the
+  // modal opens and post optimistically.
+  const togglePhotoLike = async (photo: MemoryPhoto) => {
+    if (isMockTrip) return; // mock photos don't have a backing row
+    if (likeBusy) return;
+    setLikeBusy(true);
+
+    const wasLiked = !!photo.viewerLiked;
+    const nextLiked = !wasLiked;
+    const delta = nextLiked ? 1 : -1;
+
+    // Optimistic — update both the grid row and the open modal.
+    setTripPhotos(prev => prev.map(p =>
+      p.id === photo.id
+        ? { ...p, viewerLiked: nextLiked, likeCount: Math.max(0, (p.likeCount ?? 0) + delta) }
+        : p,
+    ));
+    setSelectedPhoto(prev => prev && prev.id === photo.id
+      ? { ...prev, viewerLiked: nextLiked, likeCount: Math.max(0, (prev.likeCount ?? 0) + delta) }
+      : prev,
+    );
+
+    try {
+      const res = await fetch(`/api/trips/${params.id}/photos/${photo.id}/like`, {
+        method: nextLiked ? 'POST' : 'DELETE',
+      });
+      if (!res.ok) throw new Error(`like ${res.status}`);
+      const out = await res.json();
+      // Reconcile against the canonical server count — guards against
+      // optimistic drift if multiple users are liking the same photo at
+      // once. The server is the source of truth for the number.
+      setTripPhotos(prev => prev.map(p =>
+        p.id === photo.id ? { ...p, viewerLiked: !!out.liked, likeCount: out.count ?? 0 } : p,
+      ));
+      setSelectedPhoto(prev => prev && prev.id === photo.id
+        ? { ...prev, viewerLiked: !!out.liked, likeCount: out.count ?? 0 }
+        : prev,
+      );
+    } catch (err) {
+      console.error('[memories] like toggle failed:', err);
+      // Roll back to the pre-toggle state on failure.
+      setTripPhotos(prev => prev.map(p =>
+        p.id === photo.id
+          ? { ...p, viewerLiked: wasLiked, likeCount: Math.max(0, (p.likeCount ?? 0) - delta) }
+          : p,
+      ));
+      setSelectedPhoto(prev => prev && prev.id === photo.id
+        ? { ...prev, viewerLiked: wasLiked, likeCount: Math.max(0, (prev.likeCount ?? 0) - delta) }
+        : prev,
+      );
+    } finally {
+      setLikeBusy(false);
+    }
+  };
+
+  // When the photo modal opens, fetch the full comment thread.
+  useEffect(() => {
+    if (!selectedPhoto || isMockTrip) {
+      setPhotoComments([]);
+      return;
+    }
+    let cancelled = false;
+    setPhotoCommentsLoading(true);
+    fetch(`/api/trips/${params.id}/photos/${selectedPhoto.id}/comments`)
+      .then(r => r.ok ? r.json() : { comments: [] })
+      .then(data => {
+        if (cancelled) return;
+        setPhotoComments(Array.isArray(data?.comments) ? data.comments : []);
+      })
+      .catch(() => { if (!cancelled) setPhotoComments([]); })
+      .finally(() => { if (!cancelled) setPhotoCommentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedPhoto, params.id, isMockTrip]);
+
+  const submitPhotoComment = async () => {
+    if (!selectedPhoto || isMockTrip) return;
+    const trimmed = newCommentBody.trim();
+    if (!trimmed || postingComment) return;
+    if (trimmed.length > 500) return;
+    setPostingComment(true);
+    // Optimistic insert with a temp id so the row appears immediately
+    // and gets reconciled against the saved row on success.
+    const tempId = `temp_${Date.now()}`;
+    const optimistic: PhotoComment = {
+      id: tempId,
+      body: trimmed,
+      authorName: currentUser?.name ?? 'You',
+      userId: currentUser?.id ?? 'me',
+      createdAt: new Date().toISOString(),
+    };
+    setPhotoComments(prev => [...prev, optimistic]);
+    setNewCommentBody('');
+    // Bump the comment count on the photo card so the grid reflects the
+    // new state without waiting for the next /photos refetch.
+    setTripPhotos(prev => prev.map(p =>
+      p.id === selectedPhoto.id ? { ...p, commentCount: (p.commentCount ?? 0) + 1 } : p,
+    ));
+    setSelectedPhoto(prev => prev && prev.id === selectedPhoto.id
+      ? { ...prev, commentCount: (prev.commentCount ?? 0) + 1 }
+      : prev,
+    );
+    try {
+      const res = await fetch(`/api/trips/${params.id}/photos/${selectedPhoto.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: trimmed }),
+      });
+      if (!res.ok) throw new Error(`comment ${res.status}`);
+      const out = await res.json();
+      if (out?.comment) {
+        setPhotoComments(prev => prev.map(c => c.id === tempId ? out.comment : c));
+      }
+    } catch (err) {
+      console.error('[memories] comment post failed:', err);
+      // Roll back the optimistic row + count.
+      setPhotoComments(prev => prev.filter(c => c.id !== tempId));
+      setNewCommentBody(trimmed);
+      setTripPhotos(prev => prev.map(p =>
+        p.id === selectedPhoto.id ? { ...p, commentCount: Math.max(0, (p.commentCount ?? 0) - 1) } : p,
+      ));
+      setSelectedPhoto(prev => prev && prev.id === selectedPhoto.id
+        ? { ...prev, commentCount: Math.max(0, (prev.commentCount ?? 0) - 1) }
+        : prev,
+      );
+    } finally {
+      setPostingComment(false);
+    }
+  };
+
+  // Realtime: while a photo modal is open, subscribe to that photo's
+  // comments + likes so cross-user changes (someone else commenting,
+  // liking, editing, deleting) propagate live without refresh. We
+  // intentionally only subscribe for the open photo to avoid maintaining
+  // N concurrent channels for the whole gallery; on modal close the
+  // useEffect cleanup tears it down.
+  useEffect(() => {
+    if (!selectedPhoto || isMockTrip) return;
+    const photoId = selectedPhoto.id;
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`photo:${photoId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'photo_comments', filter: `photo_id=eq.${photoId}` },
+        (payload) => {
+          const row = payload.new as { id: string; body: string; author_name: string | null; user_id: string; created_at: string; updated_at: string | null };
+          if (!row?.id) return;
+          setPhotoComments(prev => {
+            // Skip if we already have this id (covers the optimistic-then-
+            // server-confirm case where our own POST already replaced
+            // the temp id).
+            if (prev.some(c => c.id === row.id)) return prev;
+            return [...prev, {
+              id: row.id,
+              body: row.body,
+              authorName: row.author_name ?? 'Unknown',
+              userId: row.user_id,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              edited: !!row.updated_at,
+            }];
+          });
+          setTripPhotos(prev => prev.map(p =>
+            p.id === photoId ? { ...p, commentCount: (p.commentCount ?? 0) + 1 } : p,
+          ));
+          setSelectedPhoto(prev => prev && prev.id === photoId
+            ? { ...prev, commentCount: (prev.commentCount ?? 0) + 1 }
+            : prev,
+          );
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'photo_comments', filter: `photo_id=eq.${photoId}` },
+        (payload) => {
+          const row = payload.new as { id: string; body: string; updated_at: string | null };
+          setPhotoComments(prev => prev.map(c => c.id === row.id
+            ? { ...c, body: row.body, updatedAt: row.updated_at, edited: !!row.updated_at }
+            : c,
+          ));
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'photo_comments', filter: `photo_id=eq.${photoId}` },
+        (payload) => {
+          const row = payload.old as { id: string };
+          setPhotoComments(prev => {
+            if (!prev.some(c => c.id === row.id)) return prev;
+            return prev.filter(c => c.id !== row.id);
+          });
+          setTripPhotos(prev => prev.map(p =>
+            p.id === photoId ? { ...p, commentCount: Math.max(0, (p.commentCount ?? 0) - 1) } : p,
+          ));
+          setSelectedPhoto(prev => prev && prev.id === photoId
+            ? { ...prev, commentCount: Math.max(0, (prev.commentCount ?? 0) - 1) }
+            : prev,
+          );
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'photo_likes', filter: `photo_id=eq.${photoId}` },
+        () => {
+          // Likes are simpler — just refetch the canonical count. Cheap;
+          // bumps a small index on photo_id.
+          fetch(`/api/trips/${params.id}/photos`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (!data?.photos) return;
+              type Row = { id: string; likeCount?: number; commentCount?: number; viewerLiked?: boolean };
+              const me = (data.photos as Row[]).find(p => p.id === photoId);
+              if (!me) return;
+              setTripPhotos(prev => prev.map(p =>
+                p.id === photoId
+                  ? { ...p, likeCount: me.likeCount ?? 0, viewerLiked: !!me.viewerLiked }
+                  : p,
+              ));
+              setSelectedPhoto(prev => prev && prev.id === photoId
+                ? { ...prev, likeCount: me.likeCount ?? 0, viewerLiked: !!me.viewerLiked }
+                : prev,
+              );
+            })
+            .catch(() => { /* swallow — realtime is best-effort */ });
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedPhoto, params.id, isMockTrip]);
+
+  const startEditComment = (c: PhotoComment) => {
+    setEditingCommentId(c.id);
+    setEditingDraft(c.body);
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingDraft('');
+  };
+
+  const submitEditComment = async () => {
+    if (!selectedPhoto || !editingCommentId) return;
+    const trimmed = editingDraft.trim();
+    if (!trimmed || editBusy) return;
+    if (trimmed.length > 500) return;
+
+    const original = photoComments.find(c => c.id === editingCommentId);
+    if (!original || original.body === trimmed) {
+      // No-op: same text → just close the editor
+      cancelEditComment();
+      return;
+    }
+
+    setEditBusy(true);
+    // Optimistic in-place update
+    setPhotoComments(prev => prev.map(c => c.id === editingCommentId
+      ? { ...c, body: trimmed, updatedAt: new Date().toISOString(), edited: true }
+      : c,
+    ));
+    setEditingCommentId(null);
+    setEditingDraft('');
+    try {
+      const res = await fetch(`/api/trips/${params.id}/photos/${selectedPhoto.id}/comments/${original.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: trimmed }),
+      });
+      if (!res.ok) throw new Error(`edit ${res.status}`);
+      const out = await res.json();
+      if (out?.comment) {
+        setPhotoComments(prev => prev.map(c => c.id === out.comment.id ? out.comment : c));
+      }
+    } catch (err) {
+      console.error('[memories] comment edit failed:', err);
+      // Roll back to the original body on failure.
+      setPhotoComments(prev => prev.map(c => c.id === original.id ? original : c));
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  const deletePhotoComment = async (c: PhotoComment) => {
+    if (!selectedPhoto || isMockTrip) return;
+    if (!window.confirm('Delete this comment?')) return;
+    // Optimistic remove + count decrement.
+    const prevComments = photoComments;
+    setPhotoComments(prev => prev.filter(x => x.id !== c.id));
+    setTripPhotos(prev => prev.map(p =>
+      p.id === selectedPhoto.id ? { ...p, commentCount: Math.max(0, (p.commentCount ?? 0) - 1) } : p,
+    ));
+    setSelectedPhoto(prev => prev && prev.id === selectedPhoto.id
+      ? { ...prev, commentCount: Math.max(0, (prev.commentCount ?? 0) - 1) }
+      : prev,
+    );
+    try {
+      const res = await fetch(`/api/trips/${params.id}/photos/${selectedPhoto.id}/comments/${c.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(`delete ${res.status}`);
+    } catch (err) {
+      console.error('[memories] comment delete failed:', err);
+      // Roll back on failure.
+      setPhotoComments(prevComments);
+      setTripPhotos(prev => prev.map(p =>
+        p.id === selectedPhoto.id ? { ...p, commentCount: (p.commentCount ?? 0) + 1 } : p,
+      ));
+      setSelectedPhoto(prev => prev && prev.id === selectedPhoto.id
+        ? { ...prev, commentCount: (prev.commentCount ?? 0) + 1 }
+        : prev,
+      );
+    }
+  };
 
   const tripDestination = isMockTrip ? 'Iceland' : (tripDestinationFromApi ?? 'your trip');
   const filteredPhotos = tripPhotos.filter(photo => {
@@ -419,13 +773,21 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                     // change forced a reload and the parent's bg-slate-200
                     // briefly showed through, which read as "the photo
                     // shrunk for a second" to users on slower connections.
-                    await new Promise<void>(resolve => {
-                      const img = new window.Image();
-                      const finish = () => resolve();
-                      img.onload = finish;
-                      img.onerror = finish; // proceed anyway — at worst the user sees the original loader
-                      img.src = urlData.publicUrl;
-                    });
+                    //
+                    // Wrapped in a 5s timeout race because img.onload/onerror
+                    // can silently never fire on rare browser/cache states —
+                    // when that happened, this await hung forever and the
+                    // upload progress bar froze at the 88% tickTarget.
+                    await Promise.race<void>([
+                      new Promise<void>(resolve => {
+                        const img = new window.Image();
+                        const finish = () => resolve();
+                        img.onload = finish;
+                        img.onerror = finish;
+                        img.src = urlData.publicUrl;
+                      }),
+                      new Promise<void>(resolve => setTimeout(resolve, 5000)),
+                    ]);
 
                     // Now swap the blob URL for the Supabase URL, in both state slices.
                     setUploadedPhotos(prev => {
@@ -461,23 +823,15 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           }}
         />
         <div className="mb-8">
-          <button
-            onClick={() => photoInputRef.current?.click()}
-            disabled={isUploading}
-            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-sky-800 to-green-800 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
-          >
-            <Camera className="w-5 h-5" />
-            {isUploading ? `Uploading... ${uploadProgress}%` : uploadedCount > 0 ? `${uploadedCount} photo${uploadedCount !== 1 ? 's' : ''} added — upload more` : 'Upload Photos'}
-          </button>
-
-          {/* Day + location selectors. Both apply to the next batch of
-              uploads — change them before clicking Upload again to bucket
-              the next set differently. Defaults: Unsorted day, blank
-              location. */}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Day + location selectors render ABOVE the upload button and are
+              both required. Without this gate, photos missing day/location
+              defaulted to Day 1 and labeled "Photo" — surfacing as untagged
+              entries in the gallery. Forcing selection up-front guarantees
+              every uploaded photo has both fields set. */}
+          <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-                Which day?
+                Which day? <span className="text-rose-500 normal-case font-normal">*</span>
               </label>
               <select
                 value={photoDay}
@@ -485,7 +839,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                 disabled={isUploading}
                 className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-700 disabled:bg-zinc-50"
               >
-                <option value="">Unsorted</option>
+                <option value="" disabled>Select a day…</option>
                 {itineraryDays.map(d => (
                   <option key={d.day} value={d.day}>
                     Day {d.day}{d.theme ? ` — ${d.theme}` : ''}
@@ -495,7 +849,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-                Location <span className="text-zinc-400 normal-case font-normal">(optional)</span>
+                Location <span className="text-rose-500 normal-case font-normal">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -510,6 +864,22 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               </div>
             </div>
           </div>
+
+          <button
+            onClick={() => photoInputRef.current?.click()}
+            disabled={isUploading || !photoDay || !photoLocation.trim()}
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-sky-800 to-green-800 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!photoDay || !photoLocation.trim() ? 'Pick a day and add a location first' : undefined}
+          >
+            <Camera className="w-5 h-5" />
+            {isUploading
+              ? `Uploading... ${uploadProgress}%`
+              : !photoDay || !photoLocation.trim()
+                ? 'Pick a day & location first'
+                : uploadedCount > 0
+                  ? `${uploadedCount} photo${uploadedCount !== 1 ? 's' : ''} added — upload more`
+                  : 'Upload Photos'}
+          </button>
 
           {/* Inline upload-state banners. These used to live in the Trip
               Recap section at the bottom of the page; that section was
@@ -765,19 +1135,154 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               </div>
 
               <div className="flex gap-3">
-                <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all">
-                  <Heart className="w-5 h-5" />
-                  Like
+                <button
+                  onClick={() => togglePhotoLike(selectedPhoto)}
+                  disabled={likeBusy || isMockTrip}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    selectedPhoto.viewerLiked
+                      ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                      : 'border border-slate-300 text-zinc-700 hover:bg-slate-50'
+                  } disabled:opacity-50`}
+                  title={isMockTrip ? 'Likes are not available on demo photos' : undefined}
+                >
+                  <Heart className={`w-5 h-5 ${selectedPhoto.viewerLiked ? 'fill-current' : ''}`} />
+                  {selectedPhoto.viewerLiked ? 'Liked' : 'Like'}
+                  {(selectedPhoto.likeCount ?? 0) > 0 && (
+                    <span className="text-zinc-400 font-normal">· {selectedPhoto.likeCount}</span>
+                  )}
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all">
-                  <MessageCircle className="w-5 h-5" />
-                  Comment
-                </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all">
+                <a
+                  href={selectedPhoto.url}
+                  download={`tripcoord-${selectedPhoto.id ?? 'photo'}.jpg`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all text-zinc-700"
+                >
                   <Download className="w-5 h-5" />
                   Download
-                </button>
+                </a>
               </div>
+
+              {/* Inline comment thread. Lives inside the modal scroll
+                  container (max-h-[90vh] overflow-y-auto on the parent),
+                  so a long thread scrolls naturally without a nested
+                  scrollbar. Mock trips skip rendering since there's no
+                  backend row to attach comments to. */}
+              {!isMockTrip && (
+                <div className="mt-6 pt-5 border-t border-slate-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MessageCircle className="w-4 h-4 text-zinc-500" />
+                    <p className="text-sm font-semibold text-zinc-700">
+                      Comments
+                      {(selectedPhoto.commentCount ?? 0) > 0 && (
+                        <span className="text-zinc-400 font-normal"> · {selectedPhoto.commentCount}</span>
+                      )}
+                    </p>
+                  </div>
+                  {photoCommentsLoading ? (
+                    <p className="text-xs text-zinc-400 italic mb-3">Loading…</p>
+                  ) : photoComments.length === 0 ? (
+                    <p className="text-xs text-zinc-400 italic mb-3">No comments yet — be the first.</p>
+                  ) : (
+                    <div className="space-y-3 mb-3">
+                      {photoComments.map(c => {
+                        const isOwn = !!currentUser?.id && c.userId === currentUser.id;
+                        const isEditing = editingCommentId === c.id;
+                        return (
+                          <div key={c.id} className="flex items-start gap-3 group">
+                            <Avatar name={c.authorName} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <p className="text-sm font-semibold text-zinc-800 truncate">{c.authorName}</p>
+                                <p className="text-[11px] text-zinc-400">
+                                  {new Date(c.createdAt).toLocaleString()}
+                                  {c.edited && <span className="ml-1 italic">(edited)</span>}
+                                </p>
+                              </div>
+                              {isEditing ? (
+                                <form
+                                  onSubmit={e => { e.preventDefault(); submitEditComment(); }}
+                                  className="mt-1 flex flex-col gap-2"
+                                >
+                                  <textarea
+                                    value={editingDraft}
+                                    onChange={e => setEditingDraft(e.target.value)}
+                                    maxLength={500}
+                                    autoFocus
+                                    rows={2}
+                                    disabled={editBusy}
+                                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 disabled:bg-zinc-50 resize-none"
+                                  />
+                                  <div className="flex gap-2 justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditComment}
+                                      disabled={editBusy}
+                                      className="px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="submit"
+                                      disabled={editBusy || !editingDraft.trim()}
+                                      className="px-3 py-1.5 text-xs font-semibold bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg transition-colors"
+                                    >
+                                      {editBusy ? 'Saving…' : 'Save'}
+                                    </button>
+                                  </div>
+                                </form>
+                              ) : (
+                                <p className="text-sm text-zinc-700 break-words whitespace-pre-wrap">{c.body}</p>
+                              )}
+                            </div>
+                            {isOwn && !isEditing && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
+                                <button
+                                  onClick={() => startEditComment(c)}
+                                  title="Edit comment"
+                                  aria-label="Edit comment"
+                                  className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => deletePhotoComment(c)}
+                                  title="Delete comment"
+                                  aria-label="Delete comment"
+                                  className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <form
+                    onSubmit={e => { e.preventDefault(); submitPhotoComment(); }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={newCommentBody}
+                      onChange={e => setNewCommentBody(e.target.value)}
+                      placeholder="Add a comment…"
+                      maxLength={500}
+                      disabled={postingComment}
+                      className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 disabled:bg-zinc-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newCommentBody.trim() || postingComment}
+                      className="px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >
+                      {postingComment ? 'Posting…' : 'Post'}
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           </div>
         </div>

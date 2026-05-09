@@ -988,6 +988,28 @@ function ItineraryPageContent() {
         return Array.from(names);
       };
 
+      // Restaurants are the most painful repeat — eating the same lunch spot
+      // on day 4 that was on day 1 is jarring in a way that visiting a
+      // gallery twice is not. Surface them as a separate list to the prompt
+      // so the model treats restaurant repeats as a hard "never" rather
+      // than a soft "avoid".
+      const collectDayRestaurants = (d: ItineraryDay): string[] => {
+        const names = new Set<string>();
+        for (const trackKey of ['shared', 'track_a', 'track_b'] as const) {
+          for (const a of (d.tracks?.[trackKey] ?? [])) {
+            const aa = a as { name?: string; title?: string; isRestaurant?: boolean };
+            if (aa.isRestaurant) {
+              const n = aa.name ?? aa.title;
+              if (n) names.add(n);
+            }
+          }
+        }
+        for (const t of (d.foodieTips ?? [])) {
+          if (t.name) names.add(t.name);
+        }
+        return Array.from(names);
+      };
+
       // 3. Inner helper: stream one segment (or the full trip when no segments)
       const streamSegment = async (
         seg: Segment | null,
@@ -1006,6 +1028,9 @@ function ItineraryPageContent() {
           const excludeVenues = Array.from(
             new Set(priorDays.flatMap(collectDayVenues))
           ).slice(0, 100);
+          const excludeRestaurants = Array.from(
+            new Set(priorDays.flatMap(collectDayRestaurants))
+          ).slice(0, 60);
 
           body.citySegment = {
             cityName: seg.cityName,
@@ -1019,6 +1044,7 @@ function ItineraryPageContent() {
             totalTripDays: totalDays,
             ...(prevContext ? { prevContext } : {}),
             ...(excludeVenues.length > 0 ? { excludeVenues } : {}),
+            ...(excludeRestaurants.length > 0 ? { excludeRestaurants } : {}),
           };
         }
 
@@ -1138,10 +1164,18 @@ function ItineraryPageContent() {
 
             // Gap-fill: if the API's internal retry still came up short,
             // request the missing days before advancing to the next city.
-            // Cap at 2 retries to avoid infinite loops on persistent failures.
+            // Cap at 3 retries to avoid infinite loops on persistent
+            // failures (bumped from 2 after a 10-day Dublin trip only
+            // produced 2 days — the chunk fell short and gap-fill quit
+            // before the model recovered).
             let segDaysReceived = days.length;
-            const MAX_SEG_RETRIES = 2;
+            const MAX_SEG_RETRIES = 3;
             let segRetry = 0;
+            // Allow ONE zero-day retry before giving up — the model
+            // occasionally returns nothing on a single call but recovers
+            // on the next attempt. Two zero-day retries in a row is the
+            // give-up signal.
+            let consecutiveZeroRetries = 0;
             while (segDaysReceived < seg.dayCount && segRetry < MAX_SEG_RETRIES) {
               segRetry++;
               const gapSeg: Segment = {
@@ -1153,7 +1187,13 @@ function ItineraryPageContent() {
                 sameCity: true,
               };
               const { days: retryDays } = await streamSegment(gapSeg, prevContext);
-              if (retryDays.length === 0) break; // AI stuck — give up
+              if (retryDays.length === 0) {
+                consecutiveZeroRetries++;
+                console.warn(`[live-build] gap-fill retry ${segRetry} produced 0 days (consecutive zeros: ${consecutiveZeroRetries})`);
+                if (consecutiveZeroRetries >= 2) break; // stuck — bail
+                continue;
+              }
+              consecutiveZeroRetries = 0;
               segDaysReceived += retryDays.length;
               // Update prevContext from the last retry day
               const lastRetry = retryDays[retryDays.length - 1] as Record<string, unknown> | undefined;
@@ -3520,18 +3560,18 @@ function ItineraryPageContent() {
                           const meta = HIGHLIGHT_CATEGORY_META[item.category];
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.name} ${item.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           return (
-                            <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0`}>
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0 overflow-hidden`}>
+                              <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1 basis-full sm:basis-0">
                                   <span className="text-base flex-shrink-0" title={meta.label}>{meta.icon}</span>
-                                  <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0`}>{item.name}</p>
+                                  <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0 flex-1 [overflow-wrap:anywhere]`}>{item.name}</p>
                                   <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
                                     className={`flex-shrink-0 ${meta.textMuted} hover:opacity-70 transition-opacity`} onClick={e => e.stopPropagation()}>
                                     <MapPin className="w-3 h-3" />
                                   </a>
                                 </div>
                                 {item.badges && item.badges.length > 0 && (
-                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                  <div className="flex flex-wrap items-center gap-1 flex-shrink-0 max-w-full">
                                     {item.badges.map((b, i) => (
                                       <span key={i} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${meta.pill}`}>
                                         {b}
@@ -3540,12 +3580,12 @@ function ItineraryPageContent() {
                                   </div>
                                 )}
                               </div>
-                              {item.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1 break-words`}>{item.neighborhood}</p>}
-                              {item.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1 break-words`}>{item.description}</p>}
+                              {item.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1 break-words [overflow-wrap:anywhere]`}>{item.neighborhood}</p>}
+                              {item.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1 break-words [overflow-wrap:anywhere]`}>{item.description}</p>}
                               {item.tip && (
                                 <div className={`flex items-start gap-1.5 mt-2 pt-2 border-t ${meta.border}`}>
                                   <span className="text-xs flex-shrink-0">💡</span>
-                                  <p className={`text-[11px] ${meta.tipText} leading-relaxed italic break-words min-w-0 flex-1`}>{item.tip}</p>
+                                  <p className={`text-[11px] ${meta.tipText} leading-relaxed italic break-words min-w-0 flex-1 [overflow-wrap:anywhere]`}>{item.tip}</p>
                                 </div>
                               )}
                               {item.addToDayHandler && (

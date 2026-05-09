@@ -1390,6 +1390,7 @@ export async function POST(request: NextRequest) {
     sameCity?: boolean;
     totalTripDays?: number;
     excludeVenues?: string[];
+    excludeRestaurants?: string[];
   } | undefined;
 
   // Resolve effective params — citySegment overrides some body fields
@@ -1562,6 +1563,16 @@ export async function POST(request: NextRequest) {
     if (citySegment.excludeVenues && citySegment.excludeVenues.length > 0) {
       const venueLines = citySegment.excludeVenues.map(v => `- ${v}`).join('\n');
       finalPrompt += `\n\nALREADY USED — these venues, restaurants, activities, photo spots, bars, shops, and tips have ALREADY appeared on earlier days of this trip. The traveler does NOT want to revisit them. Do NOT include any of these in the new days you generate; pick fresh, different alternatives. Match by name even if spelling or capitalization differs.\n${venueLines}`;
+    }
+
+    // Restaurants get a stricter dedup block. Repeat restaurants on a
+    // multi-day trip are the most jarring kind of repeat (the same lunch
+    // venue twice in a week reads as lazy planning); museums or theme
+    // parks repeating is more forgivable. Listed separately and labeled
+    // "NEVER REUSE" so the model treats it as a hard constraint.
+    if (citySegment.excludeRestaurants && citySegment.excludeRestaurants.length > 0) {
+      const restLines = citySegment.excludeRestaurants.map(v => `- ${v}`).join('\n');
+      finalPrompt += `\n\nNEVER REUSE THESE RESTAURANTS — these specific restaurants, cafes, bars-with-food, and food venues have ALREADY been suggested on earlier days. Every breakfast, lunch, dinner, and foodieTip on the new days MUST be a venue NOT in this list. Pick different neighborhoods if necessary to find fresh options. Match by name regardless of spelling/capitalization differences:\n${restLines}`;
     }
   }
 
