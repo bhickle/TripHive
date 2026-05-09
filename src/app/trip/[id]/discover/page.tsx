@@ -911,14 +911,20 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       {/* Main Content */}
       <div className="px-4 md:px-6 py-6 md:py-8">
         <div className="max-w-5xl mx-auto">
-          {/* Loading state while AI generates destination recommendations */}
+          {/* Loading state while AI generates destination recommendations.
+              For multi-city trips, the city name must follow the user's
+              toggle selection — selectedDiscoverCity drives the fetch
+              effect, so the displayed city should match it. aiDestination
+              stays as the trip's primary destination and is only used as
+              a fallback when selectedDiscoverCity hasn't initialized yet. */}
+          {(() => { const currentCity = selectedDiscoverCity || aiDestination; return (<>
           {!isMockTrip && aiLoading && (
             <div className="text-center py-20">
               <div className="w-14 h-14 bg-sky-800 rounded-2xl flex items-center justify-center shadow-lg animate-pulse mx-auto mb-4">
                 <span className="text-white font-bold text-2xl">t</span>
               </div>
               <p className="text-sm font-semibold uppercase tracking-widest text-sky-700 mb-2">AI Recommendations</p>
-              <p className="text-lg font-bold text-zinc-900">Finding things to do in {aiDestination}…</p>
+              <p className="text-lg font-bold text-zinc-900">Finding things to do in {currentCity}…</p>
               <p className="text-sm text-zinc-400 mt-1">Pulling local experiences, dining, and hidden gems</p>
             </div>
           )}
@@ -931,14 +937,14 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
               <p className="text-sm text-zinc-400 mt-1">
                 {aiError
                   ? 'Something went wrong generating AI picks. Try again below.'
-                  : aiDestination
-                    ? `We couldn't generate picks for ${aiDestination} right now.`
+                  : currentCity
+                    ? `We couldn't generate picks for ${currentCity} right now.`
                     : 'Destination not found — visit your itinerary first to set it up.'}
               </p>
               {aiErrorDetail && (
                 <p className="mt-2 text-xs text-zinc-400 font-mono bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 max-w-md mx-auto break-all">{aiErrorDetail}</p>
               )}
-              {(aiError || (!aiError && aiDestination)) && aiDestination && (
+              {currentCity && (
                 <button
                   onClick={() => {
                     setAiError(false);
@@ -947,7 +953,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                     fetch('/api/generate-discover', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ destination: aiDestination }),
+                      body: JSON.stringify({ destination: currentCity }),
                     })
                       .then(async r => {
                         if (r.ok) return r.json();
@@ -955,17 +961,29 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                         setAiErrorDetail(body.detail ?? `HTTP ${r.status}`);
                         return Promise.reject();
                       })
-                      .then(({ items }) => setAiItems(items))
+                      .then(({ items }) => {
+                        setAiItems(items);
+                        // Update both caches so a successful retry doesn't
+                        // re-fetch the next time this city is selected.
+                        setCityItemsCache(prev => ({ ...prev, [currentCity]: items }));
+                        try {
+                          localStorage.setItem(
+                            `tc_discover_${params.id}_${currentCity}`,
+                            JSON.stringify({ items, ts: Date.now() }),
+                          );
+                        } catch { /* storage full */ }
+                      })
                       .catch(() => setAiError(true))
                       .finally(() => setAiLoading(false));
                   }}
                   className="mt-4 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors"
                 >
-                  {aiError ? 'Try Again' : `Generate recommendations for ${aiDestination}`}
+                  {aiError ? 'Try Again' : `Generate recommendations for ${currentCity}`}
                 </button>
               )}
             </div>
           )}
+          </>); })()}
           {(isMockTrip || (!aiLoading && aiItems !== null)) && (filteredItems.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-2xl mb-2">🌵</p>
