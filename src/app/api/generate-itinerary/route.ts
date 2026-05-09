@@ -1884,6 +1884,16 @@ export async function POST(request: NextRequest) {
         // overloaded_error / 5xx responses (each retryable failure burns a slot).
         const MAX_CONTINUATIONS = 6;
         let contAttempt = 0;
+
+        // Backoff before kicking off the continuation loop when first-pass
+        // tripped the overloaded path. Without this we hammered Anthropic
+        // immediately after they signaled overloaded — exact wrong move.
+        // 3s gives them a moment to recover and avoids a near-guaranteed
+        // second 529 that would burn a continuation slot for nothing.
+        if (firstPassStopReason === 'overloaded') {
+          console.warn('[generate-itinerary] First pass overloaded — backing off 3s before continuation');
+          await sleep(3000, abortSignal).catch(() => { /* abort is fine here */ });
+        }
         // Track consecutive zero-day passes. The model occasionally restarts at
         // Day 1 (caught by dedup → 0 new days) — that's recoverable on the next
         // attempt. Two zero-day passes in a row means the model is genuinely
@@ -2180,6 +2190,24 @@ export async function POST(request: NextRequest) {
               credits.ctx,
               chargeErr,
             );
+          }
+        }
+
+        // Final synchronous snapshot write before stream end. Per-day
+        // persistGenerationDays calls are fire-and-forget for performance
+        // — but on the absolute last day, function termination on Vercel
+        // can land before the in-flight HTTP write resolves, leaving the
+        // canonical snapshot one day behind. Awaiting here guarantees
+        // the user's final day is durable before we tell the client
+        // we're done.
+        if (dayIndex > 0 && requestBodyTripId) {
+          try {
+            const result = await persistGenerationDays(requestBodyTripId, collectedDays as unknown as Json[]);
+            if (!result.ok) {
+              console.warn('[generate-itinerary] final persistGenerationDays:', result.error);
+            }
+          } catch (err) {
+            console.warn('[generate-itinerary] final persistGenerationDays threw:', err);
           }
         }
 

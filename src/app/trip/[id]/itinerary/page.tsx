@@ -1178,6 +1178,29 @@ function ItineraryPageContent() {
             let consecutiveZeroRetries = 0;
             while (segDaysReceived < seg.dayCount && segRetry < MAX_SEG_RETRIES) {
               segRetry++;
+              // Refresh prevContext from the LATEST day in aiDaysRef
+              // before each retry. Previously prevContext was only
+              // updated when retryDays.length > 0, so two consecutive
+              // zero-day retries left it stale — the model in retry 3
+              // saw whatever state we had before retry 1, missing any
+              // server-side gap-fills that had landed via persist
+              // since. Now every retry rebuilds prevContext from the
+              // most recent saved day.
+              {
+                const all = (aiDaysRef.current ?? []) as unknown as Array<Record<string, unknown>>;
+                const segPrior = all.filter(d => {
+                  const dn = (d.day as number | undefined) ?? 0;
+                  return dn >= seg.dayStart && dn < seg.dayStart + seg.dayCount;
+                });
+                const lastInChunk = segPrior[segPrior.length - 1];
+                if (lastInChunk) {
+                  const theme   = (lastInChunk.theme as string) || '';
+                  const shared  = (lastInChunk.tracks as Record<string, unknown>)?.shared as Array<Record<string, unknown>> | undefined;
+                  const firstAct = shared?.find(a => !(a.isRestaurant));
+                  const actName  = firstAct ? ((firstAct.name as string) || (firstAct.title as string) || '') : '';
+                  prevContext = [theme, actName].filter(Boolean).join(', ').slice(0, 80) || prevContext;
+                }
+              }
               const gapSeg: Segment = {
                 cityName: seg.cityName,
                 dayStart: seg.dayStart + segDaysReceived,
