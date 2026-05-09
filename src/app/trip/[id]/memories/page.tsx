@@ -121,6 +121,11 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [photoLocation, setPhotoLocation] = useState('');
+  // Day to tag uploaded photos with. Empty string means "Unsorted" — the
+  // photo lands in the All Photos / More Photos bucket instead of being
+  // bound to a specific day. Defaults to '' so users have to pick rather
+  // than having every photo silently land on Day 1.
+  const [photoDay, setPhotoDay] = useState<string>('');
   // Tracks photos that failed to persist to Supabase Storage (or to the
   // trip_photos table). They're still visible locally as blob URLs but will
   // disappear on refresh — surface this to the user instead of swallowing.
@@ -319,13 +324,18 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               ? currentUser.name
               : 'You';
 
+            // Capture the selected day at the start of this batch so a
+            // later state change doesn't reassign mid-upload. Empty string
+            // → null (unsorted bucket).
+            const dayNumber = photoDay ? parseInt(photoDay, 10) : null;
+
             // Also push into tripPhotos so totalPhotos and uniqueUploaders recompute immediately
             const newPhotoEntries = blobEntries.map(e => ({
               id: e.id,
               url: e.blobUrl,
               activity: photoLocation.trim() || e.activity,
               uploadedBy: uploaderName,
-              day: 1,
+              day: dayNumber ?? 0,
               timestamp: new Date().toISOString(),
               location: photoLocation.trim() || undefined,
             }));
@@ -389,7 +399,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                       public_url: urlData.publicUrl,
                       uploader_name: uploaderName,
                       uploaded_by: currentUser.id ?? null,
-                      day_number: 1,
+                      day_number: dayNumber,
                       caption: photoLocation.trim() || null,
                     });
                     if (insertError) {
@@ -451,17 +461,6 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           }}
         />
         <div className="mb-8">
-          {/* Optional location tag before uploading */}
-          <div className="mb-3 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-zinc-400 shrink-0" />
-            <input
-              type="text"
-              placeholder="Tag a location (optional) — e.g. Blue Lagoon, Day 2"
-              value={photoLocation}
-              onChange={e => setPhotoLocation(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 bg-white"
-            />
-          </div>
           <button
             onClick={() => photoInputRef.current?.click()}
             disabled={isUploading}
@@ -470,6 +469,47 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             <Camera className="w-5 h-5" />
             {isUploading ? `Uploading... ${uploadProgress}%` : uploadedCount > 0 ? `${uploadedCount} photo${uploadedCount !== 1 ? 's' : ''} added — upload more` : 'Upload Photos'}
           </button>
+
+          {/* Day + location selectors. Both apply to the next batch of
+              uploads — change them before clicking Upload again to bucket
+              the next set differently. Defaults: Unsorted day, blank
+              location. */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
+                Which day?
+              </label>
+              <select
+                value={photoDay}
+                onChange={e => setPhotoDay(e.target.value)}
+                disabled={isUploading}
+                className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-700 disabled:bg-zinc-50"
+              >
+                <option value="">Unsorted</option>
+                {itineraryDays.map(d => (
+                  <option key={d.day} value={d.day}>
+                    Day {d.day}{d.theme ? ` — ${d.theme}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
+                Location <span className="text-zinc-400 normal-case font-normal">(optional)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-zinc-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="e.g. Blue Lagoon"
+                  value={photoLocation}
+                  onChange={e => setPhotoLocation(e.target.value)}
+                  disabled={isUploading}
+                  className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 bg-white disabled:bg-zinc-50"
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Inline upload-state banners. These used to live in the Trip
               Recap section at the bottom of the page; that section was
