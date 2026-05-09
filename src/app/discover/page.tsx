@@ -645,16 +645,21 @@ export default function DiscoverPage() {
   };
 
   const filtered = useMemo(() => {
-    // Pre-compute the lower-cased collection set once per render to avoid
-    // re-mapping on each destination iteration.
-    const collectionSet = activeCollection
-      ? new Set(activeCollection.destinationNames.map(n => n.toLowerCase()))
+    // Pre-compute lowercased collection names + per-name "first segment"
+    // (the city, before any comma). seasonal_collections.destination_names
+    // are stored as "Santorini, Greece" but discover_destinations.name is
+    // just "Santorini" — a strict equality match misses everything. We
+    // accept a match when the collection's first segment matches the
+    // destination's name (case-insensitive).
+    const collectionFirstSegments = activeCollection
+      ? activeCollection.destinationNames.map(n => n.split(',')[0].trim().toLowerCase())
       : null;
     return destinations.filter(d => {
       const matchQuery = !query || d.name.toLowerCase().includes(query.toLowerCase()) || d.country.toLowerCase().includes(query.toLowerCase());
       const matchVibe = activeVibes.length === 0 || activeVibes.some(v => d.vibes.includes(v));
       const matchContinent = activeContinent === 'All' || d.continent === activeContinent;
-      const matchCollection = !collectionSet || collectionSet.has(d.name.toLowerCase());
+      const matchCollection = !collectionFirstSegments
+        || collectionFirstSegments.includes(d.name.toLowerCase());
       return matchQuery && matchVibe && matchContinent && matchCollection;
     });
   }, [destinations, query, activeVibes, activeContinent, activeCollection]);
@@ -921,11 +926,36 @@ export default function DiscoverPage() {
               </div>
 
               {filtered.length === 0 ? (
-                <div className="text-center py-20">
-                  <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
-                  <p className="text-zinc-500 font-semibold">No destinations match your filters</p>
-                  <p className="text-zinc-400 text-sm mt-1">Try broadening your search</p>
-                </div>
+                activeCollection ? (
+                  // Collection-specific empty state: many seasonal collections
+                  // reference destinations that don't exist in our destination
+                  // catalog yet. Surface the collection's intended destinations
+                  // as quick-plan chips so the user can still take action.
+                  <div className="bg-white border border-zinc-100 rounded-2xl p-8 text-center">
+                    <Globe2 className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+                    <p className="text-zinc-700 font-semibold">We&apos;re still building itineraries for these</p>
+                    <p className="text-zinc-500 text-sm mt-1 mb-5">
+                      Pick one and plan it yourself in the meantime.
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {activeCollection.destinationNames.map(name => (
+                        <Link
+                          key={name}
+                          href={`/trip/new?destination=${encodeURIComponent(name)}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 text-sm font-medium rounded-full transition-colors"
+                        >
+                          <Plane className="w-3.5 h-3.5" /> {name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
+                    <p className="text-zinc-500 font-semibold">No destinations match your filters</p>
+                    <p className="text-zinc-400 text-sm mt-1">Try broadening your search</p>
+                  </div>
+                )
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filtered.map(dest => (
