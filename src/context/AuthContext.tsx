@@ -183,6 +183,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Supabase server and is authoritative. This prevents the race condition
     // where a valid user (e.g. Mallory on a fresh browser tab) briefly sees
     // null user and gets shown mock/demo data.
+    //
+    // No inner timeout on getUser — earlier we put a 5s race on it but that
+    // fired on slow mobile connections, prematurely declaring the user
+    // logged-out and triggering a redirect to /auth/login that immediately
+    // re-bounced back when the real session resolved. The outer 12s safety
+    // timer above handles a true hang; for slow-but-eventually-succeeds
+    // we let getUser run to completion so isLoading stays true through
+    // the network round-trip.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setSession(session);
@@ -195,18 +203,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchProfile(session.user.id);
       } else {
         // Cookie read came back empty — do a server-validated fallback.
-        // Wrap in a 5s timeout so a stalled getUser() can't hang the whole
-        // app's loading state. On timeout we treat the user as not logged
-        // in; the auth state subscriber below will pick up the real state
-        // when it eventually arrives.
         try {
-          const userResult = await Promise.race([
-            supabase.auth.getUser(),
-            new Promise<{ data: { user: null } }>((_, reject) =>
-              setTimeout(() => reject(new Error('getUser timeout')), 5000),
-            ),
-          ]);
-          const serverUser = userResult.data.user;
+          const { data: { user: serverUser } } = await supabase.auth.getUser();
           if (serverUser) {
             const { data: { session: refreshedSession } } = await supabase.auth.getSession();
             setSession(refreshedSession);
@@ -215,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
           }
         } catch (err) {
-          console.warn('[AuthContext] getUser fallback failed/timeout — treating as logged-out:', err);
+          console.warn('[AuthContext] getUser fallback failed — treating as logged-out:', err);
           setIsLoading(false);
         }
       }

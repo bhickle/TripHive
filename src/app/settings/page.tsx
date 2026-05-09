@@ -492,10 +492,26 @@ export default function SettingsPage() {
     });
 
   // ── Subscription derived values ────────────────────────────────────────────
-  // Use real auth profile tier when available; fall back to currentUser (mock) for demo/guest
+  // Use real auth profile tier when available; fall back to currentUser (mock) for demo/guest.
+  // If the user is authenticated but authProfile hasn't yet hydrated (slow
+  // network during the profile fetch, or fetchProfile failed), read the
+  // tier cache (`tc_tier_${userId}`) that AuthContext writes after every
+  // successful fetch. Without this fallback, paid users briefly saw
+  // "Free plan" on Settings between page paint and profile arrival —
+  // worse, if fetchProfile errored out, they saw "Free" indefinitely.
+  const cachedUserTier = (() => {
+    if (!user || typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem(`tc_tier_${user.id}`);
+    } catch {
+      return null;
+    }
+  })();
   const rawTier = authLoading
-    ? 'free'
-    : (user ? (authProfile?.subscription_tier ?? 'free') : (currentUser.subscriptionTier ?? 'free'));
+    ? (cachedUserTier ?? 'free')
+    : (user
+        ? (authProfile?.subscription_tier ?? cachedUserTier ?? 'free')
+        : (currentUser.subscriptionTier ?? 'free'));
   const tier = (rawTier in PLAN_DISPLAY) ? rawTier : 'free';
   const plan = PLAN_DISPLAY[tier];
   const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
@@ -566,15 +582,21 @@ export default function SettingsPage() {
   // ── Integration voting ─────────────────────────────────────────────────────
   interface Integration { id: string; name: string; description: string; icon: string; votes: number; }
 
+  // Initial vote counts are zero across the board — earlier we shipped
+  // these with seed values (Airbnb 52, Google Calendar 67, etc.) which
+  // read as "other users have already voted" to real visitors. Real
+  // counts will accumulate as users vote (votes are anonymous, persisted
+  // via /api/integration-vote → DB). Until pre-launch traffic kicks in,
+  // every integration starts at 0.
   const INTEGRATIONS: Integration[] = [
-    { id: 'splitwise', name: 'Splitwise',       description: 'Sync expenses so splits show up automatically in your trip budget.',     icon: '💸', votes: 34 },
-    { id: 'revolut',   name: 'Revolut',         description: 'Pull real-time exchange rates and card transactions into your budget.',   icon: '💳', votes: 28 },
-    { id: 'paypal',    name: 'PayPal',          description: 'Pay for trip add-ons and split costs via PayPal balance.',                icon: '🅿️', votes: 19 },
-    { id: 'tripit',    name: 'TripIt',          description: 'Import confirmed bookings from TripIt into your itinerary automatically.', icon: '✈️', votes: 41 },
-    { id: 'airbnb',    name: 'Airbnb',          description: 'Import Airbnb reservations straight into your accommodation step.',        icon: '🏠', votes: 52 },
-    { id: 'google',    name: 'Google Calendar', description: 'Push your itinerary to Google Calendar and get trip reminders.',          icon: '📅', votes: 67 },
-    { id: 'spotify',   name: 'Spotify',         description: 'Auto-generate a trip playlist based on the destination vibe.',            icon: '🎵', votes: 23 },
-    { id: 'other',     name: 'Something else?', description: "Don't see what you need? Tell us below.",                                icon: '💡', votes: 0  },
+    { id: 'splitwise', name: 'Splitwise',       description: 'Sync expenses so splits show up automatically in your trip budget.',     icon: '💸', votes: 0 },
+    { id: 'revolut',   name: 'Revolut',         description: 'Pull real-time exchange rates and card transactions into your budget.',   icon: '💳', votes: 0 },
+    { id: 'paypal',    name: 'PayPal',          description: 'Pay for trip add-ons and split costs via PayPal balance.',                icon: '🅿️', votes: 0 },
+    { id: 'tripit',    name: 'TripIt',          description: 'Import confirmed bookings from TripIt into your itinerary automatically.', icon: '✈️', votes: 0 },
+    { id: 'airbnb',    name: 'Airbnb',          description: 'Import Airbnb reservations straight into your accommodation step.',        icon: '🏠', votes: 0 },
+    { id: 'google',    name: 'Google Calendar', description: 'Push your itinerary to Google Calendar and get trip reminders.',          icon: '📅', votes: 0 },
+    { id: 'spotify',   name: 'Spotify',         description: 'Auto-generate a trip playlist based on the destination vibe.',            icon: '🎵', votes: 0 },
+    { id: 'other',     name: 'Something else?', description: "Don't see what you need? Tell us below.",                                icon: '💡', votes: 0 },
   ];
 
   const LS_KEY = 'tripcoord_integration_votes';
