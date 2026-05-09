@@ -454,7 +454,14 @@ export default function DiscoverPage() {
   // the collection title in the section header.
   const [activeCollection, setActiveCollection] = useState<SeasonalCollection | null>(null);
   const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
+  // Map discover destination id → wishlist row id, so the heart toggle can
+  // DELETE the right row on un-save. Populated on mount (load existing
+  // wishlist) and after each save.
+  const [wishlistRowByDestId, setWishlistRowByDestId] = useState<Record<string, string>>({});
   const [showWishlistToast, setShowWishlistToast] = useState(false);
+  // Generic action-failure toast — used by fork-failure path so the user
+  // gets feedback instead of a silent modal close.
+  const [actionError, setActionError] = useState<string | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Data fetching ──────────────────────────────────────────────────────
@@ -479,6 +486,48 @@ export default function DiscoverPage() {
       })
       .catch(() => { /* silent — empty state is fine */ });
   }, []);
+
+  // Hydrate wishlistedIds from the user's saved wishlist on mount so the
+  // hearts on /discover reflect what's already saved. Maps by destination
+  // string ("Kyoto" matches a wishlist row destination of "Kyoto") so the
+  // hearts persist across refreshes.
+  useEffect(() => {
+    if (!hasWishlist) return;
+    if (currentUser.isLoading || currentUser.isDemo) return;
+    if (!currentUser.id) return;
+    fetch('/api/wishlist')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const items: Array<{ id: string; destination: string }> | undefined = data?.items;
+        if (!items?.length) return;
+        // Build name → wishlistRowId map. Discover destination IDs encode
+        // the city ("kyoto-japan"); we match against the saved row's
+        // destination string case-insensitively.
+        const byName: Record<string, string> = {};
+        for (const it of items) {
+          if (it.destination) byName[it.destination.toLowerCase()] = it.id;
+        }
+        // Match against the destinations that are loaded — anything not
+        // in the catalog stays unmatched until the page state catches up.
+        setDestinations(currentDests => {
+          const matchedIds = new Set<string>();
+          const map: Record<string, string> = {};
+          for (const d of currentDests) {
+            const rowId = byName[d.name.toLowerCase()];
+            if (rowId) {
+              matchedIds.add(d.id);
+              map[d.id] = rowId;
+            }
+          }
+          if (matchedIds.size > 0) {
+            setWishlistedIds(matchedIds);
+            setWishlistRowByDestId(map);
+          }
+          return currentDests; // no change to destinations
+        });
+      })
+      .catch(() => { /* swallow — discover hearts default to unsaved */ });
+  }, [hasWishlist, currentUser.id, currentUser.isLoading, currentUser.isDemo]);
 
   // Featured itineraries + seasonal collections
   useEffect(() => {
@@ -628,24 +677,88 @@ export default function DiscoverPage() {
       if (res.ok && data?.tripId) {
         window.location.href = `/trip/${data.tripId}/itinerary`;
       } else {
+        // Surface fork failures instead of silently dismissing the modal.
+        // Previous behavior left the user staring at the Discover page
+        // wondering whether they had clicked Use as starting point.
         setForkingId(null);
         setPendingForkTrip(null);
+        setShowWishlistToast(false);
+        setActionError(data?.error ?? "Couldn't copy that trip. Please try again.");
+        setTimeout(() => setActionError(null), 4000);
       }
     } catch {
       setForkingId(null);
       setPendingForkTrip(null);
+      setActionError("Couldn't copy that trip. Please try again.");
+      setTimeout(() => setActionError(null), 4000);
     }
   };
 
-  const handleWishlist = (id: string) => {
+  const handleWishlist = async (id: string) => {
     if (!hasWishlist) return;
+    if (currentUser.isLoading) return;
+    if (!currentUser.id || currentUser.isDemo) {
+      // Logged-out / demo — toast only, no persistence (matches the
+      // discover community-like flow which gates on auth too).
+      window.location.href = `/auth/login?redirect=${encodeURIComponent('/discover')}`;
+      return;
+    }
+    const wasSaved = wishlistedIds.has(id);
+    const dest = destinations.find(d => d.id === id);
+    if (!dest) return;
+
+    // Optimistic toggle — flip the heart immediately, persist behind it,
+    // roll back if the server call fails.
     setWishlistedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      wasSaved ? next.delete(id) : next.add(id);
       return next;
     });
     setShowWishlistToast(true);
     setTimeout(() => setShowWishlistToast(false), 2000);
+
+    try {
+      if (wasSaved) {
+        // Remove via the saved wishlist row id we captured at save time
+        // (or hydrated on mount). If we don't have a row id mapping,
+        // we can't DELETE — surface the rollback so state stays sane.
+        const rowId = wishlistRowByDestId[id];
+        if (!rowId) throw new Error('no row id mapping');
+        const res = await fetch(`/api/wishlist?id=${rowId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`wishlist DELETE ${res.status}`);
+        setWishlistRowByDestId(prev => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      } else {
+        const res = await fetch('/api/wishlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            destination: dest.name,
+            country: dest.country,
+            coverImage: dest.image,
+            bestSeason: dest.bestMonths,
+            estimatedCost: dest.avgCost,
+            tags: dest.vibes,
+          }),
+        });
+        if (!res.ok) throw new Error(`wishlist POST ${res.status}`);
+        const out = await res.json();
+        if (out?.item?.id) {
+          setWishlistRowByDestId(prev => ({ ...prev, [id]: out.item.id }));
+        }
+      }
+    } catch (err) {
+      console.error('[discover] wishlist toggle failed:', err);
+      // Roll back to the pre-toggle state on failure.
+      setWishlistedIds(prev => {
+        const next = new Set(prev);
+        wasSaved ? next.add(id) : next.delete(id);
+        return next;
+      });
+    }
   };
 
   const filtered = useMemo(() => {
@@ -1014,6 +1127,15 @@ export default function DiscoverPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 text-white text-sm font-semibold px-5 py-3 rounded-full shadow-xl flex items-center gap-2">
           <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
           Saved to your wishlist
+        </div>
+      )}
+
+      {/* Action-failure toast — surfaces fork errors so the user knows
+          the modal closed because something went wrong, not because
+          their click silently worked. */}
+      {actionError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-rose-50 border border-rose-200 text-rose-800 text-sm font-medium px-5 py-3 rounded-xl shadow-xl">
+          {actionError}
         </div>
       )}
 

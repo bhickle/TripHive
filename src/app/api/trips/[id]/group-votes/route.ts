@@ -91,7 +91,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .select('name, email')
       .eq('id', userId)
       .single();
-    const userName = profile?.name ?? profile?.email?.split('@')[0] ?? 'Unknown';
+    // 'Unknown' was being persisted to created_by_name when profile
+     // resolution hiccupped. Fall through to the email local-part so the
+     // worst-case display is a person-ish handle rather than literally
+     // "Unknown" attached to votes others can see.
+    const userName = profile?.name ?? profile?.email?.split('@')[0] ?? 'A traveler';
 
     const body = await req.json();
     const { title, options, closesAt, createdByName } = body;

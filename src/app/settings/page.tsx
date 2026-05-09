@@ -143,6 +143,10 @@ export default function SettingsPage() {
   const [pwResetSending, setPwResetSending] = useState(false);
   const [pwResetSent, setPwResetSent] = useState(false);
   const [personaSaved, setPersonaSaved] = useState(false);
+  // Surface persona save failures inline. Was previously a window.alert(),
+  // which broke visual flow and felt jarring; now a small banner near the
+  // Save button matches the rest of the settings surfaces.
+  const [personaSaveError, setPersonaSaveError] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
@@ -426,11 +430,11 @@ export default function SettingsPage() {
     }
 
     if (!serverSavedOk) {
-      // Don't close the editor — let the user retry. Surface via actionError
-      // toast pattern would be ideal, but we don't have a global toast on
-      // settings; using window.alert is the only thing that's visible without
-      // adding a new state slot. Acceptable since this is rare.
-      window.alert("Couldn't save your Travel Persona. Please try again.");
+      // Surface inline so the user can retry without breaking visual flow.
+      // Auto-dismisses after 4s so a failed save doesn't permanently
+      // block the panel header.
+      setPersonaSaveError(true);
+      setTimeout(() => setPersonaSaveError(false), 4000);
       return;
     }
 
@@ -1029,9 +1033,15 @@ export default function SettingsPage() {
                       <div className="flex space-x-3 pt-4">
                         <button
                           onClick={savePersona}
-                          className={`px-6 py-2 rounded-lg transition-all font-semibold ${personaSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                          className={`px-6 py-2 rounded-lg transition-all font-semibold ${
+                            personaSaved
+                              ? 'bg-green-600 text-white'
+                              : personaSaveError
+                                ? 'bg-rose-600 text-white'
+                                : 'bg-sky-800 text-white hover:bg-sky-900'
+                          }`}
                         >
-                          {personaSaved ? '✓ Saved!' : 'Save Changes'}
+                          {personaSaved ? '✓ Saved!' : personaSaveError ? "✕ Couldn't save" : 'Save Changes'}
                         </button>
                         <button onClick={cancelPersona} className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium">
                           Cancel

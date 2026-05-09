@@ -75,7 +75,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, stub: true });
   }
 
-  const appUrl  = process.env.NEXT_PUBLIC_APP_URL || 'https://tripcoord.app';
+  // Fallback domain corrected from `tripcoord.app` (wrong TLD) to
+  // `tripcoord.ai` so SMS invites still link somewhere sensible if
+  // NEXT_PUBLIC_APP_URL is unset in any environment.
+  const appUrl  = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
   // Embed the invite token in the URL so the join flow can validate + consume
   // it. Falls back to the open share-link form if token issuance failed.
   const joinUrl = inviteToken

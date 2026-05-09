@@ -46,6 +46,10 @@ export default function TripsPage() {
   const [userTrips, setUserTrips] = useState<any[]>([]);
   // Start in loading state so we never flash "No trips here yet" before fetch resolves
   const [tripsLoading, setTripsLoading] = useState(true);
+  // Distinguish "no trips yet" from "fetch failed" — without this, a
+  // network failure showed the same empty state as a brand-new user,
+  // which is misleading.
+  const [tripsLoadError, setTripsLoadError] = useState(false);
 
   // Redirect to login if auth resolves with no user
   useEffect(() => {
@@ -103,7 +107,7 @@ export default function TripsPage() {
             })));
           }
         })
-        .catch(() => {})
+        .catch(() => setTripsLoadError(true))
         .finally(() => setTripsLoading(false));
     } else {
       try {
@@ -314,8 +318,21 @@ export default function TripsPage() {
           </div>
         )}
 
+        {/* Fetch failure — distinguish from empty state. */}
+        {tripsLoadError && filteredTrips.length === 0 && !tripsLoading && (
+          <div className="mb-6 flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-sm text-amber-800">⚠️ Couldn't load your trips. Check your connection and try again.</p>
+            <button
+              onClick={() => { setTripsLoadError(false); window.location.reload(); }}
+              className="ml-4 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* No results */}
-        {filteredTrips.length === 0 && !tripsLoading && (
+        {filteredTrips.length === 0 && !tripsLoading && !tripsLoadError && (
           <div className="text-center py-20">
             <MapPin className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
             <h3 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">No trips here yet</h3>

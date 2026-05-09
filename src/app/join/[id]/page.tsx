@@ -651,13 +651,11 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                       <span>Plan and organize your own trips</span>
                     </li>
                   </ul>
-                  <button
-                    onClick={() => alert('Opening tripcoord App Store page...')}
-                    className="w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download the tripcoord App
-                  </button>
+                  {/* "Download the App" CTA hidden for launch — no native
+                      app exists yet. The previous placeholder fired a
+                      browser alert() ("Opening tripcoord App Store page…")
+                      which read as broken to real users. Restore once the
+                      iOS / Android builds are live. */}
                 </div>
               )}
 

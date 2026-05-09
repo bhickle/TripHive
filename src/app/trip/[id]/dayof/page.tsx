@@ -275,7 +275,13 @@ export default function DayOfPage() {
   const [checkedIn, setCheckedIn] = useState<Set<string>>(new Set(['user_1']));
   const [showEndOfDay, setShowEndOfDay] = useState(false);
   const [destination, setDestination] = useState<string>('Destination');
-  const [currentUserName, setCurrentUserName] = useState<string>('You');
+  // Defaults empty rather than the literal "You" — see same fix on
+  // the Group page. Consumers should treat empty as "auth still loading".
+  const [currentUserName, setCurrentUserName] = useState<string>('');
+  // Real-trip crew loaded from /api/trips/[id]/members. Without this the
+  // Day-Of page rendered only the current user as the entire crew, even
+  // for groups of 4+ — completely missing the rest of the trip members.
+  const [realMembers, setRealMembers] = useState<Array<{ id: string; name: string }>>([]);
   const [isMockTrip, setIsMockTrip] = useState(!isRealTrip);
   // Use state for currentDay so Supabase/localStorage loads trigger a re-render.
   // For real trips, start with null and render a loading state — initializing
@@ -284,6 +290,26 @@ export default function DayOfPage() {
   const [currentDay, setCurrentDay] = useState<(typeof itineraryDays)[0] | null>(
     isRealTrip ? null : itineraryDays[1]
   );
+
+  // Fetch real trip members for the Day-Of crew strip. Runs in parallel
+  // with the trip-data load below so the crew chips appear without
+  // waiting on the itinerary fetch.
+  useEffect(() => {
+    if (!isRealTrip) return;
+    fetch(`/api/trips/${tripId}/members`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data?.members)) {
+          setRealMembers(
+            data.members.map((m: { id: string; name?: string | null; email?: string | null }) => ({
+              id: m.id,
+              name: m.name ?? m.email?.split('@')[0] ?? 'A traveler',
+            })),
+          );
+        }
+      })
+      .catch(() => { /* fall back to current-user-only display */ });
+  }, [isRealTrip, tripId]);
 
   useEffect(() => {
     if (!isRealTrip) return;
@@ -384,10 +410,16 @@ export default function DayOfPage() {
     return `${h12}:${String(m).padStart(2, '0')} ${period}`;
   })();
 
-  // Determine crew display
+  // Determine crew display. Real trips render the actual trip_members
+  // (fetched above) — previously this branch hardcoded just the current
+  // user, so a group of 5 saw only themselves on the day-of view.
   const crewDisplay = isMockTrip
     ? groupMembers.slice(0, 4)
-    : [{ id: 'current-user', name: currentUserName }];
+    : realMembers.length > 0
+      ? realMembers
+      : currentUserName
+        ? [{ id: 'current-user', name: currentUserName }]
+        : [];
 
   return (
     <main className="min-h-screen bg-slate-50">

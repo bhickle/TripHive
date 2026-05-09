@@ -66,6 +66,10 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
   const [notFound, setNotFound] = useState(false);
   const [forking, setForking] = useState(false);
   const [forkModalOpen, setForkModalOpen] = useState(false);
+  // Surfaced when the fork API call returns a non-ok response or throws —
+  // shown as a temporary banner so the user knows their click failed
+  // rather than silently watching the modal close.
+  const [forkError, setForkError] = useState<string | null>(null);
   const [activityLikes, setActivityLikes] = useState<Record<string, number>>({});
   const [viewerLikedActivities, setViewerLikedActivities] = useState<Set<string>>(new Set());
   const [itineraryLikeCount, setItineraryLikeCount] = useState(0);
@@ -175,12 +179,19 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
       if (res.ok && out?.tripId) {
         router.push(`/trip/${out.tripId}/itinerary`);
       } else {
+        // Surface the failure rather than silently dismissing — previous
+        // behavior left the user staring at a blank page wondering if
+        // their click had worked.
         setForking(false);
         setForkModalOpen(false);
+        setForkError(out?.error ?? "Couldn't copy this trip. Please try again.");
+        setTimeout(() => setForkError(null), 4000);
       }
     } catch {
       setForking(false);
       setForkModalOpen(false);
+      setForkError("Couldn't copy this trip. Please try again.");
+      setTimeout(() => setForkError(null), 4000);
     }
   };
 
@@ -279,6 +290,13 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
               </div>
             </div>
           </div>
+
+          {/* Fork failure banner */}
+          {forkError && (
+            <div className="mb-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-800">
+              {forkError}
+            </div>
+          )}
 
           {/* Action bar */}
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-8">

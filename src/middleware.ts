@@ -2,8 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const PREVIEW_COOKIE = 'tc_preview'; // build bump
-// Set PREVIEW_SECRET in your Vercel environment variables to override this default
-const PREVIEW_SECRET = process.env.PREVIEW_SECRET || 'tc2026';
+// PREVIEW_SECRET MUST be set in Vercel for the coming-soon bypass to work.
+// Previously the file shipped a guessable default (`tc2026`) — anyone
+// reading the bundled middleware could bypass the gate. With no fallback,
+// missing env causes EVERY query-string preview attempt to fail rather
+// than silently honoring the leaked default. The cookie path still works
+// for users who already have it set.
+const PREVIEW_SECRET = process.env.PREVIEW_SECRET ?? '';
 
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
@@ -34,8 +39,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Preview key in query string → set cookie & redirect to clean URL ──
+  // Empty PREVIEW_SECRET means the env var isn't set; deny ALL preview
+  // attempts in that case so an attacker can't supply ?preview= with a
+  // matching empty string.
   const previewKey = searchParams.get('preview');
-  if (previewKey === PREVIEW_SECRET) {
+  if (PREVIEW_SECRET && previewKey === PREVIEW_SECRET) {
     const cleanUrl = new URL(request.url);
     cleanUrl.searchParams.delete('preview');
     const response = NextResponse.redirect(cleanUrl);

@@ -80,7 +80,10 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   );
 
   // Current user info (for message attribution)
-  const [currentUserName, setCurrentUserName] = useState<string>('You');
+  // Defaults to empty so we never accidentally send a chat or expense
+  // tagged as "You" before the auth fetch resolves. Consumers are
+  // expected to wait for a non-empty value before persisting.
+  const [currentUserName, setCurrentUserName] = useState<string>('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Trip name for invite messages — fetched from Supabase for real trips
@@ -2028,14 +2031,18 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         const amt = parseFloat(newExpenseAmount);
                         if (isNaN(amt) || amt <= 0) return;
 
-                        // Validate custom split sums to the total
+                        // Validate custom split sums to the total. The
+                        // earlier-rendered live preview also shows this in
+                        // green/amber, so an inline action-error toast
+                        // here just confirms why submit was blocked.
                         if (newExpenseSplit === 'custom') {
                           const customTotal = Object.values(customAmounts)
                             .map(v => parseFloat(v))
                             .filter(v => !isNaN(v))
                             .reduce((a, b) => a + b, 0);
                           if (Math.abs(customTotal - amt) > 0.01) {
-                            alert(`Custom split amounts ($${customTotal.toFixed(2)}) must add up to the total ($${amt.toFixed(2)}).`);
+                            setActionError(`Custom split totals $${customTotal.toFixed(2)} but the expense is $${amt.toFixed(2)}. Adjust the shares so they add up.`);
+                            setTimeout(() => setActionError(null), 4500);
                             return;
                           }
                         }

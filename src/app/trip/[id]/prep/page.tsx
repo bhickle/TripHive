@@ -83,6 +83,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
   // Trip data load error state
   const [prepLoadError, setPrepLoadError] = useState(false);
+  // Initial-fetch loading state — true until the parallel /prep, /packing,
+  // /souvenirs, /trip fetches all settle. Used to render skeleton rows
+  // instead of empty tabs that look like "no items" when the data is
+  // really still on the wire. Mock trips skip this since they hydrate
+  // synchronously from local data.
+  const [prepLoading, setPrepLoading] = useState(false);
 
   // Packing generation state (legacy — used for mock trips + overall progress)
   const [packingGenerating, setPackingGenerating] = useState(false);
@@ -134,6 +140,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(params.id);
     if (!looksLikeUuid) return;
 
+    setPrepLoading(true);
     Promise.allSettled([
       fetch(`/api/trips/${params.id}/prep`).then(r => r.ok ? r.json() : Promise.reject(new Error(`prep ${r.status}`))),
       fetch(`/api/trips/${params.id}/packing?scope=group`).then(r => r.ok ? r.json() : Promise.reject(new Error(`packing-group ${r.status}`))),
@@ -222,6 +229,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           }));
         } catch { /* ignore */ }
       }
+      setPrepLoading(false);
     });
   }, [isMockTrip, params.id, authLoading, user]);
 
@@ -1711,6 +1719,18 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             <div className="bg-sky-800 h-full transition-all duration-300" style={{ width: `${overallProgress}%` }} />
           </div>
         </div>
+
+        {/* Loading shimmer — visible while the parallel /prep, /packing,
+            /souvenirs, /trip fetches are in flight. Without this the
+            tabs render their "no items" empty states for 200-2000ms,
+            making it look like the user has nothing saved when really
+            the data is just on the wire. */}
+        {prepLoading && !prepLoadError && (
+          <div className="mb-6 flex items-center gap-2 px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-xl text-sm text-zinc-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading your trip details…
+          </div>
+        )}
 
         {/* Trip load error banner */}
         {prepLoadError && (

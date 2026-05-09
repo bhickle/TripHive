@@ -687,13 +687,9 @@ function ShareSlide({ trip, onDownload }: { trip: Trip; onDownload: () => void }
             <Download className="w-4 h-4" />
             Save this card
           </button>
-          <button
-            onClick={() => navigator.clipboard.writeText(`https://tripcoord.ai/story/${trip.id}`)}
-            className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all"
-          >
-            <Share2 className="w-4 h-4" />
-            Copy share link
-          </button>
+          {/* "Copy share link" hidden for launch — there's no public
+              /story/[id] route yet, so the link copied a 404. Restore
+              once the public story page ships. */}
         </div>
         <p className="text-white/30 text-xs mt-8 font-medium">tripcoord.ai</p>
       </div>
@@ -895,10 +891,9 @@ function YearlyShareSlide({ year, onDownload, reactions, onOpen }: { year: numbe
             <Download className="w-4 h-4" />
             Save your wrap
           </button>
-          <button onClick={() => navigator.clipboard.writeText(`https://tripcoord.ai/year/${year}`)} className="flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-full text-sm hover:bg-white/20 transition-all">
-            <Share2 className="w-4 h-4" />
-            Share your {year}
-          </button>
+          {/* Yearly "Share your <year>" hidden for launch — yearly
+              recap is gated to the "Coming soon" placeholder anyway,
+              and there's no /year/[year] public route. */}
         </div>
         <p className="text-white/25 text-xs mt-5 font-medium">tripcoord.ai</p>
       </div>

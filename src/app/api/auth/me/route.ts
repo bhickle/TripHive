@@ -155,7 +155,12 @@ export async function GET() {
       .eq('id', user.id)
       .single();
 
-    const name = profile?.name ?? profile?.email?.split('@')[0] ?? user.email?.split('@')[0] ?? 'You';
+    // Never default to "You" — useCurrentUser flows this name into
+    // uploader_name on photos, sender_name on chat, etc. A pronoun
+    // shows up bizarrely in other users' feeds. Fall through to the
+    // email local-part (always present for authenticated users) so
+    // the worst-case is "alice123" rather than "You".
+    const name = profile?.name ?? profile?.email?.split('@')[0] ?? user.email?.split('@')[0] ?? 'A traveler';
 
     // Resolve the default partner's display name + email so Settings
     // can render "Linked to Mallory <mallory@…>" without a second

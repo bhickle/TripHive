@@ -361,7 +361,9 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
       }
     }
 
-    // Optimistic update
+    // Optimistic update — capture pre-state for rollback on failure
+    const prevVote = current;
+    const prevCounts = counts;
     setVotes(prev => ({ ...prev, [itemId]: newVote }));
     setVoteCounts(prev => ({ ...prev, [itemId]: { up: newUp, down: newDown } }));
 
@@ -387,13 +389,20 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId, itemData, vote: newVote }),
       })
-        .then(r => r.ok ? r.json() : null)
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`vote ${r.status}`)))
         .then(data => {
           if (!data) return;
           // Sync server counts (in case other users voted simultaneously)
           setVoteCounts(prev => ({ ...prev, [itemId]: { up: data.upVotes, down: data.downVotes } }));
         })
-        .catch(() => {});
+        .catch(err => {
+          // Roll back to pre-toggle state on failure — without this, vote
+          // counts and the user's "my vote" indicator drifted permanently
+          // out of sync with Supabase after any 401/500.
+          console.error('[trip-discover] vote save failed:', err);
+          setVotes(prev => ({ ...prev, [itemId]: prevVote }));
+          setVoteCounts(prev => ({ ...prev, [itemId]: prevCounts }));
+        });
     }
   };
 
@@ -703,6 +712,9 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
   };
 
   const toggleSavedItem = (id: string, item?: DiscoverItem) => {
+    // Capture pre-state for rollback. Optimistic toggle without rollback
+    // had savedItems drift permanently after any save failure.
+    const prevSaved = savedItems;
     const newSaved = new Set(savedItems);
     const isSaving = !newSaved.has(id);
     if (isSaving) {
@@ -739,7 +751,12 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
           vote: currentVote,
           saved: isSaving,
         }),
-      }).catch(() => {});
+      })
+        .then(r => { if (!r.ok) throw new Error(`save ${r.status}`); })
+        .catch(err => {
+          console.error('[trip-discover] save toggle failed:', err);
+          setSavedItems(prevSaved);
+        });
     }
   };
 

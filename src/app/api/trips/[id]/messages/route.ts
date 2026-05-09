@@ -54,7 +54,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .select('name, email')
       .eq('id', userId)
       .single();
-    const userName = profile?.name ?? profile?.email?.split('@')[0] ?? 'You';
+    // Never persist the literal string "You" — it shows up in OTHER
+    // group members' chat feeds as the sender name. Fall back through
+    // profile.name → email local-part → "A traveler" so the worst-case
+    // is a generic but person-shaped label, not a confusing pronoun.
+    const userName = profile?.name ?? profile?.email?.split('@')[0] ?? 'A traveler';
 
     const { content } = await req.json();
     if (!content?.trim()) {

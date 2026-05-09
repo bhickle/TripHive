@@ -1447,8 +1447,25 @@ export async function POST(request: NextRequest) {
   // hits the 64K cap, giving the first pass the maximum output budget.
   const modelId = 'claude-sonnet-4-6';
   const isMultiCity = Array.isArray(body.destinations) && (body.destinations as string[]).length > 1;
-  const tokensPerDay = isMultiCity ? 11000 : 10000;
-  const maxTokens = Math.min(64000, Math.max(citySegment ? 12000 : 24000, resolvedTripLength * tokensPerDay));
+  // Rule 19 mandates per-day discovery arrays (foodieTips / nightlifeHighlights /
+  // shoppingGuide) inline when those priorities are set. Each populated array
+  // adds ~600-900 tokens per day. Without budget headroom the model hits
+  // stop_reason=max_tokens mid-day-3 of a chunk, the parser drops the partial
+  // day, and the user sees a 2-of-3 day output (Dublin truncation root cause).
+  // We bump tokensPerDay when the user has multiple discovery priorities set
+  // and raise the per-chunk floor accordingly.
+  const inboundPriorities = Array.isArray(body.priorities) ? (body.priorities as string[]) : [];
+  const discoveryPriorityCount = ['food', 'nightlife', 'shopping'].filter(p => inboundPriorities.includes(p)).length;
+  const tokensPerDay = isMultiCity
+    ? 11000 + discoveryPriorityCount * 1000
+    : 10000 + discoveryPriorityCount * 1000;
+  // Per-chunk floor needs to clear the worst-case 3-day discovery chunk
+  // (~13K × 3 = 39K) — bump from 12000 to 36000 when chunked, otherwise
+  // any 3-day chunk with all three discovery priorities truncates.
+  const chunkFloor = citySegment
+    ? (discoveryPriorityCount >= 2 ? 36000 : 12000)
+    : 24000;
+  const maxTokens = Math.min(64000, Math.max(chunkFloor, resolvedTripLength * tokensPerDay));
 
   // Use pre-fetched places from client if available (they were fetched on Step 8 / Review),
   // otherwise fall back to fetching here. This removes the ~10-15s wait before streaming starts.
@@ -1811,7 +1828,51 @@ export async function POST(request: NextRequest) {
         }
 
         if (firstPassStopReason && firstPassStopReason !== 'end_turn') {
-          console.warn(`[generate-itinerary] First pass stop_reason=${firstPassStopReason} after ${dayIndex}/${resolvedTripLength} days`);
+          // Surface enough state to diagnose Dublin-class truncations: how
+          // many days completed, whether a partial day was buffered (parser
+          // had started a `{` but never saw the matching `}`), and the
+          // buffer size. With this in Vercel logs we can tell whether the
+          // model genuinely cut off mid-day vs whether the parser dropped
+          // a complete day.
+          const partialDayBuffered = objStart >= 0 && braceDepth > 0;
+          console.warn(
+            `[generate-itinerary] First pass stop_reason=${firstPassStopReason} after ${dayIndex}/${resolvedTripLength} days` +
+            ` (partialDayBuffered=${partialDayBuffered}, bufferLen=${buffer.length}, braceDepth=${braceDepth})`,
+          );
+          // If we have a non-trivial partial buffer, attempt salvage via
+          // recoverTruncatedArray. The helper finds the last complete
+          // top-level object in an array-shaped string; we wrap our
+          // buffer in [] first so it parses as one. Any complete days
+          // the streaming parser somehow missed (e.g. due to stray
+          // string-escape state) get caught here as a safety net. Days
+          // beyond what we already have via dayIndex get emitted.
+          if (partialDayBuffered && buffer.length > 0) {
+            try {
+              const wrapped = `[${buffer}]`;
+              const recovered = recoverTruncatedArray(wrapped);
+              const parsed = JSON.parse(cleanJson(recovered)) as Record<string, unknown>[];
+              for (const d of parsed) {
+                const dn = typeof d.day === 'number' ? d.day : -1;
+                if (dn > dayIndex) {
+                  send({ type: 'day', index: dayIndex, data: d });
+                  collectedDays.push(d);
+                  dayIndex++;
+                  if (requestBodyTripId) {
+                    persistGenerationDays(requestBodyTripId, collectedDays as unknown as Json[])
+                      .then(r => { if (!r.ok) console.warn('[generate-itinerary] persistGenerationDays (salvage):', r.error); })
+                      .catch(err => console.warn('[generate-itinerary] persistGenerationDays threw (salvage):', err));
+                  }
+                }
+              }
+              if (parsed.length > 0) {
+                console.warn(`[generate-itinerary] recoverTruncatedArray salvaged ${parsed.length} day(s) from partial buffer`);
+              }
+            } catch {
+              // Salvage is best-effort — the partial buffer truly might
+              // not contain a recoverable day. Move on; continuation
+              // loop will request the missing days.
+            }
+          }
         }
 
         // ── Continuation loop for trips where a pass ran short ───────────────
@@ -1939,6 +2000,7 @@ export async function POST(request: NextRequest) {
             lastCity ? `The group ended Day ${dayOffset + dayIndex} in ${lastCity}.` : '',
             placesHint,
             `YOUR TASK: Output ONLY day objects ${contFromDay} through ${contToDay} (${remaining} day${remaining === 1 ? '' : 's'}), starting from ${contStartDate}.`,
+            `CRITICAL — DAY NUMBERING: The first day you emit MUST have "day": ${contFromDay}. Do NOT restart numbering at 1. Do NOT renumber. Days ${dayOffset + 1} through ${dayOffset + dayIndex} already exist and any day object with day < ${contFromDay} will be discarded as a duplicate.`,
             ``,
             `Day schema (use exact field names):`,
             `{"day":<N>,"date":"YYYY-MM-DD","city":"<city>","theme":"<3-5 word theme>","photoSpots":[{"name":"...","timeOfDay":"...","tip":"..."}],"destinationTip":"<one insider fact>","trackALabel":null,"trackBLabel":null,"dinnerMeetupLocation":null,"tracks":{"shared":[<activities>],"track_a":[],"track_b":[]},"meetupTime":"<HH:MM>","meetupLocation":"Hotel lobby"${contHasFood ? ',"foodieTips":[{"name":"...","type":"...","neighborhood":"...","why":"...","orderThis":"...","timeOfDay":"...","priceRange":"...","tip":"..."}]' : ''}${contHasNightlife ? ',"nightlifeHighlights":[{"name":"...","type":"...","neighborhood":"...","vibe":"...","bestNight":"...","openFrom":"...","tip":"..."}]' : ''}${contHasShopping ? ',"shoppingGuide":[{"name":"...","type":"...","neighborhood":"...","what":"...","bestFor":"...","openDays":"...","tip":"..."}]' : ''}}`,
@@ -1960,7 +2022,7 @@ export async function POST(request: NextRequest) {
               : `- Day ${contToDay} is the final day — light schedule ending at airport/station`,
             `- "meetupTime" must equal the start time of the first activity that day`,
             ``,
-            `Return ONLY the JSON array for days ${contFromDay}–${contToDay}. No markdown. No explanation. Start with [ and end with ].`,
+            `Return ONLY a JSON array of day objects for days ${contFromDay}–${contToDay}. No markdown. No explanation. Output: [ then each day object separated by commas, then ]. The first object's "day" field MUST be ${contFromDay}.`,
           ].filter(Boolean).join('\n');
 
           try {
