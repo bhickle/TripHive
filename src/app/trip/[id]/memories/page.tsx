@@ -471,6 +471,39 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             {isUploading ? `Uploading... ${uploadProgress}%` : uploadedCount > 0 ? `${uploadedCount} photo${uploadedCount !== 1 ? 's' : ''} added — upload more` : 'Upload Photos'}
           </button>
 
+          {/* Inline upload-state banners. These used to live in the Trip
+              Recap section at the bottom of the page; that section was
+              removed (the AI-recap feature it implied isn't built), so the
+              banners are now adjacent to the upload action that creates
+              them. Surfaces failures + load errors right where the user
+              is looking after they hit the button. */}
+          {uploadFailedCount > 0 && (
+            <div className="mt-4 flex items-start gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
+              <div className="text-xs text-rose-700 space-y-1">
+                <p>
+                  {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
+                </p>
+                {uploadErrorDetail && (
+                  <p className="text-rose-800 font-medium">Reason: {uploadErrorDetail}</p>
+                )}
+              </div>
+            </div>
+          )}
+          {photosLoadError && (
+            <div className="mt-4 flex items-start justify-between gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-xs text-amber-900">
+                We couldn&apos;t load your saved photos. New uploads will still work.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="text-xs font-medium text-amber-900 underline hover:text-amber-700 whitespace-nowrap"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {uploadedPhotos.length > 0 && (
             <div className="mt-6">
               <h3 className="font-script italic text-lg font-semibold text-zinc-900 mb-4">Uploaded Photos</h3>
@@ -582,31 +615,25 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {ungroupedPhotos.map((photo, index) => {
-                const isWide = index % 5 === 0;
-                const isTall = index % 7 === 0;
-                return (
-                  <button
-                    key={photo.id}
-                    onClick={() => setSelectedPhoto(photo)}
-                    className={`relative overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all group cursor-pointer bg-slate-200 ${
-                      isWide ? 'md:col-span-2' : ''
-                    } ${isTall ? 'row-span-2' : 'aspect-square'}`}
-                  >
-                    <Image
-                      src={photo.url}
-                      alt={photo.activity}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3 text-white opacity-0 group-hover:opacity-100 transition-all">
-                      <p className="text-sm font-semibold">{photo.activity}</p>
-                      <p className="text-xs text-gray-200">by {photo.uploadedBy}</p>
-                    </div>
-                  </button>
-                );
-              })}
+              {ungroupedPhotos.map((photo) => (
+                <button
+                  key={photo.id}
+                  onClick={() => setSelectedPhoto(photo)}
+                  className="relative overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all group cursor-pointer bg-slate-200 aspect-square"
+                >
+                  <Image
+                    src={photo.url}
+                    alt={photo.activity}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3 text-white opacity-0 group-hover:opacity-100 transition-all">
+                    <p className="text-sm font-semibold">{photo.activity}</p>
+                    <p className="text-xs text-gray-200">by {photo.uploadedBy}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -627,101 +654,29 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {dayGroup.photos.map((photo, index) => {
-                const isWide = index % 5 === 0;
-                const isTall = index % 7 === 0;
-
-                return (
-                  <button
-                    key={photo.id}
-                    onClick={() => setSelectedPhoto(photo)}
-                    className={`relative overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all group cursor-pointer bg-slate-200 ${
-                      isWide ? 'md:col-span-2' : ''
-                    } ${isTall ? 'row-span-2' : 'aspect-square'}`}
-                  >
-                    <Image
-                      src={photo.url}
-                      alt={photo.activity}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3 text-white opacity-0 group-hover:opacity-100 transition-all">
-                      <p className="text-sm font-semibold">{photo.activity}</p>
-                      <p className="text-xs text-gray-200">by {photo.uploadedBy}</p>
-                    </div>
-                  </button>
-                );
-              })}
+              {dayGroup.photos.map((photo) => (
+                <button
+                  key={photo.id}
+                  onClick={() => setSelectedPhoto(photo)}
+                  className="relative overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all group cursor-pointer bg-slate-200 aspect-square"
+                >
+                  <Image
+                    src={photo.url}
+                    alt={photo.activity}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3 text-white opacity-0 group-hover:opacity-100 transition-all">
+                    <p className="text-sm font-semibold">{photo.activity}</p>
+                    <p className="text-xs text-gray-200">by {photo.uploadedBy}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         ))}
 
-        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 mb-8">
-          <h3 className="text-xl font-display font-bold text-zinc-900 mb-6">Trip Recap</h3>
-
-          {isMockTrip ? (
-            <>
-              <div className="prose prose-sm max-w-none text-zinc-700 mb-6 leading-relaxed">
-                <p>
-                  Reykjavik revealed itself slowly: first the airport's raw brutality, then the city's hushed charm
-                  along the harbor. We stumbled through golden-hour light at Þingvellir, where the earth literally pulls
-                  apart beneath your feet. The Geysir erupted on cue, sending plumes skyward while Sarah laughed and Alex
-                  captured every frame.
-                </p>
-                <p className="mt-4">
-                  Day three split us—the glacier called some, while others answered the black sand beaches. That evening,
-                  under skies that refused to fully darken, we found ourselves at the Blue Lagoon's milky edge, warm water
-                  against cold stone, the moment suspended between day and night. The Northern Lights remained elusive but
-                  the memories burned just as bright.
-                </p>
-              </div>
-              <button className="flex items-center gap-2 px-4 py-2 bg-sky-100 text-sky-800 hover:bg-sky-200 rounded-lg font-medium transition-all">
-                <Heart className="w-4 h-4" />
-                Save Narrative
-              </button>
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-4">✈️📸</div>
-              <p className="text-lg font-semibold text-zinc-800 mb-2">Your story is still being written.</p>
-              <p className="text-sm text-zinc-500 max-w-sm mx-auto">
-                Upload photos as you go and at the end of your trip we'll craft an AI-generated recap narrative — a keepsake you can share with the whole crew.
-              </p>
-              {uploadedCount > 0 && (
-                <p className="mt-4 text-sm font-medium text-sky-700">
-                  {uploadedCount} photo{uploadedCount !== 1 ? 's' : ''} loaded. Keep adding and we'll weave them into your recap.
-                </p>
-              )}
-              {uploadFailedCount > 0 && (
-                <div className="mt-4 mx-auto max-w-md flex items-start gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-left">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
-                  <div className="text-xs text-rose-700 space-y-1">
-                    <p>
-                      {uploadFailedCount} photo{uploadFailedCount !== 1 ? 's' : ''} couldn&apos;t finish uploading. {uploadFailedCount !== 1 ? 'They\'re' : 'It\'s'} visible here for now but will be lost on refresh — please try again.
-                    </p>
-                    {uploadErrorDetail && (
-                      <p className="text-rose-800 font-medium">Reason: {uploadErrorDetail}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-              {photosLoadError && (
-                <div className="mt-4 mx-auto max-w-md flex items-start justify-between gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-left">
-                  <p className="text-xs text-amber-900">
-                    We couldn&apos;t load your saved photos. New uploads will still work.
-                  </p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="text-xs font-medium text-amber-900 underline hover:text-amber-700 whitespace-nowrap"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
 
       {selectedPhoto && (
