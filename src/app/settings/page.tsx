@@ -481,7 +481,10 @@ export default function SettingsPage() {
   const togglePriority = (id: string) =>
     setPersona(prev => {
       const already = prev.priorities.includes(id);
-      if (!already && prev.priorities.length >= 4) return prev; // cap at 4
+      // Cap matches the visible "X/8 selected" badge + "Pick up to 8" copy
+      // shown next to the field. Was 4 — copy/cap mismatch reported on
+      // 2026-05-09.
+      if (!already && prev.priorities.length >= 8) return prev;
       return {
         ...prev,
         priorities: already ? prev.priorities.filter(p => p !== id) : [...prev.priorities, id],
@@ -893,18 +896,18 @@ export default function SettingsPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
-                        <div className="flex items-center space-x-6">
+                      <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-200">
+                        <div className="flex items-center gap-3 sm:gap-6 min-w-0 flex-1">
                           <Avatar src={profile.avatarUrl} name={profile.name} size="lg" />
-                          <div>
-                            <p className="font-semibold text-slate-900">{profile.name || '—'}</p>
-                            <p className="text-slate-600">{profile.email || '—'}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-slate-900 truncate">{profile.name || '—'}</p>
+                            <p className="text-slate-600 truncate">{profile.email || '—'}</p>
                             <p className="text-sm text-slate-500 mt-1 capitalize">{tierLabel}</p>
                             {profile.homeCountry && (
-                              <p className="text-xs text-slate-400 mt-0.5">Home: {profile.homeCountry}</p>
+                              <p className="text-xs text-slate-400 mt-0.5 truncate">Home: {profile.homeCountry}</p>
                             )}
                             {defaultPartner && (
-                              <p className="text-xs text-slate-400 mt-0.5">
+                              <p className="text-xs text-slate-400 mt-0.5 truncate">
                                 Default partner: {defaultPartner.name}{defaultPartner.email ? ` (${defaultPartner.email})` : ''}
                               </p>
                             )}
@@ -912,7 +915,7 @@ export default function SettingsPage() {
                         </div>
                         <button
                           onClick={() => setEditingProfile(true)}
-                          className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium"
+                          className="flex-shrink-0 px-4 sm:px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-medium text-sm sm:text-base"
                         >
                           Edit
                         </button>

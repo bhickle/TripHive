@@ -429,36 +429,46 @@ export default function TripsPage() {
                 <Link
                   key={trip.id}
                   href={`/trip/${trip.id}/itinerary`}
-                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 flex items-center gap-6"
+                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 flex items-center gap-3 sm:gap-6"
                 >
                   {/* Thumbnail */}
                   <div
-                    className="w-20 h-14 rounded-xl bg-cover bg-center flex-shrink-0"
+                    className="w-16 h-12 sm:w-20 sm:h-14 rounded-xl bg-cover bg-center flex-shrink-0"
                     style={{ backgroundImage: `url(${trip.coverImage})` }}
                   />
 
-                  {/* Info */}
+                  {/* Info — destination/date/traveler row wraps on mobile so
+                      the long date string + traveler count don't crash into
+                      each other. Travelers live inside Info on mobile and
+                      get hoisted to a separate Stats column at sm+ where
+                      there's horizontal room. */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-2 mb-1 sm:mb-2 flex-wrap">
                       <h3 className="font-semibold text-zinc-900 truncate">{trip.title}</h3>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]} capitalize`}>
+                      <span className={`rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold ${statusColors[status]} capitalize flex-shrink-0`}>
                         {status}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-zinc-600">
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="w-4 h-4" />
-                        {trip.destination}
+                    <div className="flex items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-zinc-600 flex-wrap">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span className="truncate">{trip.destination}</span>
                       </span>
-                      <span className="flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4" />
+                      <span className="flex items-center gap-1.5 whitespace-nowrap">
+                        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         {formatDate(trip.startDate)} — {formatDate(trip.endDate)} ({days}d)
+                      </span>
+                      {/* Mobile-only travelers chip — desktop hoists it to
+                          its own Stats column on the right. */}
+                      <span className="flex sm:hidden items-center gap-1.5 whitespace-nowrap">
+                        <Users className="w-3.5 h-3.5" />
+                        {trip.memberCount + trip.guestCount} {trip.memberCount + trip.guestCount === 1 ? 'traveler' : 'travelers'}
                       </span>
                     </div>
                   </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center gap-8 flex-shrink-0">
+                  {/* Stats — desktop only */}
+                  <div className="hidden sm:flex items-center gap-8 flex-shrink-0">
                     <div className="flex items-center gap-1.5 text-sm text-zinc-600">
                       <Users className="w-4 h-4" />
                       <span>{trip.memberCount + trip.guestCount} {trip.memberCount + trip.guestCount === 1 ? 'traveler' : 'travelers'}</span>

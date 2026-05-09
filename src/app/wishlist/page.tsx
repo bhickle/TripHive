@@ -207,11 +207,30 @@ function AddDestinationModal({
 
   // Save with static vibe highlights — no AI call. Users add destinations
   // as visual reminders / saved links; the wishlist isn't a planning surface.
+  // If the user pasted a source URL, save it as the first WishlistLink on
+  // the new item so the Globe-vs-Pencil source icon on cards reflects
+  // "imported from a link" without a follow-up edit.
   const handleSave = useCallback(() => {
     if (!destination.trim()) return;
     const estimatedCost = Math.round((600 + tripDays * 350) / 50) * 50;
     const city = destination.split(',')[0].trim();
     const country = destination.includes(',') ? destination.split(',').slice(-1)[0].trim() : '';
+    const trimmedUrl = socialUrl.trim();
+    const initialLinks: WishlistLink[] = [];
+    if (trimmedUrl && /^https?:\/\//i.test(trimmedUrl)) {
+      let siteName: string | null = null;
+      try {
+        siteName = new URL(trimmedUrl).hostname.replace(/^www\./, '');
+      } catch { /* malformed — leave siteName null */ }
+      initialLinks.push({
+        url: trimmedUrl,
+        title: null,
+        description: null,
+        image: null,
+        siteName,
+        fetchedAt: new Date().toISOString(),
+      });
+    }
     onSave({
       id: `wish_${Date.now()}`,
       destination: city,
@@ -222,10 +241,10 @@ function AddDestinationModal({
       tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
       highlights: VIBE_HIGHLIGHTS[vibes[0]],
       tripDays,
-      links: [],
+      links: initialLinks,
     });
     onClose();
-  }, [destination, vibes, tripDays, onSave, onClose]);
+  }, [destination, vibes, tripDays, socialUrl, onSave, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -295,90 +314,78 @@ function AddDestinationModal({
               )}
             </div>
 
-            {/* Social link import */}
-            {!showSocialInput ? (
-              <button
-                type="button"
-                onClick={() => { setShowSocialInput(true); setSocialExtractError(false); }}
-                className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 w-full hover:bg-sky-50 hover:border-sky-200 transition-colors group"
-              >
-                <span className="text-base">📌</span>
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-xs font-medium text-slate-700 group-hover:text-sky-800">Saw it on Pinterest, TikTok or Instagram?</p>
-                  <p className="text-xs text-slate-400 group-hover:text-sky-600">Paste a link to import the destination</p>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-sky-500 flex-shrink-0" />
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-slate-700">Paste a link from Pinterest, TikTok or Instagram</label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    placeholder="https://pinterest.com/user/board-name/"
-                    value={socialUrl}
-                    onChange={(e) => { setSocialUrl(e.target.value); setSocialExtractError(false); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const extracted = extractDestinationFromUrl(socialUrl);
-                        if (extracted) {
-                          setQuery(extracted);
-                          setDestination(extracted);
-                          setShowSuggestions(true);
-                          setShowSocialInput(false);
-                          setSocialUrl('');
-                          setSocialExtractError(false);
-                        } else {
-                          setSocialExtractError(true);
-                          setTimeout(() => destInputRef.current?.focus(), 50);
-                        }
-                      }
-                    }}
-                    className={`flex-1 px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:border-transparent ${
-                      socialExtractError
-                        ? 'border-red-300 focus:ring-red-400'
-                        : 'border-slate-200 focus:ring-sky-600'
-                    }`}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
+            {/* Optional source URL — always visible. Saved as the first
+                link on the new wishlist item so the Globe source icon
+                renders on the card. The "Import" button additionally
+                tries to extract a destination keyword from supported
+                URLs (Pinterest, TikTok, Instagram board URLs) and
+                pre-fills the destination field. Was previously a
+                collapsed "Saw it on Pinterest…" CTA that users on
+                mobile reported as missing/hidden. */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-700">
+                Source link <span className="text-slate-400 font-normal">(optional)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="Paste a TripAdvisor / Pinterest / blog URL…"
+                  value={socialUrl}
+                  onChange={(e) => { setSocialUrl(e.target.value); setSocialExtractError(false); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
                       const extracted = extractDestinationFromUrl(socialUrl);
                       if (extracted) {
                         setQuery(extracted);
                         setDestination(extracted);
                         setShowSuggestions(true);
-                        setShowSocialInput(false);
-                        setSocialUrl('');
                         setSocialExtractError(false);
                       } else {
                         setSocialExtractError(true);
                         setTimeout(() => destInputRef.current?.focus(), 50);
                       }
-                    }}
-                    className="px-3 py-2 bg-sky-600 text-white text-xs font-semibold rounded-xl hover:bg-sky-700 transition-colors flex-shrink-0"
-                  >
-                    Import
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowSocialInput(false); setSocialUrl(''); setSocialExtractError(false); }}
-                    className="px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {socialExtractError ? (
-                  <p className="text-xs text-red-500">
-                    Couldn&apos;t detect a place from that link — try a Pinterest board URL, or just type the destination in the search above.
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-400">Best with Pinterest board URLs (e.g. pinterest.com/user/bali-travel)</p>
-                )}
+                    }
+                  }}
+                  className={`flex-1 min-w-0 px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:border-transparent ${
+                    socialExtractError
+                      ? 'border-red-300 focus:ring-red-400'
+                      : 'border-slate-200 focus:ring-sky-600'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const extracted = extractDestinationFromUrl(socialUrl);
+                    if (extracted) {
+                      setQuery(extracted);
+                      setDestination(extracted);
+                      setShowSuggestions(true);
+                      setSocialExtractError(false);
+                    } else {
+                      setSocialExtractError(true);
+                      setTimeout(() => destInputRef.current?.focus(), 50);
+                    }
+                  }}
+                  disabled={!socialUrl.trim()}
+                  className="px-3 py-2 bg-sky-800 text-white text-xs font-semibold rounded-xl hover:bg-sky-900 disabled:opacity-40 transition-colors flex-shrink-0"
+                  title="Try to extract a destination from the URL"
+                >
+                  Import
+                </button>
               </div>
-            )}
+              {socialExtractError ? (
+                <p className="text-xs text-red-500">
+                  Couldn&apos;t detect a place from that link — but the URL will still be saved as a source link on this destination.
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400">Saved as a source link. Pinterest / TikTok / Instagram board URLs can also pre-fill the destination above.</p>
+              )}
+            </div>
+            {/* showSocialInput is no longer used — kept the state in
+                place so existing keyboard handlers compile. Safe to
+                remove in a future cleanup. */}
+            {showSocialInput && null}
 
             {/* Trip length */}
             <div>
@@ -407,10 +414,16 @@ function AddDestinationModal({
             {/* Vibe selector */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-slate-700">What's the vibe?</label>
-                <span className="text-xs text-slate-400">Pick up to 3</span>
+                <label className="block text-sm font-medium text-slate-700">What&apos;s the vibe?</label>
+                <span className="text-xs text-slate-400">{vibes.length}/8 selected</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              {/* Pill text was overflowing the rounded boxes on phone widths
+                  because grid-cols-3 squeezed each cell to ~90px while labels
+                  like "Photography" need ~110px. Two-column layout on mobile
+                  + min-w-0 + truncate so labels stay inside their pill.
+                  Cap matches Travel Persona's 8 — mismatch with other "Top
+                  Priorities" pickers reported on 2026-05-09. */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {VIBE_OPTIONS.map((v) => {
                   const selected = vibes.includes(v.id);
                   return (
@@ -421,17 +434,17 @@ function AddDestinationModal({
                         setVibes(prev =>
                           prev.includes(v.id)
                             ? prev.length > 1 ? prev.filter(x => x !== v.id) : prev // keep at least 1
-                            : prev.length < 3 ? [...prev, v.id] : prev              // cap at 3
+                            : prev.length < 8 ? [...prev, v.id] : prev              // cap at 8
                         );
                       }}
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all duration-150 ${
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all duration-150 min-w-0 ${
                         selected
                           ? 'border-sky-600 bg-sky-50 text-sky-700'
                           : 'border-slate-200 hover:border-slate-300 text-slate-600'
                       }`}
                     >
-                      <span className={selected ? 'text-sky-600' : 'text-slate-400'}>{v.icon}</span>
-                      {v.label}
+                      <span className={`flex-shrink-0 ${selected ? 'text-sky-600' : 'text-slate-400'}`}>{v.icon}</span>
+                      <span className="truncate">{v.label}</span>
                     </button>
                   );
                 })}

@@ -159,6 +159,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    // Belt-and-suspenders safety: if the auth init below somehow never
+    // resolves (rare — usually a flaky network during the getUser() server
+    // round-trip on a fresh refresh), force isLoading=false after 12s so
+    // the UI doesn't sit in a loading state forever. Reported on mobile
+    // refresh: dashboard rendered "0 trips" with no spinner because
+    // tripsLoading defaults to true and the load effect waits on
+    // currentUser.isLoading which never flipped.
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(prev => {
+        if (prev) {
+          console.warn('[AuthContext] auth init exceeded 12s safety timeout — forcing isLoading=false');
+          return false;
+        }
+        return prev;
+      });
+    }, 12000);
+
     // Hydrate from the stored session cookie.
     // getSession() reads the local cookie — fast but can return null if the
     // middleware refreshed the token server-side before the browser propagated it.
@@ -178,17 +195,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchProfile(session.user.id);
       } else {
         // Cookie read came back empty — do a server-validated fallback.
-        const { data: { user: serverUser } } = await supabase.auth.getUser();
-        if (serverUser) {
-          // getUser() confirmed a valid session — re-read the (now propagated) cookie.
-          const { data: { session: refreshedSession } } = await supabase.auth.getSession();
-          setSession(refreshedSession);
-          fetchProfile(serverUser.id);
-        } else {
-          // Genuinely not logged in.
+        // Wrap in a 5s timeout so a stalled getUser() can't hang the whole
+        // app's loading state. On timeout we treat the user as not logged
+        // in; the auth state subscriber below will pick up the real state
+        // when it eventually arrives.
+        try {
+          const userResult = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise<{ data: { user: null } }>((_, reject) =>
+              setTimeout(() => reject(new Error('getUser timeout')), 5000),
+            ),
+          ]);
+          const serverUser = userResult.data.user;
+          if (serverUser) {
+            const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+            setSession(refreshedSession);
+            fetchProfile(serverUser.id);
+          } else {
+            setIsLoading(false);
+          }
+        } catch (err) {
+          console.warn('[AuthContext] getUser fallback failed/timeout — treating as logged-out:', err);
           setIsLoading(false);
         }
       }
+    }).catch(err => {
+      // getSession itself rejected — rare, but if localStorage is corrupt
+      // or the lock is stuck this is where we'd hang forever. Force the
+      // app out of loading state so at least the UI is responsive.
+      console.warn('[AuthContext] getSession failed — clearing loading state:', err);
+      setIsLoading(false);
     });
 
     // Keep in sync with auth state changes (login, logout, token refresh)
@@ -217,6 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };

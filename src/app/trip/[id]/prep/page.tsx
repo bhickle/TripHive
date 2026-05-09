@@ -1027,19 +1027,25 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     ) => (
       <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Add item</p>
-        <div className="flex gap-2">
+        {/* Stacks on mobile (`flex-col`) so the category select and name
+            input each get full width — previously the row layout pushed
+            the input off the edge of the screen on phone widths. min-w-0
+            on the input belt-and-suspenders the flex-shrink behavior. */}
+        <div className="flex flex-col sm:flex-row gap-2">
           <select value={category} onChange={(e) => onCatChange(e.target.value)}
-            className="px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
+            className="w-full sm:w-auto px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700">
             <option value="" disabled>Category</option>
             {PACK_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
           </select>
-          <input type="text" placeholder={placeholder} value={value} onChange={(e) => onValueChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); }}
-            className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
-          <button onClick={onAdd} disabled={!category || !value.trim()}
-            className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
-            <Plus className="w-5 h-5" />
-          </button>
+          <div className="flex gap-2 sm:flex-1">
+            <input type="text" placeholder={placeholder} value={value} onChange={(e) => onValueChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); }}
+              className="flex-1 min-w-0 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
+            <button onClick={onAdd} disabled={!category || !value.trim()}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
     );

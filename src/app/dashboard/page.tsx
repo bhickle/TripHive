@@ -76,7 +76,13 @@ export default function DashboardPage() {
     if (!currentUser.id || currentUser.isDemo) return;
     setTripsLoading(true);
     setTripsLoadError(false);
-    fetch('/api/trips')
+    // 15s timeout so a stalled fetch can't leave the dashboard sitting
+    // on a loading skeleton forever (reported as a refresh-freeze on
+    // mobile). On timeout the catch flips tripsLoadError so the user
+    // gets a Retry banner instead of an indefinite spinner.
+    const timeoutCtrl = new AbortController();
+    const timeoutId = setTimeout(() => timeoutCtrl.abort(), 15000);
+    fetch('/api/trips', { signal: timeoutCtrl.signal })
       .then(async r => {
         // 401 means the browser still has a stale session but the server
         // rejected it (e.g. token expired between auth resolve and this fetch).
@@ -130,7 +136,10 @@ export default function DashboardPage() {
         }
       })
       .catch(err => { if (err?.message !== 'unauthorized') setTripsLoadError(true); })
-      .finally(() => setTripsLoading(false));
+      .finally(() => {
+        clearTimeout(timeoutId);
+        setTripsLoading(false);
+      });
   };
 
   // Redirect to login if auth resolves with no user
