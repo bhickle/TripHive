@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import type { ItineraryDay, Activity, PhotoSpot } from '@/lib/types';
 
@@ -103,7 +104,12 @@ export default function PrintItineraryPage() {
 
       {/* Print action bar — hidden when printing */}
       <div className="no-print flex items-center justify-between mb-6 pb-4 border-b border-zinc-200">
-        <p className="text-sm text-zinc-500">Review your itinerary, then print or save as PDF.</p>
+        <Link
+          href={`/trip/${tripId}/itinerary`}
+          className="text-sm font-medium text-sky-700 hover:text-sky-900 inline-flex items-center gap-1"
+        >
+          ← Back to Itinerary
+        </Link>
         <button
           onClick={() => window.print()}
           className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-sm font-semibold rounded-full hover:bg-zinc-700 transition-colors"

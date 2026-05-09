@@ -309,7 +309,8 @@ export default function DashboardPage() {
     if (bTime === null) return -1;
     return aTime - bTime;
   });
-  const completedTrips = baseTripData
+  const allTrips = [...userTrips, ...baseTripData];
+  const completedTrips = allTrips
     .filter((t) => t.status === 'completed')
     .sort((a, b) => {
       const aTime = parseTripTime(a.startDate);
@@ -320,7 +321,6 @@ export default function DashboardPage() {
       return bTime - aTime;
     });
 
-  const allTrips = [...userTrips, ...baseTripData];
   const totalTrips = allTrips.length;
   // "Countries Visited" should reflect places you've actually been — count
   // only trips with status === 'completed'. The .split(',')[1] grab handles
@@ -429,10 +429,15 @@ export default function DashboardPage() {
                 )}
               </h1>
               <div className="flex items-center gap-3">
-                {/* Add Someone Button */}
+                {/* Add Someone Button — disabled until the user has at
+                    least one trip. Without a trip, the invite modal would
+                    open with inviteTripId=null and the SMS/email/copy-link
+                    flows would have nothing to attach to. */}
                 <button
                   onClick={() => { setInviteTripId(userTrips[0]?.id ?? null); setShowInviteModal(true); }}
-                  className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white rounded-full px-4 py-2 text-sm font-semibold transition-all shadow-sm"
+                  disabled={userTrips.length === 0}
+                  title={userTrips.length === 0 ? 'Create a trip first to invite travelers' : undefined}
+                  className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white rounded-full px-4 py-2 text-sm font-semibold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-sky-800"
                 >
                   <UserPlus className="w-4 h-4" />
                   Add Someone
@@ -742,7 +747,7 @@ export default function DashboardPage() {
                       Year in Review
                     </h3>
                     <p className="text-white/70 text-xs md:text-sm mt-0.5">
-                      {trips.length} trips · {trips.reduce((s, t) => s + Math.ceil((new Date(t.endDate).getTime() - new Date(t.startDate).getTime()) / 86400000), 0)} days · your travel personality revealed
+                      {allTrips.length} trips · {totalDays} days · your travel personality revealed
                     </p>
                   </div>
                 </div>

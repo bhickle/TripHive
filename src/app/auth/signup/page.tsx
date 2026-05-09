@@ -105,21 +105,9 @@ function SignupPageInner() {
     router.refresh();
   };
 
-  const handleGoogleSignup = async () => {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  };
-
-  const handleAppleSignup = async () => {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  };
+  // Google/Apple OAuth handlers were here but the buttons are not rendered.
+  // Restore both — the handler and the button — together when the Supabase
+  // Google provider is configured per CLAUDE.md #183.
 
   return (
     <div className="min-h-screen gradient-subtle flex items-center justify-center px-4 py-12">

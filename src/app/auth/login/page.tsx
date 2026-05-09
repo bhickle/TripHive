@@ -6,7 +6,6 @@ import { Mail, Lock } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase/client';
 import { signInAction } from './actions';
 
 const REMEMBERED_EMAIL_KEY = 'tc_remembered_email';
@@ -26,7 +25,11 @@ export default function LoginPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  // Default off — opting in should be intentional. Returning users who
+  // already ticked it once still get prefill from localStorage; this only
+  // affects first-time visitors so a shared device doesn't silently leak
+  // the previous user's email to the next.
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -85,21 +88,10 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  };
-
-  const handleAppleLogin = async () => {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  };
+  // Google/Apple OAuth handlers were here but the buttons are not rendered
+  // (see "OAuth (Google/Apple) hidden until providers are configured" in
+  // the JSX). Restore both — the handler and the button — together when
+  // the Supabase Google provider is configured per CLAUDE.md #183.
 
   return (
     <div className="min-h-screen gradient-subtle flex items-center justify-center px-4">

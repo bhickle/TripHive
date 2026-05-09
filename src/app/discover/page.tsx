@@ -788,11 +788,36 @@ export default function DiscoverPage() {
 
   const isFiltering = query.length > 0 || activeVibes.length > 0 || activeContinent !== 'All' || !!activeCollection;
 
-  return (
-    <div className="flex h-screen bg-parchment">
-      <Sidebar activePage="discover" user={currentUser} />
+  // Discover is one of the few pages publicly browsable while logged out.
+  // For guests, swap the dark authenticated Sidebar (which links to
+  // dashboard/wishlist/etc. that bounce to /auth/login) for a marketing
+  // top header so the visit feels like a marketing page, not a leaky
+  // app shell. Loading state gets the sidebar so paid users don't see
+  // the guest header flash on refresh.
+  const isGuest = !currentUser.isLoading && !currentUser.id;
 
-      <div className="flex-1 overflow-y-auto">
+  return (
+    <div className={`bg-parchment ${isGuest ? 'min-h-screen' : 'flex h-screen'}`}>
+      {isGuest ? (
+        <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+            <Link href="/">
+              <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
+            </Link>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Link href="/pricing" className="hidden sm:inline-flex text-sm font-medium text-slate-600 hover:text-slate-900 transition">
+                Pricing
+              </Link>
+              <Link href="/auth/login" className="btn-ghost">Log In</Link>
+              <Link href="/auth/signup" className="btn-primary">Get Started</Link>
+            </div>
+          </div>
+        </nav>
+      ) : (
+        <Sidebar activePage="discover" user={currentUser} />
+      )}
+
+      <div className={isGuest ? '' : 'flex-1 overflow-y-auto'}>
         <div className="max-w-7xl mx-auto px-6 py-8 space-y-12">
 
           {/* ── Page Header ────────────────────────────────────────────── */}

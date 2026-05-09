@@ -34,7 +34,26 @@ export default function HomePage() {
               <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
             </Link>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="hidden md:flex items-center gap-5 mr-2">
+              <button
+                type="button"
+                onClick={() => scrollTo('features')}
+                className="text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+              >
+                Features
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollTo('how-it-works')}
+                className="text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+              >
+                How It Works
+              </button>
+              <Link href="/pricing" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition">
+                Pricing
+              </Link>
+            </div>
             <Link href="/auth/login" className="btn-ghost">
               Log In
             </Link>
@@ -69,6 +88,7 @@ export default function HomePage() {
               <ArrowRight className="ml-2 w-5 h-5" />
             </Link>
             <button
+              type="button"
               onClick={() => scrollTo('how-it-works')}
               className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-display font-bold rounded-xl hover:bg-white/10 transition-all duration-200 text-lg"
             >
@@ -400,9 +420,9 @@ export default function HomePage() {
             <div>
               <h4 className="font-script italic text-white font-semibold mb-4">Product</h4>
               <ul className="space-y-2">
-                <li><button onClick={() => scrollTo('features')} className="hover:text-white transition text-left">Features</button></li>
+                <li><button type="button" onClick={() => scrollTo('features')} className="hover:text-white transition text-left">Features</button></li>
                 <li><Link href="/pricing" className="hover:text-white transition">Pricing</Link></li>
-                <li><button onClick={() => scrollTo('how-it-works')} className="hover:text-white transition text-left">How It Works</button></li>
+                <li><button type="button" onClick={() => scrollTo('how-it-works')} className="hover:text-white transition text-left">How It Works</button></li>
               </ul>
             </div>
             <div>

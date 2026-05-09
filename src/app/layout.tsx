@@ -20,12 +20,26 @@ const cormorantGaramond = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: 'tripcoord — AI Travel Planning',
+  // The %s slot is filled by per-page metadata.title; pages that don't set
+  // one fall through to the default. Keeps "— tripcoord" suffix consistent
+  // across browser tabs.
+  title: { default: 'tripcoord — AI Travel Planning', template: '%s — tripcoord' },
   description: 'Plan trips your whole group will love. AI-powered itineraries, group planning, and expense tracking all in one place.',
   openGraph: {
     title: 'tripcoord — AI Travel Planning',
     description: 'Plan trips your whole group will love. AI-powered itineraries, group planning, and expense tracking all in one place.',
     type: 'website',
+    url: 'https://www.tripcoord.ai',
+    siteName: 'tripcoord',
+    // /public/og-image.png is the 1200x630 share card. If the asset is
+    // missing, link previews fall back to nothing (better than a 404 image).
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'tripcoord' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'tripcoord — AI Travel Planning',
+    description: 'Plan trips your whole group will love.',
+    images: ['/og-image.png'],
   },
 };
 
