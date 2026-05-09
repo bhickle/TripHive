@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /auth/
+Disallow: /api/
+Disallow: /onboarding
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /trip/
+Disallow: /join/
+
+Sitemap: https://www.tripcoord.ai/sitemap.xml
