@@ -1155,6 +1155,7 @@ export type Database = {
           destination: string
           estimated_cost: number | null
           id: string
+          links: Json
           notes: string | null
           tags: string[] | null
           user_id: string
@@ -1167,6 +1168,7 @@ export type Database = {
           destination: string
           estimated_cost?: number | null
           id?: string
+          links?: Json
           notes?: string | null
           tags?: string[] | null
           user_id: string
@@ -1179,6 +1181,7 @@ export type Database = {
           destination?: string
           estimated_cost?: number | null
           id?: string
+          links?: Json
           notes?: string | null
           tags?: string[] | null
           user_id?: string

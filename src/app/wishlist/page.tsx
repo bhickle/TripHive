@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { wishlistItems as mockWishlistItems } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { WishlistItem } from '@/lib/types';
+import { WishlistItem, WishlistLink } from '@/lib/types';
 import {
   Heart, Plus, Sparkles, Calendar, DollarSign, Search,
   MapPin, Loader2, X, ArrowRight, Check, Mountain, Waves,
@@ -16,13 +16,13 @@ import Image from 'next/image';
 import { usePlacesSearch } from '@/hooks/usePlacesSearch';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { UpgradeModal } from '@/components/UpgradeModal';
+import { WishlistLinksSection } from '@/components/WishlistLinksSection';
 import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FilterType = string; // 'all' or a priority tag id
 type SortType = 'cost-low' | 'cost-high' | 'name';
-type ModalStage = 'search' | 'generating' | 'preview';
 type TravelVibe = 'adventure' | 'culture' | 'food' | 'photography' | 'nature' | 'wellness' | 'nightlife' | 'sports' | 'history' | 'shopping';
 
 interface TripLengthOption {
@@ -71,14 +71,6 @@ const TRIP_LENGTH_OPTIONS: TripLengthOption[] = [
   { label: 'Week',      days: 7,  sublabel: '5–7 days' },
   { label: '10 Days',   days: 10, sublabel: '9–11 days' },
   { label: 'Two Weeks', days: 14, sublabel: '12–15 days' },
-];
-
-const GENERATION_MESSAGES = [
-  'Researching top experiences…',
-  'Finding the best time to visit…',
-  'Estimating trip costs…',
-  'Pulling together highlights…',
-  'Almost ready…',
 ];
 
 // Unsplash cover photos keyed by destination keyword
@@ -186,19 +178,13 @@ function extractDestinationFromUrl(rawUrl: string): string | null {
 function AddDestinationModal({
   onClose,
   onSave,
-  aiPreviewEnabled = true,
 }: {
   onClose: () => void;
   onSave: (item: WishlistItem) => void;
-  /** When false, skips the AI generation step and saves with static vibe highlights */
-  aiPreviewEnabled?: boolean;
 }) {
-  const [stage, setStage] = useState<ModalStage>('search');
   const [destination, setDestination] = useState('');
   const [vibes, setVibes] = useState<TravelVibe[]>(['adventure']);
   const [tripDays, setTripDays] = useState<number>(7);
-  const [msgIdx, setMsgIdx] = useState(0);
-  const [preview, setPreview] = useState<WishlistItem | null>(null);
   const [socialUrl, setSocialUrl] = useState('');
   const [showSocialInput, setShowSocialInput] = useState(false);
   const [socialExtractError, setSocialExtractError] = useState(false);
@@ -219,152 +205,27 @@ function AddDestinationModal({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Cycle generation messages
-  useEffect(() => {
-    if (stage !== 'generating') return;
-    const t = setInterval(() => setMsgIdx(i => Math.min(i + 1, GENERATION_MESSAGES.length - 1)), 900);
-    return () => clearInterval(t);
-  }, [stage]);
-
-  const handleGenerate = useCallback(async () => {
+  // Save with static vibe highlights — no AI call. Users add destinations
+  // as visual reminders / saved links; the wishlist isn't a planning surface.
+  const handleSave = useCallback(() => {
     if (!destination.trim()) return;
-
-    // Free users: skip AI entirely — save immediately with static vibe highlights
-    if (!aiPreviewEnabled) {
-      const estimatedCost = Math.round((600 + tripDays * 350) / 50) * 50;
-      const city = destination.split(',')[0].trim();
-      const country = destination.includes(',') ? destination.split(',').slice(-1)[0].trim() : '';
-      onSave({
-        id: `wish_${Date.now()}`,
-        destination: city,
-        country,
-        coverImage: getCoverImage(destination),
-        bestSeason: 'Year-round',
-        estimatedCost,
-        tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
-        highlights: VIBE_HIGHLIGHTS[vibes[0]],
-        aiGenerated: false,
-        tripDays,
-      });
-      onClose();
-      return;
-    }
-
-    setStage('generating');
-    setMsgIdx(0);
-
-    // Build rough start/end dates from today + tripDays for the API call
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() + 3); // plan 3 months out
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + tripDays - 1);
-    const fmt = (d: Date) => d.toISOString().split('T')[0];
-
-    // Scale budget estimate by trip length (rough per-day rate of ~$350)
     const estimatedCost = Math.round((600 + tripDays * 350) / 50) * 50;
-    const budget = estimatedCost;
-
-    try {
-      const res = await fetch('/api/generate-itinerary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination,
-          startDate: fmt(startDate),
-          endDate: fmt(endDate),
-          tripLength: tripDays,
-          groupType: 'friends',
-          priorities: vibes,
-          budget,
-          budgetBreakdown: {
-            flights: Math.round(budget * 0.30 / 50) * 50,
-            hotel:   Math.round(budget * 0.25 / 50) * 50,
-            food:    Math.round(budget * 0.20 / 50) * 50,
-            experiences: Math.round(budget * 0.18 / 50) * 50,
-            transport:   Math.round(budget * 0.07 / 50) * 50,
-          },
-          ageRanges: ['25-35'],
-          accessibilityNeeds: [],
-        }),
-      });
-
-      // The generate-itinerary route returns SSE (text/event-stream).
-      // Read just enough to get the first day object, then extract activity names
-      // as highlights and close the reader — no need to wait for the full generation.
-      let highlights: string[] = VIBE_HIGHLIGHTS[vibes[0]];
-      if (res.ok && res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let sseBuffer = '';
-        try {
-          outer: while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            sseBuffer += decoder.decode(value, { stream: true });
-            const events = sseBuffer.split('\n\n');
-            sseBuffer = events.pop() ?? '';
-            for (const rawEvent of events) {
-              for (const line of rawEvent.split('\n')) {
-                if (!line.startsWith('data: ')) continue;
-                let parsed: Record<string, unknown>;
-                try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
-                if (parsed.type === 'day' && parsed.index === 0) {
-                  // Extract non-restaurant activity names from the first day as highlights
-                  type SseDayData = {
-                    tracks?: { shared?: Array<{ isRestaurant?: boolean; name?: string }> };
-                  };
-                  const day = parsed.data as SseDayData | undefined;
-                  const shared = day?.tracks?.shared ?? [];
-                  const actNames = shared
-                    .filter(a => !a.isRestaurant && a.name)
-                    .map(a => a.name as string)
-                    .slice(0, 3);
-                  if (actNames.length >= 2) highlights = actNames;
-                  break outer; // got what we need — stop reading
-                }
-                if (parsed.type === 'done' || parsed.type === 'error') break outer;
-              }
-            }
-          }
-        } finally {
-          reader.cancel(); // release the stream (we read only day 1)
-        }
-      }
-
-      const city = destination.split(',')[0].trim();
-      const country = destination.includes(',') ? destination.split(',').slice(-1)[0].trim() : '';
-
-      setPreview({
-        id: `wish_${Date.now()}`,
-        destination: city,
-        country,
-        coverImage: getCoverImage(destination),
-        bestSeason: 'Year-round',
-        estimatedCost,
-        tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
-        highlights,
-        aiGenerated: true,
-        tripDays,
-      });
-      setStage('preview');
-    } catch {
-      const city = destination.split(',')[0].trim();
-      const country = destination.includes(',') ? destination.split(',').slice(-1)[0].trim() : '';
-      setPreview({
-        id: `wish_${Date.now()}`,
-        destination: city,
-        country,
-        coverImage: getCoverImage(destination),
-        bestSeason: 'Year-round',
-        estimatedCost,
-        tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
-        highlights: VIBE_HIGHLIGHTS[vibes[0]],
-        aiGenerated: true,
-        tripDays,
-      });
-      setStage('preview');
-    }
-  }, [destination, vibes, tripDays]);
+    const city = destination.split(',')[0].trim();
+    const country = destination.includes(',') ? destination.split(',').slice(-1)[0].trim() : '';
+    onSave({
+      id: `wish_${Date.now()}`,
+      destination: city,
+      country,
+      coverImage: getCoverImage(destination),
+      bestSeason: 'Year-round',
+      estimatedCost,
+      tags: vibes.map(v => v.charAt(0).toUpperCase() + v.slice(1)),
+      highlights: VIBE_HIGHLIGHTS[vibes[0]],
+      tripDays,
+      links: [],
+    });
+    onClose();
+  }, [destination, vibes, tripDays, onSave, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -375,21 +236,15 @@ function AddDestinationModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-sky-600" />
-            <h2 className="font-script italic font-semibold text-slate-900">
-              {stage === 'search'     ? 'Add a Destination'      :
-               stage === 'generating' ? 'Building your preview…' :
-                                        'Here\'s a sneak peek'}
-            </h2>
+            <Heart className="w-4 h-4 text-sky-600" />
+            <h2 className="font-script italic font-semibold text-slate-900">Add a Destination</h2>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* ── Stage: Search ─────────────────────────────────────────────── */}
-        {stage === 'search' && (
-          <div className="p-6 space-y-5 overflow-y-auto">
+        <div className="p-6 space-y-5 overflow-y-auto">
             {/* Destination search */}
             <div ref={searchRef} className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">Where to?</label>
@@ -584,119 +439,18 @@ function AddDestinationModal({
             </div>
 
             <button
-              onClick={handleGenerate}
+              onClick={handleSave}
               disabled={!destination.trim()}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-semibold shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
-              {aiPreviewEnabled ? <Sparkles className="w-4 h-4" /> : <Heart className="w-4 h-4" />}
-              {aiPreviewEnabled ? 'Preview This Destination' : 'Save to Wishlist'}
+              <Heart className="w-4 h-4" />
+              Save to Wishlist
               <ArrowRight className="w-4 h-4" />
             </button>
-            {!aiPreviewEnabled && (
-              <p className="text-center text-xs text-slate-400">
-                <Link href="/pricing" className="text-sky-600 hover:underline">Upgrade to Explorer</Link> for AI-powered destination previews.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ── Stage: Generating ─────────────────────────────────────────── */}
-        {stage === 'generating' && (
-          <div className="p-8 flex flex-col items-center text-center space-y-6">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-sky-200 animate-ping opacity-25 scale-150" />
-              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-sky-700 to-green-700 flex items-center justify-center shadow-lg">
-                <Sparkles className="w-7 h-7 text-white" />
-              </div>
-            </div>
-            <div>
-              <p className="font-script italic font-semibold text-slate-900 text-lg mb-1">{destination.split(',')[0]}</p>
-              <p className="text-sm text-slate-500 min-h-5 transition-all duration-300">{GENERATION_MESSAGES[msgIdx]}</p>
-            </div>
-            <div className="w-full max-w-xs h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-sky-600 to-green-600 rounded-full animate-pulse" style={{ width: '70%' }} />
-            </div>
-          </div>
-        )}
-
-        {/* ── Stage: Preview ────────────────────────────────────────────── */}
-        {stage === 'preview' && preview && (
-          <div className="overflow-hidden">
-            {/* Cover image */}
-            <div className="relative h-44">
-              <Image
-                src={preview.coverImage}
-                alt={preview.destination}
-                fill
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-4">
-                <h3 className="font-display font-bold text-white text-xl">{preview.destination}</h3>
-                {preview.country && <p className="text-white/70 text-sm">{preview.country}</p>}
-              </div>
-              <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/40 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                <Sparkles className="w-3 h-3" />
-                AI Preview
-              </div>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {/* Highlights */}
-              {preview.highlights && preview.highlights.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Top Highlights</p>
-                  <ul className="space-y-1.5">
-                    {preview.highlights.map((h, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                        <ChevronRight className="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5" />
-                        {h}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Meta chips */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {preview.tags.map(tag => (
-                  <span key={tag} className="px-2.5 py-1 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-xs font-medium">
-                    {tag}
-                  </span>
-                ))}
-                <span className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium">
-                  <Calendar className="w-3 h-3" />
-                  {tripDays} days
-                </span>
-                <span className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium">
-                  <DollarSign className="w-3 h-3" />
-                  ~${preview.estimatedCost.toLocaleString()} est.
-                </span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={onClose}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-                >
-                  Maybe Later
-                </button>
-                <button
-                  onClick={() => { onSave(preview); onClose(); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold transition-colors"
-                >
-                  <Heart className="w-4 h-4" />
-                  Save to Wishlist
-                </button>
-              </div>
-
-              <p className="text-center text-xs text-slate-400">
-                You can plan a full trip from your wishlist anytime.
-              </p>
-            </div>
-          </div>
-        )}
+            <p className="text-center text-xs text-slate-400">
+              You can paste TripAdvisor / blog / Reddit links to each destination after saving.
+            </p>
+        </div>
       </div>
     </div>
   );
@@ -737,10 +491,7 @@ export default function WishlistPage() {
     }
   }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
 
-  const { hasWishlist, getUpgradePrompt, tier } = useEntitlements();
-  // AI preview (calls /api/generate-itinerary) is only for Explorer+ to avoid
-  // burning free users' 10-credit monthly allowance on wishlist highlights
-  const aiPreviewEnabled = tier === 'explorer' || tier === 'nomad';
+  const { hasWishlist, getUpgradePrompt } = useEntitlements();
 
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [sortType, setSortType] = useState<SortType>('name');
@@ -765,6 +516,8 @@ export default function WishlistPage() {
           bestSeason?: string;
           estimatedCost?: number;
           tags?: string[];
+          notes?: string;
+          links?: WishlistLink[];
         };
         const rows: WishlistRow[] = items ?? [];
         const mapped: WishlistItem[] = rows.map(i => ({
@@ -776,7 +529,8 @@ export default function WishlistPage() {
           estimatedCost: i.estimatedCost ?? 0,
           tags: i.tags ?? [],
           highlights: [],
-          aiGenerated: false,
+          notes: i.notes,
+          links: i.links ?? [],
         }));
         setAllItems(mapped);
         setSavedIds(new Set(mapped.map(i => i.id)));
@@ -816,8 +570,9 @@ export default function WishlistPage() {
           estimatedCost: saved.estimatedCost ?? item.estimatedCost,
           tags: saved.tags ?? item.tags,
           highlights: item.highlights,
-          aiGenerated: item.aiGenerated,
           tripDays: item.tripDays,
+          links: saved.links ?? [],
+          notes: saved.notes,
         };
         setAllItems(prev => [...prev, mapped]);
         setSavedIds(prev => new Set([...Array.from(prev), mapped.id]));
@@ -915,7 +670,6 @@ export default function WishlistPage() {
         <AddDestinationModal
           onClose={() => setShowModal(false)}
           onSave={handleSaveNew}
-          aiPreviewEnabled={aiPreviewEnabled}
         />
       )}
 
@@ -1018,12 +772,6 @@ export default function WishlistPage() {
                   >
                     <Heart className={`w-5 h-5 transition-all ${savedIds.has(item.id) ? 'fill-sky-700 text-sky-700' : 'text-zinc-400 hover:text-sky-700'}`} />
                   </button>
-                  {item.aiGenerated && (
-                    <div className="absolute top-3 left-3 flex items-center gap-1 bg-black/40 backdrop-blur-sm text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                      <Sparkles className="w-3 h-3" />
-                      AI
-                    </div>
-                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <p className="font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">{item.destination}, {item.country}</p>
@@ -1072,7 +820,23 @@ export default function WishlistPage() {
                     </div>
                   </div>
 
-                  {/* Hover CTA */}
+                  {/* Saved links — TripAdvisor reviews, blog posts, etc.
+                      Always visible (not hover-revealed) since this is the
+                      core of the wishlist now. */}
+                  <div className="mt-3 pt-3 border-t border-zinc-100">
+                    <WishlistLinksSection
+                      itemId={item.id}
+                      links={item.links ?? []}
+                      canEdit={!currentUser.isDemo}
+                      onLinksChange={(nextLinks) => {
+                        setAllItems(prev => prev.map(it =>
+                          it.id === item.id ? { ...it, links: nextLinks } : it
+                        ));
+                      }}
+                    />
+                  </div>
+
+                  {/* Plan-this-trip CTA */}
                   <div
                     className="mt-3 pt-3 border-t border-zinc-50 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
                     onClick={() => {
