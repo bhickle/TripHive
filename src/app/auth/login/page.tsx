@@ -4,6 +4,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Mail, Lock } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { signInAction } from './actions';
 
@@ -20,11 +22,25 @@ function safeRedirect(raw: string | null): string {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // If the user is already authenticated, send them on. Without this,
+  // hitting Back from /dashboard after a successful login dropped them
+  // back on this form — confusing because they were already logged in.
+  // Use router.replace so /auth/login is removed from history and Back
+  // doesn't bounce them back here in a loop.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    router.replace(safeRedirect(params.get('redirect')));
+  }, [authLoading, user, router]);
 
   // Prefill email from a previous "Remember me" if one is stored. Supabase
   // already handles session persistence — this checkbox controls whether we

@@ -4,8 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { User, Mail, Lock } from 'lucide-react';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 // Next.js 14 requires useSearchParams() consumers to live inside a Suspense
 // boundary so the static prerender can bail to client rendering for just
@@ -31,6 +32,7 @@ function SignupPageInner() {
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, isLoading: authLoading } = useAuth();
 
   // Honor an explicit ?redirect=... param after signup so flows that bounce
   // anonymous users through signup (e.g. /pricing → /auth/signup → back) can
@@ -42,6 +44,18 @@ function SignupPageInner() {
     if (!raw.startsWith('/') || raw.startsWith('//')) return '/onboarding';
     return raw;
   })();
+
+  // If the user is already authenticated, skip the signup form and send
+  // them on. Same back-button trap as /auth/login — without this, hitting
+  // Back from a post-signup destination would land them back on the
+  // signup form despite already being logged in. router.replace removes
+  // /auth/signup from history so Back doesn't bounce them here again.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) return;
+    if (awaitingConfirmation) return; // post-signup confirm panel — leave alone
+    router.replace(safeRedirect);
+  }, [authLoading, user, awaitingConfirmation, safeRedirect, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -653,8 +653,13 @@ export default function DiscoverPage() {
   // Step 1: clicking "Use as starting point" opens the date-picker modal.
   // Step 2: modal collects dates (or skip) and calls handleCommunityForkSubmit.
   const handleCommunityFork = (trip: CommunityTrip) => {
+    if (currentUser.isLoading) return;
     if (!currentUser.id || currentUser.isDemo) {
-      window.location.href = '/auth/login';
+      // Bounce through login but bring them back to /discover after — same
+      // pattern as the Like button (line 619). Without ?redirect= the
+      // user landed on /dashboard post-login instead of returning to the
+      // trip card they were trying to fork.
+      window.location.href = `/auth/login?redirect=${encodeURIComponent('/discover')}`;
       return;
     }
     if (forkingId) return;
