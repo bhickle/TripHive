@@ -242,8 +242,12 @@ These are the active items to build/fix, in rough priority order. Note: this lis
 - [ ] Add `/auth/update-password` to Supabase redirect allowlist
 - [ ] Upgrade Twilio from trial to Pay As You Go + complete A2P 10DLC registration
 - [ ] Swap Stripe test keys for live keys + recreate products in live mode + update `src/lib/stripe-prices.ts`
-- [ ] Reset AI credits: `UPDATE profiles SET ai_credits_used = 0;`
+- [ ] Reset AI credits: `UPDATE profiles SET ai_credits_used = 0;` (run on the day of launch, after final testing)
+- [ ] Reset Brandon's credits during testing: `UPDATE profiles SET ai_credits_used = 0 WHERE email = 'brandon.hickle@gmail.com';`
 - [ ] Set `CRON_SECRET` in Vercel env vars (any random string) — the daily preferences-fallback cron at `/api/cron/preferences-fallback` returns 500 every day at 09:00 UTC until set. Steps in the route's docstring.
+- [ ] Drop `/public/og-image.png` (1200×630 PNG) — referenced in layout metadata (commit `4653e36`); until the file exists, link previews on iMessage/Slack/X show a blank thumbnail.
+- [ ] Configure Google OAuth — Google Cloud Console → OAuth Client ID → redirect URI `https://pqizuvmtertpxhhxyemj.supabase.co/auth/v1/callback` → paste keys into Supabase Auth → Providers → Google. Then re-render the hidden Google sign-in buttons on `/auth/login` + `/auth/signup` (handlers were removed in commit `4653e36`; restore handler + button together when ready).
+- [ ] Register for Viator + GetYourGuide affiliate programs (blocked until live site approval) → add `VIATOR_AFFILIATE_ID` + `GETYOURGUIDE_AFFILIATE_ID` to Vercel env. Run `scripts/enrich-affiliate-links.ts` to backfill existing activities.
 - [ ] Run full pre-launch test pass (see `GOLIVE_CHECKLIST.md`)
 
 ---

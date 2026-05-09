@@ -134,6 +134,15 @@ Do this **the day of launch**, after final testing, before announcing.
 2. Vercel → TripHive → Settings → Environment Variables → add `CRON_SECRET` with the random value
 3. Redeploy
 
+### 🟥 Drop `/public/og-image.png` (1200×630) for social previews
+**Why:** Layout metadata already references `/og-image.png` as the OpenGraph + Twitter card image. Until the file exists, link previews on iMessage / Slack / X / Facebook show a blank thumbnail. The metadata is wired (commit `4653e36`); just need the asset.
+
+**Steps:**
+1. Export a 1200×630 PNG (tripcoord wordmark on parchment background, or hero composition)
+2. Save as `/public/og-image.png` (case-sensitive — Vercel Linux is case-sensitive even though Windows isn't)
+3. Verify after deploy: paste the homepage URL into Slack / iMessage and confirm the preview renders
+4. Optionally validate with https://www.opengraph.xyz/url/https%3A%2F%2Fwww.tripcoord.ai
+
 ### 🟥 Pre-launch database backup
 **Why:** Once real users start writing trips, photos, expenses — losing data is unrecoverable. Take a snapshot before you announce.
 
@@ -254,7 +263,7 @@ Quick audit before launch — one missing key silently degrades a feature:
 These are useful to track but won't block launch. Status: not blocking but valuable post-launch.
 
 - 🟥 **Ticketmaster events** (`#69`) — needs `TICKETMASTER_API_KEY` env var
-- 🟥 **Viator/GetYourGuide affiliate links** (`#70`) — affiliate registration blocked until site is live for approval
+- 🟥 **Viator/GetYourGuide affiliate links** (`#70`) — needs `VIATOR_AFFILIATE_ID` + `GETYOURGUIDE_AFFILIATE_ID` env vars; affiliate registration blocked until site is live for approval. Once approved, scaffold at `scripts/enrich-affiliate-links.ts` populates `affiliate_url` / `affiliate_label` on existing activities; new generations pick up the IDs from env automatically.
 - 🟥 **Group wishlist + voting** — let friends collaborate on "where should we go?" (deferred from On My Radar discussion)
 - 🟥 **Comparison view on wishlist** — pick 2-3 saved destinations, see cost/season/flight-time side-by-side
 - 🟥 **Calendar/seasonal strip on wishlist** — show items on a year ribbon by best season
