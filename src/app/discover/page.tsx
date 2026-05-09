@@ -227,11 +227,32 @@ function FeaturedItineraryCard({ item, days, loadingDays }: FeaturedItineraryCar
 
 // ─── Seasonal Collection Card ───────────────────────────────────────────────
 
-function SeasonalCard({ collection }: { collection: SeasonalCollection }) {
+function SeasonalCard({
+  collection,
+  onCardClick,
+  onPillClick,
+}: {
+  collection: SeasonalCollection;
+  /** Click anywhere on the card body to filter the L2 grid to this collection */
+  onCardClick: (collection: SeasonalCollection) => void;
+  /** Click a destination pill to drill into that single destination */
+  onPillClick: (destinationName: string) => void;
+}) {
   const colors = seasonColors[collection.season] ?? seasonColors.summer;
 
   return (
-    <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden p-5`}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onCardClick(collection)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onCardClick(collection);
+        }
+      }}
+      className={`group rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden p-5 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-700`}
+    >
       <div className={`w-10 h-1 rounded-full ${colors.accent} mb-3`} />
       <h4 className={`font-semibold text-base ${colors.text} mb-1`}>{collection.title}</h4>
       {collection.description && (
@@ -239,9 +260,13 @@ function SeasonalCard({ collection }: { collection: SeasonalCollection }) {
       )}
       <div className="flex flex-wrap gap-1.5">
         {collection.destinationNames.slice(0, 4).map(name => (
-          <span key={name} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colors.pill}`}>
+          <button
+            key={name}
+            onClick={(e) => { e.stopPropagation(); onPillClick(name); }}
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colors.pill} hover:brightness-95 hover:underline-offset-2 hover:underline transition-all`}
+          >
             {name}
-          </span>
+          </button>
         ))}
         {collection.destinationNames.length > 4 && (
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colors.pill}`}>
@@ -424,6 +449,10 @@ export default function DiscoverPage() {
   const [query, setQuery] = useState('');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
   const [activeContinent, setActiveContinent] = useState('All');
+  // Set when the user clicks a Seasonal Collection card. Filters the L2
+  // destination grid to just the collection's destinations and surfaces
+  // the collection title in the section header.
+  const [activeCollection, setActiveCollection] = useState<SeasonalCollection | null>(null);
   const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
   const [showWishlistToast, setShowWishlistToast] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -481,6 +510,41 @@ export default function DiscoverPage() {
   }, [featured]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
+
+  // Filter the L2 destination grid to a single Seasonal Collection.
+  // Scrolls the grid into view so the user can see the result of their click
+  // — without this, the section header swap is easy to miss on tall screens.
+  const handleCollectionClick = useCallback((collection: SeasonalCollection) => {
+    setActiveCollection(collection);
+    // Clear other filters that would compound — pill-click users want
+    // just this collection, not a slice of it.
+    setActiveVibes([]);
+    setActiveContinent('All');
+    setQuery('');
+    if (typeof window !== 'undefined') {
+      // Defer a tick so the layer transition (Featured/Seasonal hide) settles
+      // before we scroll to the destination grid.
+      setTimeout(() => {
+        document.getElementById('layer-2-destinations')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+  }, []);
+
+  // Pill click: drill into a single destination by name. Falls through to
+  // the existing search-query filter, which is a substring match — exact
+  // names will exact-match and resolve to one card.
+  const handleSeasonalPillClick = useCallback((destinationName: string) => {
+    setActiveCollection(null);
+    setActiveVibes([]);
+    setActiveContinent('All');
+    setQuery(destinationName);
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        document.getElementById('layer-2-destinations')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+  }, []);
+
 
   const handleSearchChange = useCallback((value: string) => {
     setQuery(value);
@@ -581,15 +645,21 @@ export default function DiscoverPage() {
   };
 
   const filtered = useMemo(() => {
+    // Pre-compute the lower-cased collection set once per render to avoid
+    // re-mapping on each destination iteration.
+    const collectionSet = activeCollection
+      ? new Set(activeCollection.destinationNames.map(n => n.toLowerCase()))
+      : null;
     return destinations.filter(d => {
       const matchQuery = !query || d.name.toLowerCase().includes(query.toLowerCase()) || d.country.toLowerCase().includes(query.toLowerCase());
       const matchVibe = activeVibes.length === 0 || activeVibes.some(v => d.vibes.includes(v));
       const matchContinent = activeContinent === 'All' || d.continent === activeContinent;
-      return matchQuery && matchVibe && matchContinent;
+      const matchCollection = !collectionSet || collectionSet.has(d.name.toLowerCase());
+      return matchQuery && matchVibe && matchContinent && matchCollection;
     });
-  }, [destinations, query, activeVibes, activeContinent]);
+  }, [destinations, query, activeVibes, activeContinent, activeCollection]);
 
-  const isFiltering = query.length > 0 || activeVibes.length > 0 || activeContinent !== 'All';
+  const isFiltering = query.length > 0 || activeVibes.length > 0 || activeContinent !== 'All' || !!activeCollection;
 
   return (
     <div className="flex h-screen bg-parchment">
@@ -819,17 +889,31 @@ export default function DiscoverPage() {
 
           {/* When filters are active, show the original destination grid
               against the editor-curated discover_destinations rows so
-              search/vibe filtering still has something to bite on. */}
+              search/vibe/collection filtering still has something to
+              bite on. The id is a scroll anchor for collection-card
+              and seasonal-pill clicks. */}
           {isFiltering && (
-            <section>
+            <section id="layer-2-destinations">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
-                    {filtered.length} destination{filtered.length !== 1 ? 's' : ''} found
-                  </h2>
+                  {activeCollection ? (
+                    <>
+                      <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
+                        {activeCollection.title}
+                      </h2>
+                      <p className="text-sm text-zinc-400 mt-0.5">
+                        {filtered.length} destination{filtered.length !== 1 ? 's' : ''}
+                        {activeCollection.description && ` · ${activeCollection.description}`}
+                      </p>
+                    </>
+                  ) : (
+                    <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
+                      {filtered.length} destination{filtered.length !== 1 ? 's' : ''} found
+                    </h2>
+                  )}
                 </div>
                 <button
-                  onClick={() => { setActiveVibes([]); setActiveContinent('All'); setQuery(''); }}
+                  onClick={() => { setActiveVibes([]); setActiveContinent('All'); setQuery(''); setActiveCollection(null); }}
                   className="text-xs text-zinc-400 hover:text-zinc-700 font-semibold underline"
                 >
                   Clear all filters
@@ -872,7 +956,12 @@ export default function DiscoverPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {seasonal.map(collection => (
-                  <SeasonalCard key={collection.slug} collection={collection} />
+                  <SeasonalCard
+                    key={collection.slug}
+                    collection={collection}
+                    onCardClick={handleCollectionClick}
+                    onPillClick={handleSeasonalPillClick}
+                  />
                 ))}
               </div>
             </section>
