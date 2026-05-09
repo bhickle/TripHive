@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
+import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
+import type { Json } from '@/lib/supabase/database.types';
 import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
 
 // Extend Vercel function timeout to 5 minutes (300s).
@@ -1565,9 +1567,16 @@ export async function POST(request: NextRequest) {
 
   // ── Open SSE stream ──────────────────────────────────────────────────────────
   const encoder = new TextEncoder();
-  // Forward client disconnect to the Anthropic SDK (and our own loops) so a
-  // closed browser tab doesn't keep generating for 5 minutes burning credits.
-  const clientSignal = request.signal;
+  // Tier 1 build-durability: deliberately do NOT use request.signal here.
+  // A closed browser tab, refresh, or sleeping device used to abort the
+  // Anthropic stream and lose the in-flight day. Now we keep generating
+  // (within Vercel's maxDuration) and persist each day server-side via
+  // persistGenerationDays so a returning tab can resume from where the
+  // server got. The "don't burn credits on a closed tab" concern is
+  // addressed instead by the credit charge happening only when daysEmitted
+  // > 0 at stream end — partial waste is bounded by maxDuration.
+  const serverAbort = new AbortController();
+  const abortSignal = serverAbort.signal;
 
   // ── Anthropic prompt caching: send the priority guidance as a separate
   // cached system block. Multi-city segments, open-stream retries, and
@@ -1603,7 +1612,6 @@ export async function POST(request: NextRequest) {
           const MAX_OPEN_ATTEMPTS = 3;
           let openErr: unknown;
           for (let attempt = 1; attempt <= MAX_OPEN_ATTEMPTS; attempt++) {
-            if (clientSignal.aborted) throw new Error('client aborted');
             try {
               anthropicStream = await client.messages.create({
                 model: modelId,
@@ -1613,7 +1621,7 @@ export async function POST(request: NextRequest) {
                 messages: [
                   { role: 'user', content: finalPrompt },
                 ],
-              }, { signal: clientSignal });
+              }, { signal: abortSignal });
               break;
             } catch (err) {
               openErr = err;
@@ -1621,7 +1629,7 @@ export async function POST(request: NextRequest) {
               const delay = 2000 * Math.pow(3, attempt - 1); // 2s, 6s
               console.warn(`[generate-itinerary] first-pass open retry ${attempt}/${MAX_OPEN_ATTEMPTS} after ${delay}ms: ${err instanceof Error ? err.message : String(err)}`);
               send({ type: 'status', message: `Anthropic temporarily overloaded — retrying in ${Math.round(delay / 1000)}s...` });
-              await sleep(delay, clientSignal);
+              await sleep(delay, abortSignal);
             }
           }
           if (!anthropicStream) throw openErr ?? new Error('failed to open Anthropic stream');
@@ -1714,6 +1722,20 @@ export async function POST(request: NextRequest) {
                     send({ type: 'day', index: dayIndex, data: dayObj });
                     collectedDays.push(dayObj);
                     dayIndex++;
+
+                    // Tier 1 build-durability: persist the running snapshot
+                    // server-side so a closed tab doesn't lose this day. Fire
+                    // and forget — the SSE stream must not block on Supabase.
+                    // Snapshot-write (full days array, not single-day upsert)
+                    // makes concurrent fire-and-forget calls race-safe: every
+                    // write is a complete superset of all prior writes.
+                    if (requestBodyTripId) {
+                      persistGenerationDays(requestBodyTripId, collectedDays as unknown as Json[])
+                        .then(r => {
+                          if (!r.ok) console.warn('[generate-itinerary] persistGenerationDays (first-pass):', r.error);
+                        })
+                        .catch(err => console.warn('[generate-itinerary] persistGenerationDays threw (first-pass):', err));
+                    }
 
                     // Trim the buffer — the object has been consumed
                     buffer = '';
@@ -1903,12 +1925,6 @@ export async function POST(request: NextRequest) {
             `Return ONLY the JSON array for days ${contFromDay}–${contToDay}. No markdown. No explanation. Start with [ and end with ].`,
           ].filter(Boolean).join('\n');
 
-          // Bail before the next continuation call if the client disconnected
-          if (clientSignal.aborted) {
-            console.warn('[generate-itinerary] client disconnected — aborting continuation loop');
-            break;
-          }
-
           try {
             const contStream = await client.messages.create({
               model: modelId,
@@ -1921,7 +1937,7 @@ export async function POST(request: NextRequest) {
               // a trip generation, so the priority guidance hits the cache.
               system: systemParam,
               messages: [{ role: 'user', content: compactContPrompt }],
-            }, { signal: clientSignal });
+            }, { signal: abortSignal });
 
             let contBuf = '';
             let contDepth = 0;
@@ -1976,6 +1992,18 @@ export async function POST(request: NextRequest) {
                         send({ type: 'day', index: dayIndex, data: dayObj });
                         collectedDays.push(dayObj);
                         dayIndex++;
+
+                        // Same Tier 1 server-side persist as the first pass —
+                        // fire-and-forget snapshot write so the continuation
+                        // loop's days survive client disconnect.
+                        if (requestBodyTripId) {
+                          persistGenerationDays(requestBodyTripId, collectedDays as unknown as Json[])
+                            .then(r => {
+                              if (!r.ok) console.warn('[generate-itinerary] persistGenerationDays (cont):', r.error);
+                            })
+                            .catch(err => console.warn('[generate-itinerary] persistGenerationDays threw (cont):', err));
+                        }
+
                         contBuf = '';
                         contStart = -1;
                       }
@@ -2014,7 +2042,7 @@ export async function POST(request: NextRequest) {
               console.warn(`[generate-itinerary] Continuation pass ${contAttempt} hit retryable error — backing off ${delay}ms: ${contErr instanceof Error ? contErr.message : String(contErr)}`);
               send({ type: 'status', message: `Anthropic overloaded — retrying in ${Math.round(delay / 1000)}s...` });
               try {
-                await sleep(delay, clientSignal);
+                await sleep(delay, abortSignal);
               } catch {
                 console.warn('[generate-itinerary] client disconnected during retry backoff');
                 break;

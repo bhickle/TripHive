@@ -810,7 +810,7 @@ function ItineraryPageContent() {
       };
       const destinations = payload.destinations as string[] | null | undefined;
       const daysPerDest  = payload.daysPerDestination as Record<string, number> | null | undefined;
-      const segments: Segment[] = [];
+      let segments: Segment[] = [];
 
       // Chunk size: each chunk = one HTTP call with its own 5-min budget.
       // 3 days is conservative for the per-day richness this app generates
@@ -868,6 +868,96 @@ function ItineraryPageContent() {
       const totalDays = segments.reduce((s, c) => s + c.dayCount, 0)
         || (payload.tripLength as number) || 7;
       setLiveBuildTotal(totalDays);
+
+      // ── Resume detection (Tier 1 build-durability) ────────────────────────
+      // The server-side persistGenerationDays helper writes each day to
+      // Supabase as it streams, so a refreshed/closed/slept tab no longer
+      // loses prior progress. Before kicking off generation, fetch what's
+      // already persisted: skip segments that are fully done and narrow the
+      // segment that spans the resume boundary so we only request the
+      // missing tail. If everything is already persisted (server finished
+      // while the tab was gone), short-circuit and clean up.
+      let resumeStartFromDay = 1;
+      if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+        try {
+          const res = await fetch(`/api/trips/${tripPageId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const persistedDays = (data?.itinerary?.days ?? []) as ItineraryDay[];
+            const persistedMeta = data?.itinerary?.meta as Record<string, unknown> | null;
+            if (Array.isArray(persistedDays) && persistedDays.length > 0) {
+              // Seed the UI immediately so the user sees prior progress
+              // instead of starting from a blank loading state.
+              syncAiDays(persistedDays);
+              if (persistedMeta) setAiMeta(persistedMeta as Parameters<typeof setAiMeta>[0]);
+              setLiveBuildDone(persistedDays.length);
+              const completed = new Set(
+                persistedDays
+                  .map(d => (typeof d.day === 'number' ? d.day : null))
+                  .filter((n): n is number => n !== null),
+              );
+              // Find the lowest day number not yet persisted. Days complete
+              // in order in the normal flow, so this is almost always the
+              // contiguous tail; if a middle day is missing it'll be picked
+              // up by the server's continuation/dedup loop.
+              resumeStartFromDay = totalDays + 1;
+              for (let i = 1; i <= totalDays; i++) {
+                if (!completed.has(i)) { resumeStartFromDay = i; break; }
+              }
+            }
+          }
+        } catch {
+          // Trip fetch failed — fall through and run a fresh build.
+        }
+      }
+
+      if (resumeStartFromDay > totalDays) {
+        // Everything is already persisted (server finished while tab was
+        // away). Skip generation entirely; clean up the same way the
+        // natural-completion path does at the end of this effect.
+        setLiveBuildStatus('Resumed completed itinerary');
+        setIsLiveBuilding(false);
+        sessionStorage.removeItem('tripcoord_gen_payload');
+        sessionStorage.removeItem('tripcoord_gen_meta');
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
+
+      if (resumeStartFromDay > 1) {
+        // Narrow segments to the missing tail. A segment fully before the
+        // boundary is dropped; one that spans it is shrunk to start at the
+        // first missing day with sameCity:true (we're already "in" that city
+        // from prior days). For the no-segments single-call path, synthesize
+        // a one-chunk segment so the server gets a citySegment hint with
+        // dayStart/dayCount instead of regenerating from day 1.
+        if (segments.length === 0) {
+          const cityName = (payload.destination as string) || 'destination';
+          segments = [{
+            cityName,
+            dayStart: resumeStartFromDay,
+            dayCount: totalDays - resumeStartFromDay + 1,
+            sameCity: true,
+          }];
+        } else {
+          const narrowed: Segment[] = [];
+          for (const seg of segments) {
+            const segEnd = seg.dayStart + seg.dayCount - 1;
+            if (segEnd < resumeStartFromDay) continue;
+            if (seg.dayStart >= resumeStartFromDay) {
+              narrowed.push(seg);
+            } else {
+              narrowed.push({
+                ...seg,
+                dayStart: resumeStartFromDay,
+                dayCount: segEnd - resumeStartFromDay + 1,
+                sameCity: true,
+              });
+            }
+          }
+          segments = narrowed;
+        }
+        setLiveBuildStatus(`Resuming from day ${resumeStartFromDay}…`);
+      }
 
       // Extract every venue / restaurant / activity / photo spot / food tip /
       // bar / shop name from a day. Used to build the cross-chunk dedup list
