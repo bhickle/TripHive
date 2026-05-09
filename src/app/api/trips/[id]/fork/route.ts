@@ -5,6 +5,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 /**
  * POST /api/trips/[id]/fork
  *
+ * Body (all optional):
+ *   { startDate?: string (YYYY-MM-DD), endDate?: string (YYYY-MM-DD) }
+ *
  * Copies a public template trip into a new trip owned by the caller.
  * The new trip:
  *   - Has its own id (generated)
@@ -13,17 +16,30 @@ import { createAdminClient } from '@/lib/supabase/admin';
  *   - Carries over the itinerary days + meta (so user can immediately
  *     start editing), destination, trip_length, group_size, and the
  *     cover photo + attribution metadata.
- *   - Resets dates to null (new trip = pick your own travel dates),
- *     resets is_public_template to false, fresh trip_members row for
- *     the caller as organizer.
+ *   - Title gets " (Copy)" appended so the fork is distinguishable
+ *     from the original on the user's dashboard, especially when
+ *     someone forks their own trip.
+ *   - Dates default to null (user picks their own travel dates), but
+ *     can be supplied in the request body so the new trip sorts into
+ *     the right chronological spot on Home Base immediately.
+ *   - is_public_template resets to false (forks start private).
  *
  * Returns the new trip's id so the client can redirect to /trip/[id]/itinerary.
  */
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const authClient = await createClient();
     const { data: { user } } = await authClient.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Body is optional — empty body or non-JSON should still allow the fork.
+    let bodyDates: { startDate?: string | null; endDate?: string | null } = {};
+    try {
+      const parsed = await req.json();
+      if (parsed && typeof parsed === 'object') bodyDates = parsed;
+    } catch { /* no body / malformed — continue with nulls */ }
+    const startDate = typeof bodyDates.startDate === 'string' ? bodyDates.startDate : null;
+    const endDate = typeof bodyDates.endDate === 'string' ? bodyDates.endDate : null;
 
     const supabase = createAdminClient();
 
@@ -41,16 +57,22 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'Trip is not a public template' }, { status: 403 });
     }
 
+    // Append (Copy) so forks are distinguishable from the original on Home
+    // Base. Skip if the source already ends in (Copy) — multiple forks of a
+    // fork shouldn't pile up "(Copy) (Copy) (Copy)".
+    const baseTitle = source.title || `${source.destination} trip`;
+    const newTitle = /\(Copy\)\s*$/i.test(baseTitle) ? baseTitle : `${baseTitle} (Copy)`;
+
     // Create the new trip row (organizer_id = caller, fork_source_id = source)
     const { data: newTrip, error: insertErr } = await supabase
       .from('trips')
       .insert({
         organizer_id: user.id,
         fork_source_id: source.id,
-        title: source.title || `${source.destination} trip`,
+        title: newTitle,
         destination: source.destination,
-        start_date: null,
-        end_date: null,
+        start_date: startDate,
+        end_date: endDate,
         trip_length: source.trip_length,
         group_size: source.group_size,
         group_type: source.group_type,

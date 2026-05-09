@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Heart, Calendar, Users, ArrowLeft, Sparkles, MapPin } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { ForkTripModal } from '@/components/ForkTripModal';
 
 interface CommunityActivity {
   id: string;
@@ -64,6 +65,7 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [forking, setForking] = useState(false);
+  const [forkModalOpen, setForkModalOpen] = useState(false);
   const [activityLikes, setActivityLikes] = useState<Record<string, number>>({});
   const [viewerLikedActivities, setViewerLikedActivities] = useState<Set<string>>(new Set());
   const [itineraryLikeCount, setItineraryLikeCount] = useState(0);
@@ -144,20 +146,32 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
     }
   };
 
-  const handleFork = async () => {
+  const handleFork = () => {
     if (!requireAuth()) return;
     if (forking) return;
+    setForkModalOpen(true);
+  };
+
+  const handleForkSubmit = async (
+    dates: { startDate: string | null; endDate: string | null }
+  ) => {
     setForking(true);
     try {
-      const res = await fetch(`/api/trips/${params.id}/fork`, { method: 'POST' });
+      const res = await fetch(`/api/trips/${params.id}/fork`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dates),
+      });
       const out = await res.json().catch(() => null);
       if (res.ok && out?.tripId) {
         router.push(`/trip/${out.tripId}/itinerary`);
       } else {
         setForking(false);
+        setForkModalOpen(false);
       }
     } catch {
       setForking(false);
+      setForkModalOpen(false);
     }
   };
 
@@ -348,6 +362,16 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
           </div>
         </div>
       </main>
+
+      {/* Date-picker confirmation before /fork runs */}
+      <ForkTripModal
+        open={forkModalOpen}
+        destination={trip.destination}
+        tripLength={trip.tripLength}
+        forking={forking}
+        onClose={() => { if (!forking) setForkModalOpen(false); }}
+        onSubmit={handleForkSubmit}
+      />
     </div>
   );
 }

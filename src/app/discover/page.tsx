@@ -12,6 +12,7 @@ import {
   ExternalLink, Sun, Sunset, Moon, ChevronRight, MapPin, Calendar,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { ForkTripModal } from '@/components/ForkTripModal';
 
 // ─── Event logging ─────────────────────────────────────────────────────────
 
@@ -417,6 +418,8 @@ export default function DiscoverPage() {
   const [communityTrips, setCommunityTrips] = useState<CommunityTrip[]>([]);
   const [communityLikedIds, setCommunityLikedIds] = useState<Set<string>>(new Set());
   const [forkingId, setForkingId] = useState<string | null>(null);
+  // The modal opens with a pending trip target; null means closed.
+  const [pendingForkTrip, setPendingForkTrip] = useState<CommunityTrip | null>(null);
 
   const [query, setQuery] = useState('');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
@@ -530,23 +533,39 @@ export default function DiscoverPage() {
     }
   };
 
-  const handleCommunityFork = async (tripId: string) => {
+  // Step 1: clicking "Use as starting point" opens the date-picker modal.
+  // Step 2: modal collects dates (or skip) and calls handleCommunityForkSubmit.
+  const handleCommunityFork = (trip: CommunityTrip) => {
     if (!currentUser.id || currentUser.isDemo) {
       window.location.href = '/auth/login';
       return;
     }
     if (forkingId) return;
-    setForkingId(tripId);
+    setPendingForkTrip(trip);
+  };
+
+  const handleCommunityForkSubmit = async (
+    dates: { startDate: string | null; endDate: string | null }
+  ) => {
+    const trip = pendingForkTrip;
+    if (!trip) return;
+    setForkingId(trip.id);
     try {
-      const res = await fetch(`/api/trips/${tripId}/fork`, { method: 'POST' });
+      const res = await fetch(`/api/trips/${trip.id}/fork`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dates),
+      });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.tripId) {
         window.location.href = `/trip/${data.tripId}/itinerary`;
       } else {
         setForkingId(null);
+        setPendingForkTrip(null);
       }
     } catch {
       setForkingId(null);
+      setPendingForkTrip(null);
     }
   };
 
@@ -782,7 +801,7 @@ export default function DiscoverPage() {
                               {liked ? 'Liked' : 'Like'}
                             </button>
                             <button
-                              onClick={() => handleCommunityFork(trip.id)}
+                              onClick={() => handleCommunityFork(trip)}
                               disabled={forkingId === trip.id}
                               className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-lg transition-all"
                             >
@@ -874,6 +893,16 @@ export default function DiscoverPage() {
           Saved to your wishlist
         </div>
       )}
+
+      {/* Fork confirmation modal — collects optional dates before /api/.../fork */}
+      <ForkTripModal
+        open={!!pendingForkTrip}
+        destination={pendingForkTrip?.destination ?? ''}
+        tripLength={pendingForkTrip?.tripLength ?? 0}
+        forking={!!forkingId && pendingForkTrip?.id === forkingId}
+        onClose={() => { if (!forkingId) setPendingForkTrip(null); }}
+        onSubmit={handleCommunityForkSubmit}
+      />
     </div>
   );
 }
