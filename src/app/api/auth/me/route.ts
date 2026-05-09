@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { name, avatar_url, notification_preferences, travel_persona, home_country } = body;
+    const { name, avatar_url, notification_preferences, travel_persona, home_country, default_partner_email } = body;
 
     // Build the update payload — only include fields that were sent
     const updates: TablesUpdate<'profiles'> = {};
@@ -88,11 +88,39 @@ export async function PATCH(request: Request) {
       updates.home_country = trimmed.length > 0 ? trimmed : null;
     }
 
+    const supabase = createAdminClient();
+
+    // default_partner_email: resolve to a partner profile id and store it.
+    // Empty string or null clears the partner. Self-pairing and unknown
+    // emails return validation errors so the UI can show the right
+    // message rather than silently dropping the value. Returned in the
+    // response so the client can flash a "linked to <name>" confirmation.
+    let resolvedPartnerName: string | null | undefined;
+    if (default_partner_email !== undefined) {
+      if (default_partner_email === null || (typeof default_partner_email === 'string' && default_partner_email.trim() === '')) {
+        updates.default_partner_id = null;
+        resolvedPartnerName = null;
+      } else if (typeof default_partner_email === 'string') {
+        const email = default_partner_email.trim().toLowerCase();
+        if (email === user.email?.toLowerCase()) {
+          return NextResponse.json({ error: "Can't pair with yourself" }, { status: 400 });
+        }
+        const { data: partner } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .ilike('email', email)
+          .maybeSingle();
+        if (!partner) {
+          return NextResponse.json({ error: "We couldn't find a TripCoord account with that email." }, { status: 404 });
+        }
+        updates.default_partner_id = partner.id;
+        resolvedPartnerName = partner.name ?? partner.email ?? null;
+      }
+    }
+
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
-
-    const supabase = createAdminClient();
     const { error } = await supabase
       .from('profiles')
       .update(updates)
@@ -103,7 +131,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Failed to save changes' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, defaultPartnerName: resolvedPartnerName });
   } catch (err) {
     console.error('PATCH /api/auth/me error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
@@ -123,11 +151,30 @@ export async function GET() {
     const supabase = createAdminClient();
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, name, email, avatar_url, subscription_tier, notification_preferences, travel_persona, home_country')
+      .select('id, name, email, avatar_url, subscription_tier, notification_preferences, travel_persona, home_country, default_partner_id')
       .eq('id', user.id)
       .single();
 
     const name = profile?.name ?? profile?.email?.split('@')[0] ?? user.email?.split('@')[0] ?? 'You';
+
+    // Resolve the default partner's display name + email so Settings
+    // can render "Linked to Mallory <mallory@…>" without a second
+    // request from the client.
+    let defaultPartner: { id: string; name: string; email: string } | null = null;
+    if (profile?.default_partner_id) {
+      const { data: partner } = await supabase
+        .from('profiles')
+        .select('id, name, email')
+        .eq('id', profile.default_partner_id)
+        .maybeSingle();
+      if (partner) {
+        defaultPartner = {
+          id: partner.id,
+          name: partner.name ?? partner.email?.split('@')[0] ?? 'Unknown',
+          email: partner.email ?? '',
+        };
+      }
+    }
 
     return NextResponse.json({
       id: user.id,
@@ -138,6 +185,7 @@ export async function GET() {
       notificationPreferences: profile?.notification_preferences ?? null,
       travelPersona: profile?.travel_persona ?? null,
       homeCountry: profile?.home_country ?? null,
+      defaultPartner,
     });
   } catch {
     return NextResponse.json({ user: null }, { status: 401 });

@@ -160,6 +160,15 @@ export default function SettingsPage() {
     homeCountry: '' as string,
   });
 
+  // Default travel partner — when set, every new trip auto-shares with
+  // this person at create time. Two parallel pieces of state: the email
+  // the user typed (editable in the form) and the resolved partner
+  // record (display-only, returned by /api/auth/me on load and refreshed
+  // after a successful save).
+  const [defaultPartnerEmail, setDefaultPartnerEmail] = useState('');
+  const [defaultPartner, setDefaultPartner] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [partnerError, setPartnerError] = useState<string | null>(null);
+
   // Settings is an authenticated page — redirect to login if auth resolves with no user.
   // This prevents any mock/demo data (including hardcoded emails) from appearing.
   useEffect(() => {
@@ -212,6 +221,13 @@ export default function SettingsPage() {
         .then(data => {
           if (data?.homeCountry) {
             setProfile(prev => ({ ...prev, homeCountry: data.homeCountry }));
+          }
+          if (data?.defaultPartner) {
+            setDefaultPartner(data.defaultPartner);
+            setDefaultPartnerEmail(data.defaultPartner.email ?? '');
+          } else {
+            setDefaultPartner(null);
+            setDefaultPartnerEmail('');
           }
           if (data?.travelPersona) {
             const p = data.travelPersona;
@@ -305,18 +321,56 @@ export default function SettingsPage() {
   const saveProfile = async () => {
     setProfileSaving(true);
     setProfileSaveError(false);
+    setPartnerError(null);
     let savedOk = true;
+    // Compute the partner-email patch. Only send the field if it
+    // actually changed — otherwise the server might fail an unchanged
+    // value as "self-pair" if the user typed their own email then
+    // reverted.
+    const trimmedPartner = defaultPartnerEmail.trim();
+    const partnerChanged = trimmedPartner.toLowerCase() !== (defaultPartner?.email ?? '').toLowerCase();
     if (user) {
       try {
+        const body: Record<string, unknown> = {
+          name: profile.name,
+          home_country: profile.homeCountry?.trim() ?? '',
+        };
+        if (partnerChanged) {
+          body.default_partner_email = trimmedPartner;
+        }
         const res = await fetch('/api/auth/me', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: profile.name,
-            home_country: profile.homeCountry?.trim() ?? '',
-          }),
+          body: JSON.stringify(body),
         });
-        if (!res.ok) savedOk = false;
+        if (!res.ok) {
+          savedOk = false;
+          // Surface partner-specific failures inline rather than the
+          // generic "Save failed" — helps the user fix the email vs.
+          // assuming the whole save broke.
+          if (partnerChanged) {
+            try {
+              const data = await res.json();
+              if (data?.error) setPartnerError(data.error);
+            } catch { /* ignore */ }
+          }
+        } else {
+          // Refresh the resolved partner from /me so the read-only view
+          // reflects what was actually saved (linked to whom).
+          try {
+            const meRes = await fetch('/api/auth/me');
+            if (meRes.ok) {
+              const me = await meRes.json();
+              if (me?.defaultPartner) {
+                setDefaultPartner(me.defaultPartner);
+                setDefaultPartnerEmail(me.defaultPartner.email ?? '');
+              } else {
+                setDefaultPartner(null);
+                setDefaultPartnerEmail('');
+              }
+            }
+          } catch { /* swallow — best-effort refresh */ }
+        }
       } catch { savedOk = false; }
     }
     setProfileSaving(false);
@@ -791,6 +845,22 @@ export default function SettingsPage() {
                         />
                         <p className="text-xs text-slate-400 mt-1">Trips to your home country won&apos;t count toward &quot;Countries Visited&quot; on the dashboard.</p>
                       </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">Default travel partner</label>
+                        <input
+                          type="email"
+                          value={defaultPartnerEmail}
+                          onChange={e => { setDefaultPartnerEmail(e.target.value); setPartnerError(null); }}
+                          placeholder="partner@example.com"
+                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">
+                          New trips will auto-share with this person. They need a TripCoord account; leave blank to clear.
+                        </p>
+                        {partnerError && (
+                          <p className="text-xs text-rose-600 mt-1">{partnerError}</p>
+                        )}
+                      </div>
                       <div className="flex space-x-3 pt-4">
                         <button
                           onClick={saveProfile}
@@ -828,6 +898,11 @@ export default function SettingsPage() {
                             <p className="text-sm text-slate-500 mt-1 capitalize">{tierLabel}</p>
                             {profile.homeCountry && (
                               <p className="text-xs text-slate-400 mt-0.5">Home: {profile.homeCountry}</p>
+                            )}
+                            {defaultPartner && (
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                Default partner: {defaultPartner.name}{defaultPartner.email ? ` (${defaultPartner.email})` : ''}
+                              </p>
                             )}
                           </div>
                         </div>

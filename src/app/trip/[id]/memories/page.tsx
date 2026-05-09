@@ -23,6 +23,10 @@ type MemoryPhoto = {
   url: string;
   activity: string;
   uploadedBy: string;
+  // uploaderId is the FK reference to profiles. Filtering by id is the
+  // source of truth — uploadedBy (name snapshot) can drift if a user
+  // renames in Settings, and legacy rows might have stale strings.
+  uploaderId?: string | null;
   day: number;
   timestamp: string;
   location?: string;
@@ -93,6 +97,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           caption?: string;
           uploadedBy?: string;
           uploaderName?: string;
+          uploaderId?: string | null;
           day?: number;
           dayNumber?: number;
           timestamp?: string;
@@ -106,7 +111,8 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           id: p.id,
           url: p.url,
           activity: p.caption || p.activity || 'Photo',
-          uploadedBy: p.uploaderName || p.uploadedBy || 'You',
+          uploadedBy: p.uploaderName || p.uploadedBy || 'Unknown',
+          uploaderId: p.uploaderId ?? null,
           day: p.dayNumber || p.day || 1,
           timestamp: p.createdAt || p.timestamp || new Date().toISOString(),
           likeCount: p.likeCount ?? 0,
@@ -148,6 +154,11 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
   const [editBusy, setEditBusy] = useState(false);
+  // commentPendingDelete holds the comment a user is being asked to
+  // confirm deletion of. Replaces the previous browser confirm() call —
+  // jarring vs an in-app modal styled to match the rest of the app.
+  const [commentPendingDelete, setCommentPendingDelete] = useState<PhotoComment | null>(null);
+  const [deletingComment, setDeletingComment] = useState(false);
   const [filterDay, setFilterDay] = useState<number | null>(null);
   const [filterPerson, setFilterPerson] = useState<string | null>(null);
   const [shareMode, setShareMode] = useState(false);
@@ -380,22 +391,21 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'photo_likes', filter: `photo_id=eq.${photoId}` },
         () => {
-          // Likes are simpler — just refetch the canonical count. Cheap;
-          // bumps a small index on photo_id.
-          fetch(`/api/trips/${params.id}/photos`)
+          // Targeted /stats fetch instead of the full /photos list — for
+          // a 100-photo album that's a 100x reduction in payload per
+          // like change. Three small COUNT queries, no payload of photo
+          // rows.
+          fetch(`/api/trips/${params.id}/photos/${photoId}/stats`)
             .then(r => r.ok ? r.json() : null)
             .then(data => {
-              if (!data?.photos) return;
-              type Row = { id: string; likeCount?: number; commentCount?: number; viewerLiked?: boolean };
-              const me = (data.photos as Row[]).find(p => p.id === photoId);
-              if (!me) return;
+              if (!data || typeof data.likeCount !== 'number') return;
               setTripPhotos(prev => prev.map(p =>
                 p.id === photoId
-                  ? { ...p, likeCount: me.likeCount ?? 0, viewerLiked: !!me.viewerLiked }
+                  ? { ...p, likeCount: data.likeCount, viewerLiked: !!data.viewerLiked }
                   : p,
               ));
               setSelectedPhoto(prev => prev && prev.id === photoId
-                ? { ...prev, likeCount: me.likeCount ?? 0, viewerLiked: !!me.viewerLiked }
+                ? { ...prev, likeCount: data.likeCount, viewerLiked: !!data.viewerLiked }
                 : prev,
               );
             })
@@ -457,9 +467,19 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const deletePhotoComment = async (c: PhotoComment) => {
+  // Two-step delete: clicking trash sets commentPendingDelete; the modal
+  // calls confirmDeletePhotoComment when the user confirms. The
+  // in-progress flag gates the button so a double-click can't fire
+  // duplicate DELETEs.
+  const requestDeletePhotoComment = (c: PhotoComment) => {
     if (!selectedPhoto || isMockTrip) return;
-    if (!window.confirm('Delete this comment?')) return;
+    setCommentPendingDelete(c);
+  };
+
+  const confirmDeletePhotoComment = async () => {
+    const c = commentPendingDelete;
+    if (!selectedPhoto || isMockTrip || !c) return;
+    setDeletingComment(true);
     // Optimistic remove + count decrement.
     const prevComments = photoComments;
     setPhotoComments(prev => prev.filter(x => x.id !== c.id));
@@ -475,9 +495,10 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error(`delete ${res.status}`);
+      setCommentPendingDelete(null);
     } catch (err) {
       console.error('[memories] comment delete failed:', err);
-      // Roll back on failure.
+      // Roll back on failure; surface so the user knows it didn't take.
       setPhotoComments(prevComments);
       setTripPhotos(prev => prev.map(p =>
         p.id === selectedPhoto.id ? { ...p, commentCount: (p.commentCount ?? 0) + 1 } : p,
@@ -486,13 +507,26 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
         ? { ...prev, commentCount: (prev.commentCount ?? 0) + 1 }
         : prev,
       );
+    } finally {
+      setDeletingComment(false);
     }
   };
 
   const tripDestination = isMockTrip ? 'Iceland' : (tripDestinationFromApi ?? 'your trip');
+  // filterPerson holds either a uuid (preferred — real trip member id) or
+  // a literal display string (legacy + mock trips that don't have
+  // uploader_id). The id-form is the source of truth and avoids the
+  // "Mallory" vs "You" mismatch where the same person showed up under
+  // two different names depending on whether they had a profile name
+  // saved at upload time.
+  const filterIsUuid = !!filterPerson && /^[0-9a-f-]{36}$/i.test(filterPerson);
   const filteredPhotos = tripPhotos.filter(photo => {
     if (filterDay && photo.day !== filterDay) return false;
-    if (filterPerson && photo.uploadedBy !== filterPerson) return false;
+    if (filterPerson) {
+      if (filterIsUuid) {
+        if (photo.uploaderId !== filterPerson) return false;
+      } else if (photo.uploadedBy !== filterPerson) return false;
+    }
     return true;
   });
 
@@ -514,7 +548,33 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   const totalPhotos = tripPhotos.length;
   const totalDays = itineraryDays.length;
   const totalParticipants = groupMembers.length;
-  const uniqueUploaders = Array.from(new Set(tripPhotos.map(p => p.uploadedBy)));
+  // Build the photographer dropdown from unique uploaders. When a photo
+  // carries a real uploader_id (uuid), we group it under that id and
+  // show the live name from groupMembers — so renaming in Settings
+  // flows through, and "Mallory" + "You" don't show up as two entries
+  // for the same person. Photos without an id fall back to their
+  // snapshotted name.
+  const uniqueUploaders = (() => {
+    const memberById = new Map(groupMembers.map(m => [m.id, m.name]));
+    const byId: Map<string, { value: string; label: string }> = new Map();
+    const looseNames = new Set<string>();
+    for (const p of tripPhotos) {
+      if (p.uploaderId) {
+        if (!byId.has(p.uploaderId)) {
+          byId.set(p.uploaderId, {
+            value: p.uploaderId,
+            label: memberById.get(p.uploaderId) ?? p.uploadedBy ?? 'Unknown',
+          });
+        }
+      } else if (p.uploadedBy) {
+        looseNames.add(p.uploadedBy);
+      }
+    }
+    return [
+      ...Array.from(byId.values()),
+      ...Array.from(looseNames).map(name => ({ value: name, label: name })),
+    ];
+  })();
 
   return (
     <main className="min-h-screen bg-parchment">
@@ -673,10 +733,17 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             setUploadedPhotos(prev => [...prev, ...localPreviews]);
             setUploadedCount(prev => prev + fileArray.length);
 
-            // Use real user name if available, fallback to 'You'
+            // Resolve the uploader's display name. Falls back to email
+            // local-part rather than the literal "You" — the previous
+            // fallback meant photos showed "You" for everyone in the
+            // group, and the photographer filter listed "You" as a
+            // person. uploaded_by carries the real user_id either way,
+            // and the GET endpoint uses that as the authoritative
+            // attribution; this string is just a snapshot for legacy
+            // rows and offline display.
             const uploaderName = (!currentUser.isLoading && currentUser.name && currentUser.name !== 'Traveler')
               ? currentUser.name
-              : 'You';
+              : (currentUser.email?.split('@')[0] ?? 'A traveler');
 
             // Capture the selected day at the start of this batch so a
             // later state change doesn't reassign mid-upload. Empty string
@@ -978,9 +1045,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
               >
                 <option value="">All Contributors</option>
-                {uniqueUploaders.map(uploader => (
-                  <option key={uploader} value={uploader}>
-                    {uploader}
+                {uniqueUploaders.map(u => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
                   </option>
                 ))}
               </select>
@@ -1213,6 +1280,11 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                                     disabled={editBusy}
                                     className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 disabled:bg-zinc-50 resize-none"
                                   />
+                                  {editingDraft.length > 400 && (
+                                    <p className={`text-[11px] text-right ${editingDraft.length >= 500 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}>
+                                      {editingDraft.length}/500
+                                    </p>
+                                  )}
                                   <div className="flex gap-2 justify-end">
                                     <button
                                       type="button"
@@ -1236,7 +1308,12 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                               )}
                             </div>
                             {isOwn && !isEditing && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
+                              // Always-visible on touch widths (sm:hidden
+                              // would invert this), revealed on hover at
+                              // sm+ where pointer-fine devices can use the
+                              // group-hover pattern. focus-within keeps it
+                              // visible during keyboard nav.
+                              <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity flex-shrink-0">
                                 <button
                                   onClick={() => startEditComment(c)}
                                   title="Edit comment"
@@ -1246,7 +1323,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => deletePhotoComment(c)}
+                                  onClick={() => requestDeletePhotoComment(c)}
                                   title="Delete comment"
                                   aria-label="Delete comment"
                                   className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
@@ -1262,27 +1339,76 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   )}
                   <form
                     onSubmit={e => { e.preventDefault(); submitPhotoComment(); }}
-                    className="flex items-center gap-2"
+                    className="flex flex-col gap-1"
                   >
-                    <input
-                      type="text"
-                      value={newCommentBody}
-                      onChange={e => setNewCommentBody(e.target.value)}
-                      placeholder="Add a comment…"
-                      maxLength={500}
-                      disabled={postingComment}
-                      className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 disabled:bg-zinc-50"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newCommentBody.trim() || postingComment}
-                      className="px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors"
-                    >
-                      {postingComment ? 'Posting…' : 'Post'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newCommentBody}
+                        onChange={e => setNewCommentBody(e.target.value)}
+                        placeholder="Add a comment…"
+                        maxLength={500}
+                        disabled={postingComment}
+                        className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 disabled:bg-zinc-50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!newCommentBody.trim() || postingComment}
+                        className="px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        {postingComment ? 'Posting…' : 'Post'}
+                      </button>
+                    </div>
+                    {/* Character counter only when the user is at/near the
+                        500 limit — avoids visual clutter on every blank
+                        compose box. */}
+                    {newCommentBody.length > 400 && (
+                      <p className={`text-[11px] text-right ${newCommentBody.length >= 500 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}>
+                        {newCommentBody.length}/500
+                      </p>
+                    )}
                   </form>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comment delete confirmation. Replaces the previous browser
+          confirm() — same intent (gate destructive action) but rendered
+          inline so it picks up the rest of the app's typography +
+          spacing rather than a system dialog that breaks visual flow. */}
+      {commentPendingDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => { if (!deletingComment) setCommentPendingDelete(null); }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-zinc-900 mb-2">Delete this comment?</h3>
+            <p className="text-sm text-zinc-600 mb-5">
+              Your comment will be removed for everyone on the trip. This can&apos;t be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setCommentPendingDelete(null)}
+                disabled={deletingComment}
+                className="px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeletePhotoComment}
+                disabled={deletingComment}
+                className="px-4 py-2 text-sm font-semibold bg-rose-600 hover:bg-rose-700 disabled:bg-zinc-300 text-white rounded-lg transition-colors"
+              >
+                {deletingComment ? 'Deleting…' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>

@@ -111,12 +111,38 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!access.ok) return access.response;
     const { supabase } = access.ctx;
 
-    const { expenseId, settled } = await req.json();
+    const body = await req.json();
+    const { expenseId, settled, lineItems } = body as {
+      expenseId?: string;
+      settled?: boolean;
+      lineItems?: Array<{ description?: unknown; amount?: unknown }>;
+    };
     if (!expenseId) return NextResponse.json({ error: 'expenseId required' }, { status: 400 });
+
+    // Patch shape — only fields the client passed are updated. Settled is a
+    // toggle (mark paid/unpaid). lineItems is the editable line-item list:
+    // every item must have a non-empty description and a non-negative
+    // numeric amount; we trim/coerce here so client-side typos can't
+    // poison the JSONB blob.
+    const update: { settled?: boolean; line_items?: Array<{ description: string; amount: number }>; updated_at: string } = {
+      updated_at: new Date().toISOString(),
+    };
+    if (typeof settled === 'boolean') {
+      update.settled = settled;
+    }
+    if (Array.isArray(lineItems)) {
+      const cleaned = lineItems
+        .map(li => ({
+          description: typeof li.description === 'string' ? li.description.trim() : '',
+          amount: typeof li.amount === 'number' ? li.amount : parseFloat(String(li.amount ?? 0)),
+        }))
+        .filter(li => li.description.length > 0 && Number.isFinite(li.amount) && li.amount >= 0);
+      update.line_items = cleaned;
+    }
 
     const { error } = await supabase
       .from('expenses')
-      .update({ settled: !!settled, updated_at: new Date().toISOString() })
+      .update(update)
       .eq('id', expenseId)
       .eq('trip_id', params.id);
 

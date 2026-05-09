@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     const { data: photos, error } = await supabase
       .from('trip_photos')
-      .select('id, public_url, uploader_name, day_number, caption, taken_at, created_at')
+      .select('id, public_url, uploader_name, uploaded_by, day_number, caption, taken_at, created_at')
       .eq('trip_id', params.id)
       .order('created_at', { ascending: true });
 
@@ -47,7 +47,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       photos: (photos ?? []).map(p => ({
         id: p.id,
         url: p.public_url,
+        // uploaderName is the snapshot of the profile name at upload
+        // time; uploaderId is the FK so the client can filter by
+        // user (and resolve the live name from group members) without
+        // fighting renames or the legacy "You" placeholder.
         uploadedBy: p.uploader_name ?? 'Unknown',
+        uploaderId: p.uploaded_by ?? null,
         day: p.day_number ?? 1,
         activity: p.caption ?? '',
         timestamp: p.taken_at ?? p.created_at,

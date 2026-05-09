@@ -295,6 +295,10 @@ function buildPrompt(params: {
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
   multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
   organizerPersona?: { priorities: string[]; vibes?: string[] } | null;
+  /** Organizer's preferred itinerary pace, collected in Trip Builder
+   *  alongside the priorities step. Same shape as member.pace so the
+   *  prompt can fold it into the same daily-density calibration. */
+  organizerPace?: 'relaxed' | 'balanced' | 'packed' | null;
   memberPersonas?: Array<{
     name: string;
     priorities: string[];
@@ -323,6 +327,7 @@ function buildPrompt(params: {
   const multiCityPlaces = params.multiCityPlaces ?? null;
   const bookedCar = params.bookedCar ?? null;
   const organizerPersona = params.organizerPersona ?? null;
+  const organizerPace = params.organizerPace ?? null;
   const memberPersonas = params.memberPersonas ?? [];
   const groupSize = params.groupSize ?? 2;
 
@@ -330,6 +335,19 @@ function buildPrompt(params: {
   // The trip's stated priorities (above) define the VIBE of this specific trip.
   // The organizer's saved travel persona is their general travel identity —
   // used here to quietly add texture and, for groups of 4+, to suggest split days.
+  // Organizer pace line — short, separate from the longer persona block
+  // because pace applies on every trip even when persona/members are empty.
+  // Maps to a clear daily-density instruction so the AI biases scheduling
+  // toward the buyer's stated preference. Members' paces (when present)
+  // are layered on top inside personaText.
+  const organizerPaceText = organizerPace
+    ? `\nORGANIZER PACE: ${organizerPace}. ${
+        organizerPace === 'relaxed' ? 'Schedule fewer activities per day with generous downtime — 2-3 anchor activities plus meals.' :
+        organizerPace === 'packed' ? 'Pack each day densely — 4-5 activities plus meals, minimal downtime.' :
+        'Balanced density — 3-4 activities per day plus meals and breathing room.'
+      }`
+    : '';
+
   const personaText = (() => {
     // Generate persona text when there's either an organizer persona OR member preferences
     if ((!organizerPersona || organizerPersona.priorities.length === 0) && memberPersonas.length === 0) return '';
@@ -585,7 +603,14 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
 
   // Theme Park priority
   const themeParkText = priorities.includes('themepark')
-    ? `\n- THEME PARK PRIORITY: This group wants to make the most of world-class theme parks and entertainment complexes. Include: major theme parks near the destination with strategy tips (arrive early, which rides or areas to prioritize first, best days of the week for shorter queues), water parks and seasonal parks in the area, after-dark park experiences where available, and any dining within the parks that genuinely stands out. Note whether Express Pass, Lightning Lane, or equivalent skip-the-line options are recommended and worth the cost. If the destination has multiple parks, suggest the best order and pacing across the trip. Include at least one non-park day activity nearby for variety and park-fatigue recovery.`
+    ? `\n- THEME PARK PRIORITY: This group wants to make the most of world-class theme parks and entertainment complexes. Include: major theme parks near the destination with strategy tips (arrive early, which rides or areas to prioritize first, best days of the week for shorter queues), water parks and seasonal parks in the area, after-dark park experiences where available, and any dining within the parks that genuinely stands out. Note whether Express Pass, Lightning Lane, or equivalent skip-the-line options are recommended and worth the cost. If the destination has multiple parks, suggest the best order and pacing across the trip. Include at least one non-park day activity nearby for variety and park-fatigue recovery.
+
+THEME PARK DAY STRUCTURE — when a day's main draw is a theme park, follow these rules strictly:
+  • One park per day MAXIMUM. Do not list multiple distinct parks on the same day even if they are nearby. Visiting two parks in one day is exhausting and unrealistic.
+  • If theme parks are a TOP priority for this group, you MAY repeat the same park across two consecutive days (e.g. Disneyland day 3 + Disneyland day 4) when it has enough content to justify a second day. Different parks still go on different days.
+  • The first activity of a park day must start at or just before the park's typical opening time. Use specific real opening hours when known (e.g. "08:00 — Park gates" / "09:00 — Indiana Jones Adventure").
+  • The park visit IS the major activity of the day — name specific attractions/rides/shows by name as the day's activities (not "Spend the day at Disneyland"). Schedule 4-6 named in-park activities per day with realistic time slots.
+  • Plan evening activities outside the park AFTER park closing (a Downtown Disney dinner, a fireworks viewing point, a nearby brewery).${ageRanges.some(a => /under|kid|0-?5|6-?12|13-?17/i.test(a)) ? `\n  • Group includes children — schedule a midday rest/swim break (1-2 hours back at the hotel pool or a quiet shaded zone) between the morning and afternoon park blocks.` : ''}`
     : '';
 
   // Family / Kids priority
@@ -897,7 +922,7 @@ TRIP DETAILS:
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${personaText}${preBookingText}${multiCityText}
+- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${organizerPaceText}${personaText}${preBookingText}${multiCityText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -1181,6 +1206,7 @@ RULES:
 16. NEVER INVENT SCHEDULED EVENTS: Do not assign a specific scheduled game, concert, festival, or live performance to a specific date unless it is a recurring, date-independent, permanent offering (e.g. a weekly farmers market, a permanent museum exhibit). For any live event venue, describe it and direct travelers to the official website or a ticketing platform (Ticketmaster, AXS, SeatGeek) to check current dates. This rule overrides any priority or must-have instruction.
 17. destinationTip: include on EVERY day object — one punchy, specific insider fact about the destination for that day's city. Rotate the topic across days (food, drink, tradition, cultural quirk, etc.). Never repeat the same topic two days in a row.
 18. trackALabel and trackBLabel must be IDENTICAL strings on every day that has a split. Decide the label pair once for the whole trip and repeat it exactly on every split day — never rename or rephrase a track label between days.
+19. PER-DAY DISCOVERY ARRAYS — these are MANDATORY on every day they apply to. Each day MUST include the FULL array, populated with the required number of items, BEFORE the day's closing brace. Do NOT emit a day with these arrays missing or empty when their priority is set — a day without them is INVALID and will be rejected. ${hasFoodPriority ? `When food priority is set, every day MUST include "foodieTips" with EXACTLY 2 entries anchored to that day's neighborhoods. ` : ''}${hasNightlifePriority ? `When nightlife priority is set, every day MUST include "nightlifeHighlights" with EXACTLY 2 entries anchored to that day's neighborhoods. ` : ''}${hasShoppingPriority ? `When shopping priority is set, every day MUST include "shoppingGuide" with EXACTLY 2 entries anchored to that day's neighborhoods. ` : ''}Always emit these arrays inline within their day object on the FIRST emission — never defer to a later pass.
 ${getSeasonalContext(startDate, destination)}
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
@@ -1497,6 +1523,7 @@ export async function POST(request: NextRequest) {
     realPlaces: resolvedRealPlaces,
     multiCityPlaces: resolvedMultiCityPlaces,
     organizerPersona,
+    organizerPace: (body.organizerPace as 'relaxed' | 'balanced' | 'packed' | null | undefined) ?? null,
     memberPersonas,
     groupSize: Number(body.groupSize) || 2,
   });

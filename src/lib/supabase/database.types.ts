@@ -724,6 +724,7 @@ export type Database = {
           ai_credits_used: number
           avatar_url: string | null
           created_at: string
+          default_partner_id: string | null
           email: string | null
           home_country: string | null
           id: string
@@ -741,6 +742,7 @@ export type Database = {
           ai_credits_used?: number
           avatar_url?: string | null
           created_at?: string
+          default_partner_id?: string | null
           email?: string | null
           home_country?: string | null
           id: string
@@ -758,6 +760,7 @@ export type Database = {
           ai_credits_used?: number
           avatar_url?: string | null
           created_at?: string
+          default_partner_id?: string | null
           email?: string | null
           home_country?: string | null
           id?: string
@@ -769,7 +772,15 @@ export type Database = {
           travel_persona?: Json | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_default_partner_id_fkey"
+            columns: ["default_partner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       seasonal_collections: {
         Row: {

@@ -32,6 +32,9 @@ import {
   X,
   MessageCircle,
   Vote,
+  ChevronDown,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
@@ -729,6 +732,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [itemizedBreakdown, setItemizedBreakdown] = useState<Record<string, { items: string; amount: string }>>({});
   const [localExpenses, setLocalExpenses] = useState<Array<{id: string; name: string; amount: number; paidBy: string; splitType: 'equal' | 'custom'; category?: string; splitAmong?: string[]; customAmounts?: Record<string, number>; lineItems?: { description: string; amount: number }[]; settled?: boolean}>>([]);
+  // Per-expense expand + edit state for line item review/edit. expandedExpenseIds
+  // tracks which rows are showing their line items; editingExpenseId tracks which
+  // (single) expense is in edit mode. Edit drafts live in editingLineItems —
+  // separate from the saved data so the user can cancel.
+  const [expandedExpenseIds, setExpandedExpenseIds] = useState<Set<string>>(new Set());
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [editingLineItems, setEditingLineItems] = useState<Array<{ description: string; amount: string }>>([]);
+  const [savingLineItems, setSavingLineItems] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1624,6 +1635,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       category?: string;
                       splitType?: 'equal' | 'custom';
                       splitAmong?: string[];
+                      lineItems?: { description: string; amount: number }[];
                       settled?: boolean;
                     };
                     const CATEGORY_ICONS: Record<string, string> = {
@@ -1632,8 +1644,6 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     };
                     const icon = CATEGORY_ICONS[exp.category ?? ''] ?? '💳';
                     const displayName = exp.name ?? exp.description ?? exp.title ?? 'Expense';
-                    // Show split type so the buyer can tell at a glance how a
-                    // line item was divided (was hidden until you opened edit).
                     const splitTypeLabel = exp.splitType === 'custom' ? 'Custom split' : 'Equal split';
                     const splitParticipants: string[] = Array.isArray(exp.splitAmong) && exp.splitAmong.length > 0
                       ? exp.splitAmong
@@ -1641,19 +1651,168 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     const splitDetail = splitParticipants.length > 0
                       ? `${splitTypeLabel} · ${splitParticipants.length} ${splitParticipants.length === 1 ? 'person' : 'people'}`
                       : splitTypeLabel;
+                    const lineItems = Array.isArray(exp.lineItems) ? exp.lineItems : [];
+                    const hasLineItems = lineItems.length > 0;
+                    const isExpanded = expandedExpenseIds.has(exp.id);
+                    const isEditing = editingExpenseId === exp.id;
                     return (
-                      <div key={exp.id ?? idx} className={`flex items-center gap-4 px-5 py-4 ${idx < allExpenses.length - 1 ? 'border-b border-zinc-50' : ''} ${exp.settled ? 'opacity-50' : ''}`}>
-                        <div className="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center text-lg flex-shrink-0">
-                          {icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-zinc-900 truncate">{displayName}</p>
-                          <p className="text-xs text-zinc-400 mt-0.5">Paid by {exp.paidBy} · {splitDetail}</p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="font-bold text-zinc-900">${exp.amount.toFixed(2)}</p>
-                          {exp.settled && <p className="text-[10px] text-emerald-600 font-semibold">Settled</p>}
-                        </div>
+                      <div key={exp.id ?? idx} className={`${idx < allExpenses.length - 1 ? 'border-b border-zinc-50' : ''} ${exp.settled ? 'opacity-50' : ''}`}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Only expand if there are line items to review,
+                            // otherwise the chevron does nothing useful.
+                            if (!hasLineItems && !isMockTrip) return;
+                            setExpandedExpenseIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(exp.id)) next.delete(exp.id);
+                              else next.add(exp.id);
+                              return next;
+                            });
+                          }}
+                          className={`w-full flex items-center gap-4 px-5 py-4 text-left ${hasLineItems ? 'hover:bg-zinc-50' : 'cursor-default'}`}
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center text-lg flex-shrink-0">
+                            {icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-zinc-900 truncate">{displayName}</p>
+                            <p className="text-xs text-zinc-400 mt-0.5">
+                              Paid by {exp.paidBy} · {splitDetail}
+                              {hasLineItems && <span> · {lineItems.length} {lineItems.length === 1 ? 'line item' : 'line items'}</span>}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="font-bold text-zinc-900">${exp.amount.toFixed(2)}</p>
+                            {exp.settled && <p className="text-[10px] text-emerald-600 font-semibold">Settled</p>}
+                          </div>
+                          {hasLineItems && (
+                            <ChevronDown className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          )}
+                        </button>
+                        {isExpanded && hasLineItems && (
+                          <div className="px-5 pb-4 -mt-1 bg-zinc-50/40 border-t border-zinc-50">
+                            {!isEditing ? (
+                              <div className="pt-3 space-y-1.5">
+                                {lineItems.map((li, i) => (
+                                  <div key={i} className="flex items-center justify-between text-xs">
+                                    <span className="text-zinc-600 break-words">{li.description}</span>
+                                    <span className="text-zinc-500 tabular-nums flex-shrink-0 ml-3">
+                                      {li.amount > 0 ? `$${li.amount.toFixed(2)}` : '—'}
+                                    </span>
+                                  </div>
+                                ))}
+                                {!isMockTrip && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingExpenseId(exp.id);
+                                      setEditingLineItems(
+                                        lineItems.map(li => ({ description: li.description, amount: li.amount > 0 ? li.amount.toFixed(2) : '' })),
+                                      );
+                                    }}
+                                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 hover:text-sky-800"
+                                  >
+                                    <Pencil className="w-3 h-3" /> Edit line items
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="pt-3 space-y-2">
+                                {editingLineItems.map((li, i) => (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={li.description}
+                                      onChange={e => setEditingLineItems(prev => prev.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
+                                      placeholder="Item description"
+                                      className="flex-1 px-3 py-1.5 text-xs border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                                    />
+                                    <div className="relative w-24 flex-shrink-0">
+                                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400">$</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={li.amount}
+                                        onChange={e => setEditingLineItems(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                                        placeholder="0.00"
+                                        className="w-full pl-6 pr-2 py-1.5 text-xs border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 tabular-nums"
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => setEditingLineItems(prev => prev.filter((_, j) => j !== i))}
+                                      title="Remove line item"
+                                      aria-label="Remove line item"
+                                      className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors flex-shrink-0"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => setEditingLineItems(prev => [...prev, { description: '', amount: '' }])}
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 hover:text-sky-800"
+                                >
+                                  <Plus className="w-3 h-3" /> Add line item
+                                </button>
+                                <div className="flex justify-end gap-2 pt-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingExpenseId(null);
+                                      setEditingLineItems([]);
+                                    }}
+                                    disabled={savingLineItems}
+                                    className="px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors disabled:opacity-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      // Validate + persist. Empty rows are
+                                      // dropped server-side, but we filter
+                                      // here too so the optimistic update
+                                      // doesn't render placeholder rows.
+                                      const clean = editingLineItems
+                                        .map(li => ({
+                                          description: li.description.trim(),
+                                          amount: parseFloat(li.amount) || 0,
+                                        }))
+                                        .filter(li => li.description.length > 0 && li.amount >= 0);
+
+                                      setSavingLineItems(true);
+                                      const prevLocal = localExpenses;
+                                      // Optimistic — patch in the local copy.
+                                      setLocalExpenses(prev => prev.map(e =>
+                                        e.id === exp.id ? { ...e, lineItems: clean } : e,
+                                      ));
+                                      try {
+                                        const res = await fetch(`/api/trips/${params.id}/expenses`, {
+                                          method: 'PATCH',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ expenseId: exp.id, lineItems: clean }),
+                                        });
+                                        if (!res.ok) throw new Error(`save ${res.status}`);
+                                        setEditingExpenseId(null);
+                                        setEditingLineItems([]);
+                                      } catch (err) {
+                                        console.error('[expenses] line-item save failed:', err);
+                                        setLocalExpenses(prevLocal);
+                                        setActionError("Couldn't save line items. Try again.");
+                                        setTimeout(() => setActionError(null), 4000);
+                                      } finally {
+                                        setSavingLineItems(false);
+                                      }
+                                    }}
+                                    disabled={savingLineItems}
+                                    className="px-3 py-1.5 text-xs font-semibold bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg transition-colors"
+                                  >
+                                    {savingLineItems ? 'Saving…' : 'Save'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

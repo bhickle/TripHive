@@ -9,6 +9,7 @@ import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePlacesSearch } from '@/hooks/usePlacesSearch';
+import type { PaceLevel } from '@/lib/types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -74,6 +75,11 @@ interface TripWizardState {
   tripLength: number;
   flexibleDates: boolean;
   priorities: string[];
+  /** Organizer's preferred pace — mirrors the question invitees see on
+   *  the /join page so the AI gets the buyer's pace alongside everyone
+   *  else's. Was previously only collected for invitees, leaving the
+   *  builder's own pace assumption unset (treated as balanced). */
+  pace: PaceLevel;
   modality: string[];
   accommodationType: string[];
   curiosityLevel: number;
@@ -388,6 +394,7 @@ function TripBuilderPage() {
     tripLength: 7,
     flexibleDates: false,
     priorities: [],
+    pace: 'balanced',
     modality: [],
     accommodationType: ['hotel'],
     curiosityLevel: 50,
@@ -709,6 +716,7 @@ function TripBuilderPage() {
       localMode: state.localMode,
       dateNight: state.dateNight,
       curiosityLevel: state.curiosityLevel,
+      organizerPace: state.pace,
       // flexibleDates tells the prompt the dates are placeholder defaults
       // (the user opted into a length-only flow) so the model can frame
       // weather/season suggestions accordingly rather than treating the
@@ -743,6 +751,7 @@ function TripBuilderPage() {
         accommodationType: state.accommodationType,
         localMode: state.localMode,
         curiosityLevel: state.curiosityLevel,
+      organizerPace: state.pace,
         ageRanges: state.ageRanges,
         accessibilityNeeds: state.accessibilityNeeds,
         ...(state.hasPreBookedCar && state.bookedCar ? { bookedCar: state.bookedCar } : {}),
@@ -818,6 +827,7 @@ function TripBuilderPage() {
           accommodationType: state.accommodationType,
           localMode: state.localMode,
           curiosityLevel: state.curiosityLevel,
+      organizerPace: state.pace,
           ageRanges: state.ageRanges,
           accessibilityNeeds: state.accessibilityNeeds,
         },
@@ -2355,6 +2365,38 @@ function TripBuilderPage() {
                           {ageRange}
                         </span>
                       </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Your pace — symmetric with the question invitees see on
+                    the /join flow. Without this, the organizer's pace was
+                    silently treated as 'balanced' and the AI couldn't
+                    bias daily activity density toward their preference. */}
+                <div className="mb-8">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                    Your pace
+                  </label>
+                  <p className="text-xs text-zinc-400 mb-4">How packed do you like your days?</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { value: 'relaxed',  label: 'Relaxed',  hint: 'A few stops, lots of downtime' },
+                      { value: 'balanced', label: 'Balanced', hint: 'Mix of plans + open time' },
+                      { value: 'packed',   label: 'Packed',   hint: 'Maximize every day' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setState(prev => ({ ...prev, pace: opt.value }))}
+                        className={`p-3 rounded-lg border-2 text-left transition-all ${
+                          state.pace === opt.value
+                            ? 'border-sky-700 bg-sky-50'
+                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <p className={`text-sm font-semibold ${state.pace === opt.value ? 'text-sky-800' : 'text-zinc-900'}`}>{opt.label}</p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">{opt.hint}</p>
+                      </button>
                     ))}
                   </div>
                 </div>

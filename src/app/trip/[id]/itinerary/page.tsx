@@ -1499,10 +1499,13 @@ function ItineraryPageContent() {
   const [isSidebarAdd, setIsSidebarAdd] = useState(false);
   const [addedFoodieTipNames, setAddedFoodieTipNames] = useState<Set<string>>(new Set());
 
-  // Collapsible sidebar sections — priority panels start collapsed, utility panels open
+  // Collapsible sidebar sections — priority panels start collapsed, utility panels open.
+  // dayHighlights collapsed-by-default matches Hotel Recommendations; the
+  // unified Day Highlights panel can otherwise dominate the sidebar before
+  // the user has any context for what's in it.
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     foodie: true, nightlife: true, shopping: true,
-    photoSpots: true, hotel: true,
+    photoSpots: true, hotel: true, dayHighlights: true,
   });
   useEffect(() => {
     try {

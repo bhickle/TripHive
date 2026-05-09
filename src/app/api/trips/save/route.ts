@@ -134,6 +134,50 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── 3. Auto-add the user's default travel partner as a member ─────────
+    // When the user has set a default partner in Settings, every new trip
+    // they create auto-shares with that person — they're added as a
+    // 'member' immediately so chat/votes/photos light up without an
+    // invite round-trip. New trips only (this fires on insert); past
+    // trips aren't backfilled. Failures are logged but don't fail the
+    // trip save — the partner can always be invited manually from the
+    // Group page.
+    if (userId && !isDraft) {
+      try {
+        const { data: organizerProfile } = await supabase
+          .from('profiles')
+          .select('default_partner_id')
+          .eq('id', userId)
+          .maybeSingle();
+        const partnerId = organizerProfile?.default_partner_id ?? null;
+        if (partnerId) {
+          const { data: partnerProfile } = await supabase
+            .from('profiles')
+            .select('id, name, email')
+            .eq('id', partnerId)
+            .maybeSingle();
+          if (partnerProfile) {
+            const { error: memberErr } = await supabase
+              .from('trip_members')
+              .insert({
+                trip_id: trip.id,
+                user_id: partnerProfile.id,
+                name: partnerProfile.name ?? partnerProfile.email?.split('@')[0] ?? 'Partner',
+                email: partnerProfile.email,
+                role: 'member',
+              });
+            if (memberErr) {
+              console.warn('[trips/save] default partner auto-add failed:', memberErr.message);
+            }
+          }
+        }
+      } catch (partnerErr) {
+        // Never let the partner auto-add break the trip save itself —
+        // log and move on; the user can invite manually.
+        console.warn('[trips/save] default partner lookup failed:', partnerErr);
+      }
+    }
+
     return NextResponse.json({ tripId: trip.id, isDraft });
   } catch (err) {
     console.error('Save trip error:', err);
