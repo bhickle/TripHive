@@ -373,7 +373,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       setItineraryDaysData(updatedDays);
       setWishlistAddedIds(prev => new Set(Array.from(prev).concat(item.itemId)));
       setWishlistDayPicker(null);
-    } catch { /* ignore */ } finally {
+    } catch (err) {
+      // Surface so the user knows the day-picker close didn't mean
+      // success. Mirrors confirmAddToItinerary's setAddToItinError
+      // pattern below — dismiss after 4s like other action toasts.
+      console.error('[group] wishlist add to itinerary failed:', err);
+      setActionError("Couldn't add that to the itinerary. Please try again.");
+      setTimeout(() => setActionError(null), 4000);
+    } finally {
       setWishlistAddingId(null);
     }
   };

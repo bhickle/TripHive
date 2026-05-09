@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Download, Share2, Pause, Play, Lock } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Printer, Share2, Pause, Play, Lock } from 'lucide-react';
 import {
   trips,
   itineraryDays as mockItineraryDays,
@@ -680,12 +680,16 @@ function ShareSlide({ trip, onDownload }: { trip: Trip; onDownload: () => void }
           {trip.destination} · {formatDateRange(trip)}
         </p>
         <div className="flex flex-col gap-3 w-full max-w-xs">
+          {/* Opens the browser print dialog so the user can save as PDF
+              or print. Icon + label match the actual behavior; the
+              previous Download icon set the wrong expectation. A real
+              image export needs html2canvas/dom-to-image, deferred. */}
           <button
             onClick={onDownload}
             className="flex items-center justify-center gap-2 bg-white text-zinc-900 font-bold py-3 px-6 rounded-full text-sm hover:bg-zinc-100 transition-all shadow-lg"
           >
-            <Download className="w-4 h-4" />
-            Save this card
+            <Printer className="w-4 h-4" />
+            Print this card
           </button>
           {/* "Copy share link" hidden for launch — there's no public
               /story/[id] route yet, so the link copied a 404. Restore
@@ -887,9 +891,11 @@ function YearlyShareSlide({ year, onDownload, reactions, onOpen }: { year: numbe
         <p className="text-white/55 text-sm mb-1">You've got {upcomingCount} trip{upcomingCount !== 1 ? 's' : ''} already planned.</p>
         <p className="text-sky-300 text-xs font-semibold uppercase tracking-widest mb-6">Let's make it the best year yet.</p>
         <div className="flex flex-col gap-2.5 w-full max-w-[260px]">
+          {/* Same Print intent as the per-trip share slide — yearly
+              recap doesn't have a real image export yet. */}
           <button onClick={onDownload} className="flex items-center justify-center gap-2 bg-white text-zinc-900 font-bold py-3 px-6 rounded-full text-sm hover:bg-zinc-100 transition-all shadow-lg">
-            <Download className="w-4 h-4" />
-            Save your wrap
+            <Printer className="w-4 h-4" />
+            Print your wrap
           </button>
           {/* Yearly "Share your <year>" hidden for launch — yearly
               recap is gated to the "Coming soon" placeholder anyway,

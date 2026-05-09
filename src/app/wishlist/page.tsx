@@ -608,11 +608,59 @@ export default function WishlistPage() {
       isRemoving ? next.delete(id) : next.add(id);
       return next;
     });
-    if (!currentUser.isDemo && isRemoving) {
+    if (currentUser.isDemo) return;
+    if (isRemoving) {
       fetch(`/api/wishlist?id=${id}`, { method: 'DELETE' }).catch(() => {
         // Revert on failure
         setSavedIds(prev => new Set([...Array.from(prev), id]));
       });
+    } else {
+      // Re-save path — previously local-only, so un-saving then
+      // re-saving would persist the un-save but not the re-save, and
+      // the heart vanished on refresh. Now we POST the same payload
+      // /api/wishlist's Add Destination flow uses, scraped from the
+      // existing item state.
+      const item = allItems.find(i => i.id === id);
+      if (!item) return;
+      fetch('/api/wishlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: item.destination,
+          country: item.country,
+          coverImage: item.coverImage,
+          bestSeason: item.bestSeason,
+          estimatedCost: item.estimatedCost,
+          tags: item.tags,
+          notes: item.notes,
+          links: item.links ?? [],
+        }),
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`wishlist POST ${r.status}`)))
+        .then(data => {
+          if (data?.item?.id) {
+            // The new server row has a fresh id. Replace the local
+            // entry so subsequent DELETEs target the right row.
+            setAllItems(prev => prev.map(i => i.id === id
+              ? { ...i, id: data.item.id }
+              : i,
+            ));
+            setSavedIds(prev => {
+              const next = new Set(prev);
+              next.delete(id);
+              next.add(data.item.id);
+              return next;
+            });
+          }
+        })
+        .catch(() => {
+          // Roll back so the heart reflects the un-saved state again.
+          setSavedIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        });
     }
   };
 

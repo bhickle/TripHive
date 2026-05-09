@@ -10,6 +10,7 @@ import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePlacesSearch } from '@/hooks/usePlacesSearch';
 import type { PaceLevel } from '@/lib/types';
+import { TIER_LIMITS } from '@/lib/types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -377,9 +378,7 @@ function TripBuilderPage() {
   const searchParams = useSearchParams();
   const isFirstTrip = searchParams.get('firsttrip') === 'true';
   const [currentStep, setCurrentStep] = useState(1);
-  const [isGenerating] = useState(false); // kept for disabled-button guard; generation now happens on /trip/generating
   const [savingDraft, setSavingDraft] = useState(false);
-  const [daysReceived] = useState(0);     // unused; kept to avoid refactoring references below
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
   const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady, maxTravelersForTrip } = useEntitlements();
@@ -1196,9 +1195,13 @@ function TripBuilderPage() {
                   </div>
                   {entitlementsReady && (
                     <p className="text-xs text-zinc-400 mt-2">
-                      {tier === 'free' && 'Free plan: up to 4 travelers. '}
-                      {tier === 'explorer' && 'Explorer plan: up to 8 travelers. '}
-                      {tier === 'nomad' && 'Nomad plan: up to 15 travelers. '}
+                      {/* Pull traveler caps from TIER_LIMITS so a future
+                          cap change doesn't require editing this copy
+                          alongside lib/types.ts. trip_pass is plan-based
+                          and resolves via maxTravelersForTrip(). */}
+                      {tier === 'free' && `Free plan: up to ${TIER_LIMITS.free.travelersPerTrip} travelers. `}
+                      {tier === 'explorer' && `Explorer plan: up to ${TIER_LIMITS.explorer.travelersPerTrip} travelers. `}
+                      {tier === 'nomad' && `Nomad plan: up to ${TIER_LIMITS.nomad.travelersPerTrip} travelers. `}
                       {tier === 'trip_pass' && `Trip Pass: up to ${maxTravelersForTrip()} travelers. `}
                       {state.groupSize >= maxTravelersForTrip() && (
                         <button type="button" onClick={() => { setUpgradeReason('traveler_limit'); setShowUpgradeModal(true); }} className="text-sky-600 font-semibold hover:underline">Upgrade for larger groups →</button>
@@ -2157,9 +2160,10 @@ function TripBuilderPage() {
                         </div>
                       ))}
 
-                      {/* Add another hotel — tier-gated with progressive disclosure */}
+                      {/* Add another hotel — tier-gated with progressive disclosure.
+                          Cap pulled from TIER_LIMITS.maxBookedHotels. */}
                       {(() => {
-                        const maxHotels = tier === 'nomad' ? 7 : tier === 'explorer' ? 3 : 1;
+                        const maxHotels = TIER_LIMITS[tier]?.maxBookedHotels ?? 1;
                         const lastFilled = state.bookedHotels[state.bookedHotels.length - 1]?.name?.trim() !== '';
                         // Explorer: progressive — only show when last slot has a name
                         // Nomad: always show when under cap
@@ -3059,15 +3063,10 @@ function TripBuilderPage() {
                         }
                         handleGenerateItinerary();
                       }}
-                      disabled={isGenerating || !state.destination.trim()}
+                      disabled={!state.destination.trim()}
                       className="w-full flex items-center justify-center gap-2 py-4 text-base font-semibold rounded-full transition-all bg-sky-800 hover:bg-sky-900 text-white disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed shadow-sm"
                     >
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>Generating your itinerary...</span>
-                        </>
-                      ) : !canAffordAction('itinerary_generate') ? (
+                      {!canAffordAction('itinerary_generate') ? (
                         <>
                           <Zap className="w-5 h-5" />
                           <span>Build My Trip</span>

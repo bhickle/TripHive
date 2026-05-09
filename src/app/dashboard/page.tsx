@@ -704,8 +704,14 @@ export default function DashboardPage() {
             )}
           </section>
 
-          {/* Year in Review Banner — December only */}
-          {new Date().getMonth() === 11 && (
+          {/* Year in Review Banner — disabled until the cross-trip
+              aggregation pipeline ships. The TripStoryModal yearly mode
+              currently shows only a "Coming soon" placeholder, so
+              clicking the banner in December would have led to a dead
+              end. The original December gate (`getMonth() === 11`) +
+              the pipeline-build flag (`false &&`) keeps the JSX in the
+              tree for easy revival but suppresses rendering. */}
+          {false && new Date().getMonth() === 11 && (
             <div
               className="mb-12 relative overflow-hidden rounded-2xl cursor-pointer group shadow-sm"
               onClick={() => hasYearInReview ? setShowYearlyReview(true) : setShowYearInReviewUpgrade(true)}

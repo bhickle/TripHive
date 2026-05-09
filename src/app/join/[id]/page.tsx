@@ -118,13 +118,18 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
         if (MOCK_TRIP_IDS.has(tripId)) {
           const mockTrip = trips.find((t) => t.id === tripId);
           if (mockTrip) {
-            const startDate = new Date('2024-09-15');
-            const endDate = new Date('2024-09-21');
-            const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            // Roll the mock-trip preview dates forward to today+30
+            // through today+36. The original hardcoded 2024-09-15 dates
+            // are now in the past and made the demo look stale; this
+            // matches Trip Builder's rolling-default pattern (line 686).
+            const ms = 24 * 60 * 60 * 1000;
+            const startDate = new Date(Date.now() + 30 * ms);
+            const dayCount = 7;
+            const isoDate = (d: Date) => d.toISOString().split('T')[0];
 
             const itineraryPreview = Array.from({ length: dayCount }, (_, i) => ({
               day: i + 1,
-              date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              date: isoDate(new Date(startDate.getTime() + i * ms)),
               theme: `Day ${i + 1}`,
               activities: [`Explore ${mockTrip.destination}`],
             }));
@@ -132,8 +137,8 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
             setTripData({
               title: mockTrip.title,
               destination: mockTrip.destination,
-              startDate: '2024-09-15',
-              endDate: '2024-09-21',
+              startDate: isoDate(startDate),
+              endDate: isoDate(new Date(startDate.getTime() + (dayCount - 1) * ms)),
               travelerCount: mockTrip.memberCount + mockTrip.guestCount,
               organizerName: 'Brandon',
               coverImage: mockTrip.coverImage,

@@ -89,13 +89,18 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
     load();
   }, [mockTrip, params.id]);
 
-  // Build the trip object: prefer real data, fall back gracefully without leaking mock content
+  // Build the trip object: prefer real data, fall back gracefully without
+  // leaking mock content. Previously this spread `{...trips[0], ...}`
+  // which leaked unrelated mock fields (memberCount, coverImage, status,
+  // guestCount) until aiMeta resolved — visible Iceland data flashed for
+  // a beat on every real trip page load. Now we build only the three
+  // fields the layout actually consumes (id, title, destination), which
+  // matches the only fields read below by Sidebar/TopBar.
   const trip = mockTrip ?? (() => {
-    const base = trips[0]; // shape reference only — destination + title are always overridden
     const destination = aiMeta?.destination ?? '';
-    const city = (destination ?? '').split(',')[0].trim();
+    const city = destination.split(',')[0].trim();
     const title = aiMeta?.title ?? (city ? `${city} Adventure` : 'Your Trip');
-    return { ...base, id: params.id, destination, title };
+    return { id: params.id, destination, title };
   })();
 
   const pathSegments = pathname.split('/');

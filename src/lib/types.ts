@@ -91,6 +91,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   aiCreditsPerMonth: number | 'plan_based';
   /** Maximum AI-generated itinerary length in days */
   maxTripDays: number;
+  /** Pre-booked hotels the user can attach when filling Trip Builder */
+  maxBookedHotels: number;
   canUseAI: boolean;
   canUseTripStory: boolean;
   canUseYearInReview: boolean;
@@ -115,6 +117,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     travelersPerTrip: 4,
     aiCreditsPerMonth: 10,
     maxTripDays: 7,
+    maxBookedHotels: 1,
     canUseAI: true,
     canUseTripStory: true,   // Trip Story on all tiers — great for organic sharing
     canUseYearInReview: false,
@@ -134,6 +137,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     travelersPerTrip: 'plan_based', // 6 base + extras purchased
     aiCreditsPerMonth: 'plan_based', // 30 per pass
     maxTripDays: 7,
+    maxBookedHotels: 3,
     canUseAI: true,
     canUseTripStory: true,
     canUseYearInReview: false,
@@ -153,6 +157,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     travelersPerTrip: 8,
     aiCreditsPerMonth: 100,
     maxTripDays: 10,
+    maxBookedHotels: 3,
     canUseAI: true,
     canUseTripStory: true,
     canUseYearInReview: true,
@@ -172,6 +177,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     travelersPerTrip: 15,
     aiCreditsPerMonth: 350,
     maxTripDays: 14,
+    maxBookedHotels: 7,
     canUseAI: true,
     canUseTripStory: true,
     canUseYearInReview: true,
