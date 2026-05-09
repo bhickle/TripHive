@@ -43,14 +43,22 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .eq('trip_id', params.id)
       .order('display_order', { ascending: true });
 
-    // Seed generic tasks if none exist yet
+    // Seed generic tasks if none exist yet. If the seed insert fails the
+    // user would see defaults that vanish on refresh — so log loudly and
+    // return whatever did come back. seeded falls back to seeds only when
+    // Supabase didn't return rows (it should always return them on insert
+    // success); a real failure surfaces an error.
     if (!existing || existing.length === 0) {
       const seeds = GENERIC_PREP_TASKS.map(t => ({ ...t, trip_id: params.id, completed: false }));
-      const { data: seeded } = await supabase
+      const { data: seeded, error: seedErr } = await supabase
         .from('prep_tasks')
         .insert(seeds)
         .select();
-      return NextResponse.json({ tasks: seeded ?? seeds });
+      if (seedErr) {
+        console.error('prep_tasks seed insert failed:', seedErr);
+        return NextResponse.json({ tasks: [] });
+      }
+      return NextResponse.json({ tasks: seeded ?? [] });
     }
 
     return NextResponse.json({ tasks: existing });

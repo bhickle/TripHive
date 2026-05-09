@@ -124,7 +124,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         display_order: i,
       }));
 
-    await supabase.from('vote_options').insert(optionRows);
+    const { error: optionsErr } = await supabase.from('vote_options').insert(optionRows);
+    if (optionsErr) {
+      // Vote row was created but options didn't persist — the poll would
+      // appear with no answers to click on. Roll back the parent vote.
+      console.error('vote_options insert failed:', optionsErr);
+      const { error: rollbackErr } = await supabase.from('group_votes').delete().eq('id', vote.id);
+      if (rollbackErr) console.error('group_votes rollback also failed (orphan vote left):', vote.id, rollbackErr);
+      return NextResponse.json({ error: 'Failed to create vote options' }, { status: 500 });
+    }
 
     // Fire-and-forget: notify every other trip member that a new poll exists.
     notifyTripMembers({
@@ -183,15 +191,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         .single();
       const voterName = profile?.name ?? profile?.email?.split('@')[0] ?? 'Member';
 
-      // Upsert: replace previous vote from this user on this vote
-      await supabase.from('vote_responses').delete()
+      // Upsert: replace previous vote from this user on this vote.
+      // Two-step delete-then-insert; if either fails the vote count is
+      // wrong, so surface a real error and let the client retry.
+      const { error: delErr } = await supabase.from('vote_responses').delete()
         .eq('vote_id', voteId).eq('user_id', userId);
-      await supabase.from('vote_responses').insert({
+      if (delErr) {
+        console.error('vote_responses delete failed:', delErr);
+        return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
+      }
+      const { error: insErr } = await supabase.from('vote_responses').insert({
         vote_id: voteId,
         option_id: optionId,
         voter_name: voterName,
         user_id: userId,
       });
+      if (insErr) {
+        console.error('vote_responses insert failed:', insErr);
+        return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -219,7 +237,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         return NextResponse.json({ error: 'Vote not found' }, { status: 404 });
       }
 
-      await supabase.from('group_votes').update({ status: 'closed' }).eq('id', voteId);
+      const { error: closeErr } = await supabase.from('group_votes').update({ status: 'closed' }).eq('id', voteId);
+      if (closeErr) {
+        console.error('group_votes close failed:', closeErr);
+        return NextResponse.json({ error: 'Failed to close vote' }, { status: 500 });
+      }
       return NextResponse.json({ success: true });
     }
 

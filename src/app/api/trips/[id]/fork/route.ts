@@ -94,23 +94,33 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       if (itinErr) {
         // Empty trip = broken UX (user lands on a skeleton with no days).
         // Roll back the new trip row and surface a real error instead of
-        // silently leaving the user stuck.
+        // silently leaving the user stuck. Best-effort rollback — log if
+        // it also fails so we can find orphans manually.
         console.error('fork itinerary copy failed:', itinErr);
-        await supabase.from('trips').delete().eq('id', newTrip.id);
+        const { error: rollbackErr } = await supabase.from('trips').delete().eq('id', newTrip.id);
+        if (rollbackErr) console.error('fork rollback also failed (orphan trip row left):', newTrip.id, rollbackErr);
         return NextResponse.json({ error: 'Failed to copy itinerary' }, { status: 500 });
       }
     }
 
     // Add the caller as an organizer in trip_members so the existing
-    // member-based access checks work consistently.
-    await supabase
+    // member-based access checks work consistently. If this fails the
+    // forked trip is half-broken (organizer can read it via organizer_id
+    // but member-scoped features like chat/votes won't recognize them),
+    // so roll back and surface the error.
+    const { error: memberErr } = await supabase
       .from('trip_members')
       .insert({
         trip_id: newTrip.id,
         user_id: user.id,
         role: 'organizer',
-      })
-      .select();
+      });
+    if (memberErr) {
+      console.error('fork trip_members insert failed:', memberErr);
+      const { error: rollbackErr } = await supabase.from('trips').delete().eq('id', newTrip.id);
+      if (rollbackErr) console.error('fork rollback also failed (orphan trip row left):', newTrip.id, rollbackErr);
+      return NextResponse.json({ error: 'Failed to set up trip membership' }, { status: 500 });
+    }
 
     return NextResponse.json({ tripId: newTrip.id });
   } catch (err) {

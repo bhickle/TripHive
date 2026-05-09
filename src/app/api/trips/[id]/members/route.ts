@@ -251,12 +251,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Mark the invite as accepted so the same token can't be reused. Best-
     // effort: don't fail the join if this update errors — the member is in,
-    // we just lose the audit signal.
+    // we just lose the audit signal AND lose the protection against the
+    // same token being reused. Log loudly so a recurring failure surfaces
+    // in logs even though we don't error to the client.
     if (consumedInviteId) {
-      await supabase
+      const { error: inviteUpdateErr } = await supabase
         .from('trip_invites')
         .update({ status: 'accepted' })
         .eq('id', consumedInviteId);
+      if (inviteUpdateErr) console.error('trip_invites accepted-flag update failed:', consumedInviteId, inviteUpdateErr);
     }
 
     return NextResponse.json({ ok: true });

@@ -17,10 +17,11 @@ export async function POST(
 
   if (vote === null) {
     // Toggle off — delete the vote
-    await supabase.from('activity_votes').delete()
+    const { error: delErr } = await supabase.from('activity_votes').delete()
       .eq('trip_id', params.tripId)
       .eq('activity_id', activityId)
       .eq('user_id', userId);
+    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
   } else {
     // Upsert — ON CONFLICT replaces the previous vote
     const { error } = await supabase.from('activity_votes').upsert(

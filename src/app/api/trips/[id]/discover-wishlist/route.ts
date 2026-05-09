@@ -77,10 +77,11 @@ export async function POST(
 
   // Delete row only when both vote is null AND saved is false
   if (vote === null && saved === false) {
-    await table.delete()
+    const { error: delErr } = await table.delete()
       .eq('trip_id', params.id)
       .eq('user_id', userId)
       .eq('item_id', itemId);
+    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
   } else if (vote !== undefined || saved !== undefined) {
     // Fetch existing row to preserve fields not being updated
     const { data: existing } = await table

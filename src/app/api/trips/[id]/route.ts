@@ -269,8 +269,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Delete itinerary first (FK), then the trip row
-    await supabase.from('itineraries').delete().eq('trip_id', params.id);
+    // Delete itinerary first (FK), then the trip row. If the itinerary
+    // delete fails, abort — otherwise we'd orphan the itinerary against
+    // a now-deleted trip and the unique trip_id index would block any
+    // future re-creation with the same id.
+    const { error: itinDeleteErr } = await supabase.from('itineraries').delete().eq('trip_id', params.id);
+    if (itinDeleteErr) {
+      console.error('Itinerary delete error:', JSON.stringify(itinDeleteErr));
+      return NextResponse.json({ error: 'Failed to delete itinerary' }, { status: 500 });
+    }
     const { error: tripDeleteErr } = await supabase.from('trips').delete().eq('id', params.id);
 
     if (tripDeleteErr) {
