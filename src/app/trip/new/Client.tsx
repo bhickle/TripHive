@@ -1,0 +1,3124 @@
+'use client';
+
+import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Sidebar } from '@/components/Sidebar';
+import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { usePlacesSearch } from '@/hooks/usePlacesSearch';
+import type { PaceLevel } from '@/lib/types';
+import { TIER_LIMITS } from '@/lib/types';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  MapPin,
+  Zap,
+  Plane,
+  DollarSign,
+  Check,
+  Loader2,
+  User2,
+  Users2,
+  Heart,
+  Search,
+  Shuffle,
+  X,
+  Plus,
+  Lock,
+  Info,
+  Crown,
+} from 'lucide-react';
+
+interface BookedFlight {
+  airline: string;
+  flightNumber: string;
+  departureAirport: string;
+  arrivalAirport: string;
+  departureTime: string;
+  arrivalTime: string;
+  returnDepartureTime: string;
+  returnArrivalTime: string;
+  /** Nomad open-jaw: airport the return flight departs from (if different from arrivalAirport) */
+  returnDepartureAirport?: string;
+  /** Nomad open-jaw: airport the return flight arrives at (usually home airport) */
+  returnArrivalAirport?: string;
+}
+
+interface BookedHotel {
+  name: string;
+  city: string;   // city this hotel is in — drives multi-city route logic
+  address: string;
+  checkIn: string;
+  checkOut: string;
+}
+
+interface BookedCar {
+  company: string;         // e.g. "Hertz", "Enterprise", "Sixt"
+  pickupLocation: string;  // e.g. "Keflavik Airport (KEF)"
+  carClass: string;        // e.g. "Compact SUV", "Economy"
+  confirmationRef: string; // booking / confirmation code
+}
+
+interface TripWizardState {
+  groupType: string;
+  groupSize: number;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  tripLength: number;
+  flexibleDates: boolean;
+  priorities: string[];
+  /** Organizer's preferred pace — mirrors the question invitees see on
+   *  the /join page so the AI gets the buyer's pace alongside everyone
+   *  else's. Was previously only collected for invitees, leaving the
+   *  builder's own pace assumption unset (treated as balanced). */
+  pace: PaceLevel;
+  modality: string[];
+  accommodationType: string[];
+  curiosityLevel: number;
+  localMode: boolean;
+  dateNight: boolean;
+  budget: number;
+  budgetBreakdown: {
+    flights: number;
+    hotel: number;
+    food: number;
+    experiences: number;
+    transport: number;
+  };
+  ageRanges: string[];
+  accessibilityNeeds: string[];
+  bookedFlight: BookedFlight | null;
+  bookedHotels: BookedHotel[];
+  bookedCar: BookedCar | null;
+  hasPreBookedFlight: boolean;
+  hasPreBookedHotel: boolean;
+  hasPreBookedCar: boolean;
+  /** Nomad only: return flight departs from a different airport */
+  isOpenJaw: boolean;
+  /** Places or experiences the user absolutely must have in the itinerary */
+  mustHaves: string[];
+  /** Ordered city list for multi-city trips (Explorer/Nomad, no-hotel path) */
+  destinations: string[];
+  /** Optional day allocation per city, keyed by city name */
+  daysPerDestination: Record<string, number>;
+  /** Free-text notes for the AI — "anything else we should know?" */
+  additionalContext: string;
+}
+
+const priorityOptions = [
+  { id: 'nature',       label: 'Nature',         icon: '🌿', tooltip: 'Parks, trails, wildlife & natural landscapes' },
+  { id: 'food',         label: 'Food',           icon: '🍽️', tooltip: 'Local restaurants, markets, food tours & tastings' },
+  { id: 'nightlife',    label: 'Nightlife',      icon: '🎶', tooltip: 'Bars, live music, shows & after-dark spots' },
+  { id: 'history',      label: 'History',        icon: '📜', tooltip: 'Landmarks, museums, walking tours & local lore' },
+  { id: 'sports',       label: 'Sports',         icon: '⛹️', tooltip: 'Stadiums, arenas, halls of fame & fan zones' },
+  { id: 'photography',  label: 'Photography',    icon: '📷', tooltip: 'Golden-hour spots, viewpoints & hidden gems' },
+  { id: 'wellness',     label: 'Wellness',       icon: '💆', tooltip: 'Spas, yoga, slow walks & restorative days' },
+  { id: 'shopping',     label: 'Shopping',       icon: '🛍️', tooltip: 'Markets, boutiques, workshops & local finds' },
+  { id: 'adventure',    label: 'Adventure',      icon: '⚡', tooltip: 'Thrills, high-energy outdoor activities & experiences' },
+  { id: 'culture',      label: 'Culture',        icon: '🏛️', tooltip: 'Arts, performances, immersive experiences & local traditions' },
+  { id: 'beach',        label: 'Beach',          icon: '🏖️', tooltip: 'Beaches, water activities & coastal views' },
+  { id: 'themepark',    label: 'Theme Parks',    icon: '🎢', tooltip: 'Parks, rides, strategy tips & entertainment' },
+  { id: 'family',       label: 'Family/Kids',    icon: '👨‍👩‍👧', tooltip: 'Kid-friendly picks, family pacing & activities' },
+  // Removed 'budget' priority chip — overlapped with the budget-tier slider in
+  // Step 7 (a 'Budget' priority on a luxury tier sent conflicting signals).
+  // Removed 'accessibility' priority chip — accessibility is collected as a
+  // dedicated wizard question (Step 5 accessibilityNeeds), not a priority chip.
+];
+
+// ─── Guided Destination Browser ───────────────────────────────────────────────
+
+interface RegionCity { name: string; emoji: string; }
+interface Region { label: string; emoji: string; cities: RegionCity[]; }
+
+const REGION_DESTINATIONS: Record<string, Region> = {
+  featured: {
+    label: 'Featured',
+    emoji: '⭐',
+    cities: [
+      { name: 'Tokyo, Japan', emoji: '🗾' },
+      { name: 'Paris, France', emoji: '🗼' },
+      { name: 'Bali, Indonesia', emoji: '🌴' },
+      { name: 'Rome, Italy', emoji: '🏛️' },
+      { name: 'Kyoto, Japan', emoji: '⛩️' },
+      { name: 'Barcelona, Spain', emoji: '💃' },
+      { name: 'Marrakech, Morocco', emoji: '🕌' },
+      { name: 'New York City, USA', emoji: '🗽' },
+      { name: 'Lisbon, Portugal', emoji: '🌊' },
+      { name: 'Bangkok, Thailand', emoji: '🏯' },
+      { name: 'Cape Town, South Africa', emoji: '🦁' },
+      { name: 'Queenstown, New Zealand', emoji: '🏔️' },
+    ],
+  },
+  europe: {
+    label: 'Europe',
+    emoji: '🏰',
+    cities: [
+      { name: 'Paris, France', emoji: '🗼' },
+      { name: 'Rome, Italy', emoji: '🏛️' },
+      { name: 'Barcelona, Spain', emoji: '💃' },
+      { name: 'Amsterdam, Netherlands', emoji: '🌷' },
+      { name: 'Prague, Czech Republic', emoji: '🏰' },
+      { name: 'Lisbon, Portugal', emoji: '🌊' },
+      { name: 'Vienna, Austria', emoji: '🎵' },
+      { name: 'Athens, Greece', emoji: '⚱️' },
+      { name: 'Budapest, Hungary', emoji: '🛁' },
+      { name: 'Copenhagen, Denmark', emoji: '🧜' },
+      { name: 'Edinburgh, Scotland', emoji: '🏴' },
+      { name: 'Santorini, Greece', emoji: '🌅' },
+      { name: 'Dubrovnik, Croatia', emoji: '🌊' },
+      { name: 'Florence, Italy', emoji: '🎨' },
+      { name: 'Porto, Portugal', emoji: '🍷' },
+      { name: 'Reykjavik, Iceland', emoji: '🌋' },
+    ],
+  },
+  asia: {
+    label: 'Asia & Pacific',
+    emoji: '🌏',
+    cities: [
+      { name: 'Tokyo, Japan', emoji: '🗾' },
+      { name: 'Kyoto, Japan', emoji: '⛩️' },
+      { name: 'Bali, Indonesia', emoji: '🌴' },
+      { name: 'Bangkok, Thailand', emoji: '🏯' },
+      { name: 'Singapore', emoji: '🦁' },
+      { name: 'Seoul, South Korea', emoji: '🏙️' },
+      { name: 'Chiang Mai, Thailand', emoji: '🐘' },
+      { name: 'Hoi An, Vietnam', emoji: '🏮' },
+      { name: 'Hanoi, Vietnam', emoji: '🍜' },
+      { name: 'Taipei, Taiwan', emoji: '🧋' },
+      { name: 'Queenstown, New Zealand', emoji: '🏔️' },
+      { name: 'Sydney, Australia', emoji: '🦘' },
+    ],
+  },
+  americas: {
+    label: 'Americas',
+    emoji: '🌎',
+    cities: [
+      { name: 'New York City, USA', emoji: '🗽' },
+      { name: 'Mexico City, Mexico', emoji: '🌮' },
+      { name: 'Cartagena, Colombia', emoji: '💛' },
+      { name: 'Buenos Aires, Argentina', emoji: '🥩' },
+      { name: 'Cusco, Peru', emoji: '🦙' },
+      { name: 'Rio de Janeiro, Brazil', emoji: '🌈' },
+      { name: 'Nashville, USA', emoji: '🎸' },
+      { name: 'Vancouver, Canada', emoji: '🍁' },
+      { name: 'Oaxaca, Mexico', emoji: '🎭' },
+      { name: 'Medellin, Colombia', emoji: '🌸' },
+      { name: 'New Orleans, USA', emoji: '🎷' },
+      { name: 'Tulum, Mexico', emoji: '🏖️' },
+    ],
+  },
+  africa: {
+    label: 'Africa & M.E.',
+    emoji: '🌍',
+    cities: [
+      { name: 'Marrakech, Morocco', emoji: '🕌' },
+      { name: 'Cape Town, South Africa', emoji: '🦁' },
+      { name: 'Dubai, UAE', emoji: '🏙️' },
+      { name: 'Zanzibar, Tanzania', emoji: '🐠' },
+      { name: 'Cairo, Egypt', emoji: '🔺' },
+      { name: 'Nairobi, Kenya', emoji: '🦒' },
+      { name: 'Fes, Morocco', emoji: '🏺' },
+      { name: 'Accra, Ghana', emoji: '🌍' },
+    ],
+  },
+};
+
+const VIBE_SUGGESTIONS: { label: string; emoji: string; destinations: string[] }[] = [
+  { label: 'Beach & Sun', emoji: '🏖️', destinations: ['Bali, Indonesia', 'Tulum, Mexico', 'Santorini, Greece', 'Zanzibar, Tanzania'] },
+  { label: 'City Break', emoji: '🏙️', destinations: ['Tokyo, Japan', 'Paris, France', 'New York City, USA', 'Singapore', 'Barcelona, Spain'] },
+  { label: 'History', emoji: '🏛️', destinations: ['Rome, Italy', 'Athens, Greece', 'Kyoto, Japan', 'Cairo, Egypt', 'Cusco, Peru'] },
+  { label: 'Adventure', emoji: '⛰️', destinations: ['Queenstown, New Zealand', 'Cusco, Peru', 'Reykjavik, Iceland', 'Chiang Mai, Thailand'] },
+  { label: 'Food Lover', emoji: '🍜', destinations: ['Bangkok, Thailand', 'Florence, Italy', 'Tokyo, Japan', 'Oaxaca, Mexico', 'Hanoi, Vietnam'] },
+  { label: 'Romantic', emoji: '💕', destinations: ['Paris, France', 'Santorini, Greece', 'Florence, Italy', 'Porto, Portugal', 'Cartagena, Colombia'] },
+];
+
+const ageRangeOptions = [
+  'Under 12',
+  '12-17',
+  '18-30',
+  '31-50',
+  '51-65',
+  '65+',
+];
+
+const accessibilityOptions = [
+  'Wheelchair accessible',
+  'Limited mobility',
+  'Visual assistance',
+  'Hearing assistance',
+];
+
+// Destination cost estimates (per-person, USD, for a 7-day trip baseline)
+interface DestinationCosts {
+  flightsPerPerson: number;   // typical round-trip from US
+  hotelPerNight: number;      // mid-range hotel
+  foodPerDay: number;         // 3 meals + coffee
+  experiencesPerDay: number;  // tours, tickets, activities
+  transportPerDay: number;    // local transit, taxis
+  label: string;
+}
+
+const DESTINATION_COSTS: Record<string, DestinationCosts> = {
+  // Europe
+  paris: { flightsPerPerson: 700, hotelPerNight: 180, foodPerDay: 80, experiencesPerDay: 60, transportPerDay: 20, label: 'Paris' },
+  france: { flightsPerPerson: 700, hotelPerNight: 160, foodPerDay: 75, experiencesPerDay: 50, transportPerDay: 18, label: 'France' },
+  london: { flightsPerPerson: 650, hotelPerNight: 200, foodPerDay: 90, experiencesPerDay: 60, transportPerDay: 25, label: 'London' },
+  barcelona: { flightsPerPerson: 700, hotelPerNight: 140, foodPerDay: 65, experiencesPerDay: 45, transportPerDay: 15, label: 'Barcelona' },
+  spain: { flightsPerPerson: 700, hotelPerNight: 120, foodPerDay: 55, experiencesPerDay: 40, transportPerDay: 12, label: 'Spain' },
+  rome: { flightsPerPerson: 700, hotelPerNight: 150, foodPerDay: 70, experiencesPerDay: 55, transportPerDay: 15, label: 'Rome' },
+  italy: { flightsPerPerson: 700, hotelPerNight: 140, foodPerDay: 65, experiencesPerDay: 50, transportPerDay: 15, label: 'Italy' },
+  amsterdam: { flightsPerPerson: 680, hotelPerNight: 170, foodPerDay: 75, experiencesPerDay: 50, transportPerDay: 12, label: 'Amsterdam' },
+  berlin: { flightsPerPerson: 680, hotelPerNight: 120, foodPerDay: 55, experiencesPerDay: 40, transportPerDay: 10, label: 'Berlin' },
+  germany: { flightsPerPerson: 680, hotelPerNight: 110, foodPerDay: 55, experiencesPerDay: 35, transportPerDay: 12, label: 'Germany' },
+  // Nordic
+  iceland: { flightsPerPerson: 550, hotelPerNight: 200, foodPerDay: 90, experiencesPerDay: 100, transportPerDay: 60, label: 'Iceland' },
+  reykjavik: { flightsPerPerson: 550, hotelPerNight: 200, foodPerDay: 90, experiencesPerDay: 100, transportPerDay: 60, label: 'Reykjavik' },
+  norway: { flightsPerPerson: 700, hotelPerNight: 180, foodPerDay: 100, experiencesPerDay: 80, transportPerDay: 25, label: 'Norway' },
+  sweden: { flightsPerPerson: 700, hotelPerNight: 150, foodPerDay: 80, experiencesPerDay: 60, transportPerDay: 20, label: 'Sweden' },
+  // Asia
+  tokyo: { flightsPerPerson: 900, hotelPerNight: 120, foodPerDay: 40, experiencesPerDay: 60, transportPerDay: 15, label: 'Tokyo' },
+  japan: { flightsPerPerson: 900, hotelPerNight: 100, foodPerDay: 40, experiencesPerDay: 55, transportPerDay: 20, label: 'Japan' },
+  bali: { flightsPerPerson: 900, hotelPerNight: 80, foodPerDay: 25, experiencesPerDay: 45, transportPerDay: 20, label: 'Bali' },
+  indonesia: { flightsPerPerson: 900, hotelPerNight: 80, foodPerDay: 25, experiencesPerDay: 40, transportPerDay: 15, label: 'Indonesia' },
+  bangkok: { flightsPerPerson: 850, hotelPerNight: 70, foodPerDay: 20, experiencesPerDay: 35, transportPerDay: 10, label: 'Bangkok' },
+  thailand: { flightsPerPerson: 850, hotelPerNight: 70, foodPerDay: 20, experiencesPerDay: 35, transportPerDay: 12, label: 'Thailand' },
+  // Americas
+  mexico: { flightsPerPerson: 350, hotelPerNight: 100, foodPerDay: 35, experiencesPerDay: 40, transportPerDay: 20, label: 'Mexico' },
+  cancun: { flightsPerPerson: 350, hotelPerNight: 150, foodPerDay: 50, experiencesPerDay: 60, transportPerDay: 25, label: 'Cancun' },
+  colombia: { flightsPerPerson: 500, hotelPerNight: 80, foodPerDay: 25, experiencesPerDay: 35, transportPerDay: 15, label: 'Colombia' },
+  peru: { flightsPerPerson: 600, hotelPerNight: 90, foodPerDay: 30, experiencesPerDay: 60, transportPerDay: 20, label: 'Peru' },
+  // Default / USA
+  default: { flightsPerPerson: 600, hotelPerNight: 150, foodPerDay: 60, experiencesPerDay: 50, transportPerDay: 20, label: 'Your Destination' },
+};
+
+function getDestinationCosts(destination: string): DestinationCosts {
+  const dest = destination.toLowerCase();
+  for (const [key, costs] of Object.entries(DESTINATION_COSTS)) {
+    if (key !== 'default' && dest.includes(key)) return costs;
+  }
+  return DESTINATION_COSTS.default;
+}
+
+function calcBudgetFromDestination(destination: string, tripLength: number): {
+  flights: number; hotel: number; food: number; experiences: number; transport: number;
+} {
+  const costs = getDestinationCosts(destination);
+  const nights = tripLength - 1;
+  return {
+    flights: Math.round(costs.flightsPerPerson / 50) * 50,
+    hotel: Math.round(costs.hotelPerNight * nights / 50) * 50,
+    food: Math.round(costs.foodPerDay * tripLength / 50) * 50,
+    experiences: Math.round(costs.experiencesPerDay * tripLength / 50) * 50,
+    transport: Math.round(costs.transportPerDay * tripLength / 10) * 10,
+  };
+}
+
+// Style multiplier: 0 = backpacker (0.45×), 50 = mid-range (1.0×), 100 = luxury (2.4×)
+const STYLE_BREAKPOINTS: [number, number][] = [[0, 0.45], [25, 0.70], [50, 1.00], [75, 1.55], [100, 2.40]];
+function getStyleMultiplier(level: number): number {
+  for (let i = STYLE_BREAKPOINTS.length - 1; i >= 0; i--) {
+    if (level >= STYLE_BREAKPOINTS[i][0]) {
+      if (i === STYLE_BREAKPOINTS.length - 1) return STYLE_BREAKPOINTS[i][1];
+      const [lo, loM] = STYLE_BREAKPOINTS[i];
+      const [hi, hiM] = STYLE_BREAKPOINTS[i + 1];
+      return loM + ((level - lo) / (hi - lo)) * (hiM - loM);
+    }
+  }
+  return 1.0;
+}
+
+function calcBudgetFromStyle(destination: string, tripLength: number, curiosityLevel: number): {
+  flights: number; hotel: number; food: number; experiences: number; transport: number;
+} {
+  const costs = getDestinationCosts(destination);
+  const nights = tripLength - 1;
+  const m = getStyleMultiplier(curiosityLevel);
+  return {
+    flights: Math.round(costs.flightsPerPerson * m / 50) * 50,
+    hotel: Math.round(costs.hotelPerNight * nights * m / 50) * 50,
+    food: Math.round(costs.foodPerDay * tripLength * m / 25) * 25,
+    experiences: Math.round(costs.experiencesPerDay * tripLength * m / 25) * 25,
+    transport: Math.round(costs.transportPerDay * tripLength * m / 10) * 10,
+  };
+}
+
+function TripBuilderPage() {
+  const currentUser = useCurrentUser();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isFirstTrip = searchParams.get('firsttrip') === 'true';
+  const [currentStep, setCurrentStep] = useState(1);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
+  const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady, maxTravelersForTrip } = useEntitlements();
+  const [budgetInput, setBudgetInput] = useState('5000');
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  const [state, setState] = useState<TripWizardState>({
+    groupType: '',
+    groupSize: 2,
+    destination: '',
+    startDate: '',
+    endDate: '',
+    tripLength: 7,
+    flexibleDates: false,
+    priorities: [],
+    pace: 'balanced',
+    modality: [],
+    accommodationType: ['hotel'],
+    curiosityLevel: 50,
+    localMode: false,
+    dateNight: false,
+    budget: 5000,
+    budgetBreakdown: {
+      flights: 800,
+      hotel: 900,
+      food: 600,
+      experiences: 500,
+      transport: 200,
+    },
+    ageRanges: [],
+    accessibilityNeeds: [],
+    bookedFlight: null,
+    bookedHotels: [],
+    bookedCar: null,
+    hasPreBookedFlight: false,
+    hasPreBookedHotel: false,
+    hasPreBookedCar: false,
+    isOpenJaw: false,
+    mustHaves: [],
+    destinations: [],
+    daysPerDestination: {},
+    additionalContext: '',
+  });
+
+  const [showDestinationSuggestions, setShowDestinationSuggestions] =
+    useState(false);
+  const [budgetAutoFilled, setBudgetAutoFilled] = useState(false);
+  const [mustHaveInput, setMustHaveInput] = useState('');
+  const [destinationCityInput, setDestinationCityInput] = useState('');
+  const [showAccessibilityOptions, setShowAccessibilityOptions] = useState(
+    () => state.accessibilityNeeds.length > 0
+  );
+  const [selectedRegion, setSelectedRegion] = useState<string>('featured');
+
+  // Multi-destination mode gate (Item 9)
+  const [showMultiCity, setShowMultiCity] = useState(false);
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
+
+  // Destination typeahead — powered by world cities dataset
+  const {
+    suggestions: destSuggestions,
+    loading: destLoading,
+    setQuery: setDestQuery,
+  } = usePlacesSearch(150, '/api/destinations/search');
+
+  // Multi-city city add typeahead (Item 4)
+  const {
+    suggestions: citySuggestions,
+    loading: cityLoading,
+    setQuery: setCityQuery,
+  } = usePlacesSearch(150, '/api/destinations/search');
+
+  // Redirect to login if auth resolves with no user
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace('/auth/login');
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
+
+  // Clamp groupSize to the user's tier limit once entitlements are known.
+  // Without this, a free user could increment to >4 during the brief loading window.
+  useEffect(() => {
+    if (!entitlementsReady) return;
+    const cap = maxTravelersForTrip();
+    if (state.groupSize > cap) {
+      setState(prev => ({ ...prev, groupSize: cap }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entitlementsReady]);
+
+  // Load profile: for first-trip flow read from localStorage (just populated by onboarding).
+  // For returning real users, fetch travel_persona from Supabase so persona is available
+  // on any device even if localStorage is empty.
+  // NOTE: we intentionally only load groupType here — priorities are NOT pre-populated
+  // from the saved persona so each new trip starts with a clean slate (#93).
+  useEffect(() => {
+    if (isFirstTrip) {
+      // Coming straight from onboarding — localStorage was just written, use it
+      try {
+        const raw = localStorage.getItem('tripcoord_profile');
+        if (!raw) return;
+        const profile = JSON.parse(raw);
+        if (profile.name) setWelcomeName(profile.name);
+        if (profile.groupType) setState(prev => ({ ...prev, groupType: profile.groupType }));
+      } catch { /* ignore */ }
+      return;
+    }
+
+    // For returning logged-in users: try Supabase first, fall back to localStorage
+    if (!currentUser.isDemo && currentUser.id) {
+      fetch('/api/auth/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.travelPersona) {
+            const p = data.travelPersona;
+            setState(prev => ({
+              ...prev,
+              ...(p.groupType ? { groupType: p.groupType } : {}),
+            }));
+          } else {
+            // No Supabase persona yet — fall back to localStorage
+            try {
+              const raw = localStorage.getItem('tripcoord_profile');
+              if (!raw) return;
+              const profile = JSON.parse(raw);
+              if (profile.groupType) setState(prev => ({ ...prev, groupType: profile.groupType }));
+            } catch { /* ignore */ }
+          }
+        })
+        .catch(() => {
+          // Network error — fall back to localStorage
+          try {
+            const raw = localStorage.getItem('tripcoord_profile');
+            if (!raw) return;
+            const profile = JSON.parse(raw);
+            if (profile.groupType) setState(prev => ({ ...prev, groupType: profile.groupType }));
+          } catch { /* ignore */ }
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirstTrip, currentUser.isDemo, currentUser.id]);
+
+  // Pre-fill destination (and optionally trip length) from wishlist "Plan This Trip"
+  useEffect(() => {
+    const destination = searchParams.get('destination');
+    const days = searchParams.get('days');
+    if (!destination) return;
+    setState(prev => ({
+      ...prev,
+      destination,
+      ...(days ? { tripLength: parseInt(days, 10) } : {}),
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep budgetInput in sync when budget changes from breakdown sliders
+  React.useEffect(() => {
+    setBudgetInput(state.budget.toString());
+  }, [state.budget]);
+
+  // Auto-fill budget when destination or trip length changes
+  const prevDestRef = React.useRef('');
+  React.useEffect(() => {
+    if (state.destination && state.destination !== prevDestRef.current && state.destination.length > 3) {
+      prevDestRef.current = state.destination;
+      const breakdown = calcBudgetFromDestination(state.destination, state.tripLength);
+      const total = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0);
+      setState(prev => ({ ...prev, budgetBreakdown: breakdown, budget: total }));
+      setBudgetInput(total.toString());
+      setBudgetAutoFilled(true);
+    }
+  }, [state.destination, state.tripLength]);
+
+  const handleNext = () => {
+    if (currentStep < 8) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const togglePriority = (priorityId: string) => {
+    setState((prev) => ({
+      ...prev,
+      priorities: prev.priorities.includes(priorityId)
+        ? prev.priorities.filter((p) => p !== priorityId)
+        : [...prev.priorities, priorityId],
+    }));
+  };
+
+  const toggleAgeRange = (ageRange: string) => {
+    setState((prev) => ({
+      ...prev,
+      ageRanges: prev.ageRanges.includes(ageRange)
+        ? prev.ageRanges.filter((a) => a !== ageRange)
+        : [...prev.ageRanges, ageRange],
+    }));
+  };
+
+  const toggleAccessibilityNeed = (need: string) => {
+    setState((prev) => {
+      const next = prev.accessibilityNeeds.includes(need)
+        ? prev.accessibilityNeeds.filter((a) => a !== need)
+        : [...prev.accessibilityNeeds, need];
+      return { ...prev, accessibilityNeeds: next };
+    });
+  };
+
+  const toggleModality = (id: string) => {
+    setState((prev) => ({
+      ...prev,
+      modality: prev.modality.includes(id)
+        ? prev.modality.filter((m) => m !== id)
+        : [...prev.modality, id],
+    }));
+  };
+
+  const toggleAccommodationType = (id: string) => {
+    setState((prev) => ({
+      ...prev,
+      accommodationType: prev.accommodationType.includes(id)
+        ? prev.accommodationType.filter((a) => a !== id)
+        : [...prev.accommodationType, id],
+    }));
+  };
+
+  // handleSurpriseMe was removed when the inline "Surprise Me" button
+  // was retired. generationStatus / generationError now live on
+  // /trip/generating — also moved away from here.
+
+  // ── Places pre-warm cache ──────────────────────────────────────────────────
+  // Kick off the Google Places fetch as soon as the user reaches Step 8 (Review)
+  // so by the time they hit Generate the data is already in hand — saves ~10-15s.
+  const [placesCache, setPlacesCache] = useState<{
+    realPlaces: unknown;
+    multiCityPlaces: unknown;
+  } | null>(null);
+  const placesCacheRef = React.useRef(placesCache);
+  placesCacheRef.current = placesCache;
+
+  useEffect(() => {
+    if (currentStep !== 8) return;
+    if (placesCacheRef.current) return; // already fetched
+    const dest = canonicalDestinationFor(state);
+    const dests = state.destinations.length >= 2 ? state.destinations : [];
+    fetch('/api/places/warm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destination: dest, destinations: dests }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPlacesCache(data); })
+      .catch(() => { /* silent — generate route will fall back */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  // (rotatingCityIdx / LOADING_MESSAGES moved to /trip/generating)
+
+  // Helper: derive the canonical single-destination string from current state.
+  // Used both in the pre-warm useEffect and in the generate payload.
+  function canonicalDestinationFor(s: TripWizardState): string {
+    const hotelCities = s.hasPreBookedHotel
+      ? s.bookedHotels.filter(h => h.city?.trim()).map(h => h.city!.trim())
+      : [];
+    if (hotelCities.length > 0) return hotelCities[0];
+    if (s.destinations.length >= 1) return s.destinations[0];
+    return s.destination;
+  }
+
+  const handleGenerateItinerary = async () => {
+    // Build the canonical destination string for multi-city trips
+    const canonicalDestination = canonicalDestinationFor(state);
+
+    // Derive ordered city list: hotel cities take priority, then explicit destinations
+    const destinations = (() => {
+      const hotelCities = state.hasPreBookedHotel
+        ? state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())
+        : [];
+      const uniqueHotelCities = Array.from(new Set(hotelCities));
+      if (uniqueHotelCities.length > 1) return uniqueHotelCities;
+      if (state.destinations.length > 1) return state.destinations;
+      return [];
+    })();
+
+    // ── Build the API payload ──────────────────────────────────────────────────
+    // Empty-date fallback: previously hardcoded to 2026-09-15 / 2026-09-21
+    // which would silently age out (we're already past mid-2026 by go-live).
+    // Now derives a rolling default of "today + 90 days" for the start, and
+    // start + tripLength for the end. The flexibleDates flag tells the AI
+    // these are placeholder defaults so it can suggest a better season.
+    const tripLengthSafe = state.tripLength || 7;
+    const fallbackStart = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 90);
+      return d.toISOString().slice(0, 10);
+    })();
+    const fallbackEnd = (() => {
+      const d = new Date(fallbackStart + 'T00:00:00');
+      d.setDate(d.getDate() + tripLengthSafe - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+    const payload: Record<string, unknown> = {
+      destination: canonicalDestination,
+      startDate: state.startDate || fallbackStart,
+      endDate: state.endDate || fallbackEnd,
+      tripLength: tripLengthSafe,
+      // groupSize was previously omitted from the payload, so the prompt
+      // (which reads it for group-pacing logic and meeting points) silently
+      // fell back to defaults — itineraries didn't reflect the actual party
+      // size collected by the wizard.
+      groupSize: state.groupSize,
+      groupType: state.groupType,
+      priorities: state.priorities,
+      budget: state.budget,
+      budgetBreakdown: state.budgetBreakdown,
+      ageRanges: state.ageRanges,
+      accessibilityNeeds: state.accessibilityNeeds,
+      mustHaves: state.mustHaves,
+      additionalContext: state.additionalContext,
+      destinations,
+      daysPerDestination: state.daysPerDestination,
+      localMode: state.localMode,
+      dateNight: state.dateNight,
+      curiosityLevel: state.curiosityLevel,
+      organizerPace: state.pace,
+      // flexibleDates tells the prompt the dates are placeholder defaults
+      // (the user opted into a length-only flow) so the model can frame
+      // weather/season suggestions accordingly rather than treating the
+      // dates as hard requirements.
+      flexibleDates: state.flexibleDates,
+      modality: state.modality.join(', '),
+      accommodationType: state.accommodationType.join(', '),
+      bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
+      bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+      bookedCar: state.hasPreBookedCar ? state.bookedCar : null,
+      // Pass pre-fetched places if available — backend will skip its own fetch
+      ...(placesCache ? {
+        preFetchedRealPlaces: placesCache.realPlaces,
+        preFetchedMultiCityPlaces: placesCache.multiCityPlaces,
+      } : {}),
+    };
+
+    // ── Trip meta base (stream-derived fields like title added by /trip/generating) ──
+    const metaBase = {
+      destination: canonicalDestination,
+      startDate: state.startDate,
+      endDate: state.endDate,
+      groupType: state.groupType,
+      groupSize: state.groupSize,
+      budget: state.budget,
+      budgetBreakdown: state.budgetBreakdown,
+      bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+      bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
+      preferences: {
+        priorities: state.priorities,
+        modality: state.modality,
+        accommodationType: state.accommodationType,
+        localMode: state.localMode,
+        curiosityLevel: state.curiosityLevel,
+      organizerPace: state.pace,
+        ageRanges: state.ageRanges,
+        accessibilityNeeds: state.accessibilityNeeds,
+        ...(state.hasPreBookedCar && state.bookedCar ? { bookedCar: state.bookedCar } : {}),
+      },
+    };
+
+    // ── Create a skeleton trip in Supabase, then redirect to the itinerary page ──
+    // The itinerary page detects ?mode=generating and drives the live-build loop.
+    // This pre-creates the trip so: (a) we have a real tripId before generation starts,
+    // (b) the URL is stable from the beginning, (c) partial results are persisted per city
+    // so closing the browser doesn't lose everything.
+    let skeletonTripId: string | null = null;
+    try {
+      const skeletonRes = await fetch('/api/trips/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripMeta: { ...metaBase, title: `${state.destination} Trip`, tripLength: state.tripLength },
+          itinerary: null,
+          skeleton: true,
+        }),
+      });
+      if (skeletonRes.ok) {
+        const { tripId } = await skeletonRes.json();
+        skeletonTripId = tripId ?? null;
+      }
+    } catch {
+      console.warn('[trip/new] Skeleton trip creation failed — falling back to /trip/generating');
+    }
+
+    // Store payload + meta in sessionStorage for the generation loop
+    try {
+      const payloadWithId = skeletonTripId
+        ? { ...payload, existingTripId: skeletonTripId }
+        : payload;
+      sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payloadWithId));
+      sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(metaBase));
+    } catch {
+      // sessionStorage unavailable (e.g. private browsing with strict settings)
+      console.warn('[trip/new] sessionStorage unavailable — cannot use generating page');
+      return;
+    }
+
+    if (skeletonTripId) {
+      router.push(`/trip/${skeletonTripId}/itinerary?mode=generating`);
+    } else {
+      // Fallback: use the dedicated generating page (no live-build, but still works)
+      router.push('/trip/generating');
+    }
+  };
+
+  // Option B: Trip Pass "invite first" — saves a draft trip (no itinerary) then goes to the group page
+  const handleSaveAndInvite = async () => {
+    if (!state.destination.trim()) return;
+    setSavingDraft(true);
+    try {
+      const canonicalDestination = canonicalDestinationFor(state);
+      const meta = {
+        destination: canonicalDestination,
+        title: `${state.destination} Trip`,
+        startDate: state.startDate || null,
+        endDate: state.endDate || null,
+        tripLength: state.tripLength,
+        groupType: state.groupType,
+        groupSize: state.groupSize,
+        budget: state.budget,
+        budgetBreakdown: state.budgetBreakdown,
+        bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
+        bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
+        preferences: {
+          priorities: state.priorities,
+          modality: state.modality,
+          accommodationType: state.accommodationType,
+          localMode: state.localMode,
+          curiosityLevel: state.curiosityLevel,
+      organizerPace: state.pace,
+          ageRanges: state.ageRanges,
+          accessibilityNeeds: state.accessibilityNeeds,
+        },
+      };
+      const res = await fetch('/api/trips/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripMeta: meta, itinerary: null }),
+      });
+      if (res.ok) {
+        const { tripId } = await res.json();
+        router.push(`/trip/${tripId}/group`);
+      }
+    } catch (e) {
+      console.error('[trip/new] handleSaveAndInvite error:', e);
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const updateBudgetBreakdown = (
+    category: keyof TripWizardState['budgetBreakdown'],
+    value: number
+  ) => {
+    setState((prev) => {
+      const newBreakdown = {
+        ...prev.budgetBreakdown,
+        [category]: value,
+      };
+      const newTotal = Object.values(newBreakdown).reduce((sum, val) => sum + val, 0);
+      return {
+        ...prev,
+        budget: newTotal,
+        budgetBreakdown: newBreakdown,
+      };
+    });
+  };
+
+  const handleBudgetChange = (newBudget: number) => {
+    setState((prev) => {
+      const oldTotal = Object.values(prev.budgetBreakdown).reduce(
+        (sum, val) => sum + val,
+        0
+      );
+
+      if (oldTotal === 0) {
+        return { ...prev, budget: newBudget };
+      }
+
+      const ratio = newBudget / oldTotal;
+      const newBreakdown: TripWizardState['budgetBreakdown'] = {
+        flights: Math.round(prev.budgetBreakdown.flights * ratio),
+        hotel: Math.round(prev.budgetBreakdown.hotel * ratio),
+        food: Math.round(prev.budgetBreakdown.food * ratio),
+        experiences: Math.round(prev.budgetBreakdown.experiences * ratio),
+        transport: Math.round(prev.budgetBreakdown.transport * ratio),
+      };
+
+      return {
+        ...prev,
+        budget: newBudget,
+        budgetBreakdown: newBreakdown,
+      };
+    });
+  };
+
+  const handleTripLengthClick = (days: number) => {
+    if (state.startDate) {
+      const startDate = new Date(state.startDate);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + days - 1);
+      const endDateString = endDate.toISOString().split('T')[0];
+
+      setState((prev) => ({
+        ...prev,
+        tripLength: days,
+        endDate: endDateString,
+      }));
+    } else {
+      setState((prev) => ({
+        ...prev,
+        tripLength: days,
+      }));
+    }
+  };
+
+  const handleDateChange = (
+    type: 'startDate' | 'endDate',
+    value: string
+  ) => {
+    setState((prev) => {
+      const newState = { ...prev, [type]: value };
+
+      // When start date is set and end date is empty, auto-fill end date from trip length
+      if (type === 'startDate' && value && !prev.endDate && prev.tripLength > 0) {
+        const startDate = new Date(value);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + prev.tripLength - 1);
+        newState.endDate = endDate.toISOString().split('T')[0];
+      }
+
+      // When both dates are set, recalculate trip length
+      if (
+        newState.startDate &&
+        newState.endDate &&
+        new Date(newState.startDate) < new Date(newState.endDate)
+      ) {
+        const start = new Date(newState.startDate);
+        const end = new Date(newState.endDate);
+        const diffTime = end.getTime() - start.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        newState.tripLength = diffDays;
+      }
+
+      return newState;
+    });
+  };
+
+  const totalBreakdown = Object.values(state.budgetBreakdown).reduce(
+    (sum, val) => sum + val,
+    0
+  );
+
+  // (Loading overlay removed — generation now happens on /trip/generating.
+  // The unused progressPercent / destinationPhotos / getLoadingPhoto
+  // helpers from the old in-page overlay were removed along with it.)
+
+  return (
+    <div className="flex h-screen bg-parchment">
+      <Sidebar
+        activePage="trips"
+        user={{
+          name: currentUser.name,
+          avatarUrl: currentUser.avatarUrl,
+          subscriptionTier: currentUser.subscriptionTier,
+        }}
+      />
+
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-3xl mx-auto px-6 py-8">
+          {/* Header */}
+          <div className="mb-8">
+            <Link
+              href="/dashboard"
+              className="flex items-center space-x-2 text-sky-700 hover:text-sky-800 mb-6 font-medium"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Back to Home Base</span>
+            </Link>
+
+            {/* First-trip welcome banner */}
+            {isFirstTrip && welcomeName && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-sky-50 to-green-50 border border-sky-100 rounded-2xl flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-700 to-green-700 flex items-center justify-center text-white text-lg flex-shrink-0">
+                  🎉
+                </div>
+                <div>
+                  <p className="font-semibold text-zinc-900">Hey {welcomeName}, let's plan your first trip!</p>
+                  <p className="text-sm text-zinc-500">Answer a few questions and we'll build a full AI itinerary in seconds.</p>
+                </div>
+              </div>
+            )}
+
+            <h1 className="text-3xl font-script italic font-semibold text-zinc-900">
+              {isFirstTrip ? 'Where are you headed?' : 'Let\'s Build Your Trip'}
+            </h1>
+            <p className="text-zinc-600 mt-2">
+              Answer a few things and we'll handle the rest.
+            </p>
+          </div>
+
+          {/* Named Step Indicator */}
+          {(() => {
+            const steps = [
+              { n: 1, label: "Who's In", full: "Who's Coming?" },
+              { n: 2, label: 'Where To', full: 'Where To?' },
+              { n: 3, label: 'When', full: 'When?' },
+              { n: 4, label: 'Head Start', full: 'Head Start' },
+              { n: 5, label: 'Your Vibe', full: 'Your Vibe' },
+              { n: 6, label: 'How You Roll', full: 'How You Roll' },
+              { n: 7, label: 'The Budget', full: 'The Budget' },
+              { n: 8, label: "Let's Go", full: "Let's Go 🚀" },
+            ];
+            return (
+              <div className="mb-8">
+                {/* Step label row */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
+                    Step {currentStep} of {steps.length}
+                  </span>
+                  <span className="text-xs font-semibold text-sky-700">
+                    {steps[currentStep - 1]?.full}
+                  </span>
+                </div>
+                {/* Segmented track */}
+                <div className="flex items-center gap-1 mb-3">
+                  {steps.map((s) => (
+                    <div
+                      key={s.n}
+                      className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
+                        s.n < currentStep
+                          ? 'bg-green-700'
+                          : s.n === currentStep
+                          ? 'bg-sky-700'
+                          : 'bg-zinc-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                {/* Step dots with labels (desktop) */}
+                <div className="hidden sm:flex items-start justify-between">
+                  {steps.map((s) => (
+                    <button
+                      key={s.n}
+                      onClick={() => s.n < currentStep && setCurrentStep(s.n)}
+                      className="flex flex-col items-center gap-1 group"
+                      style={{ cursor: s.n < currentStep ? 'pointer' : 'default' }}
+                    >
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                        s.n < currentStep
+                          ? 'bg-green-700 text-white group-hover:bg-green-800'
+                          : s.n === currentStep
+                          ? 'bg-sky-800 text-white ring-2 ring-sky-200'
+                          : 'bg-zinc-200 text-zinc-400'
+                      }`}>
+                        {s.n < currentStep ? '✓' : s.n}
+                      </div>
+                      <span className={`text-[10px] font-medium whitespace-nowrap transition-colors ${
+                        s.n === currentStep ? 'text-sky-700' : s.n < currentStep ? 'text-green-700' : 'text-zinc-400'
+                      }`}>
+                        {s.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Step Content */}
+          <div className="card p-8 mb-8">
+            {/* Step 1: Who's Traveling? */}
+            {currentStep === 1 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
+                  Who's coming? 👋
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    {
+                      id: 'solo',
+                      label: 'Solo',
+                      icon: User2,
+                      desc: 'Just me',
+                    },
+                    {
+                      id: 'couple',
+                      label: 'Couple',
+                      icon: Heart,
+                      desc: 'Two of us',
+                    },
+                    {
+                      id: 'friends',
+                      label: 'Friends',
+                      icon: Users2,
+                      desc: '3+ friends',
+                    },
+                    {
+                      id: 'family',
+                      label: 'Family',
+                      icon: Users,
+                      desc: 'Family trip',
+                    },
+                  ].map((option) => {
+                    const IconComponent = option.icon;
+                    const isSelected = state.groupType === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() =>
+                          setState((prev) => {
+                            const minSize =
+                              option.id === 'friends' || option.id === 'family'
+                                ? Math.max(3, prev.groupSize)
+                                : option.id === 'couple'
+                                ? Math.max(2, prev.groupSize)
+                                : option.id === 'solo'
+                                ? 1
+                                : prev.groupSize;
+                            return { ...prev, groupType: option.id, groupSize: minSize };
+                          })
+                        }
+                        className={`p-6 rounded-lg border-2 transition-all duration-200 text-center ${
+                          isSelected
+                            ? 'border-green-700 bg-green-50'
+                            : 'border-slate-200 hover:border-sky-300'
+                        }`}
+                      >
+                        <IconComponent className="w-8 h-8 mx-auto mb-3 text-green-800" />
+                        <p className="font-semibold text-zinc-900">
+                          {option.label}
+                        </p>
+                        <p className="text-sm text-zinc-600 mt-1">
+                          {option.desc}
+                        </p>
+                        {isSelected && (
+                          <div className="mt-3 flex justify-center">
+                            <div className="w-5 h-5 bg-green-800 rounded-full flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Group Size */}
+                <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-semibold text-zinc-900 mb-0.5">How many people total?</label>
+                      <p className="text-xs text-zinc-400">Used to estimate per-person costs</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setState(prev => ({ ...prev, groupSize: Math.max(1, prev.groupSize - 1) }))}
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-zinc-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                      >−</button>
+                      <span className="w-8 text-center text-lg font-bold text-zinc-900">{state.groupSize}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cap = entitlementsReady ? maxTravelersForTrip() : 4; // 4 = free tier floor during load
+                          if (state.groupSize >= cap) {
+                            setUpgradeReason('traveler_limit');
+                            setShowUpgradeModal(true);
+                          } else {
+                            setState(prev => ({ ...prev, groupSize: prev.groupSize + 1 }));
+                          }
+                        }}
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-zinc-600 hover:border-sky-400 hover:text-sky-700 font-bold transition-colors"
+                      >+</button>
+                    </div>
+                  </div>
+                  {entitlementsReady && (
+                    <p className="text-xs text-zinc-400 mt-2">
+                      {/* Pull traveler caps from TIER_LIMITS so a future
+                          cap change doesn't require editing this copy
+                          alongside lib/types.ts. trip_pass is plan-based
+                          and resolves via maxTravelersForTrip(). */}
+                      {tier === 'free' && `Free plan: up to ${TIER_LIMITS.free.travelersPerTrip} travelers. `}
+                      {tier === 'explorer' && `Explorer plan: up to ${TIER_LIMITS.explorer.travelersPerTrip} travelers. `}
+                      {tier === 'nomad' && `Nomad plan: up to ${TIER_LIMITS.nomad.travelersPerTrip} travelers. `}
+                      {tier === 'trip_pass' && `Trip Pass: up to ${maxTravelersForTrip()} travelers. `}
+                      {state.groupSize >= maxTravelersForTrip() && (
+                        <button type="button" onClick={() => { setUpgradeReason('traveler_limit'); setShowUpgradeModal(true); }} className="text-sky-600 font-semibold hover:underline">Upgrade for larger groups →</button>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Where to? */}
+            {currentStep === 2 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
+                  Where to? 🌍
+                </h2>
+                <div className="space-y-6">
+                  <div className="relative">
+                    <div className="flex items-baseline justify-between mb-3">
+                      <label className="text-sm font-semibold text-zinc-900">
+                        Search Destination
+                      </label>
+                      <span className="text-xs text-zinc-400">Any city, country, or region in the world</span>
+                    </div>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 w-5 h-5 text-zinc-400" />
+                      <input
+                        type="text"
+                        value={state.destination}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setState((prev) => ({ ...prev, destination: val }));
+                          setDestQuery(val);
+                          setShowDestinationSuggestions(val.length >= 2);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            // Select the first suggestion or confirm current text
+                            const first = destSuggestions[0];
+                            if (first) {
+                              const fullDest = first.address ? `${first.name}, ${first.address}` : first.name;
+                              setState((prev) => ({ ...prev, destination: fullDest }));
+                              setDestQuery('');
+                            }
+                            setShowDestinationSuggestions(false);
+                            e.preventDefault();
+                          } else if (e.key === 'Escape') {
+                            setShowDestinationSuggestions(false);
+                          }
+                        }}
+                        onBlur={() => setTimeout(() => setShowDestinationSuggestions(false), 150)}
+                        placeholder="Type a city, country, or region…"
+                        className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                      />
+                      {destLoading && (
+                        <Loader2 className="absolute right-3 top-3.5 w-4 h-4 text-zinc-400 animate-spin" />
+                      )}
+                    </div>
+
+                    {/* Suggestions Dropdown — world cities typeahead */}
+                    {showDestinationSuggestions && state.destination.trim().length >= 2 && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-72 overflow-y-auto">
+                        {destSuggestions.map((s) => {
+                          // Build the full destination string: "Prague, Czech Republic"
+                          // This gives the AI better context AND makes the selection
+                          // visually obvious in the input (vs. just the city name).
+                          const fullDest = s.address ? `${s.name}, ${s.address}` : s.name;
+                          return (
+                            <button
+                              key={s.placeId}
+                              type="button"
+                              // onMouseDown preventDefault stops the input from losing focus
+                              // before the click fires — fixes the "click doesn't register" bug
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setState((prev) => ({ ...prev, destination: fullDest }));
+                                setDestQuery('');
+                                setShowDestinationSuggestions(false);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-start gap-3"
+                            >
+                              <MapPin className="w-4 h-4 text-zinc-400 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-medium text-zinc-900 text-sm">{s.name}</p>
+                                <p className="text-xs text-zinc-500">{s.address}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {/* Always allow free-typing any destination */}
+                        {!destSuggestions.some(s => s.name.toLowerCase() === state.destination.trim().toLowerCase()) && (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setState((prev) => ({ ...prev, destination: state.destination.trim() }));
+                              setDestQuery('');
+                              setShowDestinationSuggestions(false);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-sky-50 transition-colors flex items-center gap-3"
+                          >
+                            <Search className="w-4 h-4 text-sky-600 flex-shrink-0" />
+                            <span className="text-sky-700 text-sm font-medium">Use &quot;{state.destination.trim()}&quot;</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Multi-destination toggle (Item 9) ── */}
+                  {!showMultiCity ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMultiCity(true);
+                        setState(prev => {
+                          if (prev.destination.trim() && prev.destinations.length === 0) {
+                            return { ...prev, destinations: [prev.destination.trim()] };
+                          }
+                          return prev;
+                        });
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-dashed border-slate-300 hover:border-sky-400 hover:bg-sky-50 text-zinc-500 hover:text-sky-700 rounded-lg text-sm font-medium transition-colors w-full"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add another destination (multi-city trip)
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
+                      <span className="text-sm font-medium text-sky-800">Multi-city trip</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMultiCity(false);
+                          setState(prev => ({ ...prev, destinations: [], daysPerDestination: {} }));
+                          setDestinationCityInput('');
+                        }}
+                        className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ── Guided destination browser — visible when search is empty ── */}
+                  {(!state.destination || state.destination.length < 2) && !showDestinationSuggestions && (
+                    <div className="mt-2 pt-4 border-t border-slate-100">
+                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+                        Need inspiration?
+                      </p>
+
+                      {/* Vibe pills */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {VIBE_SUGGESTIONS.map((vibe) => (
+                          <button
+                            key={vibe.label}
+                            type="button"
+                            onClick={() => {
+                              const pick = vibe.destinations[Math.floor(Math.random() * vibe.destinations.length)];
+                              setState(prev => ({ ...prev, destination: pick }));
+                              setDestQuery('');
+                              setShowDestinationSuggestions(false);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50 text-zinc-700 hover:text-sky-800 rounded-full text-xs font-medium transition-colors shadow-sm"
+                          >
+                            <span>{vibe.emoji}</span>
+                            {vibe.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Region tabs */}
+                      <div className="flex gap-1.5 flex-wrap mb-3">
+                        {Object.entries(REGION_DESTINATIONS).map(([key, region]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedRegion(key)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                              selectedRegion === key
+                                ? 'bg-sky-800 text-white'
+                                : 'bg-slate-100 text-zinc-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {region.emoji} {region.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* City cards grid */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {REGION_DESTINATIONS[selectedRegion].cities.map((city) => (
+                          <button
+                            key={city.name}
+                            type="button"
+                            onClick={() => {
+                              setState(prev => ({ ...prev, destination: city.name }));
+                              setDestQuery('');
+                              setShowDestinationSuggestions(false);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50 rounded-xl text-left transition-colors shadow-sm group"
+                          >
+                            <span className="text-lg leading-none flex-shrink-0">{city.emoji}</span>
+                            <span className="text-xs font-medium text-zinc-700 group-hover:text-sky-800 leading-tight">
+                              {city.name.split(',')[0]}
+                              {city.name.includes(',') && (
+                                <span className="block text-zinc-400 font-normal text-[10px]">{city.name.split(', ').slice(1).join(', ')}</span>
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Multi-city city list — revealed when checkbox is checked (Item 9) ── */}
+                  {showMultiCity && (
+                    <div className="mt-2 p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-4">
+                      <p className="text-xs text-sky-800">
+                        Add cities in the order you plan to visit. If you enter hotel bookings in Step 4, their cities will build your route automatically — this is for trips planned without pre-booked hotels.
+                      </p>
+                      {/* City input with typeahead (Item 4) */}
+                      <div className="relative">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              value={destinationCityInput}
+                              onChange={e => {
+                                setDestinationCityInput(e.target.value);
+                                setCityQuery(e.target.value);
+                                setShowCitySuggestions(e.target.value.length >= 2);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && destinationCityInput.trim()) {
+                                  e.preventDefault();
+                                  const val = destinationCityInput.trim();
+                                  if (!state.destinations.includes(val)) {
+                                    setState(prev => ({ ...prev, destinations: [...prev.destinations, val] }));
+                                  }
+                                  setDestinationCityInput('');
+                                  setCityQuery('');
+                                  setShowCitySuggestions(false);
+                                }
+                              }}
+                              onBlur={() => setTimeout(() => setShowCitySuggestions(false), 150)}
+                              placeholder="e.g. Vienna, Lisbon, Kyoto…"
+                              className="w-full px-3 py-2.5 border border-sky-300 rounded-lg text-sm bg-white focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                            />
+                            {cityLoading && (
+                              <Loader2 className="absolute right-3 top-3 w-4 h-4 text-zinc-400 animate-spin" />
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const val = destinationCityInput.trim();
+                              if (val && !state.destinations.includes(val)) {
+                                setState(prev => ({ ...prev, destinations: [...prev.destinations, val] }));
+                              }
+                              setDestinationCityInput('');
+                              setCityQuery('');
+                              setShowCitySuggestions(false);
+                            }}
+                            disabled={!destinationCityInput.trim()}
+                            className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {/* Typeahead dropdown */}
+                        {showCitySuggestions && citySuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-10 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-56 overflow-y-auto">
+                            {citySuggestions.map(s => {
+                              const fullCity = s.address ? `${s.name}, ${s.address}` : s.name;
+                              return (
+                                <button
+                                  key={s.placeId}
+                                  type="button"
+                                  onMouseDown={e => e.preventDefault()}
+                                  onClick={() => {
+                                    if (!state.destinations.includes(fullCity)) {
+                                      setState(prev => ({ ...prev, destinations: [...prev.destinations, fullCity] }));
+                                    }
+                                    setDestinationCityInput('');
+                                    setCityQuery('');
+                                    setShowCitySuggestions(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 hover:bg-sky-50 border-b border-slate-100 last:border-b-0 transition-colors flex items-center gap-2"
+                                >
+                                  <MapPin className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
+                                  <span className="text-sm text-zinc-900">{s.name}</span>
+                                  {s.address && <span className="text-xs text-zinc-400">{s.address}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* City chips */}
+                      {state.destinations.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap p-3 bg-white border border-sky-200 rounded-xl">
+                          {state.destinations.map((city, i) => (
+                            <React.Fragment key={city}>
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
+                                {city}
+                                <button
+                                  type="button"
+                                  onClick={() => setState(prev => {
+                                    const { [city]: _, ...rest } = prev.daysPerDestination;
+                                    return { ...prev, destinations: prev.destinations.filter(d => d !== city), daysPerDestination: rest };
+                                  })}
+                                  className="text-sky-400 hover:text-sky-700"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                              {i < state.destinations.length - 1 && (
+                                <span className="text-slate-300 text-sm font-light">→</span>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      )}
+                      {state.destinations.length >= 2 && (
+                        <p className="text-xs text-sky-700">
+                          Nights per city can be set in Step 3 after you choose your trip length.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: When? */}
+            {currentStep === 3 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
+                  When are you going? 📅
+                </h2>
+                <div className="space-y-6">
+                  {/* Flexible dates toggle — at top so quick-select is context-aware */}
+                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <input
+                      type="checkbox"
+                      id="flexibleDates"
+                      checked={state.flexibleDates}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          flexibleDates: e.target.checked,
+                          startDate: '',
+                          endDate: '',
+                        }))
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
+                    />
+                    <label htmlFor="flexibleDates" className="text-sm font-medium text-zinc-900 cursor-pointer">
+                      I have flexible dates
+                    </label>
+                  </div>
+
+                  {/* Trip Length — quick-select only for flexible dates (Item 6) */}
+                  {state.flexibleDates && (
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                        Trip Length
+                      </label>
+                      <p className="text-xs text-zinc-400 mb-3">How many days are you thinking?</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {[3, 5, 7, 10, 14].map((days) => {
+                          // Only lock buttons once we know the real tier — never
+                          // lock during the loading window (entitlementsReady=false).
+                          const isLocked = entitlementsReady && days > maxTripDays;
+                          const upgradeTo = maxTripDays <= 7 ? 'Explorer' : 'Nomad';
+                          return (
+                            <div key={days} className="relative group">
+                              <button
+                                onClick={() => { if (!isLocked) handleTripLengthClick(days); }}
+                                disabled={isLocked}
+                                title={isLocked ? `${days}-day trips require ${upgradeTo} or higher` : undefined}
+                                className={`w-full p-3 rounded-lg border-2 font-semibold transition-all ${
+                                  isLocked
+                                    ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
+                                    : state.tripLength === days
+                                      ? 'border-green-700 bg-green-50 text-green-800'
+                                      : 'border-slate-200 text-zinc-700 hover:border-sky-300'
+                                }`}
+                              >
+                                {days}d
+                                {isLocked && <Lock className="w-3 h-3 inline-block ml-1 mb-0.5 text-slate-300" />}
+                              </button>
+                              {isLocked && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-40 bg-slate-800 text-white text-xs rounded-lg px-3 py-2 text-center shadow-lg pointer-events-none">
+                                  Requires {upgradeTo}+
+                                  <Link href="/pricing" className="block mt-1 text-sky-300 underline pointer-events-auto">Upgrade</Link>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Tier disclaimer for locked days (Item 6) */}
+                      {entitlementsReady && maxTripDays < 14 && (
+                        <p className="text-xs text-zinc-400 mt-2 flex items-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          Your {tier} plan supports up to {maxTripDays}-day trips.{' '}
+                          <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade for longer adventures.</Link>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Exact date pickers (non-flexible) */}
+                  {!state.flexibleDates && (
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-900 mb-3">
+                        Travel Dates
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1.5">Start Date</label>
+                          <input
+                            type="date"
+                            value={state.startDate}
+                            onChange={(e) => handleDateChange('startDate', e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1.5">End Date</label>
+                          <input
+                            type="date"
+                            value={state.endDate}
+                            min={state.startDate || undefined}
+                            onFocus={(e) => {
+                              // When startDate is set, position the calendar at that month.
+                              // This prevents the picker from opening to a different month
+                              // (e.g. May) when the auto-filled endDate crossed a month boundary
+                              // from startDate (e.g. April) — #96.
+                              if (state.startDate) {
+                                const saved = state.endDate;
+                                e.target.value = state.startDate;
+                                requestAnimationFrame(() => {
+                                  e.target.value = saved; // restore actual value; picker stays on startDate month
+                                });
+                              }
+                            }}
+                            onChange={(e) => handleDateChange('endDate', e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                          />
+                        </div>
+                      </div>
+                      {/* Trip length confirmation — prominent summary when both dates are set.
+                          Only show the tier-limit error once entitlements have loaded so
+                          paid users don't see a false "exceeds free plan" flash while the
+                          Supabase profile fetch is still in flight. */}
+                      {state.startDate && state.endDate && (
+                        <div className={`mt-3 px-4 py-3 rounded-xl border ${
+                          state.tripLength < 2
+                            ? 'bg-amber-50 border-amber-200'
+                            : entitlementsReady && state.tripLength > maxTripDays
+                            ? 'bg-rose-50 border-rose-200'
+                            : 'bg-green-50 border-green-200'
+                        }`}>
+                          <p className={`text-sm font-semibold ${
+                            state.tripLength < 2
+                              ? 'text-amber-800'
+                              : entitlementsReady && state.tripLength > maxTripDays
+                              ? 'text-rose-800'
+                              : 'text-green-800'
+                          }`}>
+                            {state.tripLength < 2
+                              ? `⚠️ Only ${state.tripLength} day${state.tripLength === 1 ? '' : 's'} — check your dates`
+                              : entitlementsReady && state.tripLength > maxTripDays
+                              ? `🔒 ${state.tripLength} days exceeds your ${tier} plan limit (${maxTripDays} days)`
+                              : `✓ ${state.tripLength}-day trip`}
+                          </p>
+                          {(state.tripLength >= 2 && (!entitlementsReady || state.tripLength <= maxTripDays)) && (
+                            <p className="text-xs text-green-700 mt-0.5">
+                              {new Date(state.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {new Date(state.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                          {entitlementsReady && state.tripLength > maxTripDays && (
+                            <p className="text-xs text-rose-700 mt-0.5">
+                              <Link href="/pricing" className="underline font-medium">Upgrade to {maxTripDays <= 7 ? 'Explorer' : 'Nomad'}</Link> to unlock longer trips.
+                            </p>
+                          )}
+                          {state.tripLength < 2 && (
+                            <p className="text-xs text-amber-700 mt-0.5">
+                              End date must be on or after start date. Adjust your dates above.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Month range selector (flexible) */}
+                  {state.flexibleDates && (
+                    <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-4">
+                      <p className="text-xs text-sky-800 font-semibold uppercase tracking-wide">Which months work for you?</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-zinc-900 mb-2">Earliest month</label>
+                          <select
+                            value={state.startDate ? state.startDate.slice(0, 7) : ''}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setState(prev => ({ ...prev, startDate: `${e.target.value}-01` }));
+                              }
+                            }}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 bg-white"
+                          >
+                            <option value="">Select month…</option>
+                            {Array.from({ length: 18 }, (_, i) => {
+                              const d = new Date();
+                              d.setDate(1);
+                              d.setMonth(d.getMonth() + i);
+                              const val = d.toISOString().slice(0, 7);
+                              const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                              return <option key={val} value={val}>{label}</option>;
+                            })}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-zinc-900 mb-2">Latest month</label>
+                          <select
+                            value={state.endDate ? state.endDate.slice(0, 7) : ''}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                const [y, m] = e.target.value.split('-').map(Number);
+                                const lastDay = new Date(y, m, 0).getDate();
+                                setState(prev => ({ ...prev, endDate: `${e.target.value}-${String(lastDay).padStart(2, '0')}` }));
+                              }
+                            }}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 bg-white"
+                          >
+                            <option value="">Select month…</option>
+                            {Array.from({ length: 18 }, (_, i) => {
+                              const d = new Date();
+                              d.setDate(1);
+                              d.setMonth(d.getMonth() + i);
+                              const val = d.toISOString().slice(0, 7);
+                              const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                              return <option key={val} value={val}>{label}</option>;
+                            })}
+                          </select>
+                        </div>
+                      </div>
+                      {/* Chronological validation (Item 11) */}
+                      {state.startDate && state.endDate && state.startDate > state.endDate && (
+                        <div className="flex items-center justify-between p-3 bg-rose-50 border border-rose-200 rounded-xl">
+                          <p className="text-xs text-rose-700 font-medium">
+                            Oops — your &ldquo;latest&rdquo; month is earlier than your &ldquo;earliest.&rdquo; Swap them?
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setState(prev => ({ ...prev, startDate: prev.endDate, endDate: prev.startDate }))}
+                            className="ml-3 flex items-center gap-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg whitespace-nowrap transition-colors"
+                          >
+                            <Shuffle className="w-3 h-3" /> Swap
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-xs text-sky-700">
+                        AI will suggest the best travel windows in this range based on weather, crowds, and pricing.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Days-per-city allocation — moved here from Step 2 (Item 1) */}
+                  {(state.destinations.length >= 2 || (state.hasPreBookedHotel && (() => {
+                    const cities = Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim())));
+                    return cities.length >= 2;
+                  })())) && (
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                        Nights per City
+                      </label>
+                      <p className="text-xs text-zinc-400 mb-3">Optional — helps the AI balance time across your stops. Leave blank for even distribution.</p>
+                      {(() => {
+                        // Dates are "set" if both start+end are chosen, OR if flexible-dates mode
+                        // is active (in which case tripLength is set via quick-select).
+                        const datesSet = state.flexibleDates
+                          ? state.tripLength > 0
+                          : !!(state.startDate && state.endDate);
+                        return (
+                          <>
+                            {!datesSet && (
+                              <p className="text-xs text-amber-600 mb-3 flex items-center gap-1.5">
+                                <span>⚠️</span> Set your trip dates first to allocate nights. (#95)
+                              </p>
+                            )}
+                            {(() => {
+                              const cities = state.destinations.length >= 2
+                                ? state.destinations
+                                : Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city!.trim())));
+                              return (
+                                <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl space-y-2">
+                                  {cities.map((city) => {
+                                    const days = state.daysPerDestination[city] ?? 0;
+                                    return (
+                                      <div key={city} className="flex items-center justify-between">
+                                        <span className="text-sm text-sky-900 font-medium">{city}</span>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => setState(prev => ({
+                                              ...prev,
+                                              daysPerDestination: { ...prev.daysPerDestination, [city]: Math.max(0, (prev.daysPerDestination[city] ?? 0) - 1) },
+                                            }))}
+                                            className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
+                                            disabled={days <= 0 || !datesSet}
+                                          >−</button>
+                                          <span className="w-8 text-center text-sm font-semibold text-sky-900">{days > 0 ? `${days}` : '—'}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setState(prev => ({
+                                              ...prev,
+                                              daysPerDestination: { ...prev.daysPerDestination, [city]: (prev.daysPerDestination[city] ?? 0) + 1 },
+                                            }))}
+                                            className="w-7 h-7 flex items-center justify-center rounded-full border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 text-base font-bold disabled:opacity-40"
+                                            disabled={!datesSet}
+                                          >+</button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {datesSet && (() => {
+                                    const total = Object.values(state.daysPerDestination).reduce((a, b) => a + b, 0);
+                                    if (total > 0 && total !== state.tripLength) {
+                                      const diff = total - state.tripLength;
+                                      return (
+                                        <p className={`text-xs mt-1 ${diff > 0 ? 'text-rose-600' : 'text-amber-700'}`}>
+                                          {diff > 0
+                                            ? `That's ${diff} night${diff === 1 ? '' : 's'} over your ${state.tripLength}-day trip — trim a city or extend your trip.`
+                                            : `${state.tripLength - total} night${state.tripLength - total === 1 ? '' : 's'} still unassigned — they'll be divided evenly.`}
+                                        </p>
+                                      );
+                                    }
+                                    if (total > 0 && total === state.tripLength) {
+                                      return <p className="text-xs text-green-700 mt-1">All {state.tripLength} nights accounted for.</p>;
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                              );
+                            })()}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Pre-Booked Hotels & Flights */}
+            {currentStep === 4 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
+                  Got a head start? ✈️
+                </h2>
+                <p className="text-zinc-500 mb-6 text-sm">
+                  If you've already booked flights or a hotel, add them here so your itinerary is built around your schedule. Skip if you're starting fresh.
+                </p>
+
+                {/* Flights Section */}
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Plane className="w-5 h-5 text-sky-700" />
+                      <span className="font-semibold text-zinc-900">Flights</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-sm text-zinc-600">Already booked</span>
+                      <button
+                        onClick={() => setState(prev => ({
+                          ...prev,
+                          hasPreBookedFlight: !prev.hasPreBookedFlight,
+                          isOpenJaw: false,
+                          bookedFlight: !prev.hasPreBookedFlight ? {
+                            airline: '', flightNumber: '', departureAirport: '', arrivalAirport: '',
+                            departureTime: '', arrivalTime: '', returnDepartureTime: '', returnArrivalTime: '',
+                          } : null,
+                        }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          state.hasPreBookedFlight ? 'bg-sky-800' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          state.hasPreBookedFlight ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </label>
+                  </div>
+
+                  {/* Same-airport note — always visible once flights are toggled on */}
+                  {state.hasPreBookedFlight && (
+                    <div className="flex items-start gap-2 px-3 py-2.5 bg-sky-50 border border-sky-100 rounded-xl mb-4 text-xs text-sky-700">
+                      <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <span>
+                        We plan your itinerary assuming your return flight departs from the same airport you arrive into.
+                        {tier === 'nomad' && ' Nomad users can override this in the Return section below.'}
+                      </span>
+                    </div>
+                  )}
+
+                  {state.hasPreBookedFlight && state.bookedFlight && (
+                    <div className="p-5 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Airline</label>
+                          <input type="text" placeholder="e.g. Delta, United" value={state.bookedFlight.airline}
+                            onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, airline: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Flight Number</label>
+                          <input type="text" placeholder="e.g. DL 412" value={state.bookedFlight.flightNumber}
+                            onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, flightNumber: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                        </div>
+                      </div>
+
+                      <div className="border-t border-sky-100 pt-4">
+                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Outbound</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Departing From</label>
+                            <input type="text" placeholder="e.g. JFK, LAX" value={state.bookedFlight.departureAirport}
+                              onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, departureAirport: e.target.value } }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Arriving At</label>
+                            <input type="text" placeholder="e.g. KEF, CDG" value={state.bookedFlight.arrivalAirport}
+                              onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, arrivalAirport: e.target.value } }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Departure Time</label>
+                            <input type="datetime-local" value={state.bookedFlight.departureTime}
+                              onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, departureTime: e.target.value } }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Arrival Time</label>
+                            <input type="datetime-local" value={state.bookedFlight.arrivalTime}
+                              onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, arrivalTime: e.target.value } }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-sky-100 pt-4">
+                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Return (optional)</p>
+
+                        {/* Open-jaw toggle — Nomad only */}
+                        {tier === 'nomad' && (
+                          <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-amber-100 rounded-xl">
+                            <button
+                              onClick={() => setState(prev => ({
+                                ...prev,
+                                isOpenJaw: !prev.isOpenJaw,
+                                bookedFlight: prev.bookedFlight
+                                  ? { ...prev.bookedFlight, returnDepartureAirport: '', returnArrivalAirport: '' }
+                                  : null,
+                              }))}
+                              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${
+                                state.isOpenJaw ? 'bg-amber-500' : 'bg-slate-200'
+                              }`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                                state.isOpenJaw ? 'translate-x-4' : 'translate-x-0.5'
+                              }`} />
+                            </button>
+                            <span className="text-xs text-zinc-700 flex items-center gap-1.5">
+                              <Crown className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                              My return flight departs from a different airport
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Open-jaw airport fields — Nomad only, when toggled on */}
+                        {tier === 'nomad' && state.isOpenJaw && (
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departs From</label>
+                              <input type="text" placeholder="e.g. FCO, BCN"
+                                value={state.bookedFlight.returnDepartureAirport ?? ''}
+                                onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnDepartureAirport: e.target.value } }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Arrives At (home)</label>
+                              <input type="text" placeholder="e.g. JFK, LAX"
+                                value={state.bookedFlight.returnArrivalAirport ?? ''}
+                                onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnArrivalAirport: e.target.value } }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departure</label>
+                            <input type="datetime-local" value={state.bookedFlight.returnDepartureTime}
+                              onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnDepartureTime: e.target.value } }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Arrival</label>
+                            <input type="datetime-local" value={state.bookedFlight.returnArrivalTime}
+                              onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnArrivalTime: e.target.value } }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Hotel Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🏨</span>
+                      <span className="font-semibold text-zinc-900">Hotel / Accommodation</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-sm text-zinc-600">Already booked</span>
+                      <button
+                        onClick={() => setState(prev => ({
+                          ...prev,
+                          hasPreBookedHotel: !prev.hasPreBookedHotel,
+                          bookedHotels: !prev.hasPreBookedHotel
+                            ? [{ name: '', city: '', address: '', checkIn: '', checkOut: '' }]
+                            : [],
+                        }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          state.hasPreBookedHotel ? 'bg-sky-800' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          state.hasPreBookedHotel ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </label>
+                  </div>
+
+                  {state.hasPreBookedHotel && (
+                    <div className="space-y-4">
+                      {state.bookedHotels.map((hotel, idx) => (
+                        <div key={idx} className="p-5 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
+                          {/* Hotel header */}
+                          <div className="flex items-center justify-between -mb-1">
+                            <span className="text-xs font-semibold text-sky-700 uppercase tracking-wide">
+                              {state.bookedHotels.length > 1 ? `Hotel ${idx + 1}` : 'Hotel'}
+                            </span>
+                            {idx > 0 && (
+                              <button
+                                onClick={() => setState(prev => ({
+                                  ...prev,
+                                  bookedHotels: prev.bookedHotels.filter((_, i) => i !== idx),
+                                }))}
+                                className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700 transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" /> Remove
+                              </button>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Hotel Name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Marriott Downtown Reykjavik"
+                              value={hotel.name}
+                              onChange={e => setState(prev => ({
+                                ...prev,
+                                bookedHotels: prev.bookedHotels.map((h, i) =>
+                                  i === idx ? { ...h, name: e.target.value } : h
+                                ),
+                              }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
+                              City
+                              {state.bookedHotels.length > 1 && (
+                                <span className="ml-1 text-sky-600 font-normal">(used to build your route)</span>
+                              )}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Vienna"
+                              value={hotel.city}
+                              onChange={e => setState(prev => ({
+                                ...prev,
+                                bookedHotels: prev.bookedHotels.map((h, i) =>
+                                  i === idx ? { ...h, city: e.target.value } : h
+                                ),
+                              }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Address (optional)</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 44 Suðurgata, 101 Reykjavik"
+                              value={hotel.address}
+                              onChange={e => setState(prev => ({
+                                ...prev,
+                                bookedHotels: prev.bookedHotels.map((h, i) =>
+                                  i === idx ? { ...h, address: e.target.value } : h
+                                ),
+                              }))}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Check-in Date</label>
+                              <input
+                                type="date"
+                                value={hotel.checkIn}
+                                onChange={e => setState(prev => ({
+                                  ...prev,
+                                  bookedHotels: prev.bookedHotels.map((h, i) =>
+                                    i === idx ? { ...h, checkIn: e.target.value } : h
+                                  ),
+                                }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Check-out Date</label>
+                              <input
+                                type="date"
+                                value={hotel.checkOut}
+                                onChange={e => setState(prev => ({
+                                  ...prev,
+                                  bookedHotels: prev.bookedHotels.map((h, i) =>
+                                    i === idx ? { ...h, checkOut: e.target.value } : h
+                                  ),
+                                }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200 bg-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Add another hotel — tier-gated with progressive disclosure.
+                          Cap pulled from TIER_LIMITS.maxBookedHotels. */}
+                      {(() => {
+                        const maxHotels = TIER_LIMITS[tier]?.maxBookedHotels ?? 1;
+                        const lastFilled = state.bookedHotels[state.bookedHotels.length - 1]?.name?.trim() !== '';
+                        // Explorer: progressive — only show when last slot has a name
+                        // Nomad: always show when under cap
+                        const canAdd = state.bookedHotels.length < maxHotels && (tier === 'nomad' ? true : lastFilled);
+                        if (!canAdd) return null;
+                        return (
+                          <button
+                            onClick={() => setState(prev => ({
+                              ...prev,
+                              bookedHotels: [...prev.bookedHotels, { name: '', city: '', address: '', checkIn: '', checkOut: '' }],
+                            }))}
+                            className="flex items-center gap-2 text-sm text-sky-700 hover:text-sky-900 font-medium transition-colors py-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add another hotel
+                            {tier === 'explorer' && state.bookedHotels.length < maxHotels && (
+                              <span className="text-xs text-zinc-400 font-normal">({state.bookedHotels.length}/{maxHotels})</span>
+                            )}
+                          </button>
+                        );
+                      })()}
+
+                      {/* Tier cap hint for Free / Trip Pass */}
+                      {(tier === 'free' || tier === 'trip_pass') && state.bookedHotels.length >= 1 && (
+                        <p className="text-xs text-zinc-400 flex items-center gap-1.5">
+                          <Lock className="w-3 h-3" />
+                          Multiple hotels require Explorer or Nomad. <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade</Link>
+                        </p>
+                      )}
+
+                      {/* Hotel date validation (Item 5) */}
+                      {state.startDate && state.endDate && (() => {
+                        const warnings = state.bookedHotels.flatMap((h, i) => {
+                          const msgs: string[] = [];
+                          if (h.checkIn && h.checkIn < state.startDate) msgs.push(`Hotel ${i + 1} checks in before your trip starts`);
+                          if (h.checkOut && h.checkOut > state.endDate) msgs.push(`Hotel ${i + 1} checks out after your trip ends`);
+                          if (h.checkIn && h.checkOut && h.checkIn >= h.checkOut) msgs.push(`Hotel ${i + 1} check-out must be after check-in`);
+                          return msgs;
+                        });
+                        if (warnings.length === 0) return null;
+                        return (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                            {warnings.map((w, i) => (
+                              <p key={i} className="text-xs text-amber-800 flex items-center gap-1.5">
+                                <span className="flex-shrink-0">⚠</span> {w}
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Multi-city route preview */}
+                      {(() => {
+                        const cities = state.bookedHotels
+                          .filter(h => h.city?.trim())
+                          .map(h => h.city?.trim());
+                        const uniqueCities = Array.from(new Set(cities));
+                        if (uniqueCities.length < 2) return (
+                          state.bookedHotels.length > 1
+                            ? <p className="text-xs text-zinc-500 italic">Add a city to each hotel above to see your route.</p>
+                            : null
+                        );
+                        return (
+                          <div className="p-4 bg-white border border-sky-200 rounded-xl">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-sky-500 mb-2">Your Route</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {uniqueCities.map((city, i) => (
+                                <React.Fragment key={city}>
+                                  <span className="text-sm font-semibold text-zinc-800">{city}</span>
+                                  {i < uniqueCities.length - 1 && (
+                                    <span className="text-slate-300 text-sm">→</span>
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                            <p className="text-xs text-zinc-400 mt-2">
+                              The AI will route between these cities in order, respecting travel times and check-in/out dates.
+                            </p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Rental Car Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🚗</span>
+                      <span className="font-semibold text-zinc-900">Rental Car</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-sm text-zinc-600">Already booked</span>
+                      <button
+                        onClick={() => setState(prev => ({
+                          ...prev,
+                          hasPreBookedCar: !prev.hasPreBookedCar,
+                          bookedCar: !prev.hasPreBookedCar
+                            ? { company: '', pickupLocation: '', carClass: '', confirmationRef: '' }
+                            : null,
+                        }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          state.hasPreBookedCar ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          state.hasPreBookedCar ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </label>
+                  </div>
+
+                  {state.hasPreBookedCar && state.bookedCar && (
+                    <div className="p-5 bg-amber-50 border border-amber-100 rounded-xl space-y-4">
+                      <p className="text-xs text-amber-700 font-medium -mb-1">
+                        The AI will route all inter-destination legs around your confirmed car rental.
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Rental Company</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Hertz, Enterprise, Sixt"
+                            value={state.bookedCar.company}
+                            onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, company: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Car Class</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Compact SUV, Economy"
+                            value={state.bookedCar.carClass}
+                            onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, carClass: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
+                          Pickup Location <span className="text-emerald-500 font-medium normal-case tracking-normal">(recommended)</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Keflavik Airport (KEF), Downtown Chicago"
+                          value={state.bookedCar.pickupLocation}
+                          onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, pickupLocation: e.target.value } }))}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Confirmation # (optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. HZ-4821993"
+                          value={state.bookedCar.confirmationRef}
+                          onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, confirmationRef: e.target.value } }))}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {!state.hasPreBookedFlight && !state.hasPreBookedHotel && !state.hasPreBookedCar && (
+                  <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                    <p className="text-sm text-zinc-500">No pre-bookings? No problem — your AI itinerary will include hotel and flight suggestions that fit your budget.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 5: What Matters Most? */}
+            {currentStep === 5 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
+                  What's your vibe? ✨
+                </h2>
+                <p className="text-zinc-600 mb-6">
+                  Select your top priorities (we'll rank the top 3)
+                </p>
+
+                {/* Age Ranges */}
+                <div className="mb-8">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-4">
+                    Age Ranges
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {ageRangeOptions.map((ageRange) => (
+                      <label
+                        key={ageRange}
+                        className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={state.ageRanges.includes(ageRange)}
+                          onChange={() => toggleAgeRange(ageRange)}
+                          className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
+                        />
+                        <span className="text-sm font-medium text-zinc-900">
+                          {ageRange}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Your pace — symmetric with the question invitees see on
+                    the /join flow. Without this, the organizer's pace was
+                    silently treated as 'balanced' and the AI couldn't
+                    bias daily activity density toward their preference. */}
+                <div className="mb-8">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                    Your pace
+                  </label>
+                  <p className="text-xs text-zinc-400 mb-4">How packed do you like your days?</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { value: 'relaxed',  label: 'Relaxed',  hint: 'A few stops, lots of downtime' },
+                      { value: 'balanced', label: 'Balanced', hint: 'Mix of plans + open time' },
+                      { value: 'packed',   label: 'Packed',   hint: 'Maximize every day' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setState(prev => ({ ...prev, pace: opt.value }))}
+                        className={`p-3 rounded-lg border-2 text-left transition-all ${
+                          state.pace === opt.value
+                            ? 'border-sky-700 bg-sky-50'
+                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <p className={`text-sm font-semibold ${state.pace === opt.value ? 'text-sky-800' : 'text-zinc-900'}`}>{opt.label}</p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">{opt.hint}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Accessibility Needs */}
+                <div className="mb-8">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                    Accessibility Needs
+                  </label>
+                  <p className="text-xs text-zinc-400 mb-4">Does anyone in your group have accessibility requirements?</p>
+                  <div className="flex gap-3 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAccessibilityOptions(false);
+                        setState(prev => ({ ...prev, accessibilityNeeds: [] }));
+                      }}
+                      className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
+                        !showAccessibilityOptions
+                          ? 'border-sky-700 bg-sky-50 text-sky-800'
+                          : 'border-slate-200 text-zinc-600 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      No
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAccessibilityOptions(true)}
+                      className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
+                        showAccessibilityOptions
+                          ? 'border-sky-700 bg-sky-50 text-sky-800'
+                          : 'border-slate-200 text-zinc-600 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      Yes
+                    </button>
+                  </div>
+                  {showAccessibilityOptions && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {accessibilityOptions.map((need) => (
+                        <label
+                          key={need}
+                          className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={state.accessibilityNeeds.includes(need)}
+                            onChange={() => toggleAccessibilityNeed(need)}
+                            className="w-4 h-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
+                          />
+                          <span className="text-sm font-medium text-zinc-900">{need}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Travel Priorities */}
+                <div className="mb-8">
+                  <div className="flex items-baseline justify-between mb-4">
+                    <label className="text-sm font-semibold text-zinc-900">
+                      Travel Priorities
+                    </label>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      state.priorities.length >= 3
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-slate-100 text-zinc-500'
+                    }`}>
+                      {state.priorities.length}/8 selected
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {priorityOptions.map((priority) => {
+                      const isSelected = state.priorities.includes(priority.id);
+                      const isDisabled = !isSelected && state.priorities.length >= 8;
+                      return (
+                        <button
+                          key={priority.id}
+                          onClick={() => !isDisabled && togglePriority(priority.id)}
+                          title={priority.tooltip}
+                          className={`py-3 px-4 rounded-lg border-2 transition-all text-center flex flex-col items-center justify-center gap-1 ${
+                            isSelected
+                              ? 'border-sky-600 bg-sky-50'
+                              : isDisabled
+                              ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
+                              : 'border-slate-200 hover:border-sky-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-xl leading-none">{priority.icon}</span>
+                          <p className={`font-semibold text-sm ${isSelected ? 'text-sky-800' : 'text-zinc-700'}`}>{priority.label}</p>
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-sky-600 mt-0.5" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Summary */}
+                {state.priorities.length > 0 && (
+                  <div className="p-4 bg-sky-50 rounded-xl border border-sky-200 flex flex-wrap gap-2">
+                    {state.priorities.map((id) => {
+                      const p = priorityOptions.find((o) => o.id === id);
+                      return p ? (
+                        <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-sky-200 rounded-full text-xs font-semibold text-sky-800 shadow-sm">
+                          <span>{p.icon}</span>{p.label}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+
+                {/* Must-haves */}
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                    Must-haves 📍
+                  </label>
+                  <p className="text-xs text-zinc-500 mb-4">
+                    Specific places, restaurants, or experiences you absolutely don&apos;t want to miss — we&apos;ll make sure they&apos;re in your itinerary.
+                  </p>
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={mustHaveInput}
+                      onChange={(e) => setMustHaveInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && mustHaveInput.trim()) {
+                          e.preventDefault();
+                          const val = mustHaveInput.trim();
+                          if (!state.mustHaves.includes(val)) {
+                            setState(prev => ({ ...prev, mustHaves: [...prev.mustHaves, val] }));
+                          }
+                          setMustHaveInput('');
+                        }
+                      }}
+                      placeholder="e.g. Eiffel Tower, sushi omakase, sunrise hike…"
+                      className="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = mustHaveInput.trim();
+                        if (val && !state.mustHaves.includes(val)) {
+                          setState(prev => ({ ...prev, mustHaves: [...prev.mustHaves, val] }));
+                        }
+                        setMustHaveInput('');
+                      }}
+                      disabled={!mustHaveInput.trim()}
+                      className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {state.mustHaves.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {state.mustHaves.map((item) => (
+                        <span
+                          key={item}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium rounded-full"
+                        >
+                          📍 {item}
+                          <button
+                            type="button"
+                            onClick={() => setState(prev => ({ ...prev, mustHaves: prev.mustHaves.filter(m => m !== item) }))}
+                            className="text-amber-500 hover:text-amber-700 ml-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Anything else? */}
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                    Anything else we should know? 💬
+                  </label>
+                  <p className="text-xs text-zinc-500 mb-3">
+                    Dietary restrictions, physical limitations, things to avoid, special occasions, travel style quirks — anything that would help us plan the perfect trip.
+                  </p>
+                  <textarea
+                    value={state.additionalContext}
+                    onChange={(e) => setState(prev => ({ ...prev, additionalContext: e.target.value }))}
+                    placeholder="e.g. Two people in our group are vegetarian. We prefer walkable days over lots of driving. One person has a fear of heights. It's our anniversary — a special dinner would be amazing…"
+                    rows={3}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 6: How Do You Travel? */}
+            {currentStep === 6 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
+                  How do you roll? 🎒
+                </h2>
+
+                <div className="space-y-8">
+                  {/* Local Transportation */}
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                      Local Transportation
+                    </label>
+                    <p className="text-xs text-zinc-400 mb-4">Select all that apply — how will you get around once you're there?</p>
+                    <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
+                      {[
+                        { id: 'train', label: 'Train / Metro', icon: '🚂' },
+                        { id: 'car', label: 'Car / Rental', icon: '🚗' },
+                        { id: 'uber', label: 'Rideshare', icon: '📱' },
+                        { id: 'excursion', label: 'Excursion Bus', icon: '🚌' },
+                      ].map((mode) => {
+                        const isSelected = state.modality.includes(mode.id);
+                        return (
+                          <button
+                            key={mode.id}
+                            onClick={() => toggleModality(mode.id)}
+                            className={`p-4 rounded-lg border-2 transition-all text-center ${
+                              isSelected
+                                ? 'border-sky-700 bg-sky-50'
+                                : 'border-slate-200 hover:border-sky-300'
+                            }`}
+                          >
+                            <span className="text-3xl block mb-2">{mode.icon}</span>
+                            <p className="text-sm font-semibold text-zinc-900">{mode.label}</p>
+                            {isSelected && <div className="mt-1 w-3 h-3 bg-sky-700 rounded-full mx-auto" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Accommodation Type */}
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                      Accommodation Type
+                    </label>
+                    <p className="text-xs text-zinc-400 mb-4">Select all that apply</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { id: 'hotel', label: 'Hotel', icon: '🏨' },
+                        { id: 'airbnb', label: 'Airbnb / Rental', icon: '🏠' },
+                        { id: 'hostel', label: 'Hostel', icon: '🛏️' },
+                        { id: 'resort', label: 'Resort', icon: '🌴' },
+                      ].map((type) => {
+                        const isSelected = state.accommodationType.includes(type.id);
+                        return (
+                          <button
+                            key={type.id}
+                            onClick={() => toggleAccommodationType(type.id)}
+                            className={`p-4 rounded-lg border-2 transition-all text-center ${
+                              isSelected
+                                ? 'border-sky-700 bg-sky-50 text-sky-800'
+                                : 'border-slate-200 hover:border-sky-300 text-zinc-900'
+                            }`}
+                          >
+                            <span className="text-2xl block mb-1">{type.icon}</span>
+                            <p className="text-sm font-semibold">{type.label}</p>
+                            {isSelected && <div className="mt-1 w-3 h-3 bg-sky-700 rounded-full mx-auto" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Repeat-visitor toggle — when set, the prompt skips the
+                      famous tourist landmarks (the user has already been
+                      there) and focuses on hidden gems / local-only spots. */}
+                  <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={state.localMode}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          localMode: e.target.checked,
+                        }))
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
+                    />
+                    <label className="text-sm font-medium text-zinc-900">
+                      I&apos;ve been here before — focus on hidden gems, skip the famous landmarks
+                    </label>
+                  </div>
+
+                  {/* Date Night Toggle */}
+                  <div className="flex items-center space-x-3 p-4 bg-pink-50 rounded-lg border border-pink-200">
+                    <input
+                      type="checkbox"
+                      checked={state.dateNight}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          dateNight: e.target.checked,
+                        }))
+                      }
+                      className="w-5 h-5 rounded border-pink-300 text-pink-600 focus:ring-pink-500"
+                    />
+                    <div>
+                      <label className="text-sm font-medium text-zinc-900">
+                        ✨ Date night included
+                      </label>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        One evening will be reserved for a romantic dinner or special experience for two.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 7: Budget */}
+            {currentStep === 7 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
+                  What's the budget? 💰
+                </h2>
+
+                <div className="space-y-8">
+                  {/* Travel Comfort Slider */}
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                      Travel Style
+                    </label>
+                    <p className="text-xs text-zinc-400 mb-4">How do you prefer to travel — budget-smart or comfort-first?</p>
+                    <div className="flex items-center gap-4">
+                      <div className="text-center flex-shrink-0">
+                        <span className="text-xl block mb-1">🛏️</span>
+                        <span className="text-xs text-zinc-500 font-medium">Backpacker</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={state.curiosityLevel}
+                        onChange={(e) => {
+                          const level = parseInt(e.target.value);
+                          const breakdown = calcBudgetFromStyle(state.destination, state.tripLength, level);
+                          const total = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0);
+                          setState((prev) => ({
+                            ...prev,
+                            curiosityLevel: level,
+                            budgetBreakdown: breakdown,
+                            budget: total,
+                          }));
+                        }}
+                        className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-700"
+                      />
+                      <div className="text-center flex-shrink-0">
+                        <span className="text-xl block mb-1">✨</span>
+                        <span className="text-xs text-zinc-500 font-medium">Luxury</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-2 text-center">
+                      {state.curiosityLevel < 30
+                        ? 'Budget-conscious — hostels, street food, local transit'
+                        : state.curiosityLevel < 60
+                        ? 'Mid-range — comfortable hotels, mix of dining'
+                        : state.curiosityLevel < 85
+                        ? 'Comfort-first — nice hotels, quality restaurants'
+                        : 'Luxury — premium hotels, fine dining, private transfers'}
+                    </p>
+                  </div>
+
+                  {/* Per-Person Budget */}
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                      Per-Person Budget (USD)
+                    </label>
+                    <p className="text-xs text-zinc-400 mb-3">Your budget for one person — excluding flights if already booked</p>
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="w-5 h-5 text-zinc-600" />
+                      <input
+                        type="number"
+                        value={budgetInput}
+                        onChange={(e) => setBudgetInput(e.target.value)}
+                        onBlur={() => handleBudgetChange(parseInt(budgetInput) || 0)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleBudgetChange(parseInt(budgetInput) || 0); }}
+                        className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Auto-fill notice */}
+                  {budgetAutoFilled && state.destination && (
+                    <div className="flex items-start gap-3 p-4 bg-sky-50 border border-sky-200 rounded-xl">
+                      <span className="text-sky-700 mt-0.5">✦</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-sky-900">Auto-estimated for {state.destination}</p>
+                        <p className="text-xs text-sky-800 mt-0.5">Based on typical costs for this destination. Adjust any category below.</p>
+                      </div>
+                      <button onClick={() => setBudgetAutoFilled(false)} className="text-sky-600 hover:text-sky-700 text-xs">✕</button>
+                    </div>
+                  )}
+
+                  {/* Budget Breakdown — number inputs */}
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-900 mb-4">
+                      Budget Breakdown <span className="text-zinc-400 font-normal text-xs">(per person)</span>
+                    </label>
+                    <div className="space-y-3">
+                      {[
+                        { key: 'flights' as const, label: 'Flights', icon: '✈️', hint: state.hasPreBookedFlight ? 'Already booked' : 'Round-trip per person' },
+                        { key: 'hotel' as const, label: 'Hotel / Stay', icon: '🏨', hint: state.hasPreBookedHotel ? 'Already booked' : `${state.tripLength - 1} nights, your share` },
+                        { key: 'food' as const, label: 'Food & Drinks', icon: '🍽️', hint: 'Meals, coffee, snacks' },
+                        { key: 'experiences' as const, label: 'Experiences', icon: '🎯', hint: 'Tours, tickets, activities' },
+                        { key: 'transport' as const, label: 'Local Transport', icon: '🚌', hint: 'Transit, rideshare, taxis' },
+                      ].map(({ key, label, icon, hint }) => {
+                        const isPreBooked = (key === 'flights' && state.hasPreBookedFlight) || (key === 'hotel' && state.hasPreBookedHotel);
+                        return (
+                          <div key={key} className={`flex items-center gap-3 p-3 rounded-xl border ${isPreBooked ? 'bg-emerald-50 border-emerald-200 opacity-70' : 'bg-white border-slate-200'}`}>
+                            <span className="text-xl w-8 text-center">{icon}</span>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-zinc-900">{label}</p>
+                              <p className="text-xs text-zinc-400">{hint}</p>
+                            </div>
+                            {isPreBooked ? (
+                              <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">✓ Paid</span>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm text-zinc-500">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="50"
+                                  value={state.budgetBreakdown[key]}
+                                  onChange={(e) => updateBudgetBreakdown(key, parseInt(e.target.value) || 0)}
+                                  className="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right font-semibold focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Totals */}
+                  <div className="rounded-xl overflow-hidden border border-zinc-800">
+                    <div className="p-4 bg-zinc-900 flex items-center justify-between">
+                      <span className="font-semibold text-white">Per-Person Total</span>
+                      <span className="font-script italic text-xl font-semibold text-sky-400">${totalBreakdown.toLocaleString()}</span>
+                    </div>
+                    <div className="p-3 bg-zinc-800/60 flex items-center justify-between">
+                      <span className="text-sm text-zinc-400">Estimated for {state.groupSize} {state.groupSize === 1 ? 'person' : 'people'}</span>
+                      <span className="text-sm font-semibold text-zinc-300">${(totalBreakdown * state.groupSize).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 8: Review & Generate */}
+            {currentStep === 8 && (
+              <div>
+                <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
+                  Good to go? 🚀
+                </h2>
+
+                <div className="space-y-6">
+                  {/* Summary Cards — all with Edit links (Item 8) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Group Type</p>
+                        <button onClick={() => setCurrentStep(1)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      <p className="text-lg font-semibold text-zinc-900 capitalize">
+                        {state.groupType || <span className="text-zinc-400">Not set</span>}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">
+                          {(() => {
+                            const hotelCities = state.hasPreBookedHotel ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim()))) : [];
+                            const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
+                            return routeCities.length > 1 ? 'Route' : 'Destination';
+                          })()}
+                        </p>
+                        <button onClick={() => setCurrentStep(2)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      {(() => {
+                        const hotelCities = state.hasPreBookedHotel ? Array.from(new Set(state.bookedHotels.filter(h => h.city?.trim()).map(h => h.city?.trim()))) : [];
+                        const routeCities = hotelCities.length > 1 ? hotelCities : state.destinations.length > 1 ? state.destinations : [];
+                        if (routeCities.length > 1) {
+                          return (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {routeCities.map((city, i) => (
+                                <React.Fragment key={city}>
+                                  <span className="text-base font-semibold text-zinc-900">{city}</span>
+                                  {i < routeCities.length - 1 && <span className="text-sky-400 font-light">→</span>}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return <p className="text-lg font-semibold text-zinc-900">{state.destination || <span className="text-zinc-400">Not selected</span>}</p>;
+                      })()}
+                    </div>
+                    <div className="p-4 bg-parchment rounded-lg border border-stone-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Trip Length</p>
+                        <button onClick={() => setCurrentStep(3)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      <p className="text-lg font-semibold text-zinc-900">{state.tripLength} days</p>
+                    </div>
+                    <div className="p-4 bg-parchment rounded-lg border border-stone-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Budget (per person)</p>
+                        <button onClick={() => setCurrentStep(7)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      <p className="text-lg font-semibold text-zinc-900">
+                        ${state.budget.toLocaleString()} <span className="text-sm text-zinc-500">× {state.groupSize} = ${(state.budget * state.groupSize).toLocaleString()}</span>
+                      </p>
+                    </div>
+                    <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Local Transport</p>
+                        <button onClick={() => setCurrentStep(6)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      <p className="text-lg font-semibold text-zinc-900 capitalize">
+                        {state.modality.length > 0 ? state.modality.join(', ') : <span className="text-zinc-400">Not set</span>}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Accommodation</p>
+                        <button onClick={() => setCurrentStep(6)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      <p className="text-lg font-semibold text-zinc-900 capitalize">
+                        {state.accommodationType.length > 0 ? state.accommodationType.join(', ') : <span className="text-zinc-400">Not set</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Priorities Summary — no emoji (Items 3 & 8) */}
+                  {state.priorities.length > 0 && (
+                    <div className="p-4 bg-slate-100 rounded-lg border border-slate-300">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-zinc-900">Priorities</p>
+                        <button onClick={() => setCurrentStep(5)} className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 underline underline-offset-2">Edit →</button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {state.priorities.map((id) => {
+                          const priority = priorityOptions.find((p) => p.id === id);
+                          return priority ? (
+                            <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-100 text-sky-800 rounded-full text-sm font-medium">
+                              <span>{priority.icon}</span>{priority.label}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Must-haves & Notes */}
+                  {(state.mustHaves.length > 0 || state.additionalContext.trim()) && (
+                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-amber-900">
+                          Must-haves & Notes
+                        </p>
+                        <button
+                          onClick={() => setCurrentStep(5)}
+                          className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2"
+                        >
+                          Edit (Step 5 →)
+                        </button>
+                      </div>
+                      {state.mustHaves.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {state.mustHaves.map((item) => (
+                            <span
+                              key={item}
+                              className="inline-flex items-center px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full text-sm font-medium"
+                            >
+                              ✓ {item}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {state.additionalContext.trim() && (
+                        <p className="text-sm text-amber-800 mt-2 italic">
+                          "{state.additionalContext.trim()}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Validation warnings */}
+                  {(() => {
+                    const warnings: { field: string; msg: string; step: number }[] = [];
+                    if (!state.destination.trim()) warnings.push({ field: 'Destination', msg: 'No destination set — where are you going?', step: 2 });
+                    if (!state.startDate || !state.endDate) warnings.push({ field: 'Dates', msg: 'Trip dates aren\'t set yet.', step: 3 });
+                    if (!state.groupType) warnings.push({ field: 'Group type', msg: 'Who\'s traveling? (Solo, couple, friends, family)', step: 1 });
+                    if (warnings.length === 0) return null;
+                    return (
+                      <div className="mb-5 rounded-xl border border-sky-200 bg-sky-50 overflow-hidden">
+                        <div className="px-4 py-2.5 border-b border-sky-100 flex items-center gap-2">
+                          <span className="text-sky-700 text-sm">⚠</span>
+                          <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">A few things to fill in</p>
+                        </div>
+                        <div className="divide-y divide-sky-100">
+                          {warnings.map(w => (
+                            <div key={w.field} className="flex items-center justify-between px-4 py-2.5">
+                              <p className="text-sm text-sky-900">{w.msg}</p>
+                              <button
+                                onClick={() => setCurrentStep(w.step)}
+                                className="text-xs font-semibold text-sky-700 hover:text-sky-900 whitespace-nowrap ml-4 underline underline-offset-2"
+                              >
+                                Fix →
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* CTA */}
+                  <div className="pt-6 border-t border-slate-200">
+                    {/* Trip Pass + group: invite-first nudge */}
+                    {tier === 'trip_pass' && state.groupSize >= 2 && (
+                      <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="flex items-start gap-3 mb-3">
+                          <Users className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-900">Get everyone&apos;s input first</p>
+                            <p className="text-xs text-amber-700 mt-0.5">
+                              Invite your group before generating — the AI will fold everyone&apos;s preferences
+                              into the itinerary automatically.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleSaveAndInvite}
+                          disabled={savingDraft || !state.destination.trim()}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-full bg-amber-600 hover:bg-amber-700 disabled:bg-amber-200 disabled:text-amber-400 text-white transition-all"
+                        >
+                          {savingDraft ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" />Saving trip…</>
+                          ) : (
+                            <><Users className="w-4 h-4" />Set up trip &amp; invite first</>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-sm text-zinc-600 mb-4">
+                      Ready? AI will build a day-by-day itinerary around your preferences
+                      {state.destination ? ` for ${state.destination}` : ''}.
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (!canAffordAction('itinerary_generate')) {
+                          setUpgradeReason('no_ai');
+                          setShowUpgradeModal(true);
+                          return;
+                        }
+                        handleGenerateItinerary();
+                      }}
+                      disabled={!state.destination.trim()}
+                      className="w-full flex items-center justify-center gap-2 py-4 text-base font-semibold rounded-full transition-all bg-sky-800 hover:bg-sky-900 text-white disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      {!canAffordAction('itinerary_generate') ? (
+                        <>
+                          <Zap className="w-5 h-5" />
+                          <span>Build My Trip</span>
+                          <LockBadge />
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-5 h-5" />
+                          <span>Build My Trip ✨</span>
+                        </>
+                      )}
+                    </button>
+                    {showUpgradeModal && (
+                      <UpgradeModal
+                        prompt={getUpgradePrompt(upgradeReason)}
+                        onClose={() => setShowUpgradeModal(false)}
+                      />
+                    )}
+                    {!state.destination.trim() && (
+                      <p className="text-center text-xs text-zinc-400 mt-2">Set a destination to enable generation</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center justify-between w-full">
+              <button
+                onClick={handleBack}
+                disabled={currentStep === 1}
+                className="flex items-center space-x-2 px-6 py-3 text-sky-700 hover:text-sky-800 disabled:text-zinc-400 disabled:cursor-not-allowed font-medium transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <span>Back</span>
+              </button>
+
+              <div className="flex gap-3">
+                {currentStep < 8 && (
+                  <button
+                    onClick={handleNext}
+                    disabled={
+                      (currentStep === 2 && !state.destination.trim()) ||
+                      // Multi-city: require at least 2 destinations before proceeding
+                      (currentStep === 2 && state.destinations.length === 1) ||
+                      // Multi-city: hard block if total days-per-city exceeds trip length
+                      (currentStep === 2 && state.destinations.length >= 2 && (() => {
+                        const total = Object.values(state.daysPerDestination).reduce((a: number, b: number) => a + b, 0);
+                        return total > state.tripLength;
+                      })()) ||
+                      // Step 3: must have valid dates OR flexible dates checked
+                      (currentStep === 3 && !state.flexibleDates && (
+                        !state.startDate ||
+                        !state.endDate ||
+                        new Date(state.endDate) < new Date(state.startDate)
+                      )) ||
+                      (currentStep === 5 && (state.priorities.length === 0 || state.ageRanges.length === 0)) ||
+                      (currentStep === 6 && state.modality.length === 0)
+                    }
+                    className="flex items-center space-x-2 btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+            {currentStep === 2 && state.destinations.length === 1 && (
+              <p className="text-xs text-zinc-400">Add at least one more city to continue with a multi-city trip</p>
+            )}
+            {currentStep === 2 && state.destinations.length >= 2 && (() => {
+              const total = Object.values(state.daysPerDestination).reduce((a: number, b: number) => a + b, 0);
+              return total > state.tripLength ? (
+                <p className="text-xs text-rose-500">Total nights exceed your trip length — trim days or extend your trip to continue</p>
+              ) : null;
+            })()}
+            {currentStep === 3 && !state.flexibleDates && !state.startDate && (
+              <p className="text-xs text-zinc-400">Add your travel dates or check &quot;I have flexible dates&quot; to continue</p>
+            )}
+            {currentStep === 3 && !state.flexibleDates && state.startDate && !state.endDate && (
+              <p className="text-xs text-zinc-400">Please add an end date to continue</p>
+            )}
+            {currentStep === 3 && !state.flexibleDates && state.startDate && state.endDate && new Date(state.endDate) < new Date(state.startDate) && (
+              <p className="text-xs text-rose-500">End date must be after start date</p>
+            )}
+            {currentStep === 5 && state.priorities.length === 0 && (
+              <p className="text-xs text-zinc-400">Select at least one travel priority to continue</p>
+            )}
+            {currentStep === 5 && state.priorities.length > 0 && state.ageRanges.length === 0 && (
+              <p className="text-xs text-zinc-400">Select at least one age range to continue</p>
+            )}
+            {currentStep === 6 && state.modality.length === 0 && (
+              <p className="text-xs text-zinc-400">Select at least one local transportation option to continue</p>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function TripBuilderPageWrapper() {
+  return (
+    <Suspense>
+      <TripBuilderPage />
+    </Suspense>
+  );
+}
