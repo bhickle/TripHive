@@ -323,22 +323,38 @@ export default function DashboardPage() {
 
   const totalTrips = allTrips.length;
   // "Countries Visited" should reflect places you've actually been — count
-  // only trips with status === 'completed'. The .split(',')[1] grab handles
-  // "Paris, France" → "France"; single-word destinations with no comma fall
-  // through the filter(Boolean).
+  // only trips with status === 'completed'. Country = LAST comma segment
+  // (handles "City, State, Country" three-segment forms like "Pittsburgh,
+  // PA, USA" — earlier code grabbed [1] and counted state codes as countries).
+  // Single-segment destinations ("California", "Pacific Northwest") drop out.
   //
-  // Home country exclusion: if the user has set their home country in
-  // Settings, trips to that country don't count as "visited" — most people
-  // don't think of their own country as a destination they've travelled to.
-  // Case-insensitive match so "United States" / "united states" / "USA" all
-  // collide with the user's stored value.
-  const homeCountryNormalised = (currentUser.homeCountry ?? '').trim().toLowerCase();
+  // Home country exclusion uses an alias map so "USA" / "U.S." / "America"
+  // all collapse to "united states" before comparison with the stored value.
+  const COUNTRY_ALIASES: Record<string, string> = {
+    'usa': 'united states',
+    'u.s.a.': 'united states',
+    'u.s.': 'united states',
+    'us': 'united states',
+    'america': 'united states',
+    'uk': 'united kingdom',
+    'u.k.': 'united kingdom',
+    'great britain': 'united kingdom',
+    'england': 'united kingdom',
+  };
+  const normalizeCountry = (c: string): string => {
+    const lower = c.trim().toLowerCase();
+    return COUNTRY_ALIASES[lower] ?? lower;
+  };
+  const homeCountryNormalised = normalizeCountry(currentUser.homeCountry ?? '');
   const countriesVisited = new Set(
     allTrips
       .filter((t) => t.status === 'completed')
-      .map((t) => t.destination.split(',')[1]?.trim())
+      .map((t) => {
+        const parts = (t.destination as string).split(',').map((s: string) => s.trim()).filter(Boolean);
+        return parts.length >= 2 ? normalizeCountry(parts[parts.length - 1]) : undefined;
+      })
       .filter(Boolean)
-      .filter((c) => !homeCountryNormalised || c!.toLowerCase() !== homeCountryNormalised)
+      .filter((c) => !homeCountryNormalised || c !== homeCountryNormalised)
   ).size;
   // Only count days from trips you've actually completed — not planning/future trips.
   // Prefer the builder-selected trip length over date-diff: for flexible-date trips
