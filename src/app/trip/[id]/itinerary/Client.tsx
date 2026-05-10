@@ -2072,14 +2072,17 @@ function ItineraryPageContent() {
       const city = editDest.split(',')[0].trim();
       const newTitle = `${city} Adventure`;
 
-      // Shift day dates if the start date changed
+      // Shift day dates if the start date changed.
+      // Noon-pad every YYYY-MM-DD parse so timezone-west-of-UTC users don't
+      // get an off-by-one when toISOString() converts back (UTC midnight
+      // would render as the prior day's date in their locale).
       let updatedDays: ItineraryDay[] | null = null;
       if (editStartDate && aiMeta?.startDate && editStartDate !== aiMeta.startDate) {
-        const oldStart = new Date(aiMeta.startDate);
-        const newStart = new Date(editStartDate);
+        const oldStart = new Date(aiMeta.startDate + 'T12:00:00');
+        const newStart = new Date(editStartDate + 'T12:00:00');
         const diffDays = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
         updatedDays = (activeDays as ItineraryDay[]).map(day => {
-          const d = new Date(day.date);
+          const d = new Date(day.date + 'T12:00:00');
           d.setDate(d.getDate() + diffDays);
           return { ...day, date: d.toISOString().split('T')[0] };
         });

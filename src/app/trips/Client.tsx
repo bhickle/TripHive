@@ -190,8 +190,10 @@ export default function TripsPage() {
     completed: allTrips.filter((t) => t.status === 'completed').length,
   };
 
+  // Noon-pad so YYYY-MM-DD strings parse as LOCAL noon, not UTC midnight.
+  // Without this, "2026-05-06" rendered as "May 5" in any timezone west of UTC.
   const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <div className="flex h-screen bg-parchment">

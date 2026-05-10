@@ -158,8 +158,9 @@ function getDayCount(trip: Trip) {
 
 function formatDateRange(trip: Trip) {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  const start = new Date(trip.startDate).toLocaleDateString('en-US', opts);
-  const end = new Date(trip.endDate).toLocaleDateString('en-US', { ...opts, year: 'numeric' });
+  // Noon-pad to avoid UTC-midnight off-by-one in non-UTC timezones.
+  const start = new Date(trip.startDate + 'T12:00:00').toLocaleDateString('en-US', opts);
+  const end = new Date(trip.endDate + 'T12:00:00').toLocaleDateString('en-US', { ...opts, year: 'numeric' });
   return `${start} – ${end}`;
 }
 

@@ -167,8 +167,12 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
       : null;
   const showAttribution = !!attribution?.photographer && !!attribution.photographerUrl;
 
-  const startDate = new Date(trip.startDate);
-  const endDate = new Date(trip.endDate);
+  // Noon-pad so YYYY-MM-DD strings parse as LOCAL noon, not UTC midnight.
+  // Without this, "2026-05-06" parses as UTC midnight → renders as May 5 in
+  // any timezone west of UTC (the Day 1=May 6 / card="May 5" mismatch from
+  // QA 5/10 was this bug — the DB was correct, the display was off-by-one).
+  const startDate = new Date(trip.startDate + 'T12:00:00');
+  const endDate = new Date(trip.endDate + 'T12:00:00');
   // Prefer the builder-selected trip length over date-diff.
   // For flexible-date trips the stored dates span the availability window
   // (e.g. "anytime in June"), making date-diff much larger than the actual trip.
