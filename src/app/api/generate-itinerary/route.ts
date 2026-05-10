@@ -312,11 +312,17 @@ function buildPrompt(params: {
 }) {
   const {
     destination, startDate, endDate, tripLength,
-    groupType, budget, budgetBreakdown,
+    groupType, budget,
     localMode, dateNight, curiosityLevel, flexibleDates, modality, accommodationType,
     bookedFlight, realPlaces,
   } = params;
-  // Guard optional/potentially-missing array fields against undefined at runtime
+  // Guard optional/potentially-missing array fields against undefined at runtime.
+  // budgetBreakdown is moved out of the destructure because it's accessed via
+  // .hotel / .food / etc. throughout the prompt builder; if the payload omits
+  // it (e.g. the regenerate-from-itinerary flow), undefined-property access
+  // crashes buildPrompt before SSE opens, returning a 500 that surfaces in
+  // the UI as the generic "Generation failed" message.
+  const budgetBreakdown  = params.budgetBreakdown  ?? {};
   const priorities       = params.priorities       ?? [];
   const ageRanges        = params.ageRanges        ?? [];
   const accessibilityNeeds = params.accessibilityNeeds ?? [];

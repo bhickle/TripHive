@@ -646,6 +646,29 @@ function ItineraryPageContent() {
   const handleRegenerate = useCallback(() => {
     if (!aiMeta && !tripRow) return;
     const destination = tripRow?.destination || aiMeta?.destination || '';
+    // Lift the saved preferences blob into top-level fields the prompt builder
+    // expects. The trip-builder original payload sends these at the top level;
+    // the regenerate path was only sending the nested `preferences` object,
+    // leaving the prompt to default everything to empty arrays / undefined.
+    // budgetBreakdown specifically used to crash the route entirely (.hotel
+    // access on undefined → 500 → "Generation failed" in the UI).
+    const aiMetaPrefs = (aiMeta?.preferences as Record<string, unknown> | undefined) ?? {};
+    const tripPrefs = (tripRow?.preferences as Record<string, unknown> | undefined) ?? {};
+    const mergedPrefs: Record<string, unknown> = { ...tripPrefs, ...aiMetaPrefs };
+    const pickArr = (key: string): string[] => {
+      const v = mergedPrefs[key];
+      return Array.isArray(v) ? (v as string[]) : [];
+    };
+    const pickBool = (key: string): boolean => mergedPrefs[key] === true;
+    const pickStr = (key: string): string | undefined =>
+      typeof mergedPrefs[key] === 'string' ? (mergedPrefs[key] as string) : undefined;
+    const pickNum = (key: string): number | undefined =>
+      typeof mergedPrefs[key] === 'number' ? (mergedPrefs[key] as number) : undefined;
+    const modalityVal = mergedPrefs.modality;
+    const modality = Array.isArray(modalityVal) ? (modalityVal as string[]).join(', ') : (typeof modalityVal === 'string' ? modalityVal : '');
+    const accommodationTypeVal = mergedPrefs.accommodationType;
+    const accommodationType = Array.isArray(accommodationTypeVal) ? (accommodationTypeVal as string[]).join(', ') : (typeof accommodationTypeVal === 'string' ? accommodationTypeVal : '');
+
     const payload = {
       destination,
       tripLength: aiDaysRef.current?.length || tripRow?.trip_length || 7,
@@ -654,10 +677,24 @@ function ItineraryPageContent() {
       startDate: aiMeta?.startDate || tripRow?.start_date || null,
       endDate: aiMeta?.endDate || tripRow?.end_date || null,
       budget: aiMeta?.budget || tripRow?.budget_total || 0,
-      preferences: {
-        ...(tripRow?.preferences as object || {}),
-        ...(aiMeta?.preferences as object || {}),
-      },
+      // Top-level fields the prompt builder reads — derived from the merged
+      // preferences blob so the regenerate prompt sees the same context the
+      // original generation did.
+      priorities: pickArr('priorities'),
+      budgetBreakdown: aiMeta?.budgetBreakdown || tripRow?.budget_breakdown || {},
+      ageRanges: pickArr('ageRanges'),
+      accessibilityNeeds: pickArr('accessibilityNeeds'),
+      mustHaves: pickArr('mustHaves'),
+      additionalContext: pickStr('additionalContext'),
+      localMode: pickBool('localMode'),
+      dateNight: pickBool('dateNight'),
+      curiosityLevel: pickNum('curiosityLevel'),
+      organizerPace: pickStr('organizerPace'),
+      modality,
+      accommodationType,
+      bookedHotels: aiMeta?.bookedHotels || tripRow?.booked_hotels || [],
+      bookedFlight: tripRow?.booked_flight || null,
+      preferences: mergedPrefs,
       tripId: tripPageId,
       existingTripId: tripPageId,
     };
