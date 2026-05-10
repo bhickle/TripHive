@@ -360,6 +360,82 @@ function DayHighlightsSlide({ trip, bgPhoto, days: tripDays }: { trip: Trip; bgP
 
 const crewRoles = ['The Organizer', 'The Adventurer', 'The Foodie', 'The Navigator', 'The Photographer', 'The Vibe'];
 
+// CitiesMapSlide — renders a static Google Maps image with a pin per
+// user-tagged visited city. Drops out of the deck when the trip has no
+// `visited_cities`. Cities are passed as marker arguments to Static Maps,
+// which geocodes them server-side; no client-side geocoding needed.
+//
+// Uses NEXT_PUBLIC_GOOGLE_MAPS_KEY (the public key Maps embeds use). If
+// the key is missing the slide falls back to a simple chip list with no map.
+function CitiesMapSlide({ bgPhoto, cities }: { bgPhoto?: string; cities: string[] }) {
+  const trimmed = cities.map(c => (c ?? '').trim()).filter(Boolean);
+  // Dedupe case-insensitively while preserving display casing of first occurrence.
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const c of trimmed) {
+    const key = c.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(c);
+  }
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? '';
+  const mapUrl = apiKey && unique.length > 0
+    ? (() => {
+        // Cap markers at 10 to keep the URL within Google's length limit.
+        // For 11+ city trips we show every chip in the list below but only
+        // the first 10 as map pins — acceptable for the v1 visual.
+        const markers = unique.slice(0, 10).map(c =>
+          `markers=color:0xb91c1c%7Csize:mid%7C${encodeURIComponent(c)}`,
+        ).join('&');
+        return `https://maps.googleapis.com/maps/api/staticmap?size=600x400&maptype=roadmap&scale=2&${markers}&key=${apiKey}`;
+      })()
+    : null;
+
+  return (
+    <SlideWithPhotoBg bgPhoto={bgPhoto}>
+      <div className="relative h-full flex flex-col p-8 sm:p-10 md:p-12">
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-[0.2em] text-white/70">The map</p>
+          <p className="text-3xl sm:text-4xl md:text-5xl font-script italic text-white mt-2">Where we went</p>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center my-6">
+          {mapUrl ? (
+            // Plain <img> not next/image — Static Maps URLs are dynamic per
+            // city tuple and don't benefit from Next's image optimizer.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mapUrl}
+              alt={`Map of ${unique.join(', ')}`}
+              className="rounded-2xl shadow-2xl max-w-full max-h-full object-contain border border-white/20"
+            />
+          ) : (
+            // Key missing or no cities — chip-only fallback.
+            <div className="bg-white/10 border border-white/20 rounded-2xl p-8 text-white/70 text-sm">
+              {unique.length > 0 ? 'Map preview unavailable' : 'No cities tagged yet'}
+            </div>
+          )}
+        </div>
+
+        <div className="text-center space-y-3">
+          <p className="text-sm text-white/80">
+            <span className="font-semibold text-white">{unique.length}</span>{' '}
+            {unique.length === 1 ? 'city' : 'cities'}
+          </p>
+          <div className="flex flex-wrap justify-center gap-1.5 max-w-md mx-auto">
+            {unique.map(c => (
+              <span key={c} className="text-xs bg-white/15 text-white px-3 py-1 rounded-full backdrop-blur-sm">
+                {c}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </SlideWithPhotoBg>
+  );
+}
+
 function CrewSlide({ bgPhoto, members }: { bgPhoto?: string; members: StoryMember[] }) {
   return (
     <SlideWithPhotoBg bgPhoto={bgPhoto}>
@@ -914,6 +990,7 @@ const TRIP_SLIDE_DEFS: SlideDefinition[] = [
   { id: 'numbers', label: 'By The Numbers', emoji: '📊', defaultEnabled: true },
   { id: 'days',    label: 'Day by Day',     emoji: '🗓️', defaultEnabled: true },
   { id: 'crew',    label: 'The Crew',       emoji: '👥', defaultEnabled: true },
+  { id: 'cities',  label: 'Where We Went',  emoji: '🗺️', defaultEnabled: true },
   { id: 'toppicks', label: 'Top Picks',     emoji: '⭐', defaultEnabled: true },
   { id: 'laughs',  label: 'The Laughs',     emoji: '😂', defaultEnabled: true },
   { id: 'photos',  label: 'Trip Photos',    emoji: '📷', defaultEnabled: true },
@@ -1140,11 +1217,19 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
 
   // Build full slide render arrays
   const tripPhotosForSlide = effectivePhotos.slice(0, 7);
+  // visited_cities for the new CitiesMapSlide. Falls through to AI-planned
+  // cities (`activeTripData.cities`) for a sensible mock-data preview, but
+  // real trips only show the slide when the user has tagged at least one city.
+  const visitedCitiesForSlide: string[] = (activeTripData.visitedCities && activeTripData.visitedCities.length > 0)
+    ? activeTripData.visitedCities
+    : (activeTripData.cities ?? []);
+
   const allTripSlides = [
     { id: 'cover',   render: () => <CoverSlide trip={activeTripData} members={effectiveMembers} /> },
     { id: 'numbers', render: () => <NumbersSlide trip={activeTripData} bgPhoto={getBg(0)} days={effectiveDays} memberCount={effectiveMembers.length} photoCount={effectivePhotos.length} /> },
     { id: 'days',    render: () => <DayHighlightsSlide trip={activeTripData} bgPhoto={getBg(1)} days={effectiveDays} /> },
     { id: 'crew',    render: () => <CrewSlide bgPhoto={getBg(2)} members={effectiveMembers} /> },
+    { id: 'cities',  render: () => <CitiesMapSlide bgPhoto={getBg(2)} cities={visitedCitiesForSlide} /> },
     { id: 'toppicks', render: () => <TopPicksSlide bgPhoto={getBg(3)} days={effectiveDays} /> },
     { id: 'laughs',  render: () => <LaughsSlide bgPhoto={getBg(4)} moments={laughMomentsForSlide} laughCount={laughCountForSlide} /> },
     { id: 'photos',  render: () => <PhotosSlide photos={tripPhotosForSlide} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotosForSlide, idx)} /> },
@@ -1171,6 +1256,10 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
       if (s.id === 'photos' && effectivePhotos.length === 0) return false;
       if (s.id === 'crew' && effectiveMembers.length === 0) return false;
       if (s.id === 'laughs' && laughMomentsForSlide.length === 0) return false;
+      // Cities slide drops out unless the user has tagged at least one city.
+      // Falling back to AI cities would defeat the "ground truth" framing
+      // we promised in the banner copy.
+      if (s.id === 'cities' && (!activeTripData.visitedCities || activeTripData.visitedCities.length === 0)) return false;
     }
     return true;
   });

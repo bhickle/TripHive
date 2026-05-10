@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { TripCard } from '@/components/TripCard';
+import { TagCitiesBanner, shouldShowTagCitiesBanner, rememberTagCitiesBannerDismissed } from '@/components/TagCitiesBanner';
+import { TagCitiesModal } from '@/components/TagCitiesModal';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { trips } from '@/data/mock';
 import {
@@ -51,6 +53,24 @@ export default function TripsPage() {
   // which is misleading.
   const [tripsLoadError, setTripsLoadError] = useState(false);
 
+  // ── Tag-cities prompt state ────────────────────────────────────────────────
+  // Banner lives above each completed trip with empty visited_cities.
+  // Dismiss persists per-trip in localStorage (see TagCitiesBanner helpers).
+  // `dismissedBanners` is the in-memory mirror so dismissing updates UI without
+  // a re-render-from-storage round trip.
+  const [taggingTripId, setTaggingTripId] = useState<string | null>(null);
+  const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
+  // Hydrate dismiss state for the trips we just loaded so the banner doesn't
+  // flash on for trips the user already silenced.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const dismissed = new Set<string>();
+    for (const t of userTrips) {
+      if (!shouldShowTagCitiesBanner(t.id)) dismissed.add(t.id);
+    }
+    setDismissedBanners(dismissed);
+  }, [userTrips]);
+
   // Redirect to login if auth resolves with no user
   useEffect(() => {
     if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
@@ -84,6 +104,8 @@ export default function TripsPage() {
               role?: 'organizer' | 'co_organizer' | 'member';
               organizerName?: string | null;
               memberNames?: string;
+              cities?: string[];
+              visited_cities?: string[];
             };
             const rows: TripRow[] = supaTrips;
             setUserTrips(rows.map(t => ({
@@ -104,6 +126,8 @@ export default function TripsPage() {
               role: t.role ?? 'organizer',
               organizerName: t.organizerName ?? null,
               memberNames: t.memberNames ?? '',
+              cities: t.cities ?? [],
+              visitedCities: t.visited_cities ?? [],
             })));
           }
         })
@@ -400,9 +424,26 @@ export default function TripsPage() {
                   Completed
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {completedTrips.map((trip) => (
-                    <TripCard key={trip.id} trip={trip} />
-                  ))}
+                  {completedTrips.map((trip) => {
+                    const hasTagged = Array.isArray(trip.visitedCities) && trip.visitedCities.length > 0;
+                    const showBanner = !hasTagged && !dismissedBanners.has(trip.id);
+                    return (
+                      <div key={trip.id}>
+                        {showBanner && (
+                          <TagCitiesBanner
+                            tripId={trip.id}
+                            visible={true}
+                            onTagClick={() => setTaggingTripId(trip.id)}
+                            onDismiss={() => {
+                              rememberTagCitiesBannerDismissed(trip.id);
+                              setDismissedBanners(prev => new Set(prev).add(trip.id));
+                            }}
+                          />
+                        )}
+                        <TripCard trip={trip} />
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             )}
@@ -481,6 +522,28 @@ export default function TripsPage() {
         )}
         </div>
       </main>
+
+      {/* Tag-cities modal — opens from the per-completed-trip banner */}
+      {taggingTripId && (() => {
+        const targetTrip = userTrips.find(t => t.id === taggingTripId);
+        if (!targetTrip) return null;
+        return (
+          <TagCitiesModal
+            isOpen={!!taggingTripId}
+            tripId={taggingTripId}
+            aiCities={targetTrip.cities ?? []}
+            initialCities={targetTrip.visitedCities ?? []}
+            onClose={() => setTaggingTripId(null)}
+            onSaved={(cities) => {
+              // Update local trip state so the banner disappears immediately
+              // without re-fetching the whole list.
+              setUserTrips(prev => prev.map(t =>
+                t.id === taggingTripId ? { ...t, visitedCities: cities } : t,
+              ));
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

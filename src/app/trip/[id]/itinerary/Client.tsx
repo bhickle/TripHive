@@ -1743,6 +1743,9 @@ function ItineraryPageContent() {
         ?? { flights: 0, hotel: 0, food: 0, experiences: 0, transport: 0 },
       memberCount: (tripRow?.group_size as number) ?? 1,
       guestCount: 0,
+      // User-tagged cities feed the new CitiesMapSlide in TripStoryModal.
+      // Falls back to []; the slide drops out of the deck when empty.
+      visitedCities: (tripRow?.visited_cities as string[] | undefined) ?? [],
     };
   })();
   // Guard: if activeDays is empty, currentDayData will never be rendered (the

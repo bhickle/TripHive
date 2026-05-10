@@ -240,6 +240,12 @@ export interface Trip {
   budgetBreakdown: BudgetBreakdown;
   memberCount: number;
   guestCount: number;
+  /** AI-planned per-day cities, derived server-side from
+   *  `itineraries.days[].city`. Captures multi-city legs and side-trips. */
+  cities?: string[];
+  /** User-tagged ground truth of cities visited (`trips.visited_cities`).
+   *  Wins over `cities` for the dashboard count and Trip Story map slide. */
+  visitedCities?: string[];
 }
 
 export interface BudgetBreakdown {
