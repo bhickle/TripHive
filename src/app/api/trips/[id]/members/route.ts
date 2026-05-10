@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/lib/supabase/database.types';
+import { getTripRole } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/members
@@ -272,7 +273,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 /**
  * PATCH /api/trips/[id]/members
  * Updates a member's role (e.g. promote to co_organizer or demote back to member).
- * Requires the caller to be the trip organizer with a Nomad subscription.
+ *
+ * Authorization
+ *   - Caller must be the trip organizer or a co-organizer (parity).
+ *   - The trip organizer's subscription tier must include co-organizer
+ *     entitlement (Trip Pass, Explorer, Nomad — see lib/types.ts
+ *     TIER_LIMITS.canAddCoOrganizer). Earlier this gate was Nomad-only on
+ *     the CALLER's tier, which contradicted the entitlement table and
+ *     blocked Trip Pass / Explorer organizers from promoting anyone even
+ *     though their UI showed the "+ Make co-organizer" button.
+ *
  * Body: { memberId: string, role: 'member' | 'co_organizer' }
  */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -284,26 +294,38 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const supabase = createAdminClient();
 
-    // Only the organizer may change roles
+    // Caller must be the organizer or a co-organizer of this trip.
+    const callerRole = await getTripRole(supabase, params.id, user.id);
+    if (callerRole !== 'organizer' && callerRole !== 'co_organizer') {
+      return NextResponse.json({ error: 'Only organizers and co-organizers can change roles' }, { status: 403 });
+    }
+
+    // Look up the trip's organizer to check the plan that owns the trip.
     const { data: trip } = await supabase
       .from('trips')
       .select('organizer_id')
       .eq('id', params.id)
       .single();
 
-    if (!trip || trip.organizer_id !== user.id) {
-      return NextResponse.json({ error: 'Only the trip organizer can change roles' }, { status: 403 });
+    if (!trip?.organizer_id) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
     }
 
-    // Caller must be on Nomad
-    const { data: profile } = await supabase
+    // The trip organizer's tier governs whether co-organizer is unlocked
+    // for this trip. Free tier doesn't include co-organizer; Trip Pass /
+    // Explorer / Nomad do.
+    const { data: organizerProfile } = await supabase
       .from('profiles')
       .select('subscription_tier')
-      .eq('id', user.id)
+      .eq('id', trip.organizer_id)
       .single();
 
-    if (profile?.subscription_tier !== 'nomad') {
-      return NextResponse.json({ error: 'Co-organizer roles require a Nomad subscription' }, { status: 403 });
+    const organizerTier = organizerProfile?.subscription_tier ?? 'free';
+    if (organizerTier === 'free') {
+      return NextResponse.json(
+        { error: 'Co-organizer roles require Trip Pass, Explorer, or Nomad' },
+        { status: 403 },
+      );
     }
 
     const { memberId, role } = await req.json();

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { requireTripAccess, getTripRole } from '@/lib/supabase/tripAccess';
 import { notifyTripMembers } from '@/lib/supabase/notify';
 
 /**
@@ -234,14 +234,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       const { voteId } = body;
       if (!voteId) return NextResponse.json({ error: 'voteId required' }, { status: 400 });
 
-      // Only the trip organizer may close a vote
-      const { data: trip } = await supabase
-        .from('trips')
-        .select('organizer_id')
-        .eq('id', params.id)
-        .maybeSingle();
-      if (trip?.organizer_id !== userId) {
-        return NextResponse.json({ error: 'Only the organizer can close votes' }, { status: 403 });
+      // Organizer or co-organizer may close a vote.
+      const role = await getTripRole(supabase, params.id, userId);
+      if (role !== 'organizer' && role !== 'co_organizer') {
+        return NextResponse.json({ error: 'Only organizers and co-organizers can close votes' }, { status: 403 });
       }
 
       // Confirm the vote belongs to this trip

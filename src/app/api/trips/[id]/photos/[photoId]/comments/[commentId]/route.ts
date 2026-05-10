@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { requireTripAccess, getTripRole } from '@/lib/supabase/tripAccess';
 
 /**
  * PATCH  /api/trips/[id]/photos/[photoId]/comments/[commentId]
@@ -7,8 +7,8 @@ import { requireTripAccess } from '@/lib/supabase/tripAccess';
  *   can show an "edited" marker.
  *
  * DELETE /api/trips/[id]/photos/[photoId]/comments/[commentId]
- *   Authors can delete their own comments. Trip organizers can delete any
- *   comment on the trip (basic moderation). Anyone else gets 403.
+ *   Authors can delete their own comments. Trip organizers and co-organizers
+ *   can delete any comment on the trip (basic moderation). Anyone else gets 403.
  */
 export async function PATCH(
   req: Request,
@@ -104,13 +104,9 @@ export async function DELETE(
 
     let canDelete = comment.user_id === userId;
     if (!canDelete) {
-      // Allow trip organizer to moderate
-      const { data: trip } = await supabase
-        .from('trips')
-        .select('organizer_id')
-        .eq('id', params.id)
-        .maybeSingle();
-      canDelete = !!trip && trip.organizer_id === userId;
+      // Allow trip organizer or co-organizer to moderate
+      const role = await getTripRole(supabase, params.id, userId);
+      canDelete = role === 'organizer' || role === 'co_organizer';
     }
     if (!canDelete) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

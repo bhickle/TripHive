@@ -1380,11 +1380,13 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   const isMe = currentUserId ? member.id === currentUserId : member.id === 'user_1';
                   const uploadedAvatar = memberAvatars[member.id];
                   const avatarSrc = uploadedAvatar || member.avatarUrl;
-                  const isOrganizer = currentUserId
-                    ? groupMembers.find(m => m.id === currentUserId)?.role === 'organizer'
-                    : false;
+                  // Both organizer and co-organizer can manage roles (parity).
+                  const viewerRole = currentUserId
+                    ? groupMembers.find(m => m.id === currentUserId)?.role
+                    : undefined;
+                  const canManageRoles = viewerRole === 'organizer' || viewerRole === 'co_organizer';
                   const isCoOrg = member.role === 'co_organizer';
-                  const canPromote = hasCoOrganizer && isOrganizer && !isMe && member.role !== 'organizer';
+                  const canPromote = hasCoOrganizer && canManageRoles && !isMe && member.role !== 'organizer';
                   return (
                     <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 flex flex-col items-center text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                       <div className="relative mb-3 group/avatar">

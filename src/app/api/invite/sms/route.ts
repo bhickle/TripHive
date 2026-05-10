@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getTripRole } from '@/lib/supabase/tripAccess';
 
 /**
  * POST /api/invite/sms
@@ -23,17 +24,12 @@ export async function POST(request: NextRequest) {
 
   const { phone, tripId, tripName, inviterName } = await request.json();
 
-  // Verify the caller is the organizer of this trip
+  // Verify the caller is the organizer or a co-organizer of this trip
   let inviteToken: string | null = null;
   if (tripId) {
     const supabase = createAdminClient();
-    const { data: trip } = await supabase
-      .from('trips')
-      .select('organizer_id')
-      .eq('id', tripId)
-      .maybeSingle();
-
-    if (!trip || trip.organizer_id !== userId) {
+    const role = await getTripRole(supabase, tripId, userId);
+    if (!role || (role !== 'organizer' && role !== 'co_organizer')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

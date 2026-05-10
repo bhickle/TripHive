@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getTripRole } from '@/lib/supabase/tripAccess';
 
 /**
  * POST /api/invite/email
@@ -27,14 +28,9 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Verify caller is the trip organizer
-  const { data: trip } = await supabase
-    .from('trips')
-    .select('organizer_id')
-    .eq('id', tripId)
-    .maybeSingle();
-
-  if (!trip || trip.organizer_id !== userId) {
+  // Verify caller is the trip organizer or a co-organizer.
+  const role = await getTripRole(supabase, tripId, userId);
+  if (!role || (role !== 'organizer' && role !== 'co_organizer')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

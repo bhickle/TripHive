@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { getTripRole, verifyTripAccess } from '@/lib/supabase/tripAccess';
+import { getTripRole, verifyTripAccess, type TripRole } from '@/lib/supabase/tripAccess';
 import type { Json } from '@/lib/supabase/database.types';
 
 /**
@@ -242,7 +242,9 @@ export async function PATCH(
 
 /**
  * DELETE /api/trips/[id]
- * Permanently deletes a trip and its itinerary. Requires the caller to be the organizer.
+ * Permanently deletes a trip and its itinerary. Requires the caller to be the
+ * organizer or a co-organizer (co-organizers have parity with organizers on
+ * trip-shaping actions per Brandon's intent).
  */
 export async function DELETE(
   _request: NextRequest,
@@ -263,18 +265,22 @@ export async function DELETE(
 
     const supabase = createAdminClient();
 
-    // Verify ownership
-    const { data: tripRow, error: lookupErr } = await supabase
-      .from('trips')
-      .select('organizer_id')
-      .eq('id', params.id)
-      .single();
-
-    if (lookupErr || !tripRow) {
-      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    // Verify role — organizer or co-organizer may delete.
+    const role: TripRole | null = await getTripRole(supabase, params.id, userId);
+    if (!role) {
+      // Disambiguate: trip exists vs. caller-not-on-trip.
+      const { data: tripExists } = await supabase
+        .from('trips')
+        .select('id')
+        .eq('id', params.id)
+        .maybeSingle();
+      return NextResponse.json(
+        { error: tripExists ? 'Forbidden' : 'Trip not found' },
+        { status: tripExists ? 403 : 404 },
+      );
     }
-    if (tripRow.organizer_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (role !== 'organizer' && role !== 'co_organizer') {
+      return NextResponse.json({ error: 'Only organizers and co-organizers can delete a trip' }, { status: 403 });
     }
 
     // Delete itinerary first (FK), then the trip row. If the itinerary
