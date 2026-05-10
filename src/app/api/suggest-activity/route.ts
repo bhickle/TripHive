@@ -100,6 +100,16 @@ export async function POST(request: NextRequest) {
       cruiseLine,
     } = body;
 
+    // Names of every activity / restaurant already on the trip (all days, all
+    // tracks). Without this, the model freely re-suggests venues from other
+    // days — Brandon flagged "Suggest another just pulls a suggestion from
+    // another day" in QA 5/10. Cap at 60 names so the prompt stays reasonable.
+    const excludeNamesRaw = Array.isArray(body.excludeNames) ? (body.excludeNames as unknown[]) : [];
+    const excludeNames = excludeNamesRaw
+      .filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+      .map(n => n.trim())
+      .slice(0, 60);
+
     // Pre-fetch real places from Google to prevent hallucinations
     let realPlacesBlock = '';
     if (process.env.GOOGLE_MAPS_KEY) {
@@ -130,6 +140,12 @@ ${placesList}`;
     // Cruise port context: activities must be walkable from the terminal
     const cruiseContext = isCruise
       ? `\nCRUISE PORT STOP: This is a ${cruiseLine ? cruiseLine + ' ' : ''}cruise itinerary. The ship docks at the port in ${destination}. All suggested activities MUST be within easy walking distance of the cruise ship terminal (typically 0–1 mile / 0–1.5 km). Do NOT suggest activities that require a lengthy drive or taxi across the city — cruisers have limited time ashore and must return before all-aboard.`
+      : '';
+
+    // Exclude block — hard constraint preventing the model from re-using any
+    // venue that's already on the trip on a different day.
+    const excludeBlock = excludeNames.length > 0
+      ? `\n\nHARD CONSTRAINT — DO NOT SUGGEST ANY OF THESE ${isRestaurant ? 'RESTAURANTS' : 'VENUES'} (they already appear on other days of this trip):\n${excludeNames.map(n => `- ${n}`).join('\n')}\nPick a genuinely different venue with a different name. If the realistic options in ${destination} are exhausted, prefer a less-obvious local pick over a duplicate.`
       : '';
 
     const prompt = `You are a travel planner suggesting a single replacement ${isRestaurant ? 'restaurant' : 'activity'} for a trip itinerary.
@@ -185,7 +201,7 @@ Return ONLY a JSON object (no markdown, no explanation):
   "packingTips": []
 }
 
-IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — hallucinated links cause errors for users.${realPlacesBlock}`;
+IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — hallucinated links cause errors for users.${excludeBlock}${realPlacesBlock}`;
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',

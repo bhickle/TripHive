@@ -396,6 +396,23 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const handleReplaceNayActivity = async (nay: NayActivity) => {
     setReplacingActivityId(nay.id);
     try {
+      // Collect every existing activity name across the trip so the AI doesn't
+      // suggest a venue that's already on another day.
+      const excludeNames: string[] = [];
+      const seen = new Set<string>();
+      for (const d of itineraryDaysData) {
+        for (const tr of ['shared', 'track_a', 'track_b'] as const) {
+          for (const a of (d.tracks?.[tr] ?? [])) {
+            const name = (a.name || a.title || '').trim();
+            if (!name) continue;
+            const key = name.toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            excludeNames.push(name);
+          }
+        }
+      }
+
       const res = await fetch('/api/suggest-activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -406,6 +423,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           existingActivityName: nay.name,
           timeSlot: nay.timeSlot,
           track: 'shared',
+          excludeNames,
         }),
       });
       const data = await res.json();

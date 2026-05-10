@@ -2006,6 +2006,25 @@ function ItineraryPageContent() {
     setSuggestingActivityId(activity.id);
     setActionError(null);
     try {
+      // Collect every activity name across the WHOLE trip (all days, all
+      // tracks). Without this, the model freely re-suggests venues from
+      // other days — Brandon flagged "Suggest another just pulls a
+      // suggestion from another day" in QA 5/10.
+      const excludeNames: string[] = [];
+      const seen = new Set<string>();
+      for (const d of (activeDays as ItineraryDay[])) {
+        for (const tr of ['shared', 'track_a', 'track_b'] as const) {
+          for (const a of (d.tracks?.[tr] ?? [])) {
+            const name = (a.name || a.title || '').trim();
+            if (!name) continue;
+            const key = name.toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            excludeNames.push(name);
+          }
+        }
+      }
+
       const res = await fetch('/api/suggest-activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2023,6 +2042,7 @@ function ItineraryPageContent() {
           budgetBreakdown: aiMeta?.budgetBreakdown,
           isCruise: aiMeta?.isCruise ?? false,
           cruiseLine: aiMeta?.cruiseLine ?? '',
+          excludeNames,
         }),
       });
       const data = await res.json();
@@ -3636,25 +3656,34 @@ function ItineraryPageContent() {
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.name} ${item.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           return (
                             <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0 overflow-hidden`}>
-                              <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1 basis-full sm:basis-0">
-                                  <span className="text-base flex-shrink-0" title={meta.label}>{meta.icon}</span>
-                                  <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0 flex-1 [overflow-wrap:anywhere]`}>{item.name}</p>
-                                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
-                                    className={`flex-shrink-0 ${meta.textMuted} hover:opacity-70 transition-opacity`} onClick={e => e.stopPropagation()}>
-                                    <MapPin className="w-3 h-3" />
-                                  </a>
-                                </div>
-                                {item.badges && item.badges.length > 0 && (
-                                  <div className="flex flex-wrap items-center gap-1 flex-shrink-0 max-w-full">
-                                    {item.badges.map((b, i) => (
-                                      <span key={i} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${meta.pill}`}>
-                                        {b}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                              {/* Name row + badges row are deliberately stacked
+                                  (not flex-row sharing). Earlier layout used
+                                  flex-wrap + flex-1 on name vs. flex-shrink-0
+                                  on badges; AI-generated badges like "4pm Until
+                                  Midnight Most Nights" with whitespace-nowrap
+                                  squeezed the name container down to ~60px,
+                                  and [overflow-wrap:anywhere] on long names
+                                  ("Kelvingrove", "Glasgow Green & People's
+                                  Palace Glasshouse") then broke them mid-character
+                                  into one-letter-per-line columns. Stacking
+                                  guarantees the name always has full row width. */}
+                              <div className="flex items-start gap-1.5 mb-1 min-w-0">
+                                <span className="text-base flex-shrink-0 leading-tight" title={meta.label}>{meta.icon}</span>
+                                <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0 flex-1 [overflow-wrap:anywhere]`}>{item.name}</p>
+                                <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
+                                  className={`flex-shrink-0 ${meta.textMuted} hover:opacity-70 transition-opacity mt-0.5`} onClick={e => e.stopPropagation()}>
+                                  <MapPin className="w-3 h-3" />
+                                </a>
                               </div>
+                              {item.badges && item.badges.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1 mb-1.5">
+                                  {item.badges.map((b, i) => (
+                                    <span key={i} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${meta.pill} max-w-full break-words`}>
+                                      {b}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {item.neighborhood && <p className={`text-[11px] ${meta.textMuted} mb-1 break-words [overflow-wrap:anywhere]`}>{item.neighborhood}</p>}
                               {item.description && <p className={`text-xs ${meta.text} leading-relaxed mb-1 break-words [overflow-wrap:anywhere]`}>{item.description}</p>}
                               {item.tip && (

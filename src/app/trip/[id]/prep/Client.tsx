@@ -904,7 +904,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   };
 
   const renderPackingTab = () => {
-    const PACK_CATEGORIES = ['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear'];
+    const PACK_CATEGORIES = ['Clothing', 'Accessories', 'Documents', 'Electronics', 'Toiletries', 'Medications', 'Gear', 'Other'];
 
     // ── Reusable category list renderer ──────────────────────────────────────
     const renderPackList = (
