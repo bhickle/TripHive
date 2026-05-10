@@ -86,11 +86,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   // Trip name for invite messages — fetched from Supabase for real trips
   const [tripName, setTripName] = useState<string>(isMockTrip ? 'Iceland Adventure' : 'our trip');
 
-  // organizerTier drives the Trip Pass overlay in useEntitlements: when the
-  // trip's organizer is on a paid plan, joinees get Trip Pass-level features
-  // (expenses, co-organizer, etc.) on this trip even if they're free-tier
-  // themselves.
-  const [organizerTier, setOrganizerTier] = useState<'free' | 'trip_pass' | 'explorer' | 'nomad' | undefined>(undefined);
+  // isTripPassTrip drives the Trip Pass overlay in useEntitlements: when this
+  // specific trip has an active trip_passes purchase, every invitee — regardless
+  // of their own tier — gets the Trip Pass trip-scoped features (expenses,
+  // co-organizer, split tracks, transport parser) on this trip. Explorer/Nomad
+  // organizers' personal subscriptions do NOT trigger the overlay.
+  const [isTripPassTrip, setIsTripPassTrip] = useState<boolean>(false);
 
   // Fetch current user info for message attribution
   useEffect(() => {
@@ -144,11 +145,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         if (tripRes.status === 'fulfilled' && typeof tripRes.value?.trip?.is_private === 'boolean') {
           setTripIsPrivate(tripRes.value.trip.is_private);
         }
-        if (tripRes.status === 'fulfilled') {
-          const ot = tripRes.value?.organizerTier;
-          if (ot === 'free' || ot === 'trip_pass' || ot === 'explorer' || ot === 'nomad') {
-            setOrganizerTier(ot);
-          }
+        if (tripRes.status === 'fulfilled' && typeof tripRes.value?.isTripPassTrip === 'boolean') {
+          setIsTripPassTrip(tripRes.value.isTripPassTrip);
         }
         if (tripRes.status === 'fulfilled' && tripRes.value?.itinerary?.days) {
           const days: ItineraryDay[] = tripRes.value.itinerary.days;
@@ -256,7 +254,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     loadAll();
   }, [isMockTrip, params.id, currentUserId]);
 
-  const { canAddTraveler, getUpgradePrompt, hasCoOrganizer, hasExpenses, hasAIReceiptScan } = useEntitlements(params.id, organizerTier);
+  const { canAddTraveler, getUpgradePrompt, hasCoOrganizer, hasExpenses, hasAIReceiptScan } = useEntitlements(params.id, isTripPassTrip);
   const [showTravelerUpgrade, setShowTravelerUpgrade] = useState(false);
 
   // Co-organizer role state

@@ -85,26 +85,22 @@ export async function GET(
       }
     }
 
-    // ── organizerTier ─────────────────────────────────────────────────────────
-    // Drives the "Trip Pass overlay" in useEntitlements: when the trip's
-    // organizer is on a paid plan (Trip Pass / Explorer / Nomad), every joinee
-    // gets the Trip Pass-level trip-scoped features (expenses, split tracks,
-    // transport parser, co-organizer) regardless of their own subscription.
-    // Higher-tier perks (receipt scan, AI packing/phrasebook) stay user-scoped.
-    let organizerTier: 'free' | 'trip_pass' | 'explorer' | 'nomad' = 'free';
-    if (trip.organizer_id) {
-      const { data: organizerProfile } = await supabase
-        .from('profiles')
-        .select('subscription_tier')
-        .eq('id', trip.organizer_id)
-        .maybeSingle();
-      const t = organizerProfile?.subscription_tier;
-      if (t === 'trip_pass' || t === 'explorer' || t === 'nomad') {
-        organizerTier = t;
-      }
-    }
+    // ── isTripPassTrip ────────────────────────────────────────────────────────
+    // Drives the "Trip Pass overlay" in useEntitlements. The activation key is
+    // strictly "does this trip have an active trip_passes purchase?" — NOT the
+    // organizer's subscription tier. Trip Pass is a per-trip $30 purchase that
+    // unlocks group-coordination for everyone on the trip; an Explorer or
+    // Nomad organizer's personal subscription does NOT extend to invitees.
+    // Free joinees on an Explorer/Nomad trip stay on their own free tier.
+    const nowIso = new Date().toISOString();
+    const { count: activePassCount } = await supabase
+      .from('trip_passes')
+      .select('*', { count: 'exact', head: true })
+      .eq('trip_id', params.id)
+      .gt('expires_at', nowIso);
+    const isTripPassTrip = (activePassCount ?? 0) > 0;
 
-    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount, pendingPrefsCount, organizerTier });
+    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount, pendingPrefsCount, isTripPassTrip });
   } catch (err) {
     console.error('Load trip error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });

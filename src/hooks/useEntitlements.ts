@@ -102,35 +102,38 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
- * @param tripId        Active trip context (enables Trip Pass overlay logic).
- * @param organizerTier Subscription tier of the trip's organizer. When the
- *                      organizer is on any paid plan (Trip Pass / Explorer /
- *                      Nomad), every joinee on the trip gets the trip-scoped
- *                      Trip Pass features (expenses, split tracks, transport
- *                      parser, co-organizer) on that trip — regardless of
- *                      the joinee's own subscription. Trip Pass is the group-
- *                      trip "starter pack"; once the organizer pays for any
- *                      plan, the group-coordination features unlock for
- *                      everyone on that specific trip.
+ * @param tripId          Active trip context (enables Trip Pass overlay logic).
+ * @param isTripPassTrip  True if this trip has an active trip_passes purchase
+ *                        (someone paid $30 for THIS trip's group-coordination
+ *                        features). When true, every invitee on the trip —
+ *                        regardless of their own subscription — gets the Trip
+ *                        Pass trip-scoped features (expenses, split tracks,
+ *                        transport parser, co-organizer eligibility) on this
+ *                        trip.
  *
- *                      Higher-tier perks (Nomad's receipt scan, AI packing,
- *                      AI phrasebook) are NOT included in the overlay —
- *                      those stay strictly user-scoped.
+ *                        Critically: this is keyed on the per-trip purchase,
+ *                        NOT on the organizer's subscription. An Explorer or
+ *                        Nomad organizer's personal subscription does NOT
+ *                        extend to invitees — that's a personal benefit, not
+ *                        a group-trip one. Free joinees on a Nomad organizer's
+ *                        trip stay on free.
  *
- *                      Pass `undefined` (or omit) for non-trip contexts like
- *                      the dashboard, where the user's own tier is the only
- *                      relevant axis.
+ *                        Higher-tier perks (Nomad's receipt scan, AI packing,
+ *                        AI phrasebook) are NOT included in the overlay —
+ *                        those stay strictly user-scoped on the joinee's tier.
+ *
+ *                        Pass `undefined` / `false` (or omit) outside trip
+ *                        contexts like the dashboard.
  */
-export function useEntitlements(tripId?: string, organizerTier?: SubscriptionTier) {
+export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
   const user = useCurrentUser();
   const tier = (user.subscriptionTier ?? 'free') as SubscriptionTier;
   const limits = TIER_LIMITS[tier];
 
-  // Trip Pass overlay: the trip's organizer paid for at least Trip Pass, so
-  // group-coordination features unlock on this trip. The `tripId` guard makes
-  // the overlay only apply in trip contexts; on the dashboard, organizerTier
-  // shouldn't be passed.
-  const tripPassUnlocked = !!tripId && (organizerTier === 'trip_pass' || organizerTier === 'explorer' || organizerTier === 'nomad');
+  // Trip Pass overlay: this specific trip has an active Trip Pass purchase,
+  // so group-coordination features unlock for every invitee. The `tripId`
+  // guard makes the overlay only apply in trip contexts.
+  const tripPassUnlocked = !!tripId && !!isTripPassTrip;
   const tripPassFeatures = TIER_LIMITS.trip_pass;
 
   // True once we know the user's real tier. While the profile is still loading
