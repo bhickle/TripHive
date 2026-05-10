@@ -1039,12 +1039,19 @@ function ItineraryPageContent() {
       // than a soft "avoid".
       const collectDayRestaurants = (d: ItineraryDay): string[] => {
         const names = new Set<string>();
+        // Restaurant-shaped name heuristic — catches cases where the AI
+        // returned isRestaurant: false but the activity is clearly a food
+        // venue. Without this, "Café Tortoni" gets deduped only via the
+        // generic excludeVenues block, which the model treats more loosely
+        // than the explicit "NEVER REUSE THESE RESTAURANTS" block.
+        const restaurantKeywords = /\b(restaurant|caf[eé]|bistro|brasserie|trattoria|osteria|tavern|tavola|pub|gastropub|eatery|kitchen|diner|bar|bakery|patisserie|p[âa]tisserie|boulangerie|coffee|izakaya|ramen|sushi|chophouse|steakhouse|grill|cantina|cevicheria|taqueria|pizzeria|food market|food hall)\b/i;
         for (const trackKey of ['shared', 'track_a', 'track_b'] as const) {
           for (const a of (d.tracks?.[trackKey] ?? [])) {
             const aa = a as { name?: string; title?: string; isRestaurant?: boolean };
-            if (aa.isRestaurant) {
-              const n = aa.name ?? aa.title;
-              if (n) names.add(n);
+            const n = aa.name ?? aa.title;
+            if (!n) continue;
+            if (aa.isRestaurant || restaurantKeywords.test(n)) {
+              names.add(n);
             }
           }
         }
@@ -2550,10 +2557,15 @@ function ItineraryPageContent() {
                 {currentDayData?.city || aiMeta?.destination || trip.destination}
               </p>
               {aiDays && (
+                // Always-visible edit affordance (was opacity-0 + hover-only,
+                // hard to discover per QA 5/10). Subtle but persistent: soft
+                // border + muted color so it doesn't dominate the destination
+                // text but is always reachable.
                 <button
                   onClick={handleOpenEditTrip}
                   title="Edit destination & dates"
-                  className="opacity-0 group-hover/dest:opacity-100 transition-opacity p-0.5 rounded hover:bg-zinc-100 text-zinc-300 hover:text-zinc-500"
+                  aria-label="Edit destination and dates"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-400 hover:text-zinc-700 hover:border-zinc-300 transition-colors"
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
@@ -2589,13 +2601,16 @@ function ItineraryPageContent() {
                       ? 'Shared to Discover community — click to unshare. Group chat & expenses stay private either way.'
                       : 'Click to share this itinerary publicly on Discover. Anyone can like or fork it as a starting point. Group chat & expenses stay private.'}
                     aria-label={isPublic ? 'Stop sharing publicly' : 'Share publicly to community'}
-                    className={`p-0.5 rounded transition-colors ${
+                    // Always-visible chip so the share affordance is
+                    // discoverable (QA 5/10 — was hard to find next to the
+                    // pencil). Border + label-friendly hover colors.
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors ${
                       isPublic
-                        ? 'text-sky-700 hover:text-sky-900'
-                        : 'text-zinc-300 hover:text-zinc-500 hover:bg-zinc-100'
+                        ? 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                        : 'border-zinc-200 bg-white text-zinc-400 hover:text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300'
                     } ${communityToggleSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
-                    <Globe2 className="w-3.5 h-3.5" />
+                    <Globe2 className="w-3 h-3" />
                   </button>
                 );
               })()}
@@ -2912,6 +2927,7 @@ function ItineraryPageContent() {
             <MapView
               activities={sortedActivities}
               transportLegs={[...(currentDayData.transportLegs ?? []), ...(addedTransport[selectedDay] ?? [])]}
+              hotels={(aiMeta?.bookedHotels ?? []).map(h => ({ name: h.name, address: h.address ?? undefined }))}
               destination={currentDayData?.city ?? trip.destination}
             />
           </div>

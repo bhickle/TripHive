@@ -1199,7 +1199,7 @@ DAILY BUDGET ENFORCEMENT — these are the user's explicit budget limits and mus
 
 RULES:
 1. Use REAL venue names and real addresses for ${destination}
-2. Include 4-6 activities per day total (including the 3 required meals), spread naturally across the day
+2. Include 4-6 activities per day total (including the 3 required meals), spread naturally across the day. EVERY day's schedule MUST extend from morning through evening — never end a day's activity list at midday or early afternoon. The last activity of every day should fall in the late afternoon, evening, or night (typically the dinner restaurant or a post-dinner experience). If you find yourself running out of room while emitting a day, drop a sidebar entry (one nightlifeHighlight, one shoppingGuide entry, one photoSpot) BEFORE you cut activities short.
 3. timeSlot format must be "HH:MM–HH:MM" using an en-dash (–)
 4. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$
 5. costEstimate is per-person in USD
@@ -1462,19 +1462,24 @@ export async function POST(request: NextRequest) {
   // adds ~600-900 tokens per day. Without budget headroom the model hits
   // stop_reason=max_tokens mid-day-3 of a chunk, the parser drops the partial
   // day, and the user sees a 2-of-3 day output (Dublin truncation root cause).
-  // We bump tokensPerDay when the user has multiple discovery priorities set
-  // and raise the per-chunk floor accordingly.
+  //
+  // QA 5/10 update: Brandon flagged "days cut off pretty early in the day like
+  // 12:30 PM" on longer itineraries. Suggests max_tokens hit MID-day, not just
+  // mid-chunk — so even a 3-day chunk with budget for 3 days isn't enough when
+  // each day has heavy discovery + split tracks + photo spots + transport.
+  // Bumped tokensPerDay floor from 10K → 13K (single-city) and 11K → 14K
+  // (multi-city). Per-chunk floor bumped 36K → 48K when 2+ discovery priorities,
+  // 12K → 24K otherwise.
   const inboundPriorities = Array.isArray(body.priorities) ? (body.priorities as string[]) : [];
   const discoveryPriorityCount = ['food', 'nightlife', 'shopping'].filter(p => inboundPriorities.includes(p)).length;
   const tokensPerDay = isMultiCity
-    ? 11000 + discoveryPriorityCount * 1000
-    : 10000 + discoveryPriorityCount * 1000;
+    ? 14000 + discoveryPriorityCount * 1000
+    : 13000 + discoveryPriorityCount * 1000;
   // Per-chunk floor needs to clear the worst-case 3-day discovery chunk
-  // (~13K × 3 = 39K) — bump from 12000 to 36000 when chunked, otherwise
-  // any 3-day chunk with all three discovery priorities truncates.
+  // (~16K × 3 = 48K) so even maxed-out priority days finish.
   const chunkFloor = citySegment
-    ? (discoveryPriorityCount >= 2 ? 36000 : 12000)
-    : 24000;
+    ? (discoveryPriorityCount >= 2 ? 48000 : 24000)
+    : 32000;
   const maxTokens = Math.min(64000, Math.max(chunkFloor, resolvedTripLength * tokensPerDay));
 
   // Use pre-fetched places from client if available (they were fetched on Step 8 / Review),
@@ -1628,6 +1633,12 @@ export async function POST(request: NextRequest) {
       const restLines = citySegment.excludeRestaurants.map(v => `- ${v}`).join('\n');
       finalPrompt += `\n\nNEVER REUSE THESE RESTAURANTS — these specific restaurants, cafes, bars-with-food, and food venues have ALREADY been suggested on earlier days. Every breakfast, lunch, dinner, and foodieTip on the new days MUST be a venue NOT in this list. Pick different neighborhoods if necessary to find fresh options. Match by name regardless of spelling/capitalization differences:\n${restLines}`;
     }
+
+    // Within-chunk no-repeat rule — even without an exclude list (chunk 1
+    // of a long trip), every restaurant on every day of THIS chunk must be
+    // a different venue. Long-trip QA repeatedly showed the same lunch /
+    // breakfast spot reappearing 2-3 days apart inside one segment.
+    finalPrompt += `\n\nWITHIN-CHUNK RESTAURANT DIVERSITY — Across the ${citySegment.dayCount} day${citySegment.dayCount === 1 ? '' : 's'} you generate in THIS response, every restaurant, café, bar with food, bakery, and foodieTip must be a DIFFERENT venue. No venue may appear on two different days (or twice on the same day). If you've used "${citySegment.cityName}'s best ramen spot" on day ${citySegment.dayStart}, you MUST pick a different ramen spot — or a different cuisine entirely — for the next day. Treat this as a hard constraint equal in weight to the "ALREADY USED" list above.`;
   }
 
   // ── Open SSE stream ──────────────────────────────────────────────────────────

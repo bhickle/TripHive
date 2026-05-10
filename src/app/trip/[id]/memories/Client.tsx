@@ -788,9 +788,20 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   try {
                     const timestamp = Date.now() + i;
                     const path = `${params.id}/${timestamp}-${file.name}`;
-                    const { error: uploadError, data } = await supabase.storage
+
+                    // Hard timeout on the storage upload so a hung connection
+                    // (CORS, network glitch, Supabase outage) doesn't strand
+                    // the progress bar at the ticker's target (the 29% / 88%
+                    // sticking points QA 5/10 reproduced). 60s is generous
+                    // enough for slow phone uploads of large images.
+                    type UploadResult = Awaited<ReturnType<typeof supabase.storage.from>['upload'] extends (...args: never[]) => infer R ? R : never>;
+                    const uploadPromise = supabase.storage
                       .from('trip-photos')
                       .upload(path, file, { upsert: true });
+                    const timeoutPromise = new Promise<UploadResult>((_, reject) =>
+                      setTimeout(() => reject(new Error('Upload timed out after 60s')), 60_000),
+                    );
+                    const { error: uploadError, data } = await Promise.race([uploadPromise, timeoutPromise]);
                     clearInterval(ticker);
                     if (uploadError || !data) {
                       console.error('[memories] storage upload failed:', file.name, uploadError);

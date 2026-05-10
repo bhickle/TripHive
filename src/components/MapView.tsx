@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Navigation, Star, Utensils, Car, Bus, Train, Ticket, X, ExternalLink } from 'lucide-react';
+import { MapPin, Navigation, Star, Utensils, Car, Bus, Train, Ticket, X, ExternalLink, Hotel } from 'lucide-react';
 import type { Activity, TransportLeg } from '@/lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -9,12 +9,17 @@ import type { Activity, TransportLeg } from '@/lib/types';
 interface MapViewProps {
   activities: Activity[];
   transportLegs?: TransportLeg[];
+  /** Booked hotels from the trip — each gets its own pin on the map so the
+   *  user can see where they're staying relative to the day's activities.
+   *  QA 5/10 ask: "I entered the address, it would be sick if it mapped the
+   *  hotel in the map or route, when applicable." */
+  hotels?: Array<{ name: string; address?: string }>;
   destination: string;
 }
 
 interface PinData {
   id: string;
-  kind: 'activity' | 'transport';
+  kind: 'activity' | 'transport' | 'hotel';
   label: string;
   sublabel?: string;
   timeSlot?: string;
@@ -39,6 +44,13 @@ const MOCK_LAYOUTS: [number, number][] = [
 
 const TRANSPORT_POSITIONS: [number, number][] = [
   [20, 25], [75, 45], [48, 68], [30, 50],
+];
+
+// Distinct positions for hotel pins — picked off the activity grid so they
+// stand out from the day's stops. Cap at 4 hotels per day; multi-hotel
+// trips beyond that are rare and the chrome would stack.
+const HOTEL_POSITIONS: [number, number][] = [
+  [50, 50], [25, 65], [78, 70], [55, 88],
 ];
 
 // ─── Pin icon factory ─────────────────────────────────────────────────────────
@@ -110,7 +122,7 @@ function PinTooltip({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function MapView({ activities, transportLegs = [], destination }: MapViewProps) {
+export function MapView({ activities, transportLegs = [], hotels = [], destination }: MapViewProps) {
   const [selectedPin, setSelectedPin] = useState<string | null>(null);
   const [hasKey, setHasKey] = useState(false);
 
@@ -148,7 +160,22 @@ export function MapView({ activities, transportLegs = [], destination }: MapView
     };
   });
 
-  const allPins = [...activityPins, ...transportPins];
+  const hotelPins: PinData[] = hotels
+    .filter(h => h.name)
+    .slice(0, HOTEL_POSITIONS.length)
+    .map((h, i) => {
+      const [x, y] = HOTEL_POSITIONS[i];
+      return {
+        id: `hotel_${i}_${h.name}`,
+        kind: 'hotel' as const,
+        label: h.name,
+        sublabel: h.address ?? 'Where you\'re staying',
+        address: h.address ?? h.name,
+        x, y,
+      };
+    });
+
+  const allPins = [...activityPins, ...transportPins, ...hotelPins];
 
   // Legend
   const hasRestaurants = activityPins.some((p) => p.isRestaurant);
@@ -198,9 +225,12 @@ export function MapView({ activities, transportLegs = [], destination }: MapView
         {allPins.map((pin) => {
           const isSelected = selectedPin === pin.id;
 
-          const colorCfg = pin.kind === 'transport' && pin.transportType
-            ? getTransportColor(pin.transportType)
-            : getActivityColor({ isRestaurant: pin.isRestaurant, priceLevel: 1 } as Activity);
+          const hotelColor = { bg: 'bg-rose-600', text: 'text-rose-700', ring: 'ring-rose-200', tooltip: 'bg-rose-50 border-rose-200' };
+          const colorCfg = pin.kind === 'hotel'
+            ? hotelColor
+            : pin.kind === 'transport' && pin.transportType
+              ? getTransportColor(pin.transportType)
+              : getActivityColor({ isRestaurant: pin.isRestaurant, priceLevel: 1 } as Activity);
 
           return (
             <div
@@ -224,10 +254,12 @@ export function MapView({ activities, transportLegs = [], destination }: MapView
                 className={`relative group flex items-center justify-center rounded-full shadow-lg transition-all duration-150 ring-2 ${
                   isSelected ? `scale-125 ring-4 ${colorCfg.ring}` : `ring-white hover:scale-110`
                 } ${
-                  pin.kind === 'transport' ? 'w-8 h-8' : 'w-7 h-7'
+                  pin.kind === 'transport' || pin.kind === 'hotel' ? 'w-8 h-8' : 'w-7 h-7'
                 } ${colorCfg.bg}`}
               >
-                {pin.kind === 'transport' && pin.transportType ? (
+                {pin.kind === 'hotel' ? (
+                  <Hotel className="w-4 h-4 text-white" />
+                ) : pin.kind === 'transport' && pin.transportType ? (
                   <span className="text-white">
                     {getTransportColor(pin.transportType).icon}
                   </span>
