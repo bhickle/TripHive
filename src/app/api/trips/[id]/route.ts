@@ -85,7 +85,26 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount, pendingPrefsCount });
+    // ── organizerTier ─────────────────────────────────────────────────────────
+    // Drives the "Trip Pass overlay" in useEntitlements: when the trip's
+    // organizer is on a paid plan (Trip Pass / Explorer / Nomad), every joinee
+    // gets the Trip Pass-level trip-scoped features (expenses, split tracks,
+    // transport parser, co-organizer) regardless of their own subscription.
+    // Higher-tier perks (receipt scan, AI packing/phrasebook) stay user-scoped.
+    let organizerTier: 'free' | 'trip_pass' | 'explorer' | 'nomad' = 'free';
+    if (trip.organizer_id) {
+      const { data: organizerProfile } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', trip.organizer_id)
+        .maybeSingle();
+      const t = organizerProfile?.subscription_tier;
+      if (t === 'trip_pass' || t === 'explorer' || t === 'nomad') {
+        organizerTier = t;
+      }
+    }
+
+    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount, pendingPrefsCount, organizerTier });
   } catch (err) {
     console.error('Load trip error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });

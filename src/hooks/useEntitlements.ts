@@ -101,10 +101,37 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useEntitlements(tripId?: string) {
+/**
+ * @param tripId        Active trip context (enables Trip Pass overlay logic).
+ * @param organizerTier Subscription tier of the trip's organizer. When the
+ *                      organizer is on any paid plan (Trip Pass / Explorer /
+ *                      Nomad), every joinee on the trip gets the trip-scoped
+ *                      Trip Pass features (expenses, split tracks, transport
+ *                      parser, co-organizer) on that trip — regardless of
+ *                      the joinee's own subscription. Trip Pass is the group-
+ *                      trip "starter pack"; once the organizer pays for any
+ *                      plan, the group-coordination features unlock for
+ *                      everyone on that specific trip.
+ *
+ *                      Higher-tier perks (Nomad's receipt scan, AI packing,
+ *                      AI phrasebook) are NOT included in the overlay —
+ *                      those stay strictly user-scoped.
+ *
+ *                      Pass `undefined` (or omit) for non-trip contexts like
+ *                      the dashboard, where the user's own tier is the only
+ *                      relevant axis.
+ */
+export function useEntitlements(tripId?: string, organizerTier?: SubscriptionTier) {
   const user = useCurrentUser();
   const tier = (user.subscriptionTier ?? 'free') as SubscriptionTier;
   const limits = TIER_LIMITS[tier];
+
+  // Trip Pass overlay: the trip's organizer paid for at least Trip Pass, so
+  // group-coordination features unlock on this trip. The `tripId` guard makes
+  // the overlay only apply in trip contexts; on the dashboard, organizerTier
+  // shouldn't be passed.
+  const tripPassUnlocked = !!tripId && (organizerTier === 'trip_pass' || organizerTier === 'explorer' || organizerTier === 'nomad');
+  const tripPassFeatures = TIER_LIMITS.trip_pass;
 
   // True once we know the user's real tier. While the profile is still loading
   // from Supabase, we must NOT gate features — otherwise paid users (like Nomad/
@@ -234,16 +261,27 @@ export function useEntitlements(tripId?: string) {
     tripPassExtraPeopleCost,
     tripPassTotalCost,
     // Shorthand flags (for simple conditional rendering)
-    // All return true while loading to prevent false lockouts for paid users
+    // All return true while loading to prevent false lockouts for paid users.
+    //
+    // Trip-scoped features (overlay applies): hasExpenses, hasSplitTracks,
+    // hasCoOrganizer, hasTransportParser. These unlock when the trip's
+    // organizer is on any paid plan, even if the caller is free-tier.
+    //
+    // User-scoped features (no overlay): hasWishlist, hasYearInReview,
+    // hasTripStory, hasEarlyAccess. Stay on the caller's own tier.
+    //
+    // Higher-tier-only features (no overlay): hasAIReceiptScan, hasAIPacking,
+    // hasAIPhrasebook. Trip Pass doesn't include these, so the overlay logic
+    // wouldn't grant them anyway — stay on the caller's own tier.
     hasTripStory: !entitlementsReady || limits.canUseTripStory,
     hasYearInReview: !entitlementsReady || limits.canUseYearInReview,
-    hasTransportParser: !entitlementsReady || limits.canUseTransportParser,
-    hasSplitTracks: !entitlementsReady || limits.canUseSplitTracks,
-    hasCoOrganizer: !entitlementsReady || limits.canAddCoOrganizer,
+    hasTransportParser: !entitlementsReady || limits.canUseTransportParser || (tripPassUnlocked && tripPassFeatures.canUseTransportParser),
+    hasSplitTracks: !entitlementsReady || limits.canUseSplitTracks || (tripPassUnlocked && tripPassFeatures.canUseSplitTracks),
+    hasCoOrganizer: !entitlementsReady || limits.canAddCoOrganizer || (tripPassUnlocked && tripPassFeatures.canAddCoOrganizer),
     hasWishlist: !entitlementsReady || limits.canUseWishlist,
     hasAIPacking: !entitlementsReady || limits.canUseAIPacking,
     hasAIPhrasebook: !entitlementsReady || limits.canUseAIPhrasebook,
-    hasExpenses: !entitlementsReady || limits.canUseExpenses,
+    hasExpenses: !entitlementsReady || limits.canUseExpenses || (tripPassUnlocked && tripPassFeatures.canUseExpenses),
     hasAIReceiptScan: !entitlementsReady || limits.canUseAIReceiptScan,
     hasEarlyAccess: !entitlementsReady || limits.earlyAccess,
     maxTripDays: limits.maxTripDays,

@@ -388,7 +388,12 @@ function ItineraryPageContent() {
   const [flightFormRetDepTime, setFlightFormRetDepTime] = useState('');
   const [flightFormRetArrTime, setFlightFormRetArrTime] = useState('');
 
-  const { tier, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements();
+  // organizerTier drives the Trip Pass overlay in useEntitlements (declared
+  // here ahead of useEntitlements; the trip-load effect populates it once
+  // /api/trips/[id] returns).
+  const [organizerTier, setOrganizerTier] = useState<'free' | 'trip_pass' | 'explorer' | 'nomad' | undefined>(undefined);
+
+  const { tier, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements(params.id, organizerTier);
   const currentUser = useCurrentUser();
   const router = useRouter();
 
@@ -701,10 +706,11 @@ function ItineraryPageContent() {
         try {
           const res = await fetch(`/api/trips/${tripPageId}`);
           if (res.ok) {
-            const { trip: tripData, itinerary, newPrefsCount: npc, pendingPrefsCount: ppc } = await res.json();
+            const { trip: tripData, itinerary, newPrefsCount: npc, pendingPrefsCount: ppc, organizerTier: ot } = await res.json();
             if (tripData) setTripRow(tripData);
             if (typeof npc === 'number') setNewPrefsCount(npc);
             if (typeof ppc === 'number') setPendingPrefsCount(ppc);
+            if (ot === 'free' || ot === 'trip_pass' || ot === 'explorer' || ot === 'nomad') setOrganizerTier(ot);
             if (itinerary && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
               syncAiDays(itinerary.days);
               if (itinerary.meta) {
