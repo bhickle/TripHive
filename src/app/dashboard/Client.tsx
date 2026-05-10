@@ -113,6 +113,7 @@ export default function DashboardPage() {
             cover_image_meta?: { photographer?: string | null; photographerUrl?: string | null; photoUrl?: string | null; downloadLocation?: string | null } | null;
             budget_total?: number;
             cities?: string[];
+            visited_cities?: string[];
           };
           const rows: TripRow[] = trips;
           setUserTrips(rows.map(t => ({
@@ -134,6 +135,7 @@ export default function DashboardPage() {
             memberCount: Math.max(1, t.group_size ?? 1),
             guestCount: 0,
             cities: t.cities ?? [],
+            visitedCities: t.visited_cities ?? [],
           })));
         }
       })
@@ -325,23 +327,26 @@ export default function DashboardPage() {
 
   const totalTrips = allTrips.length;
   // "Places Visited" reflects every distinct city the user has been to on
-  // completed trips. Primary source is `cities[]` per trip, derived server-
-  // side from `itineraries.days[].city` — that captures multi-city legs and
-  // side-trips (Versailles day from a Paris trip, Florence leg of a Rome
-  // trip) that the parent destination string can't express.
-  //
-  // Fallback for trips without a generated itinerary: first comma segment of
-  // the destination string ("Pittsburgh, PA, USA" → "Pittsburgh"). Single-
-  // segment freeform entries ("Pacific Northwest") count as themselves.
+  // completed trips. Source preference (truth → fallback):
+  //   1. visitedCities — user-tagged "where we actually went," highest signal.
+  //      Wins over the AI plan because trips can deviate from the itinerary.
+  //   2. cities — AI-planned per-day city tags, captures multi-city legs and
+  //      side-trips (Versailles day from a Paris trip, Florence leg of a
+  //      Rome trip) that the parent destination string can't express.
+  //   3. destination.split(',')[0] — last-resort fallback for trips without
+  //      an itinerary or user-tagged data ("Pittsburgh, PA, USA" → "Pittsburgh").
+  //      Single-segment freeform entries ("Pacific Northwest") count as themselves.
   //
   // No home-country exclusion — places celebrate where you've been, including
   // domestic trips. The home_country profile field is preserved for other uses.
   const placesVisited = new Set<string>();
   for (const t of allTrips) {
     if (t.status !== 'completed') continue;
-    const tripCities: string[] = Array.isArray(t.cities) ? t.cities : [];
-    if (tripCities.length > 0) {
-      for (const c of tripCities) {
+    const userTagged: string[] = Array.isArray(t.visitedCities) ? t.visitedCities : [];
+    const aiPlanned: string[] = Array.isArray(t.cities) ? t.cities : [];
+    const source = userTagged.length > 0 ? userTagged : aiPlanned;
+    if (source.length > 0) {
+      for (const c of source) {
         const trimmed = (c ?? '').trim();
         if (trimmed) placesVisited.add(trimmed);
       }

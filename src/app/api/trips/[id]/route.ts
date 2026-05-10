@@ -118,6 +118,7 @@ export async function PATCH(
         is_public_template?: boolean;
         cover_image?: string | null;
         cover_image_meta?: Json | null;
+        visited_cities?: string[];
       };
     };
 

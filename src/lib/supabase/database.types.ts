@@ -1094,6 +1094,7 @@ export type Database = {
           title: string
           trip_length: number
           updated_at: string
+          visited_cities: string[]
         }
         Insert: {
           booked_flight?: Json | null
@@ -1119,6 +1120,7 @@ export type Database = {
           title?: string
           trip_length?: number
           updated_at?: string
+          visited_cities?: string[]
         }
         Update: {
           booked_flight?: Json | null
@@ -1144,6 +1146,7 @@ export type Database = {
           title?: string
           trip_length?: number
           updated_at?: string
+          visited_cities?: string[]
         }
         Relationships: [
           {
