@@ -872,7 +872,7 @@ export default function SettingsPage() {
                           placeholder="e.g. United States"
                           className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
                         />
-                        <p className="text-xs text-slate-400 mt-1">Trips to your home country won&apos;t count toward &quot;Countries Visited&quot; on the dashboard.</p>
+                        <p className="text-xs text-slate-400 mt-1">Used for trip personalization. Doesn&apos;t affect the Places Visited count.</p>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-2">Default travel partner</label>

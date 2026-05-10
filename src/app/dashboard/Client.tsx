@@ -112,6 +112,7 @@ export default function DashboardPage() {
             cover_image?: string | null;
             cover_image_meta?: { photographer?: string | null; photographerUrl?: string | null; photoUrl?: string | null; downloadLocation?: string | null } | null;
             budget_total?: number;
+            cities?: string[];
           };
           const rows: TripRow[] = trips;
           setUserTrips(rows.map(t => ({
@@ -132,6 +133,7 @@ export default function DashboardPage() {
             // Use group_size from the trip builder as the traveler count
             memberCount: Math.max(1, t.group_size ?? 1),
             guestCount: 0,
+            cities: t.cities ?? [],
           })));
         }
       })
@@ -322,40 +324,33 @@ export default function DashboardPage() {
     });
 
   const totalTrips = allTrips.length;
-  // "Countries Visited" should reflect places you've actually been — count
-  // only trips with status === 'completed'. Country = LAST comma segment
-  // (handles "City, State, Country" three-segment forms like "Pittsburgh,
-  // PA, USA" — earlier code grabbed [1] and counted state codes as countries).
-  // Single-segment destinations ("California", "Pacific Northwest") drop out.
+  // "Places Visited" reflects every distinct city the user has been to on
+  // completed trips. Primary source is `cities[]` per trip, derived server-
+  // side from `itineraries.days[].city` — that captures multi-city legs and
+  // side-trips (Versailles day from a Paris trip, Florence leg of a Rome
+  // trip) that the parent destination string can't express.
   //
-  // Home country exclusion uses an alias map so "USA" / "U.S." / "America"
-  // all collapse to "united states" before comparison with the stored value.
-  const COUNTRY_ALIASES: Record<string, string> = {
-    'usa': 'united states',
-    'u.s.a.': 'united states',
-    'u.s.': 'united states',
-    'us': 'united states',
-    'america': 'united states',
-    'uk': 'united kingdom',
-    'u.k.': 'united kingdom',
-    'great britain': 'united kingdom',
-    'england': 'united kingdom',
-  };
-  const normalizeCountry = (c: string): string => {
-    const lower = c.trim().toLowerCase();
-    return COUNTRY_ALIASES[lower] ?? lower;
-  };
-  const homeCountryNormalised = normalizeCountry(currentUser.homeCountry ?? '');
-  const countriesVisited = new Set(
-    allTrips
-      .filter((t) => t.status === 'completed')
-      .map((t) => {
-        const parts = (t.destination as string).split(',').map((s: string) => s.trim()).filter(Boolean);
-        return parts.length >= 2 ? normalizeCountry(parts[parts.length - 1]) : undefined;
-      })
-      .filter(Boolean)
-      .filter((c) => !homeCountryNormalised || c !== homeCountryNormalised)
-  ).size;
+  // Fallback for trips without a generated itinerary: first comma segment of
+  // the destination string ("Pittsburgh, PA, USA" → "Pittsburgh"). Single-
+  // segment freeform entries ("Pacific Northwest") count as themselves.
+  //
+  // No home-country exclusion — places celebrate where you've been, including
+  // domestic trips. The home_country profile field is preserved for other uses.
+  const placesVisited = new Set<string>();
+  for (const t of allTrips) {
+    if (t.status !== 'completed') continue;
+    const tripCities: string[] = Array.isArray(t.cities) ? t.cities : [];
+    if (tripCities.length > 0) {
+      for (const c of tripCities) {
+        const trimmed = (c ?? '').trim();
+        if (trimmed) placesVisited.add(trimmed);
+      }
+    } else {
+      const fallback = ((t.destination as string) ?? '').split(',')[0]?.trim();
+      if (fallback) placesVisited.add(fallback);
+    }
+  }
+  const placesVisitedCount = placesVisited.size;
   // Only count days from trips you've actually completed — not planning/future trips.
   // Prefer the builder-selected trip length over date-diff: for flexible-date trips
   // the stored dates span the availability window, not the actual trip duration.
@@ -648,15 +643,15 @@ export default function DashboardPage() {
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Adventures Planned</p>
             </div>
 
-            {/* Countries Card */}
+            {/* Places Card */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <div className="flex justify-center mb-2 md:mb-3">
                 <Globe className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
               <p className="text-2xl md:text-4xl font-script italic font-semibold text-zinc-900">
-                {countriesVisited}
+                {placesVisitedCount}
               </p>
-              <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Countries Visited</p>
+              <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Places Visited</p>
             </div>
 
             {/* Days Card */}

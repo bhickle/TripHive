@@ -80,7 +80,7 @@ export async function GET() {
       allTripRows.map(t => t.organizer_id).filter((id): id is string => !!id),
     ));
 
-    const [membersRes, organizersRes] = await Promise.all([
+    const [membersRes, organizersRes, itinerariesRes] = await Promise.all([
       supabase
         .from('trip_members')
         .select('trip_id, name, email, role')
@@ -91,6 +91,15 @@ export async function GET() {
             .select('id, name, email')
             .in('id', allOrganizerIds)
         : Promise.resolve({ data: [] as Array<{ id: string; name: string | null; email: string | null }> }),
+      // Pull `days` so we can derive a per-trip `cities[]` for the dashboard's
+      // "Places Visited" stat. The AI generation tags every day with `city`,
+      // which captures multi-city legs and side-trips (Versailles day from a
+      // Paris trip, Florence leg of a Rome trip) that the parent destination
+      // string can't express.
+      supabase
+        .from('itineraries')
+        .select('trip_id, days')
+        .in('trip_id', allTripIds),
     ]);
 
     const membersByTrip = new Map<string, Array<{ name?: string | null; email?: string | null }>>();
@@ -107,6 +116,17 @@ export async function GET() {
 
     const memberRoleByTrip = new Map<string, string>();
     for (const m of memberRows) memberRoleByTrip.set(m.trip_id, m.role);
+
+    const citiesByTrip = new Map<string, string[]>();
+    for (const row of itinerariesRes.data ?? []) {
+      const days = (row.days ?? []) as Array<{ city?: string | null }>;
+      const seen = new Set<string>();
+      for (const d of days) {
+        const c = d?.city?.trim();
+        if (c) seen.add(c);
+      }
+      if (seen.size > 0) citiesByTrip.set(row.trip_id, Array.from(seen));
+    }
 
     const trips = allTripRows.map(t => {
       const isOwner = t.organizer_id === userId;
@@ -125,6 +145,7 @@ export async function GET() {
         organizerName: organizer?.name ?? null,
         organizerEmail: organizer?.email ?? null,
         memberNames,
+        cities: citiesByTrip.get(t.id) ?? [],
       };
     });
 
