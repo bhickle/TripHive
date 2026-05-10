@@ -692,7 +692,13 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         return true;
       });
 
-      if (unique.length === 0) throw new Error('No phrasebooks generated');
+      if (unique.length === 0) {
+        // Most common cause: AI returned an empty array for an English-speaking
+        // destination (Glasgow, Dublin, Sydney). The prompt now explicitly
+        // asks for regional vocabulary so this should not happen — surface a
+        // clearer message if it does so the user knows to try again.
+        throw new Error("Couldn't build a phrasebook for this destination — tap Try Again, or skip this tab if your destination is English-speaking.");
+      }
       setPhrasebooks(unique);
       setActivePhrasebook(0);
       if (unique[0].categories?.length > 0) {

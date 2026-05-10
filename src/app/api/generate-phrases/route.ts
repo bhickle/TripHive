@@ -53,6 +53,17 @@ Each phrase object: { "id": "g1", "english": "Hello", "local": "...", "phonetic"
 Each category must have 6-8 phrases.
 Phonetics should be simple, readable English approximations that a tourist can pronounce without training.
 Tips should be brief and practical (1 sentence max). Include a tip only when genuinely useful.
+
+CRITICAL — ALWAYS produce a phrasebook, even for English-speaking destinations.
+If the primary local language is English (UK, Ireland, USA, Canada, Australia, NZ, etc.), still build the same 6 categories — but populate them with genuinely useful regional vocabulary, slang, and customs the visitor will encounter. Examples:
+  - Scotland: "wee" (small), "aye/nae" (yes/no), "ken" (know), "lassie/laddie" (girl/boy), "blether" (chat), "haud yer wheesht" (be quiet), pub etiquette, ordering at the bar
+  - England: "cheers" (thanks/bye), "queue" (line), "loo" (bathroom), "knackered" (tired), "fancy a..." (would you like), regional accents
+  - Ireland: "craic" (fun), "grand" (fine), "yer man" (that guy), "fair play" (well done)
+  - Australia: "arvo" (afternoon), "mate", "no worries", "g'day", "she'll be right"
+  - NZ: "sweet as", "chur" (thanks), "jandals" (flip-flops)
+  - USA / Canada regions: regional terms ("y'all", "sub vs hoagie", "pop vs soda"), tipping etiquette, checks vs bills
+For an English destination, "english" and "local" can be similar but the "local" field captures the regional phrasing the visitor will actually hear. The "tip" field becomes essential — explain the cultural context.
+NEVER return an empty array, an empty object, or a refusal — always return the JSON shape with all 6 categories filled.
 ${isMultiCountry ? 'IMPORTANT: When multiple countries share a language (e.g. Austria and Switzerland both use German), generate ONE entry per distinct language, not per country. Label the destination as the primary country for that language.' : ''}`;
 }
 

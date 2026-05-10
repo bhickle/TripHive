@@ -950,15 +950,25 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   };
 
   const calculateExpenses = () => {
+    // Total Spent shows lifetime trip total — settled + unsettled — so the
+    // user can always see the full $ they spent on the trip.
     const totalSpent = allExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-    // owedByName: how much each person owes (their share of all expenses)
+
+    // Balances and Suggested Payments must reflect ONLY unsettled expenses.
+    // Brandon QA 5/10: $500 in prior expenses paid by Mallory + Luke owed
+    // $250. User clicked Mark Paid (which sets settled=true on those rows).
+    // Expectation: balances clear to zero. New $200 expense by Luke (equal
+    // split) → Mallory owes Luke $100. Bug: this loop ran over ALL expenses
+    // regardless of settled flag, so the $250 prior balance stayed in the
+    // math; ($500+$200)/2 = $350 each → Mallory +$150, Luke -$150.
     const owedByName: Record<string, number> = {};
-    // paidByName: how much each person has paid out
     const paidByName: Record<string, number> = {};
 
     groupMembers.forEach((m) => { owedByName[m.name] = 0; paidByName[m.name] = 0; });
 
-    allExpenses.forEach((exp) => {
+    const unsettledExpenses = allExpenses.filter(e => !(e as { settled?: boolean }).settled);
+
+    unsettledExpenses.forEach((exp) => {
       const paidByCanonical = canonicaliseName(exp.paidBy);
       paidByName[paidByCanonical] = (paidByName[paidByCanonical] || 0) + exp.amount;
 
