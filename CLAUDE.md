@@ -206,6 +206,7 @@ Claude cannot set these — Brandon must add them manually.
 | `GOOGLE_MAPS_KEY` | ✅ Set | Server-side Places API |
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | ✅ Set | Client-side Maps embed |
 | `NEXT_PUBLIC_APP_URL` | ✅ Set | https://www.tripcoord.ai |
+| `PREVIEW_SECRET` | ❌ Missing | Coming-soon bypass — `?preview=<value>` sets a 90-day cookie. Without this set in Vercel, the query-string path is denied (cookie path still works for users who already have it). Currently `tc2026` per Brandon's choice; rotate before public launch since the value lived in git history. |
 | `UNSPLASH_ACCESS_KEY` | ❌ Missing | Dynamic trip card photos (#78) |
 | `TICKETMASTER_API_KEY` | ❌ Missing | Real events data (#69) |
 | `VIATOR_AFFILIATE_ID` | ❌ Missing | Affiliate booking links (#70) |
