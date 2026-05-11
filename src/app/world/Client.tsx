@@ -1,0 +1,452 @@
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
+import { Globe, Share2, Loader2, Lock, Crown } from 'lucide-react';
+import { Sidebar } from '@/components/Sidebar';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import type { BadgeProgress } from '@/lib/world/badges';
+
+// Public world TopoJSON — 110m resolution, ~100KB. Same dataset
+// react-simple-maps documentation recommends; served via the npm
+// world-atlas package CDN so we don't have to host or commit it.
+const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+interface WorldData {
+  stats: {
+    totalCities: number;
+    totalCountries: number;
+    totalContinents: number;
+    daysAbroad: number;
+  };
+  countries: Array<{ name: string; id: string | null; visitCount: number }>;
+  cities: Array<{ name: string; lon: number; lat: number; country: string | null; visitCount: number }>;
+  continents: Record<string, { visited: number; total: number }>;
+  badges: BadgeProgress[];
+  stamps: Array<{
+    tripId: string;
+    destination: string;
+    date: string | null;
+    emoji: string;
+    vibe: string;
+    color: string;
+  }>;
+}
+
+// Gradient sky-shade per visit count. 1 visit = pale sky-300, 2 = sky-500,
+// 3+ = sky-800. Matches the rest of the app's sky-leaning palette.
+function fillForVisits(count: number): string {
+  if (count >= 3) return '#075985'; // sky-800
+  if (count === 2) return '#0284c7'; // sky-600
+  if (count === 1) return '#7dd3fc'; // sky-300
+  return '#f1f5f9'; // slate-100 — unvisited
+}
+
+const TIER_STYLES: Record<string, { card: string; label: string; emoji: string }> = {
+  common:    { card: 'border-emerald-200', label: 'text-emerald-700', emoji: '' },
+  rare:      { card: 'border-sky-200',     label: 'text-sky-700',     emoji: '' },
+  epic:      { card: 'border-amber-200',   label: 'text-amber-700',   emoji: '' },
+  legendary: { card: 'border-violet-300 bg-gradient-to-br from-violet-50 to-amber-50', label: 'text-violet-700', emoji: '✨' },
+};
+
+const STAMP_COLOR_STYLES: Record<string, string> = {
+  rose:    'text-rose-600',
+  violet:  'text-violet-600',
+  amber:   'text-amber-700',
+  emerald: 'text-emerald-600',
+  orange:  'text-orange-600',
+  sky:     'text-sky-700',
+  pink:    'text-pink-600',
+  slate:   'text-slate-600',
+};
+
+export default function WorldClient() {
+  const currentUser = useCurrentUser();
+  const router = useRouter();
+  const { tier } = useEntitlements();
+  const [data, setData] = useState<WorldData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [hoveredCountry, setHoveredCountry] = useState<{ id: string; name: string; count: number } | null>(null);
+  const [hoveredCity, setHoveredCity] = useState<{ name: string; lon: number; lat: number; country: string | null; visitCount: number } | null>(null);
+
+  // Redirect unauthenticated visitors to login.
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace('/auth/login');
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
+
+  useEffect(() => {
+    if (currentUser.isLoading) return;
+    if (!currentUser.id || currentUser.isDemo) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(false);
+    fetch('/api/world')
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`status ${r.status}`)))
+      .then((d: WorldData) => setData(d))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [currentUser.id, currentUser.isLoading, currentUser.isDemo]);
+
+  const countryById = useMemo(() => {
+    const m = new Map<string, { name: string; visitCount: number }>();
+    if (!data) return m;
+    for (const c of data.countries) {
+      if (c.id) m.set(c.id, { name: c.name, visitCount: c.visitCount });
+    }
+    return m;
+  }, [data]);
+
+  // Order continents the same way they read on a globe — Americas → Europe →
+  // Africa → Asia → Oceania.
+  const continentOrder = ['North America', 'South America', 'Europe', 'Africa', 'Asia', 'Oceania'];
+  const sortedContinents = useMemo(() => {
+    if (!data) return [];
+    return continentOrder.map(name => ({
+      name,
+      visited: data.continents[name]?.visited ?? 0,
+      total: data.continents[name]?.total ?? 0,
+    }));
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nextGapNudge = useMemo(() => {
+    if (!data) return null;
+    // Suggest the continent with the smallest visit count that has 0-1 trips.
+    const candidate = sortedContinents
+      .filter(c => c.visited <= 1)
+      .sort((a, b) => a.visited - b.visited)[0];
+    if (!candidate) return null;
+    if (candidate.visited === 0) {
+      return `${candidate.name} is uncharted — pick a starter country and call it a vibe shift.`;
+    }
+    return `${candidate.name} is calling — you've touched 1 country, here's the rest of the continent.`;
+  }, [sortedContinents, data]);
+
+  const earnedBadges = data?.badges.filter(b => b.earned) ?? [];
+  const lockedBadges = data?.badges.filter(b => !b.earned) ?? [];
+
+  return (
+    <div className="flex h-screen bg-parchment">
+      <Sidebar activePage="world" user={currentUser} />
+
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+
+          {/* Page header */}
+          <header className="mb-8">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">Your Travel Story</p>
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <h1 className="text-4xl font-script italic font-semibold tracking-tight text-zinc-900">My World</h1>
+              <button
+                className="bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-700 font-semibold px-4 py-2 rounded-full text-sm inline-flex items-center gap-2 transition-colors disabled:opacity-50"
+                disabled
+                title="Coming soon — share a snapshot of your map"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                Share my map
+              </button>
+            </div>
+          </header>
+
+          {loading && (
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-12 text-center">
+              <Loader2 className="w-8 h-8 text-sky-700 animate-spin mx-auto mb-3" />
+              <p className="text-sm text-zinc-500">Plotting your travels…</p>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center">
+              <p className="text-sm text-rose-800">Couldn&apos;t load your map data. Try refreshing.</p>
+            </div>
+          )}
+
+          {!loading && data && (
+            <>
+              {/* Stats strip */}
+              <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                  <p className="text-3xl md:text-4xl font-script italic font-semibold text-zinc-900">{data.stats.totalCities}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Cities Visited</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                  <p className="text-3xl md:text-4xl font-script italic font-semibold text-zinc-900">{data.stats.totalCountries}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Countries</p>
+                  <div className="mt-1.5 h-1 bg-zinc-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-sky-700 rounded-full" style={{ width: `${Math.min((data.stats.totalCountries / 195) * 100, 100)}%` }} />
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">of 195</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                  <p className="text-3xl md:text-4xl font-script italic font-semibold text-zinc-900">{data.stats.totalContinents}<span className="text-base text-zinc-400">/7</span></p>
+                  <p className="text-xs text-zinc-500 mt-1">Continents</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                  <p className="text-3xl md:text-4xl font-script italic font-semibold text-zinc-900">{data.stats.daysAbroad}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Days Abroad</p>
+                  {data.stats.daysAbroad > 0 && (
+                    <p className="text-[10px] text-zinc-400 mt-0.5">≈ {(data.stats.daysAbroad * 24).toLocaleString()} hours</p>
+                  )}
+                </div>
+              </section>
+
+              {/* Map */}
+              <section className="mb-8">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h2 className="text-lg font-semibold text-zinc-900">Where you&apos;ve been</h2>
+                  <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#7dd3fc' }} /> 1 visit
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#0284c7' }} /> 2 visits
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#075985' }} /> 3+ visits
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden relative">
+                  <ComposableMap
+                    projection="geoEqualEarth"
+                    projectionConfig={{ scale: 165 }}
+                    style={{ width: '100%', height: 'auto' }}
+                  >
+                    <ZoomableGroup zoom={1} center={[0, 20]}>
+                      <Geographies geography={GEO_URL}>
+                        {({ geographies }: { geographies: Array<{ rsmKey: string; id: string; properties: { name: string } }> }) =>
+                          geographies.map(geo => {
+                            const country = countryById.get(geo.id);
+                            const fill = fillForVisits(country?.visitCount ?? 0);
+                            return (
+                              <Geography
+                                key={geo.rsmKey}
+                                geography={geo}
+                                fill={fill}
+                                stroke="#cbd5e1"
+                                strokeWidth={0.3}
+                                style={{
+                                  default: { outline: 'none' },
+                                  hover: { outline: 'none', fill: country ? '#0c4a6e' : '#e2e8f0', cursor: country ? 'pointer' : 'default' },
+                                  pressed: { outline: 'none' },
+                                }}
+                                onMouseEnter={() => {
+                                  if (country) setHoveredCountry({ id: geo.id, name: country.name, count: country.visitCount });
+                                }}
+                                onMouseLeave={() => setHoveredCountry(null)}
+                              />
+                            );
+                          })
+                        }
+                      </Geographies>
+                      {data.cities.map(city => (
+                        <Marker
+                          key={`${city.name}-${city.lat}-${city.lon}`}
+                          coordinates={[city.lon, city.lat]}
+                          onMouseEnter={() => setHoveredCity(city)}
+                          onMouseLeave={() => setHoveredCity(null)}
+                        >
+                          <circle r={4} fill="#fff" stroke="#0369a1" strokeWidth={2} style={{ cursor: 'pointer' }} />
+                        </Marker>
+                      ))}
+                    </ZoomableGroup>
+                  </ComposableMap>
+
+                  {/* Hover tooltip — bottom-left of map */}
+                  {(hoveredCountry || hoveredCity) && (
+                    <div className="absolute bottom-3 left-3 bg-zinc-900 text-white text-xs px-3 py-2 rounded-lg shadow-lg pointer-events-none">
+                      {hoveredCity ? (
+                        <>
+                          <p className="font-semibold">{hoveredCity.name}</p>
+                          <p className="text-[10px] text-zinc-300">{hoveredCity.country ?? ''}{hoveredCity.country && hoveredCity.visitCount > 1 ? ' · ' : ''}{hoveredCity.visitCount > 1 ? `${hoveredCity.visitCount} visits` : ''}</p>
+                        </>
+                      ) : hoveredCountry && (
+                        <>
+                          <p className="font-semibold">{hoveredCountry.name}</p>
+                          <p className="text-[10px] text-zinc-300">{hoveredCountry.count} {hoveredCountry.count === 1 ? 'visit' : 'visits'}</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Continent progress strip */}
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+                  {sortedContinents.map(c => {
+                    const pct = c.total > 0 ? (c.visited / c.total) * 100 : 0;
+                    const isUntouched = c.visited === 0;
+                    return (
+                      <div key={c.name} className={`bg-white border border-zinc-200 rounded-xl p-3 ${isUntouched ? 'opacity-60' : ''}`}>
+                        <p className="font-semibold text-zinc-700 mb-1">
+                          {c.name} <span className="text-zinc-400 font-normal">{c.visited}/{c.total}</span>
+                        </p>
+                        <div className="h-1 bg-zinc-100 rounded-full overflow-hidden">
+                          {pct > 0 && <div className="h-full bg-sky-700 rounded-full" style={{ width: `${pct}%` }} />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Next-gap nudge */}
+                {nextGapNudge && (
+                  <div className="mt-4 flex items-center gap-3 bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200 rounded-2xl px-5 py-3">
+                    <span className="text-2xl flex-shrink-0">🌎</span>
+                    <p className="text-sm text-zinc-700 leading-snug flex-1">{nextGapNudge}</p>
+                    <Link href="/discover" className="text-xs font-semibold text-sky-800 hover:text-sky-900 whitespace-nowrap">Explore →</Link>
+                  </div>
+                )}
+              </section>
+
+              {/* Passport stamps (Trip Pass+) */}
+              <section className="mb-10">
+                <div className="flex items-end justify-between mb-3 flex-wrap gap-2">
+                  <div>
+                    <h2 className="text-lg font-semibold text-zinc-900">Your Passport</h2>
+                    <p className="text-xs text-zinc-500">One stamp per completed trip · vibe derived from your trip priorities</p>
+                  </div>
+                  {tier === 'free' && (
+                    <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> Trip Pass+
+                    </span>
+                  )}
+                </div>
+                {tier === 'free' && data.stamps.length > 0 ? (
+                  <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center">
+                    <Lock className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+                    <h3 className="font-semibold text-zinc-800 mb-1">Passport is a paid feature</h3>
+                    <p className="text-sm text-zinc-500 mb-4 max-w-xs mx-auto">Collect stamps for every completed trip and watch your passport fill. Available on Trip Pass and above.</p>
+                    <Link href="/pricing" className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm rounded-full transition-colors">
+                      See plans
+                    </Link>
+                  </div>
+                ) : data.stamps.length === 0 ? (
+                  <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center">
+                    <Globe className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+                    <p className="text-sm text-zinc-500">Your first completed trip earns your first stamp. Go somewhere!</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {data.stamps.map((stamp, i) => {
+                      const colorClass = STAMP_COLOR_STYLES[stamp.color] ?? 'text-slate-600';
+                      const rotate = i % 2 === 0 ? 'hover:rotate-1' : 'hover:-rotate-1';
+                      return (
+                        <Link
+                          key={stamp.tripId}
+                          href={`/trip/${stamp.tripId}/itinerary`}
+                          className={`aspect-[3/4] bg-white border-2 border-zinc-200 rounded-xl p-3 flex flex-col items-center justify-center text-center ${rotate} hover:scale-105 hover:shadow-lg transition-all`}
+                        >
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest ${colorClass} mb-1`}>{stamp.destination}</p>
+                          <span className="text-4xl mb-1">{stamp.emoji}</span>
+                          <p className="text-[10px] text-zinc-500">
+                            {stamp.date ? new Date(stamp.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                          </p>
+                          <p className={`text-[9px] ${colorClass} mt-1 font-semibold uppercase tracking-wider`}>{stamp.vibe}</p>
+                        </Link>
+                      );
+                    })}
+                    {/* "Next stamp" placeholder — encourages the next trip */}
+                    <Link
+                      href="/trip/new"
+                      className="aspect-[3/4] bg-zinc-50 border-2 border-dashed border-zinc-300 rounded-xl p-3 flex flex-col items-center justify-center text-center text-zinc-400 hover:border-sky-300 hover:text-sky-700 transition-colors"
+                    >
+                      <span className="text-3xl mb-1">＋</span>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest">Next stamp</p>
+                      <p className="text-[10px] mt-1">Plan a trip</p>
+                    </Link>
+                  </div>
+                )}
+              </section>
+
+              {/* Badges (Trip Pass+) */}
+              <section className="mb-10">
+                <div className="flex items-end justify-between mb-3 flex-wrap gap-2">
+                  <div>
+                    <h2 className="text-lg font-semibold text-zinc-900">Travel Badges</h2>
+                    <p className="text-xs text-zinc-500">
+                      {earnedBadges.length} earned · {lockedBadges.length} to unlock
+                    </p>
+                  </div>
+                  {tier === 'free' && (
+                    <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> Trip Pass+
+                    </span>
+                  )}
+                </div>
+                {tier === 'free' ? (
+                  <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center">
+                    <Lock className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+                    <h3 className="font-semibold text-zinc-800 mb-1">Badges are a paid feature</h3>
+                    <p className="text-sm text-zinc-500 mb-4 max-w-md mx-auto">Earn collectible badges for milestones — Foodie Pilgrim, Continent Hopper, World Wanderer. Available on Trip Pass and above.</p>
+                    <Link href="/pricing" className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm rounded-full transition-colors">
+                      See plans
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {[...earnedBadges, ...lockedBadges].map(badge => {
+                      const styles = TIER_STYLES[badge.tier] ?? TIER_STYLES.common;
+                      const muted = !badge.earned;
+                      return (
+                        <div
+                          key={badge.id}
+                          title={badge.description}
+                          className={`bg-white border-2 ${styles.card} rounded-2xl p-4 flex flex-col items-center text-center hover:shadow-lg transition-shadow ${muted ? 'opacity-60 hover:opacity-100' : ''}`}
+                        >
+                          <span className={`text-3xl mb-2 ${muted ? 'grayscale' : ''}`}>{badge.emoji}</span>
+                          <p className={`text-xs font-bold ${muted ? 'text-zinc-500' : 'text-zinc-800'} leading-tight`}>{badge.title}</p>
+                          <p className={`text-[9px] uppercase tracking-wide font-semibold ${muted ? 'text-zinc-400' : styles.label} mt-1`}>
+                            {styles.emoji} {badge.tier}
+                          </p>
+                          {badge.progressLabel && (
+                            <>
+                              <p className="text-[10px] text-zinc-400 mt-1">{badge.progressLabel}</p>
+                              {typeof badge.progress === 'number' && (
+                                <div className="w-full h-1 bg-zinc-100 rounded-full mt-1.5">
+                                  <div className="h-full bg-zinc-400 rounded-full" style={{ width: `${Math.round((badge.progress ?? 0) * 100)}%` }} />
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Nomad upsell — photo pins + time-lapse + shareable card.
+                  Stub for v1; the real photo-pin gallery + animated time-lapse
+                  ship in a follow-up. */}
+              {tier !== 'nomad' && (
+                <section className="mb-10 bg-gradient-to-br from-amber-50 via-rose-50 to-purple-50 border border-amber-200 rounded-2xl p-6">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-200 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
+                        <Crown className="w-2.5 h-2.5" /> Nomad
+                      </span>
+                      <h2 className="text-lg font-semibold text-zinc-900 mt-2">Bring your map to life</h2>
+                      <p className="text-sm text-zinc-600 mt-1">Photo pins · animated time-lapse of every trip in order · shareable map card</p>
+                    </div>
+                    <Link href="/pricing" className="bg-zinc-900 hover:bg-zinc-800 text-white font-semibold px-5 py-2.5 rounded-full text-sm whitespace-nowrap">
+                      See Nomad
+                    </Link>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+
+        </div>
+      </main>
+    </div>
+  );
+}

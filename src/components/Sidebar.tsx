@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Compass, Map, Radar, Settings, Menu, X, ChevronRight, Globe2, LogOut } from 'lucide-react';
+import { Compass, Map, Radar, Settings, Menu, X, ChevronRight, Globe2, LogOut, Globe } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/context/AuthContext';
 import { signOutAction } from '@/app/auth/signout/actions';
@@ -75,6 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
   const navItems = [
     { label: 'Home Base',   href: '/dashboard', icon: Compass, id: 'dashboard' },
     { label: 'Adventures',  href: '/trips',     icon: Map,     id: 'trips'     },
+    { label: 'My World',    href: '/world',     icon: Globe,   id: 'world'     },
     { label: 'On My Radar', href: '/wishlist',  icon: Radar,   id: 'wishlist'  },
     { label: 'Discover',    href: '/discover',  icon: Globe2,  id: 'discover'  },
     { label: 'Settings',    href: '/settings',  icon: Settings, id: 'settings' },
