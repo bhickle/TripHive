@@ -402,6 +402,19 @@ function ItineraryPageContent() {
   // subscriptions do NOT trigger the overlay.
   const [isTripPassTrip, setIsTripPassTrip] = useState<boolean>(false);
 
+  // viewerRole drives the "can this user edit the itinerary" gate. For trips
+  // with 3+ travelers, only the organizer and co-organizer can edit, suggest
+  // replacements, delete activities, or swap day content. Solo / couple trips
+  // (groupSize <= 2) are unrestricted — both people on the trip can edit.
+  // Voting / chat / photo upload remain open to all members regardless.
+  const [viewerRole, setViewerRole] = useState<'organizer' | 'co_organizer' | 'member' | null>(null);
+  // hasOriginal: backed by itineraries.original_days. true iff there's an
+  // AI-baseline snapshot the user can revert to. Older trips (pre-migration)
+  // have NULL — Revert button stays hidden in that case.
+  const [hasOriginal, setHasOriginal] = useState<boolean>(false);
+  const [showRevertConfirm, setShowRevertConfirm] = useState<boolean>(false);
+  const [reverting, setReverting] = useState<boolean>(false);
+
   const { tier, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements(params.id, isTripPassTrip);
   const currentUser = useCurrentUser();
   const router = useRouter();
@@ -770,11 +783,13 @@ function ItineraryPageContent() {
         try {
           const res = await fetch(`/api/trips/${tripPageId}`);
           if (res.ok) {
-            const { trip: tripData, itinerary, newPrefsCount: npc, pendingPrefsCount: ppc, isTripPassTrip: itp } = await res.json();
+            const { trip: tripData, itinerary, newPrefsCount: npc, pendingPrefsCount: ppc, isTripPassTrip: itp, viewerRole: vr, hasOriginal: ho } = await res.json();
             if (tripData) setTripRow(tripData);
             if (typeof npc === 'number') setNewPrefsCount(npc);
             if (typeof ppc === 'number') setPendingPrefsCount(ppc);
             if (typeof itp === 'boolean') setIsTripPassTrip(itp);
+            if (vr === 'organizer' || vr === 'co_organizer' || vr === 'member') setViewerRole(vr);
+            if (typeof ho === 'boolean') setHasOriginal(ho);
             if (itinerary && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
               syncAiDays(itinerary.days);
               if (itinerary.meta) {
@@ -1818,6 +1833,48 @@ function ItineraryPageContent() {
       visitedCities: (tripRow?.visited_cities as string[] | undefined) ?? [],
     };
   })();
+
+  // ── Revert to original itinerary ─────────────────────────────────────────
+  const handleRevertToOriginal = useCallback(async () => {
+    if (!tripPageId || !/^[0-9a-f-]{36}$/i.test(tripPageId)) return;
+    setReverting(true);
+    try {
+      const res = await fetch(`/api/trips/${tripPageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revert: true }),
+      });
+      if (!res.ok) throw new Error(`revert failed: ${res.status}`);
+      const { days: restoredDays } = await res.json();
+      if (Array.isArray(restoredDays)) {
+        syncAiDays(restoredDays as ItineraryDay[]);
+      }
+      setShowRevertConfirm(false);
+    } catch {
+      setActionError("Couldn't revert the itinerary. Try again in a moment.");
+      setTimeout(() => setActionError(null), 4000);
+    } finally {
+      setReverting(false);
+    }
+  }, [tripPageId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Edit permission gate ─────────────────────────────────────────────────
+  // Solo/couple trips (groupSize ≤ 2): anyone with access can edit.
+  // 3+ trips: only the organizer and co-organizer can edit. Voting, chat,
+  // and photo upload stay open to all members regardless. While auth or
+  // viewerRole are still loading, default to permissive — false-locking
+  // an organizer's own UI is worse than briefly showing edit affordances.
+  const groupSizeForGate = (tripRow?.group_size as number | undefined)
+    ?? ((aiMeta as Record<string, unknown> | null)?.groupSize as number | undefined)
+    ?? 2;
+  const isSmallGroupTrip = groupSizeForGate <= 2;
+  // Demo / mock trips render before viewerRole is fetched — treat them as
+  // editable so the demo experience isn't broken.
+  const canEditItinerary = isMockTrip
+    || isSmallGroupTrip
+    || viewerRole === null
+    || viewerRole === 'organizer'
+    || viewerRole === 'co_organizer';
   // Guard: if activeDays is empty, currentDayData will never be rendered (the
   // "no itinerary" empty state gate below returns early before any access).
   // Hardened fallback: rather than `{} as ItineraryDay` (which would let a
@@ -2582,11 +2639,12 @@ function ItineraryPageContent() {
               <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
                 {currentDayData?.city || aiMeta?.destination || trip.destination}
               </p>
-              {aiDays && (
+              {aiDays && canEditItinerary && (
                 // Always-visible edit affordance (was opacity-0 + hover-only,
                 // hard to discover per QA 5/10). Subtle but persistent: soft
                 // border + muted color so it doesn't dominate the destination
-                // text but is always reachable.
+                // text but is always reachable. Hidden for non-org/co-org
+                // viewers on 3+ trips per the edit-permission gate.
                 <button
                   onClick={handleOpenEditTrip}
                   title="Edit destination & dates"
@@ -2656,9 +2714,13 @@ function ItineraryPageContent() {
               })()}
             </p>
           </div>
-          {/* Add menu is disabled once the trip is completed */}
+          {/* Add menu is disabled once the trip is completed AND hidden
+              entirely for non-org/co-org viewers on 3+ trips (per the
+              edit-permission gate). Members can still see the activities,
+              vote, and chat — they just can't add/edit/parse. */}
           {(() => {
             const isTripCompleted = tripRow?.status === 'completed';
+            if (!canEditItinerary) return null;
             return (
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
             {/* Combined + Add dropdown */}
@@ -2726,6 +2788,20 @@ function ItineraryPageContent() {
                   >
                     <span className="text-base leading-none">✈️</span> Flight
                   </button>
+                  {/* Revert to original — destructive, shown only when an AI
+                      baseline snapshot exists. Separated by a divider and
+                      colored rose to signal "this undoes things". */}
+                  {hasOriginal && (
+                    <>
+                      <div className="my-1 border-t border-zinc-100" />
+                      <button
+                        onClick={() => { setShowRevertConfirm(true); setShowAddMenu(false); }}
+                        className="w-full text-left px-4 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50 flex items-center gap-2.5"
+                      >
+                        <RefreshCw className="w-4 h-4 text-rose-600" /> Revert to AI original
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -2876,6 +2952,34 @@ function ItineraryPageContent() {
         {/* Regenerate confirm — fires the "pending members default to no
             preferences" warning from the Trip Pass design. The buyer can
             wait or generate anyway; we never block. */}
+        {showRevertConfirm && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !reverting && setShowRevertConfirm(false)}>
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+              <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">Revert to AI original?</h3>
+              <p className="text-sm text-zinc-700 mb-3">
+                This will restore the itinerary to exactly what the AI generated when this trip was first built. <span className="font-semibold text-zinc-900">Every change made since</span> — added activities, swapped days, replaced suggestions, removed items — will be lost.
+              </p>
+              <p className="text-xs text-zinc-500 mb-6">Hotel bookings, photos, votes, and chat are untouched.</p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowRevertConfirm(false)}
+                  disabled={reverting}
+                  className="px-4 py-2 text-sm font-medium text-zinc-700 hover:text-zinc-900 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRevertToOriginal}
+                  disabled={reverting}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-60 inline-flex items-center gap-2"
+                >
+                  {reverting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Reverting…</> : 'Yes, revert'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showRegenConfirm && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRegenConfirm(false)}>
             <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
@@ -2902,6 +3006,19 @@ function ItineraryPageContent() {
           </div>
         )}
 
+        {/* View-only banner for non-org/co-org viewers on 3+ trips. Subtle —
+            no scary lock icon — just explains why their edit affordances are
+            hidden. Hidden on solo/couple trips and for organizers/co-orgs. */}
+        {!canEditItinerary && (
+          <div className="mb-4 flex items-center gap-2.5 px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl">
+            <span className="text-base flex-shrink-0">👀</span>
+            <p className="text-xs text-zinc-600 leading-snug">
+              <span className="font-semibold text-zinc-700">View only.</span>{' '}
+              Only the organizer and co-organizers can edit this itinerary. You can still vote on activities, chat, and upload photos.
+            </p>
+          </div>
+        )}
+
         {/* Day Selector — arrow navigation when overflow + drag-and-drop swap */}
         {(() => {
           // ── Swap-content-but-not-dates: drag a day pill onto another to
@@ -2913,6 +3030,8 @@ function ItineraryPageContent() {
           const lastDayNumber = activeDays.length > 0 ? activeDays[activeDays.length - 1].day : null;
           const isLocked = (n: number) => n === 1 || (lastDayNumber !== null && n === lastDayNumber);
           const canSwap = (a: number, b: number): boolean => {
+            // Permission gate: 3+ trips lock day-swap to organizer/co-org.
+            if (!canEditItinerary) return false;
             if (a === b) return false;
             if (isLocked(a) || isLocked(b)) return false;
             const dayA = activeDays.find((d: { day: number }) => d.day === a) as ItineraryDay | undefined;
@@ -2989,13 +3108,15 @@ function ItineraryPageContent() {
               const isDragging = draggingDay === day.day;
               const isValidDropTarget = draggingDay !== null && draggingDay !== day.day && canSwap(draggingDay, day.day);
               const isHoverTarget = dragOverDay === day.day && isValidDropTarget;
-              const tooltip = locked
-                ? (day.day === 1 ? 'Day 1 stays first (trip arrival)' : 'Last day stays last (trip departure)')
-                : 'Drag onto another day to swap their content';
+              const tooltip = !canEditItinerary
+                ? 'Only the organizer or co-organizer can rearrange days'
+                : locked
+                  ? (day.day === 1 ? 'Day 1 stays first (trip arrival)' : 'Last day stays last (trip departure)')
+                  : 'Drag onto another day to swap their content';
               return (
                 <button
                   key={day.day}
-                  draggable={!locked}
+                  draggable={canEditItinerary && !locked}
                   onDragStart={(e) => {
                     if (locked) { e.preventDefault(); return; }
                     setDraggingDay(day.day);
@@ -3377,22 +3498,24 @@ function ItineraryPageContent() {
                           {activity.isPrivate && (
                             <span title="Private — only visible to you" className="text-xs flex-shrink-0">🔒</span>
                           )}
-                          <div className="opacity-0 group-hover/compact:opacity-100 flex items-center gap-0.5 transition-opacity flex-shrink-0">
-                            <button
-                              onClick={() => handleEditActivity(activity)}
-                              title="Edit"
-                              className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteActivity(activity.id)}
-                              title="Remove"
-                              className="p-1 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
+                          {canEditItinerary && (
+                            <div className="opacity-0 group-hover/compact:opacity-100 flex items-center gap-0.5 transition-opacity flex-shrink-0">
+                              <button
+                                onClick={() => handleEditActivity(activity)}
+                                title="Edit"
+                                className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteActivity(activity.id)}
+                                title="Remove"
+                                className="p-1 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     }
@@ -3457,22 +3580,25 @@ function ItineraryPageContent() {
                                     ← Undo
                                   </button>
                                 )}
-                                {/* Edit button */}
-                                <button
-                                  onClick={() => handleEditActivity(activity)}
-                                  title="Edit activity"
-                                  className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                {/* Delete button */}
-                                <button
-                                  onClick={() => handleDeleteActivity(activity.id)}
-                                  title="Remove activity"
-                                  className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {/* Edit + Delete — gated to organizer / co-organizer on 3+ trips */}
+                                {canEditItinerary && (
+                                  <>
+                                    <button
+                                      onClick={() => handleEditActivity(activity)}
+                                      title="Edit activity"
+                                      className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteActivity(activity.id)}
+                                      title="Remove activity"
+                                      className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                )}
                                 {/* Hide "Shared" badge for solo/couple — only show Track A/B labels */}
                                 {(activity.track !== 'shared' || (aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple')) && (
                                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${config.badgeColor}`}>
@@ -3562,8 +3688,8 @@ function ItineraryPageContent() {
                               const isMajorityNay = v.down > 0 && v.down > v.up;
                               return (
                                 <>
-                                  {/* Majority-Nay nudge banner */}
-                                  {isMajorityNay && (
+                                  {/* Majority-Nay nudge banner — replace button gated to editors only */}
+                                  {isMajorityNay && canEditItinerary && (
                                     <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
                                       <span className="text-sm">😬</span>
                                       <p className="text-xs font-semibold text-amber-800 flex-1">Not the crowd favourite — want AI to find something better?</p>
@@ -3606,8 +3732,10 @@ function ItineraryPageContent() {
                                         {v.myVote === 'up' ? "You're in ✓" : 'Not feeling it'}
                                       </span>
                                     )}
-                                    {/* Suggest another — pushes to the right (hidden when majority-Nay banner is showing) */}
-                                    {!isMajorityNay && (
+                                    {/* Suggest another — pushes to the right. Gated to editors
+                                        on 3+ trips (hidden for plain members). Also hidden
+                                        when the majority-Nay banner is showing. */}
+                                    {!isMajorityNay && canEditItinerary && (
                                       <button
                                         onClick={() => handleSuggestAnother(activity)}
                                         disabled={isSuggesting}

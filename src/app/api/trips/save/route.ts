@@ -103,6 +103,13 @@ export async function POST(request: NextRequest) {
       const itinInsert: ItineraryInsert = {
         trip_id: trip.id,
         days: isSkeleton ? [] : itinerary,
+        // original_days: AI baseline snapshot. Only set on full saves
+        // (not skeleton) — skeleton rows don't yet have a real itinerary,
+        // so writing an empty array as "original" would make Revert wipe
+        // the eventual filled-in days. The first non-skeleton PATCH that
+        // populates days will also populate original_days (see PATCH
+        // handler in /api/trips/[id]).
+        original_days: isSkeleton ? null : itinerary,
         meta: {
           destination: tripMeta.destination,
           title: tripMeta.title,

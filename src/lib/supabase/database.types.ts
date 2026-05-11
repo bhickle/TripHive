@@ -419,6 +419,7 @@ export type Database = {
           generated_at: string
           id: string
           meta: Json
+          original_days: Json | null
           source: string
           trip_id: string
           updated_at: string
@@ -428,6 +429,7 @@ export type Database = {
           generated_at?: string
           id?: string
           meta?: Json
+          original_days?: Json | null
           source?: string
           trip_id: string
           updated_at?: string
@@ -437,6 +439,7 @@ export type Database = {
           generated_at?: string
           id?: string
           meta?: Json
+          original_days?: Json | null
           source?: string
           trip_id?: string
           updated_at?: string

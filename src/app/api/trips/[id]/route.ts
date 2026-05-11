@@ -51,6 +51,12 @@ export async function GET(
       }
     }
 
+    // viewerRole — used client-side to gate edit affordances on 3+ trips.
+    // Lazy-resolved: getTripRole runs another query, but the access check
+    // above already paid that cost for non-organizer callers. Resolve via
+    // getTripRole so the value matches the route's own role-based checks.
+    const viewerRole = await getTripRole(supabase, params.id, userId);
+
     // Load itinerary (may be null for draft trips)
     const { data: itinerary } = await supabase
       .from('itineraries')
@@ -100,7 +106,12 @@ export async function GET(
       .gt('expires_at', nowIso);
     const isTripPassTrip = (activePassCount ?? 0) > 0;
 
-    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount, pendingPrefsCount, isTripPassTrip });
+    // hasOriginal: true iff this trip's itinerary has a non-null original_days
+    // snapshot the user can revert to. Drives the visibility of the "Revert
+    // to original" button in the UI.
+    const hasOriginal = !!(itinerary?.original_days && Array.isArray(itinerary.original_days) && itinerary.original_days.length > 0);
+
+    return NextResponse.json({ trip, itinerary: itinerary ?? null, newPrefsCount, pendingPrefsCount, isTripPassTrip, viewerRole, hasOriginal });
   } catch (err) {
     console.error('Load trip error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
@@ -118,7 +129,7 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    const { days, metaPatch, tripPatch } = body as {
+    const { days, metaPatch, tripPatch, revert } = body as {
       days?: Json[];
       metaPatch?: { [key: string]: Json | undefined };
       tripPatch?: {
@@ -135,10 +146,14 @@ export async function PATCH(
         cover_image_meta?: Json | null;
         visited_cities?: string[];
       };
+      /** Revert action: copy itineraries.original_days back over days.
+       *  Mutually exclusive with other body fields; if revert is true the
+       *  other fields are ignored. Restricted to organizer + co-organizer. */
+      revert?: boolean;
     };
 
-    if (!Array.isArray(days) && !metaPatch && !tripPatch) {
-      return NextResponse.json({ error: 'days (array), metaPatch (object), or tripPatch (object) required' }, { status: 400 });
+    if (!Array.isArray(days) && !metaPatch && !tripPatch && !revert) {
+      return NextResponse.json({ error: 'days (array), metaPatch (object), tripPatch (object), or revert (true) required' }, { status: 400 });
     }
 
     // ── Auth check: verify caller owns this trip ───────────────────────────────
@@ -207,11 +222,57 @@ export async function PATCH(
       updatedTrip = data;
     }
 
-    // ── Update itinerary days ──────────────────────────────────────────────────
-    if (Array.isArray(days)) {
+    // ── Revert to original AI itinerary ──────────────────────────────────────
+    // Copy original_days → days. Restricted to organizer + co-organizer.
+    // Returns the restored days so the client can refresh local state.
+    if (revert) {
+      if (!canEditTrip) {
+        return NextResponse.json({ error: 'Only organizers and co-organizers can revert the itinerary' }, { status: 403 });
+      }
+      const { data: itin } = await supabase
+        .from('itineraries')
+        .select('original_days')
+        .eq('trip_id', params.id)
+        .single();
+      if (!itin?.original_days) {
+        return NextResponse.json({ error: 'No original itinerary to revert to' }, { status: 400 });
+      }
       const { error } = await supabase
         .from('itineraries')
-        .update({ days, updated_at: new Date().toISOString() })
+        .update({ days: itin.original_days, updated_at: new Date().toISOString() })
+        .eq('trip_id', params.id);
+      if (error) {
+        console.error('Itinerary revert error:', JSON.stringify(error));
+        return NextResponse.json({ error: 'Failed to revert itinerary' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, days: itin.original_days });
+    }
+
+    // ── Update itinerary days ──────────────────────────────────────────────────
+    if (Array.isArray(days)) {
+      // Backfill original_days for trips whose snapshot is still NULL — this
+      // happens for: (1) skeleton trips created before the AI ran (skeleton
+      // save deliberately leaves original_days NULL), (2) older trips that
+      // existed before this column. For path (1), the FIRST PATCH that
+      // populates days is the AI's initial output, so capture it as the
+      // original. For path (2), the first edit captures whatever-is-there
+      // as the "original" — not ideal but better than nothing for users who
+      // were mid-edit when the migration shipped.
+      const { data: existingItin } = await supabase
+        .from('itineraries')
+        .select('original_days')
+        .eq('trip_id', params.id)
+        .maybeSingle();
+      const updateFields: { days: Json[]; updated_at: string; original_days?: Json[] } = {
+        days,
+        updated_at: new Date().toISOString(),
+      };
+      if (!existingItin?.original_days && days.length > 0) {
+        updateFields.original_days = days;
+      }
+      const { error } = await supabase
+        .from('itineraries')
+        .update(updateFields)
         .eq('trip_id', params.id);
 
       if (error) {
