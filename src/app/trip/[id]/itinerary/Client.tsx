@@ -1612,6 +1612,11 @@ function ItineraryPageContent() {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     foodie: true, nightlife: true, shopping: true,
     photoSpots: true, hotel: true, dayHighlights: true,
+    // Trip Essentials (Day 1) + Heading Home (last day) default collapsed
+    // so they don't dominate the top of the day's content. User can expand
+    // either by tapping the header chevron; collapse state persists per-trip
+    // in localStorage (same hook as the existing sections).
+    tripEssentials: true, headingHome: true,
   });
   useEffect(() => {
     try {
@@ -2263,7 +2268,12 @@ function ItineraryPageContent() {
         if (!res.ok) throw new Error(`save failed: ${res.status}`);
       }
 
-      // Update local state immediately
+      // Update local state immediately. Both aiMeta AND tripRow have to be
+      // updated — the header reads `trip.destination` which is computed as
+      // `tripRow?.destination || aiMeta?.destination`, so updating only
+      // aiMeta leaves the stale tripRow.destination winning and the change
+      // appears not to have applied (QA 5/11: "Trip Edit works for dates
+      // but not for the destination").
       setAiMeta(prev => prev ? {
         ...prev,
         destination: editDest.trim(),
@@ -2274,6 +2284,13 @@ function ItineraryPageContent() {
         startDate: editStartDate || undefined,
         endDate: editEndDate || undefined,
       });
+      setTripRow(prev => prev ? {
+        ...prev,
+        destination: editDest.trim(),
+        title: newTitle,
+        ...(editStartDate ? { start_date: editStartDate } : {}),
+        ...(editEndDate   ? { end_date:   editEndDate   } : {}),
+      } : prev);
 
       if (updatedDays) persistDays(updatedDays as ItineraryDay[]);
 
@@ -3278,58 +3295,78 @@ function ItineraryPageContent() {
                       but had never been rendered. */}
                   {selectedDay === 1 && aiMeta?.practicalNotes && (() => {
                     const pn = aiMeta.practicalNotes;
-                    const hasAny = !!(pn.currency || pn.tipping || pn.customs || pn.entryRequirements || pn.safetyTips || (pn.usefulPhrases && pn.usefulPhrases.length > 0));
-                    if (!hasAny) return null;
+                    const fieldsPresent: string[] = [];
+                    if (pn.currency) fieldsPresent.push('Currency');
+                    if (pn.tipping) fieldsPresent.push('Tipping');
+                    if (pn.customs) fieldsPresent.push('Customs');
+                    if (pn.entryRequirements) fieldsPresent.push('Entry');
+                    if (pn.safetyTips) fieldsPresent.push('Safety');
+                    if (pn.usefulPhrases && pn.usefulPhrases.length > 0) fieldsPresent.push('Phrases');
+                    if (fieldsPresent.length === 0) return null;
+                    const isCollapsed = collapsedSections.tripEssentials ?? true;
                     return (
                       <div className="bg-white border border-sky-100 rounded-2xl overflow-hidden">
-                        <div className="px-4 py-3 bg-gradient-to-r from-sky-50 to-sky-100 border-b border-sky-100 flex items-center gap-2">
-                          <span className="text-base">🧭</span>
-                          <p className="text-xs font-semibold uppercase tracking-widest text-sky-900">Trip Essentials</p>
-                        </div>
-                        <dl className="divide-y divide-zinc-100">
-                          {pn.currency && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Currency</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{pn.currency}</dd>
-                            </div>
-                          )}
-                          {pn.tipping && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Tipping</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{pn.tipping}</dd>
-                            </div>
-                          )}
-                          {pn.customs && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Customs & Etiquette</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{pn.customs}</dd>
-                            </div>
-                          )}
-                          {pn.entryRequirements && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Entry Requirements</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{pn.entryRequirements}</dd>
-                            </div>
-                          )}
-                          {pn.safetyTips && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Safety</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{pn.safetyTips}</dd>
-                            </div>
-                          )}
-                          {pn.usefulPhrases && pn.usefulPhrases.length > 0 && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">Useful Phrases</dt>
-                              <dd>
-                                <ul className="space-y-1">
-                                  {pn.usefulPhrases.map((phrase, i) => (
-                                    <li key={i} className="text-sm text-zinc-800 leading-snug">{phrase}</li>
-                                  ))}
-                                </ul>
-                              </dd>
-                            </div>
-                          )}
-                        </dl>
+                        <button
+                          onClick={() => toggleSidebarSection('tripEssentials')}
+                          className="w-full px-4 py-3 bg-gradient-to-r from-sky-50 to-sky-100 border-b border-sky-100 flex items-center gap-2 hover:from-sky-100 hover:to-sky-200 transition-colors"
+                        >
+                          <span className="text-base flex-shrink-0">🧭</span>
+                          <div className="flex-1 text-left min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-sky-900">Trip Essentials</p>
+                            {isCollapsed && (
+                              <p className="text-[11px] text-sky-700/70 mt-0.5 truncate">
+                                {fieldsPresent.join(' · ')} · tap to expand
+                              </p>
+                            )}
+                          </div>
+                          <ChevronDown className={`w-4 h-4 text-sky-700 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+                        </button>
+                        {!isCollapsed && (
+                          <dl className="divide-y divide-zinc-100">
+                            {pn.currency && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Currency</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{pn.currency}</dd>
+                              </div>
+                            )}
+                            {pn.tipping && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Tipping</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{pn.tipping}</dd>
+                              </div>
+                            )}
+                            {pn.customs && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Customs & Etiquette</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{pn.customs}</dd>
+                              </div>
+                            )}
+                            {pn.entryRequirements && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Entry Requirements</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{pn.entryRequirements}</dd>
+                              </div>
+                            )}
+                            {pn.safetyTips && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Safety</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{pn.safetyTips}</dd>
+                              </div>
+                            )}
+                            {pn.usefulPhrases && pn.usefulPhrases.length > 0 && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">Useful Phrases</dt>
+                                <dd>
+                                  <ul className="space-y-1">
+                                    {pn.usefulPhrases.map((phrase, i) => (
+                                      <li key={i} className="text-sm text-zinc-800 leading-snug">{phrase}</li>
+                                    ))}
+                                  </ul>
+                                </dd>
+                              </div>
+                            )}
+                          </dl>
+                        )}
                       </div>
                     );
                   })()}
@@ -3343,52 +3380,72 @@ function ItineraryPageContent() {
                     if (lastDayNum === null || selectedDay !== lastDayNum) return null;
                     const di = aiMeta?.departureInfo;
                     if (!di) return null;
-                    const hasAny = !!(di.airport || di.recommendedArrival || di.transitTip || di.lastDayTimingTip || di.customsTips || di.luggageStorageTip);
-                    if (!hasAny) return null;
+                    const fieldsPresent: string[] = [];
+                    if (di.airport) fieldsPresent.push('Airport');
+                    if (di.recommendedArrival) fieldsPresent.push('Arrival');
+                    if (di.lastDayTimingTip) fieldsPresent.push('Timing');
+                    if (di.transitTip) fieldsPresent.push('Transit');
+                    if (di.luggageStorageTip) fieldsPresent.push('Luggage');
+                    if (di.customsTips) fieldsPresent.push('Customs');
+                    if (fieldsPresent.length === 0) return null;
+                    const isCollapsed = collapsedSections.headingHome ?? true;
                     return (
                       <div className="bg-white border border-rose-100 rounded-2xl overflow-hidden">
-                        <div className="px-4 py-3 bg-gradient-to-r from-rose-50 to-rose-100 border-b border-rose-100 flex items-center gap-2">
-                          <span className="text-base">✈️</span>
-                          <p className="text-xs font-semibold uppercase tracking-widest text-rose-900">Heading Home</p>
-                        </div>
-                        <dl className="divide-y divide-zinc-100">
-                          {di.airport && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Airport</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{di.airport}</dd>
-                            </div>
-                          )}
-                          {di.recommendedArrival && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">When to Arrive</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{di.recommendedArrival}</dd>
-                            </div>
-                          )}
-                          {di.lastDayTimingTip && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Plan Your Day</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{di.lastDayTimingTip}</dd>
-                            </div>
-                          )}
-                          {di.transitTip && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Getting There</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{di.transitTip}</dd>
-                            </div>
-                          )}
-                          {di.luggageStorageTip && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Luggage Storage</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{di.luggageStorageTip}</dd>
-                            </div>
-                          )}
-                          {di.customsTips && (
-                            <div className="px-4 py-3">
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Customs & Duty-Free</dt>
-                              <dd className="text-sm text-zinc-800 leading-snug">{di.customsTips}</dd>
-                            </div>
-                          )}
-                        </dl>
+                        <button
+                          onClick={() => toggleSidebarSection('headingHome')}
+                          className="w-full px-4 py-3 bg-gradient-to-r from-rose-50 to-rose-100 border-b border-rose-100 flex items-center gap-2 hover:from-rose-100 hover:to-rose-200 transition-colors"
+                        >
+                          <span className="text-base flex-shrink-0">✈️</span>
+                          <div className="flex-1 text-left min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-rose-900">Heading Home</p>
+                            {isCollapsed && (
+                              <p className="text-[11px] text-rose-700/70 mt-0.5 truncate">
+                                {fieldsPresent.join(' · ')} · tap to expand
+                              </p>
+                            )}
+                          </div>
+                          <ChevronDown className={`w-4 h-4 text-rose-700 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+                        </button>
+                        {!isCollapsed && (
+                          <dl className="divide-y divide-zinc-100">
+                            {di.airport && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Airport</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{di.airport}</dd>
+                              </div>
+                            )}
+                            {di.recommendedArrival && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">When to Arrive</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{di.recommendedArrival}</dd>
+                              </div>
+                            )}
+                            {di.lastDayTimingTip && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Plan Your Day</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{di.lastDayTimingTip}</dd>
+                              </div>
+                            )}
+                            {di.transitTip && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Getting There</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{di.transitTip}</dd>
+                              </div>
+                            )}
+                            {di.luggageStorageTip && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Luggage Storage</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{di.luggageStorageTip}</dd>
+                              </div>
+                            )}
+                            {di.customsTips && (
+                              <div className="px-4 py-3">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Customs & Duty-Free</dt>
+                                <dd className="text-sm text-zinc-800 leading-snug">{di.customsTips}</dd>
+                              </div>
+                            )}
+                          </dl>
+                        )}
                       </div>
                     );
                   })()}
@@ -4942,7 +4999,10 @@ function ItineraryPageContent() {
                 />
               </div>
 
-              {/* Start Date */}
+              {/* Start Date — also auto-shifts the End Date by the trip's
+                  current length so the user doesn't have to retype it.
+                  QA 5/11: "auto set the new end date by the previously entered
+                  trip length and the newly edited start date." */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
                   Start Date
@@ -4950,7 +5010,38 @@ function ItineraryPageContent() {
                 <input
                   type="date"
                   value={editStartDate}
-                  onChange={e => setEditStartDate(e.target.value)}
+                  onChange={e => {
+                    const newStart = e.target.value;
+                    setEditStartDate(newStart);
+                    // Auto-shift the end date to preserve trip length.
+                    // Length source priority:
+                    //   1. Current edit-form delta (if user already changed end)
+                    //   2. Original aiMeta start→end span
+                    //   3. tripRow.trip_length (builder-selected)
+                    if (newStart) {
+                      const lengthDays = (() => {
+                        if (editStartDate && editEndDate) {
+                          const a = new Date(editStartDate + 'T12:00:00');
+                          const b = new Date(editEndDate + 'T12:00:00');
+                          const diff = Math.round((b.getTime() - a.getTime()) / 86400000);
+                          if (diff > 0) return diff;
+                        }
+                        if (aiMeta?.startDate && aiMeta?.endDate) {
+                          const a = new Date(aiMeta.startDate + 'T12:00:00');
+                          const b = new Date(aiMeta.endDate + 'T12:00:00');
+                          const diff = Math.round((b.getTime() - a.getTime()) / 86400000);
+                          if (diff > 0) return diff;
+                        }
+                        const tl = (tripRow?.trip_length as number | undefined) ?? 0;
+                        return tl > 0 ? tl - 1 : 0;
+                      })();
+                      if (lengthDays > 0) {
+                        const d = new Date(newStart + 'T12:00:00');
+                        d.setDate(d.getDate() + lengthDays);
+                        setEditEndDate(d.toISOString().slice(0, 10));
+                      }
+                    }
+                  }}
                   className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
                 />
               </div>
