@@ -115,10 +115,23 @@ export async function POST(request: NextRequest) {
     if (process.env.GOOGLE_MAPS_KEY) {
       const placesList = await fetchRealPlaces(destination, isRestaurant, process.env.GOOGLE_MAPS_KEY);
       if (placesList) {
+        // Compute the weekday for this day's date so the model can pair the
+        // right weekday's hours to the actual day. Without this, the model
+        // does internal date→weekday math and often picks venues closed on
+        // the day the user is actually there.
+        const weekdayLine = (() => {
+          if (!date) return '';
+          const d = new Date(date + 'T12:00:00');
+          if (isNaN(d.getTime())) return '';
+          const weekday = d.toLocaleDateString('en-US', { weekday: 'long' });
+          const readable = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+          return `\nThis activity is on ${readable} — match each venue's "${weekday}" hours specifically. If a venue is closed on ${weekday}, do NOT suggest it.`;
+        })();
+
         realPlacesBlock = `\n\nCRITICAL — USE ONLY REAL VERIFIED PLACES:
 You MUST suggest a venue from this list only. Do NOT invent place names or addresses.
-Each venue includes opening hours where available — only suggest a venue that is open during the timeSlot ${timeSlot}.
-A venue closing before 4 PM cannot be dinner. A venue opening at 5 PM cannot be breakfast or lunch.
+Each venue includes opening hours per weekday where available — only suggest a venue that is open during the timeSlot ${timeSlot} on the actual day-of-week of this trip day.
+A venue closing before 4 PM cannot be dinner. A venue opening at 5 PM cannot be breakfast or lunch.${weekdayLine}
 REAL ${isRestaurant ? 'RESTAURANTS' : 'ATTRACTIONS'} IN ${destination} (quality-filtered, ★3.5+ with reviews):
 ${placesList}`;
       }

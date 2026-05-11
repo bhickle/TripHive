@@ -121,6 +121,47 @@ function getSuggestedTrackLabels(priorities: string[]): { a: string; b: string }
   return { a: labelA, b: labelB };
 }
 
+// ─── Weekday helpers ──────────────────────────────────────────────────────────
+// Compute the day-of-week for each trip day server-side and pass it into the
+// prompt explicitly. Google Places returns opening hours keyed by weekday name
+// (`Monday: 11:00 AM – 9:00 PM`, …) and the prompt previously expected the
+// model to match those to each day's date on its own — which LLMs get wrong
+// often enough to send users to a closed venue. Now the prompt shows e.g.
+// `Day 1 (Tuesday, May 5)` so the model can pair "Tuesday" hours to Day 1
+// without any internal calendar arithmetic.
+function formatWeekdayLong(dateStr: string): string {
+  // Noon-pad so YYYY-MM-DD parses as local noon (avoids UTC midnight → wrong
+  // weekday in timezones west of UTC).
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+function formatDateWithWeekday(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+/**
+ * Build a day-by-day weekday + date mapping for the prompt:
+ *   - Day 1 (Tuesday, May 5)
+ *   - Day 2 (Wednesday, May 6)
+ *   ...
+ *
+ * For chunked trips (segmentDayStart > 1), the day numbers start at the chunk
+ * offset so the mapping aligns with the CRITICAL DAY NUMBERING directive.
+ */
+function buildWeekdayMap(startDate: string, dayCount: number, segmentDayStart: number = 1): string {
+  if (!startDate || dayCount <= 0) return '';
+  const lines: string[] = [];
+  for (let i = 0; i < dayCount; i++) {
+    const d = new Date(startDate + 'T12:00:00');
+    d.setDate(d.getDate() + i);
+    const dayNum = segmentDayStart + i;
+    lines.push(`  - Day ${dayNum} (${formatDateWithWeekday(d.toISOString().slice(0, 10))})`);
+  }
+  return lines.join('\n');
+}
+
 // ─── Seasonal context ─────────────────────────────────────────────────────────
 // Returns date-aware rules about what sports/events are in or out of season,
 // and seasonal travel context (Christmas markets, cherry blossoms, etc.)
@@ -921,6 +962,7 @@ You MUST follow ALL of these rules:
 TRIP DETAILS:
 - Destination: ${destinations.length >= 2 ? `Multi-city — ${destinations.join(' → ')}` : destination}
 - Dates: ${startDate} to ${endDate} (${tripLength} days)
+${startDate ? `- Day-by-day calendar (use this to match each venue's per-weekday opening hours to the actual day — do NOT rely on your own date arithmetic):\n${buildWeekdayMap(startDate, tripLength)}` : ''}
 - Group type: ${groupType || 'friends'}
 - Group size: ${groupSize ?? 1} ${(groupSize ?? 1) === 1 ? 'person' : 'people'}
 - Budget (per person, USD): $${budget.toLocaleString()}
@@ -961,7 +1003,8 @@ Every restaurant and activity in the itinerary must come from one of these two l
 IMPORTANT EXEMPTIONS: The hotelSuggestions array (when required) and photoSpots are NOT bound by this restriction — use your knowledge to recommend real, well-regarded hotels and photo locations even if they are not in the lists below.
 
 OPENING HOURS RULES (strictly enforce):
-- Each venue's opening hours are listed. Schedule it ONLY within those hours.
+- Each venue's opening hours are listed per weekday (e.g. "Monday: 11:00 AM – 9:00 PM"). The "Day-by-day calendar" above tells you the exact weekday of each day's date — use it to pair the right weekday's hours to the right day. Do NOT compute the weekday yourself; rely on the calendar.
+- A venue with "Mondays: Closed" cannot be scheduled on a day whose date falls on a Monday. Pick a different venue.
 - A restaurant closed before 10:00 AM cannot be breakfast. One opening at 5:00 PM cannot be lunch.
 - If hours are not listed for a venue, apply common-sense defaults (restaurants: noon–10 PM; parks/outdoor sites: all day).
 - Do NOT schedule any venue outside its listed hours even if it creates a scheduling gap — fill gaps with a venue that IS open.
