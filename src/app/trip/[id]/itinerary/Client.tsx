@@ -625,7 +625,25 @@ function ItineraryPageContent() {
       city?: string;
     }>;
     practicalNotes?: {
-      currency?: string; tipping?: string; customs?: string; entryRequirements?: string;
+      currency?: string;
+      tipping?: string;
+      customs?: string;
+      entryRequirements?: string;
+      /** AI sometimes emits these richer fields per the schema rules block;
+       *  they're optional in the type so older trips render cleanly too. */
+      safetyTips?: string;
+      usefulPhrases?: string[];
+    };
+    /** Departure logistics — rendered on the TRIP'S LAST DAY in the UI even
+     *  though the AI emits it on day 1 (lives in aiMeta so it survives day
+     *  swaps). All fields optional; missing departure info = no card. */
+    departureInfo?: {
+      airport?: string | null;
+      recommendedArrival?: string;
+      transitTip?: string;
+      lastDayTimingTip?: string;
+      customsTips?: string;
+      luggageStorageTip?: string;
     };
     preferences?: { priorities?: string[] };
     foodieTips?: Array<{
@@ -3133,6 +3151,127 @@ function ItineraryPageContent() {
                 )}
 
                 <div className="space-y-4">
+                  {/* Trip Essentials — Day 1 only. Surfaces practicalNotes
+                      (currency / tipping / customs / entry requirements +
+                      optional safety + useful phrases) that the AI generates
+                      but had never been rendered. */}
+                  {selectedDay === 1 && aiMeta?.practicalNotes && (() => {
+                    const pn = aiMeta.practicalNotes;
+                    const hasAny = !!(pn.currency || pn.tipping || pn.customs || pn.entryRequirements || pn.safetyTips || (pn.usefulPhrases && pn.usefulPhrases.length > 0));
+                    if (!hasAny) return null;
+                    return (
+                      <div className="bg-white border border-sky-100 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 bg-gradient-to-r from-sky-50 to-sky-100 border-b border-sky-100 flex items-center gap-2">
+                          <span className="text-base">🧭</span>
+                          <p className="text-xs font-semibold uppercase tracking-widest text-sky-900">Trip Essentials</p>
+                        </div>
+                        <dl className="divide-y divide-zinc-100">
+                          {pn.currency && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Currency</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{pn.currency}</dd>
+                            </div>
+                          )}
+                          {pn.tipping && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Tipping</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{pn.tipping}</dd>
+                            </div>
+                          )}
+                          {pn.customs && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Customs & Etiquette</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{pn.customs}</dd>
+                            </div>
+                          )}
+                          {pn.entryRequirements && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Entry Requirements</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{pn.entryRequirements}</dd>
+                            </div>
+                          )}
+                          {pn.safetyTips && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Safety</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{pn.safetyTips}</dd>
+                            </div>
+                          )}
+                          {pn.usefulPhrases && pn.usefulPhrases.length > 0 && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">Useful Phrases</dt>
+                              <dd>
+                                <ul className="space-y-1">
+                                  {pn.usefulPhrases.map((phrase, i) => (
+                                    <li key={i} className="text-sm text-zinc-800 leading-snug">{phrase}</li>
+                                  ))}
+                                </ul>
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Heading Home — last day only. Departure logistics generated
+                      by the AI (airport + recommended arrival + transit + last-
+                      day timing + customs + luggage). Drops out if no
+                      departureInfo (older trips, road trips with no flight, etc.). */}
+                  {(() => {
+                    const lastDayNum = activeDays.length > 0 ? activeDays[activeDays.length - 1].day : null;
+                    if (lastDayNum === null || selectedDay !== lastDayNum) return null;
+                    const di = aiMeta?.departureInfo;
+                    if (!di) return null;
+                    const hasAny = !!(di.airport || di.recommendedArrival || di.transitTip || di.lastDayTimingTip || di.customsTips || di.luggageStorageTip);
+                    if (!hasAny) return null;
+                    return (
+                      <div className="bg-white border border-rose-100 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 bg-gradient-to-r from-rose-50 to-rose-100 border-b border-rose-100 flex items-center gap-2">
+                          <span className="text-base">✈️</span>
+                          <p className="text-xs font-semibold uppercase tracking-widest text-rose-900">Heading Home</p>
+                        </div>
+                        <dl className="divide-y divide-zinc-100">
+                          {di.airport && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Airport</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{di.airport}</dd>
+                            </div>
+                          )}
+                          {di.recommendedArrival && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">When to Arrive</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{di.recommendedArrival}</dd>
+                            </div>
+                          )}
+                          {di.lastDayTimingTip && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Plan Your Day</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{di.lastDayTimingTip}</dd>
+                            </div>
+                          )}
+                          {di.transitTip && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Getting There</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{di.transitTip}</dd>
+                            </div>
+                          )}
+                          {di.luggageStorageTip && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Luggage Storage</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{di.luggageStorageTip}</dd>
+                            </div>
+                          )}
+                          {di.customsTips && (
+                            <div className="px-4 py-3">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-0.5">Customs & Duty-Free</dt>
+                              <dd className="text-sm text-zinc-800 leading-snug">{di.customsTips}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    );
+                  })()}
+
                   {/* Destination Tip — insider fact about this city/day */}
                   {currentDayData.destinationTip && (
                     <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">

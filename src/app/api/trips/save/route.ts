@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
         bookedFlight: Json | null;
         preferences: { [key: string]: Json | undefined };
         practicalNotes?: Json;
+        departureInfo?: Json;
         hotelSuggestions?: Json;
         isCruise?: boolean;
         cruiseLine?: string;
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
           groupSize: tripMeta.groupSize,
           preferences: tripMeta.preferences ?? {},
           practicalNotes: tripMeta.practicalNotes ?? null,
+          departureInfo: tripMeta.departureInfo ?? null,
           hotelSuggestions: tripMeta.hotelSuggestions ?? null,
           isCruise: tripMeta.isCruise ?? false,
           cruiseLine: tripMeta.cruiseLine ?? '',

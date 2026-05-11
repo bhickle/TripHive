@@ -1100,11 +1100,21 @@ ${hasShoppingPriority ? `
       "safetyTips": "Top 2-3 practical safety or health tips specific to this destination (e.g. tap water safety, common scams, areas to avoid at night)",
       "usefulPhrases": ["Local phrase = English meaning", "Local phrase = English meaning", "Local phrase = English meaning"]
     }
+  "departureInfo" — a one-time block of headed-home logistics for the trip's last day (only on day 1, omit from all other days). Render target: the LAST day of the trip in the UI. Schema:
+    {
+      "airport": "Name + IATA code of the airport the group flies out of (e.g. 'Glasgow International (GLA)'). If the trip has no return flight (road trip, end-of-trip is checkout, etc.), set to null.",
+      "recommendedArrival": "How early to arrive at the airport — distinguish domestic vs international where relevant (e.g. 'Arrive 2 hours before domestic, 3 hours before international flights')",
+      "transitTip": "Best way to get to the airport from the last day's likely neighborhood — name the actual rail line, bus route, or airport shuttle, and rough cost/time (e.g. 'The Express bus from Buchanan St. takes 25 min for £8 — faster and cheaper than a taxi for a single traveler')",
+      "lastDayTimingTip": "Practical guidance on when to leave the city given common flight times — e.g. 'For afternoon transatlantic flights, plan to wrap up activities by 11am and head airport-ward by noon'",
+      "customsTips": "Specific to flying OUT of this destination back to the US/EU/UK — duty-free allowances on local items (cheese, alcohol, leather, etc.), restricted items that may be confiscated, agricultural / wildlife product warnings, and any country-specific exit tax or VAT-refund process worth knowing",
+      "luggageStorageTip": "If the last day is long and the hotel checkout is early (typical 11am), where can the group store bags? Hotel concierge bag-drop is the default; mention named local left-luggage services or train station lockers if they're notably better."
+    }
 
 [
   {
     "title": "Evocative trip name here (day 1 only)",
-    "practicalNotes": { ... (day 1 only) },${hasNightlifePriority ? `
+    "practicalNotes": { ... (day 1 only) },
+    "departureInfo": { ... (day 1 only — used on the trip's last day in the UI) },${hasNightlifePriority ? `
     "nightlifeHighlights": [ ... (EVERY day — exactly 2 venues anchored to this day's neighborhoods) ],` : ''}${hasShoppingPriority ? `
     "shoppingGuide": [ ... (EVERY day — exactly 2 spots anchored to this day's neighborhoods) ],` : ''}
     "day": 1,
@@ -1255,7 +1265,7 @@ RULES:
 12. packingTips: for any outdoor, hiking, excursion, tour, or physical activity include 2-4 short packing tips (e.g. "Wear sturdy walking shoes", "Bring a water bottle", "Sunscreen essential"). Leave empty array [] for restaurants, museums, and low-key activities.
 13. Respect the budget tier above — match every venue, hotel, and activity to that comfort level. For LUXURY tier, lean upscale (skip dive bars, hostels, fast food, $ casual). For BUDGET tier, lean local-value (skip Michelin tasting menus, $$$$ resorts, private guided tours). MID-RANGE and COMFORT should mix appropriately. Exploration appetite (hidden gems vs iconic sights) is shaped by the priorities array and localMode flag — not this slider.
 14. Age ranges present: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'} — if children (Under 12 or 12-17) are in the group, ensure all shared-track activities are family-appropriate. Use split tracks to give adults-only options in the afternoon when children are present alongside adults.
-15. "title" and "practicalNotes" fields appear ONLY on day 1. All other day objects must not include these fields.
+15. "title", "practicalNotes", and "departureInfo" fields appear ONLY on day 1. All other day objects must not include these fields.
 16. NEVER INVENT SCHEDULED EVENTS: Do not assign a specific scheduled game, concert, festival, or live performance to a specific date unless it is a recurring, date-independent, permanent offering (e.g. a weekly farmers market, a permanent museum exhibit). For any live event venue, describe it and direct travelers to the official website or a ticketing platform (Ticketmaster, AXS, SeatGeek) to check current dates. This rule overrides any priority or must-have instruction.
 17. destinationTip: include on EVERY day object — one punchy, specific insider fact about the destination for that day's city. Rotate the topic across days (food, drink, tradition, cultural quirk, etc.). Never repeat the same topic two days in a row.
 18. trackALabel and trackBLabel must be IDENTICAL strings on every day that has a split. Decide the label pair once for the whole trip and repeat it exactly on every split day — never rename or rephrase a track label between days.
@@ -1616,7 +1626,7 @@ export async function POST(request: NextRequest) {
     const isFirstDayOfTrip = citySegment.dayStart === 1;
 
     if (dayOffset > 0) {
-      finalPrompt += `\n\nCRITICAL DAY NUMBERING: This segment covers days ${citySegment.dayStart}–${chunkLastDay} of the full trip. Every "day" field MUST start at ${citySegment.dayStart}, not at 1. The first day object is {"day": ${citySegment.dayStart}, "date": "${resolvedStartDate}", ...} and the last is {"day": ${chunkLastDay}, ...}. Do NOT include "title" or "practicalNotes" fields — those belong to the full trip's day 1 only.`;
+      finalPrompt += `\n\nCRITICAL DAY NUMBERING: This segment covers days ${citySegment.dayStart}–${chunkLastDay} of the full trip. Every "day" field MUST start at ${citySegment.dayStart}, not at 1. The first day object is {"day": ${citySegment.dayStart}, "date": "${resolvedStartDate}", ...} and the last is {"day": ${chunkLastDay}, ...}. Do NOT include "title", "practicalNotes", or "departureInfo" fields — those belong to the full trip's day 1 only.`;
     }
 
     // Tell the model where this chunk sits in the full trip so it doesn't add
@@ -1825,6 +1835,7 @@ export async function POST(request: NextRequest) {
                         type: 'meta',
                         title: dayObj.title ?? null,
                         practicalNotes: dayObj.practicalNotes ?? null,
+                        departureInfo: dayObj.departureInfo ?? null,
                         hotelSuggestions: dayObj.hotelSuggestions ?? null,
                         nightlifeHighlights: dayObj.nightlifeHighlights ?? null,
                         shoppingGuide: dayObj.shoppingGuide ?? null,
@@ -1832,6 +1843,7 @@ export async function POST(request: NextRequest) {
                       });
                       delete dayObj.title;
                       delete dayObj.practicalNotes;
+                      delete dayObj.departureInfo;
                       delete dayObj.hotelSuggestions;
                       // nightlifeHighlights, shoppingGuide, priorityHighlights, foodieTips:
                       // intentionally NOT deleted — they stay on each day object so the

@@ -18,6 +18,7 @@ interface GeneratedDay {
 interface TripMeta {
   title?: string;
   practicalNotes?: unknown;
+  departureInfo?: unknown;
   hotelSuggestions?: unknown;
   foodieTips?: unknown;
   nightlifeHighlights?: unknown;
@@ -280,6 +281,7 @@ export default function GeneratingPage() {
                 tripMeta = {
                   title:               parsed.title as string | undefined,
                   practicalNotes:      parsed.practicalNotes,
+                  departureInfo:       parsed.departureInfo,
                   hotelSuggestions:    parsed.hotelSuggestions,
                   foodieTips:          parsed.foodieTips ?? null,
                   nightlifeHighlights: parsed.nightlifeHighlights ?? null,
@@ -338,6 +340,7 @@ export default function GeneratingPage() {
       ...metaBase,
       title:               tripMeta.title               || null,
       practicalNotes:      tripMeta.practicalNotes      || null,
+      departureInfo:       tripMeta.departureInfo       || null,
       hotelSuggestions:    tripMeta.hotelSuggestions    || null,
       foodieTips:          tripMeta.foodieTips          || null,
       nightlifeHighlights: tripMeta.nightlifeHighlights || null,
