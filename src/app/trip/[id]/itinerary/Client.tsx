@@ -303,6 +303,14 @@ function ItineraryPageContent() {
   const searchParams = useSearchParams();
   const tripPageId = params?.id ?? '';
   const [selectedDay, setSelectedDay] = useState(1);
+  // Drag-and-drop state for the day-pill swap. swap-content-but-not-dates
+  // model: dragging day A onto day B exchanges their activities/tracks/photo
+  // spots/etc. but keeps each day's number, date, title, and practicalNotes
+  // pinned to their original position. Day 1 and the last day are locked
+  // (arrival / departure logistics live there), and cross-city swaps are
+  // blocked (would break travel-day continuity on multi-city trips).
+  const [draggingDay, setDraggingDay] = useState<number | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [activityAdded, setActivityAdded] = useState(false);
   const [activityDeleted, setActivityDeleted] = useState(false);
   const [bookingSaved, setBookingSaved] = useState<string | null>(null);
@@ -2876,7 +2884,71 @@ function ItineraryPageContent() {
           </div>
         )}
 
-        {/* Day Selector — arrow navigation when overflow */}
+        {/* Day Selector — arrow navigation when overflow + drag-and-drop swap */}
+        {(() => {
+          // ── Swap-content-but-not-dates: drag a day pill onto another to
+          // exchange their activities/tracks/photoSpots/foodieTips/etc.
+          // Day numbers, dates, title, and practicalNotes stay pinned to
+          // their original position. Locks: Day 1 (arrival framing baked
+          // in), the last day (departure framing baked in), and cross-city
+          // pairs (would break travel-day continuity on multi-city trips).
+          const lastDayNumber = activeDays.length > 0 ? activeDays[activeDays.length - 1].day : null;
+          const isLocked = (n: number) => n === 1 || (lastDayNumber !== null && n === lastDayNumber);
+          const canSwap = (a: number, b: number): boolean => {
+            if (a === b) return false;
+            if (isLocked(a) || isLocked(b)) return false;
+            const dayA = activeDays.find((d: { day: number }) => d.day === a) as ItineraryDay | undefined;
+            const dayB = activeDays.find((d: { day: number }) => d.day === b) as ItineraryDay | undefined;
+            if (!dayA || !dayB) return false;
+            if (dayA.city && dayB.city && dayA.city !== dayB.city) return false;
+            return true;
+          };
+          const swapDayContent = (a: number, b: number) => {
+            if (!canSwap(a, b)) return;
+            // Swap-safe fields — everything that conceptually describes "what
+            // happens on this day" rather than "which calendar day this is".
+            // timeSlot lives on each activity, so it travels naturally with
+            // the tracks. Each activity keeps its own start/end time —
+            // nothing gets reset by the swap.
+            const SWAP_FIELDS = [
+              'tracks', 'theme', 'photoSpots', 'foodieTips',
+              'nightlifeHighlights', 'shoppingGuide', 'transportLegs',
+              'destinationTip', 'dinnerMeetupLocation',
+              'meetupTime', 'meetupLocation', 'trackALabel', 'trackBLabel',
+              'priorityHighlights',
+            ] as const;
+            const dayA = (activeDays as ItineraryDay[]).find(d => d.day === a);
+            const dayB = (activeDays as ItineraryDay[]).find(d => d.day === b);
+            if (!dayA || !dayB) return;
+            const swapped = (activeDays as ItineraryDay[]).map(d => {
+              if (d.day !== a && d.day !== b) return d;
+              const other = d.day === a ? dayB : dayA;
+              const next: Record<string, unknown> = { ...d };
+              for (const k of SWAP_FIELDS) {
+                next[k] = (other as unknown as Record<string, unknown>)[k];
+              }
+              return next as unknown as ItineraryDay;
+            });
+            syncAiDays(swapped);
+            if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+              fetch(`/api/trips/${tripPageId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: swapped }),
+              })
+                .then(res => {
+                  if (!res.ok) throw new Error(`save failed: ${res.status}`);
+                })
+                .catch(() => {
+                  // Roll back on failure
+                  syncAiDays(activeDays as ItineraryDay[]);
+                  setActionError("Couldn't save the day swap. Try again in a moment.");
+                  setTimeout(() => setActionError(null), 4000);
+                });
+            }
+          };
+
+          return (
         <div className="mb-8 relative flex items-center">
           {dayTabCanScrollLeft && (
             <button
@@ -2895,11 +2967,56 @@ function ItineraryPageContent() {
           >
             {activeDays.map((day: { day: number; date: string }) => {
               const dayDateStr = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const locked = isLocked(day.day);
+              const isDragging = draggingDay === day.day;
+              const isValidDropTarget = draggingDay !== null && draggingDay !== day.day && canSwap(draggingDay, day.day);
+              const isHoverTarget = dragOverDay === day.day && isValidDropTarget;
+              const tooltip = locked
+                ? (day.day === 1 ? 'Day 1 stays first (trip arrival)' : 'Last day stays last (trip departure)')
+                : 'Drag onto another day to swap their content';
               return (
                 <button
                   key={day.day}
+                  draggable={!locked}
+                  onDragStart={(e) => {
+                    if (locked) { e.preventDefault(); return; }
+                    setDraggingDay(day.day);
+                    // Show a copy of the pill as the drag image (default behavior
+                    // works; explicit setDragImage with the element gives a
+                    // cleaner look on Chrome/Firefox).
+                    try { e.dataTransfer.effectAllowed = 'move'; } catch { /* ignore */ }
+                  }}
+                  onDragEnd={() => { setDraggingDay(null); setDragOverDay(null); }}
+                  onDragOver={(e) => {
+                    if (isValidDropTarget) {
+                      e.preventDefault();
+                      try { e.dataTransfer.dropEffect = 'move'; } catch { /* ignore */ }
+                      if (dragOverDay !== day.day) setDragOverDay(day.day);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    setDragOverDay(prev => prev === day.day ? null : prev);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggingDay !== null && canSwap(draggingDay, day.day)) {
+                      swapDayContent(draggingDay, day.day);
+                      // Keep the user on whichever day they were viewing —
+                      // their selectedDay didn't move, only the content
+                      // sitting under those day numbers did.
+                    }
+                    setDraggingDay(null);
+                    setDragOverDay(null);
+                  }}
                   onClick={() => setSelectedDay(day.day)}
+                  title={tooltip}
                   className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all flex-shrink-0 ${
+                    locked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+                  } ${
+                    isDragging ? 'opacity-50' : ''
+                  } ${
+                    isHoverTarget ? 'ring-2 ring-sky-400 ring-offset-1' : ''
+                  } ${
                     selectedDay === day.day
                       ? 'bg-zinc-900 text-white shadow-sm'
                       : 'bg-white border border-zinc-200 text-zinc-600 hover:border-zinc-300'
@@ -2920,6 +3037,8 @@ function ItineraryPageContent() {
             </button>
           )}
         </div>
+          );
+        })()}
 
         {/* Map View */}
         {showMapView && (
