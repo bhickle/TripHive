@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { TripCard } from '@/components/TripCard';
 import { TagCitiesBanner, shouldShowTagCitiesBanner, rememberTagCitiesBannerDismissed } from '@/components/TagCitiesBanner';
@@ -40,7 +40,15 @@ function computeStatus(startDate?: string, endDate?: string): 'planning' | 'acti
 export default function TripsPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  // Honor ?status= query param so the dashboard stat cards can deep-link
+  // straight into a filtered view (Places / Days Out There → completed trips).
+  const searchParams = useSearchParams();
+  const initialStatus = (() => {
+    const v = searchParams?.get('status');
+    if (v === 'planning' || v === 'active' || v === 'completed' || v === 'all') return v;
+    return 'all' as StatusFilter;
+  })();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
   const [shareFilter, setShareFilter] = useState<ShareFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');

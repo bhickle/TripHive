@@ -402,13 +402,32 @@ export default function LayoverPlannerPage() {
     { code: 'DOH', city: 'Doha', name: 'Hamad International' },
   ];
 
+  // Aligned with the main Trip Builder priorities (src/app/trip/new/Client.tsx)
+  // so long / multi-day layovers (Iceland, Singapore, Doha programs) get the
+  // same selection model the user is used to from the main flow. Sports +
+  // Theme Parks omitted — not realistic for any layover ≤ 24 hrs. Beach also
+  // dropped because it depends heavily on airport geography and the AI can
+  // surface a beach-friendly layover under sightseeing/adventure where applicable.
   const priorityOptions = [
-    { id: 'food', label: 'Food & Dining', icon: '🍽️' },
+    { id: 'food', label: 'Food', icon: '🍽️' },
     { id: 'shopping', label: 'Shopping', icon: '🛍️' },
-    { id: 'sightseeing', label: 'Sightseeing', icon: '📸' },
+    { id: 'culture', label: 'Culture', icon: '🏛️' },
+    { id: 'history', label: 'History', icon: '📜' },
+    { id: 'nature', label: 'Nature', icon: '🌿' },
+    { id: 'photography', label: 'Photography', icon: '📷' },
+    { id: 'wellness', label: 'Wellness', icon: '💆' },
+    { id: 'nightlife', label: 'Nightlife', icon: '🎶' },
+    { id: 'adventure', label: 'Adventure', icon: '⚡' },
+    { id: 'family', label: 'Family/Kids', icon: '👨‍👩‍👧' },
+    // Layover-specific addition — "Relaxation" matches the existing layover
+    // semantics (rest, lounges, spa, hotel day-use rooms) which doesn't have
+    // a 1:1 in the main priorities list. Kept here so airside-only layovers
+    // still have a meaningful option.
     { id: 'relaxation', label: 'Relaxation', icon: '🧘' },
-    { id: 'culture', label: 'Culture', icon: '🎨' },
-    { id: 'adventure', label: 'Adventure', icon: '🪂' },
+    // "Sightseeing" kept as a synonym for casual exploration — main-builder
+    // doesn't have it but layover users naturally reach for it for "tour
+    // the highlights" requests.
+    { id: 'sightseeing', label: 'Sightseeing', icon: '📸' },
   ];
 
   const ageRangeOptions = ['Under 12', '12-17', '18-30', '31-50', '51-65', '65+'];

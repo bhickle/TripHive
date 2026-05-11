@@ -80,7 +80,7 @@ export async function GET() {
       allTripRows.map(t => t.organizer_id).filter((id): id is string => !!id),
     ));
 
-    const [membersRes, organizersRes, itinerariesRes] = await Promise.all([
+    const [membersRes, organizersRes, citiesRes] = await Promise.all([
       supabase
         .from('trip_members')
         .select('trip_id, name, email, role')
@@ -91,15 +91,23 @@ export async function GET() {
             .select('id, name, email')
             .in('id', allOrganizerIds)
         : Promise.resolve({ data: [] as Array<{ id: string; name: string | null; email: string | null }> }),
-      // Pull `days` so we can derive a per-trip `cities[]` for the dashboard's
-      // "Places Visited" stat. The AI generation tags every day with `city`,
-      // which captures multi-city legs and side-trips (Versailles day from a
-      // Paris trip, Florence leg of a Rome trip) that the parent destination
-      // string can't express.
-      supabase
-        .from('itineraries')
-        .select('trip_id, days')
-        .in('trip_id', allTripIds),
+      // Cities per trip — fetched via the `trip_cities` Postgres RPC so we
+      // don't ship the full itineraries.days jsonb (50KB+ per trip) over the
+      // wire just to compute a city count. Home Base QA: "Returning to the
+      // homescreen is very slow." For a user with 20+ trips the old SELECT
+      // days approach pulled 1MB+ of payload per dashboard load; the RPC
+      // returns just trip_id + cities[].
+      // Cast through unknown because the typed Supabase client doesn't yet
+      // know about the new trip_cities RPC. Regenerate database.types.ts to
+      // pick it up; until then, the cast keeps the route compiling without
+      // disturbing the typed surface elsewhere.
+      (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: Array<{ trip_id: string; cities: string[] | null }> | null; error: unknown }>)(
+        'trip_cities',
+        { trip_ids: allTripIds },
+      ),
     ]);
 
     const membersByTrip = new Map<string, Array<{ name?: string | null; email?: string | null }>>();
@@ -117,15 +125,14 @@ export async function GET() {
     const memberRoleByTrip = new Map<string, string>();
     for (const m of memberRows) memberRoleByTrip.set(m.trip_id, m.role);
 
+    // RPC returns rows of { trip_id, cities: string[] } — already deduped
+    // server-side (the function uses SELECT DISTINCT on city extraction).
     const citiesByTrip = new Map<string, string[]>();
-    for (const row of itinerariesRes.data ?? []) {
-      const days = (row.days ?? []) as Array<{ city?: string | null }>;
-      const seen = new Set<string>();
-      for (const d of days) {
-        const c = d?.city?.trim();
-        if (c) seen.add(c);
+    const rpcRows = (citiesRes.data ?? []) as Array<{ trip_id: string; cities: string[] | null }>;
+    for (const row of rpcRows) {
+      if (Array.isArray(row.cities) && row.cities.length > 0) {
+        citiesByTrip.set(row.trip_id, row.cities);
       }
-      if (seen.size > 0) citiesByTrip.set(row.trip_id, Array.from(seen));
     }
 
     const trips = allTripRows.map(t => {

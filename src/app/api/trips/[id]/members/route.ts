@@ -250,6 +250,50 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Failed to join trip' }, { status: 500 });
     }
 
+    // ── Fire notifications ─────────────────────────────────────────────────
+    // Home Base QA: "I'm not getting notifications when invited to itineraries."
+    // The /api/invite/email flow already creates a trip_invite notification for
+    // the invitee, but most joins happen via the open share-link flow which
+    // previously fired zero notifications. Now we:
+    //   1. Create a self-notification for the joiner (authed users only) so
+    //      they see a record on Home Base after joining a trip from outside
+    //      the app (text message, email link from a friend, etc.)
+    //   2. Fan out a "Brandon joined the trip" ping to the organizer + every
+    //      existing member so the group knows the roster grew.
+    // Best-effort — failures are logged but never block the join itself.
+    if (userId) {
+      try {
+        const { data: tripMeta } = await supabase
+          .from('trips')
+          .select('title')
+          .eq('id', params.id)
+          .maybeSingle();
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          type: 'trip_invite',
+          trip_id: params.id,
+          trip_name: tripMeta?.title ?? null,
+          inviter_name: null,
+          message: 'You joined this trip.',
+        });
+      } catch (err) {
+        console.error('[members POST] self-notification insert failed:', err);
+      }
+    }
+    try {
+      const { notifyTripMembers } = await import('@/lib/supabase/notify');
+      await notifyTripMembers({
+        supabase,
+        tripId: params.id,
+        excludeUserId: userId ?? '',
+        type: 'member_joined',
+        fromName: name.trim(),
+        message: `${name.trim()} joined the trip.`,
+      });
+    } catch (err) {
+      console.error('[members POST] fan-out failed:', err);
+    }
+
     // Mark the invite as accepted so the same token can't be reused. Best-
     // effort: don't fail the join if this update errors — the member is in,
     // we just lose the audit signal AND lose the protection against the

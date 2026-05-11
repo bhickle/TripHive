@@ -254,6 +254,36 @@ export default function DashboardPage() {
   };
   const notifTypeLabel: Record<string, string> = {
     trip_invite: 'invite',
+    NEW_MESSAGE: 'new message',
+    new_message: 'new message',
+    new_vote: 'new vote',
+    member_joined: 'new member',
+    chat: 'chat',
+    vote: 'vote',
+    activity: 'activity',
+    expense: 'expense',
+    prep: 'prep',
+    member: 'member',
+    ai: 'AI',
+  };
+
+  // Map each notification to a deep link so the row is clickable straight to
+  // the message / vote / trip page it refers to. Home Base QA: "Wish the
+  // notifications were clickable and would take you to where the messages or
+  // whatever are." Falls back to the trip's itinerary when the type isn't
+  // recognised; returns null when there's no trip_id at all (in which case
+  // we leave the row click → markRead-only behaviour intact).
+  const notifTarget = (notif: { type?: string; trip_id?: string | null }): string | null => {
+    if (!notif.trip_id) return null;
+    const tripId = notif.trip_id;
+    const t = (notif.type ?? '').toLowerCase();
+    if (t === 'new_message' || t === 'chat' || t === 'message') return `/trip/${tripId}/group?tab=chat`;
+    if (t === 'vote' || t === 'vote_result') return `/trip/${tripId}/group?tab=yayNay`;
+    if (t === 'expense') return `/trip/${tripId}/group?tab=expenses`;
+    if (t === 'member' || t === 'crew') return `/trip/${tripId}/group?tab=crew`;
+    if (t === 'prep') return `/trip/${tripId}/prep`;
+    if (t === 'trip_invite' || t === 'ai' || t === 'activity' || t === 'trip_update' || t === '') return `/trip/${tripId}/itinerary`;
+    return `/trip/${tripId}/itinerary`;
   };
 
   // Destination photo library - curated high-quality images per destination
@@ -516,14 +546,13 @@ export default function DashboardPage() {
                       <p className="text-sm text-zinc-400">No notifications yet</p>
                     </div>
                   )}
-                  {notifications.map((notif) => (
-                    <div
-                      key={notif.id}
-                      onClick={() => markRead(notif.id)}
-                      className={`w-full text-left px-5 py-4 hover:bg-parchment-dark transition-colors cursor-pointer ${
-                        !notif.read ? 'bg-sky-50/30' : ''
-                      }`}
-                    >
+                  {notifications.map((notif) => {
+                    const target = notifTarget(notif);
+                    const handleClick = () => {
+                      markRead(notif.id);
+                      setShowNotifications(false);
+                    };
+                    const body = (
                       <div className="flex items-start gap-3">
                         <span className="text-xl flex-shrink-0 mt-0.5">{notif.icon}</span>
                         <div className="flex-1 min-w-0">
@@ -539,22 +568,24 @@ export default function DashboardPage() {
                             {notif.title}
                           </p>
                           <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2">{notif.message}</p>
-                          <div className="flex items-center justify-between mt-1">
-                            <p className="text-[11px] text-zinc-400">{notif.trip}{notif.trip ? ' · ' : ''}{notif.time}</p>
-                            {notif.type === 'trip_invite' && notif.trip_id && (
-                              <Link
-                                href={`/trip/${notif.trip_id}/itinerary`}
-                                className="text-[11px] font-semibold text-sky-700 hover:text-sky-900"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                View Trip →
-                              </Link>
-                            )}
-                          </div>
+                          <p className="text-[11px] text-zinc-400 mt-1">{notif.trip}{notif.trip ? ' · ' : ''}{notif.time}</p>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                    const baseClass = `w-full text-left px-5 py-4 hover:bg-parchment-dark transition-colors cursor-pointer block ${!notif.read ? 'bg-sky-50/30' : ''}`;
+                    // Notifications with a target deep-link to the relevant
+                    // page (chat tab, vote, expense, itinerary…). Notifications
+                    // without a trip_id stay click-to-mark-read only.
+                    return target ? (
+                      <Link key={notif.id} href={target} onClick={handleClick} className={baseClass}>
+                        {body}
+                      </Link>
+                    ) : (
+                      <div key={notif.id} onClick={() => markRead(notif.id)} className={baseClass}>
+                        {body}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Panel Footer */}
@@ -635,10 +666,17 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Stats Bar - Clean horizontal row */}
+          {/* Stats Bar — all three cards now clickable per Home Base QA.
+              Adventures → My Trips; Places → My Trips filtered to completed
+              (since each completed trip is a place visited); Days → same
+              completed-filter view plus a playful "≈ N hours" subtitle so the
+              number reads as something tangible rather than abstract. */}
           <div className="grid grid-cols-3 gap-3 md:gap-6 mb-12">
-            {/* Trips Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <Link
+              href="/trips"
+              title="See all your trips"
+              className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 hover:border-sky-200 transition-all duration-300 block"
+            >
               <div className="flex justify-center mb-2 md:mb-3">
                 <TrendingUp className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
@@ -646,10 +684,15 @@ export default function DashboardPage() {
                 {totalTrips}
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Adventures Planned</p>
-            </div>
+            </Link>
 
-            {/* Places Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <Link
+              href="/trips?status=completed"
+              title={placesVisited.size > 0
+                ? `Places: ${Array.from(placesVisited).slice(0, 8).join(', ')}${placesVisited.size > 8 ? `, +${placesVisited.size - 8} more` : ''}`
+                : 'No completed trips yet — once a trip ends, the places you visited show up here.'}
+              className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 hover:border-sky-200 transition-all duration-300 block"
+            >
               <div className="flex justify-center mb-2 md:mb-3">
                 <Globe className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
@@ -657,10 +700,13 @@ export default function DashboardPage() {
                 {placesVisitedCount}
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Places Visited</p>
-            </div>
+            </Link>
 
-            {/* Days Card */}
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <Link
+              href="/trips?status=completed"
+              title={totalDays > 0 ? `≈ ${(totalDays * 24).toLocaleString()} hours of memories` : 'Completed trips will count here.'}
+              className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 hover:border-sky-200 transition-all duration-300 block"
+            >
               <div className="flex justify-center mb-2 md:mb-3">
                 <Calendar className="w-6 h-6 md:w-8 md:h-8 text-sky-700" />
               </div>
@@ -668,7 +714,12 @@ export default function DashboardPage() {
                 {totalDays}
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Days Out There</p>
-            </div>
+              {totalDays > 0 && (
+                <p className="text-[10px] text-zinc-400 mt-1 leading-tight">
+                  ≈ {(totalDays * 24).toLocaleString()} hours
+                </p>
+              )}
+            </Link>
           </div>
 
           {/* Trips load error banner */}

@@ -196,7 +196,11 @@ export async function POST(request: NextRequest) {
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+      // Bumped from 3000. A long layover with hotel suggestions + multiple
+      // activities + restaurant picks frequently hit the cap and got
+      // truncated, breaking JSON parsing and surfacing as the 500 / "API
+      // error 500" Brandon reported on a 16-hr VIE layover (Home Base QA).
+      max_tokens: 6000,
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: userPrompt },
@@ -205,7 +209,12 @@ export async function POST(request: NextRequest) {
 
     const raw = (message.content[0] as { text: string }).text;
 
-    // Robust JSON cleaning
+    // Robust JSON cleaning + extraction. Earlier code did
+    // `JSON.parse(cleaned.startsWith('{') ? cleaned : '{' + cleaned)` \u2014
+    // if Claude prefixed with any whitespace or commentary, that prepend
+    // produced invalid JSON. Now: strip code-fence wrappers, normalize
+    // quotes/trailing commas, then slice between the FIRST `{` and LAST
+    // `}` so anything outside the JSON object is discarded cleanly.
     const cleaned = raw
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i, '')
@@ -215,7 +224,12 @@ export async function POST(request: NextRequest) {
       .replace(/,\s*([}\]])/g, '$1')
       .trim();
 
-    const parsed = JSON.parse(cleaned.startsWith('{') ? cleaned : '{' + cleaned);
+    const objStart = cleaned.indexOf('{');
+    const objEnd = cleaned.lastIndexOf('}');
+    if (objStart === -1 || objEnd === -1 || objEnd <= objStart) {
+      throw new Error('No JSON object in response');
+    }
+    const parsed = JSON.parse(cleaned.slice(objStart, objEnd + 1));
     return NextResponse.json(parsed);
 
   } catch (err) {
