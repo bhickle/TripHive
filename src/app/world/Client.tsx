@@ -130,19 +130,29 @@ export default function WorldClient() {
   // Share-my-map: native Web Share API on supported browsers (mobile),
   // clipboard fallback on desktop. Composes a short brag-text from the
   // user's stats so the share has context, not just a bare URL.
+  //
+  // Tier behaviour:
+  //   - Nomad: link points at /share/world/[userId], a public landing
+  //     page that previews with a rich rendered share-card image
+  //     (1200×630 PNG) on Twitter / iMessage / Slack / etc.
+  //   - Free / Trip Pass / Explorer: link points at /world, the same
+  //     URL that drove the original text-share. No image card.
+  // The Nomad differentiator is the rich preview — the underlying
+  // share UX (native sheet or clipboard) is identical.
   const [shareToast, setShareToast] = useState<string | null>(null);
   const handleShareMap = useCallback(async () => {
     if (!data) return;
     const { totalCountries, totalCities, totalContinents } = data.stats;
-    // Pluralise so "1 countries" doesn't read odd. No countries also
-    // gets a gentler message — still shareable, just less braggy.
     const countriesLabel = totalCountries === 1 ? '1 country' : `${totalCountries} countries`;
     const citiesLabel = totalCities === 1 ? '1 city' : `${totalCities} cities`;
     const continentsLabel = totalContinents === 1 ? '1 continent' : `${totalContinents} continents`;
     const text = totalCountries > 0
       ? `I've explored ${countriesLabel} and ${citiesLabel} across ${continentsLabel} on tripcoord 🌎`
       : `Planning my next adventure on tripcoord 🌎`;
-    const url = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tripcoord.ai') + '/world';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tripcoord.ai';
+    const url = tier === 'nomad' && currentUser.id
+      ? `${appUrl}/share/world/${currentUser.id}`
+      : `${appUrl}/world`;
 
     // Web Share API is available on most mobile browsers + Safari macOS
     // recent versions. Falls through to clipboard otherwise.
@@ -160,13 +170,15 @@ export default function WorldClient() {
     // Clipboard fallback
     try {
       await navigator.clipboard.writeText(`${text}\n${url}`);
-      setShareToast('Copied to clipboard — paste it anywhere!');
-      setTimeout(() => setShareToast(null), 2500);
+      setShareToast(tier === 'nomad'
+        ? 'Copied to clipboard — your share card will preview with the link!'
+        : 'Copied to clipboard — paste it anywhere!');
+      setTimeout(() => setShareToast(null), 3500);
     } catch {
       setShareToast("Couldn't copy. Long-press to copy: " + url);
       setTimeout(() => setShareToast(null), 5000);
     }
-  }, [data]);
+  }, [data, tier, currentUser.id]);
 
   // Horizontal scroll state for the passport stamps strip. Tracks
   // whether ◀ / ▶ arrow buttons should be enabled based on the
