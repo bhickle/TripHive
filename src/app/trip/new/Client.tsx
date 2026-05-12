@@ -498,12 +498,37 @@ function TripBuilderPage() {
   useEffect(() => {
     const destination = searchParams.get('destination');
     const days = searchParams.get('days');
+    const featured = searchParams.get('featured');
     if (!destination) return;
     setState(prev => ({
       ...prev,
       destination,
       ...(days ? { tripLength: parseInt(days, 10) } : {}),
     }));
+
+    // If the user came from a Featured Itinerary CTA ("Start planning
+    // this trip" on /discover/[slug]), pull that itinerary's vibes and
+    // pre-fill matching priorities so the AI build is shaped by the same
+    // themes as the editorial trip the user picked. Match is by lowercased
+    // vibe → priority-id (the Discover vibe taxonomy is a superset of the
+    // Trip Builder priority taxonomy). Failures are silent — the user
+    // can still proceed and pick priorities themselves.
+    if (featured) {
+      fetch(`/api/featured-itineraries/${featured}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          const vibes: string[] | undefined = data?.itinerary?.vibes;
+          if (!Array.isArray(vibes) || vibes.length === 0) return;
+          const validPriorityIds = new Set(priorityOptions.map(p => p.id));
+          const mapped = vibes
+            .map(v => v.toLowerCase().replace(/\s+/g, ''))
+            .filter(v => validPriorityIds.has(v));
+          if (mapped.length > 0) {
+            setState(prev => ({ ...prev, priorities: Array.from(new Set([...prev.priorities, ...mapped])) }));
+          }
+        })
+        .catch(() => { /* silent — user picks priorities themselves */ });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -893,6 +893,10 @@ You MUST follow ALL of these rules:
 
   // Meal price level based on budget tier (was previously keyed off
   // "explorerPct" — same slider, fixed semantics: high tier = nicer meals).
+  // Per Brandon's note 2026-05-11: cap mid/comfort at $$$ explicitly so
+  // the AI stops occasionally writing $$$$ on default-budget trips.
+  // Only LUXURY tier may hit priceLevel 4, and only at dinner (where
+  // Michelin / tasting-menu picks belong).
   const mealPriceLevels = budgetTierLevel < 30
     ? { breakfast: 1, lunch: 1, dinner: 2 }
     : budgetTierLevel < 60
@@ -900,6 +904,16 @@ You MUST follow ALL of these rules:
     : budgetTierLevel < 85
     ? { breakfast: 2, lunch: 2, dinner: 3 }
     : { breakfast: 2, lunch: 3, dinner: 4 };
+
+  // Hard ceiling on priceLevel across all restaurant activities. The
+  // AI occasionally ignored per-meal priceLevel guidance and wrote 4
+  // ($$$$) on default-budget trips. This cap is used both in the prompt
+  // (Rule 4) and in a server-side clamp after streaming. Mid-range and
+  // comfort travelers should never see $$$$ — only the LUXURY tier.
+  const maxRestaurantPriceLevel = budgetTierLevel < 85 ? 3 : 4;
+  // Michelin / tasting-menu language is allowed only at LUXURY tier;
+  // at every other tier the prompt explicitly forbids it.
+  const michelinAllowed = budgetTierLevel >= 85;
 
   // Accessibility / pace walking rule. Most-restrictive wins: explicit
   // mobility needs > elderly (65+) > default. Even without an explicit
@@ -1254,7 +1268,7 @@ RULES:
 1. Use REAL venue names and real addresses for ${destination}
 2. Include 4-6 activities per day total (including the 3 required meals), spread naturally across the day. EVERY day's schedule MUST extend from morning through evening — never end a day's activity list at midday or early afternoon. The last activity of every day should fall in the late afternoon, evening, or night (typically the dinner restaurant or a post-dinner experience). If you find yourself running out of room while emitting a day, drop a sidebar entry (one nightlifeHighlight, one shoppingGuide entry, one photoSpot) BEFORE you cut activities short.
 3. timeSlot format must be "HH:MM–HH:MM" using an en-dash (–)
-4. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$
+4. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$. **HARD CEILING: for restaurant activities on this trip, priceLevel MUST be ≤ ${maxRestaurantPriceLevel}.** Do not emit priceLevel 4 unless the budget tier is LUXURY. Mid-range and comfort travellers should see a mix of $$ and $$$ — never $$$$. Michelin-starred or tasting-menu restaurants ${michelinAllowed ? 'are explicitly welcome on this trip (LUXURY tier)' : 'must NOT appear on this trip — pick neighborhood favorites, local institutions, and well-reviewed mid-tier spots instead'}.
 5. costEstimate is per-person in USD
 6. id format: "act_d{dayNumber}_{index}" (e.g. act_d1_1, act_d1_2)
 7. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
@@ -1579,6 +1593,13 @@ export async function POST(request: NextRequest) {
     : realPlaces;
   const resolvedMultiCityPlaces = citySegment ? null : multiCityPlaces;
 
+  // Mirror of the buildPrompt-internal tier cap so the stream-side
+  // clampPriceLevels can enforce the same ceiling without a re-export.
+  // budgetTierLevel defaults to 50 (MID-RANGE) when curiosityLevel is
+  // missing — matches buildPrompt's `curiosityLevel ?? 50`.
+  const streamBudgetTier = (body.curiosityLevel as number | undefined) ?? 50;
+  const maxRestaurantPriceLevel = streamBudgetTier < 85 ? 3 : 4;
+
   const { user: prompt, cacheableGuidance } = buildPrompt({
     destination: resolvedDestination,
     startDate: resolvedStartDate,
@@ -1732,6 +1753,30 @@ export async function POST(request: NextRequest) {
         } catch { /* controller already closed */ }
       };
 
+      /** Server-side priceLevel clamp on restaurant activities. The AI
+       *  occasionally writes priceLevel 4 ($$$$) on mid/comfort-tier
+       *  trips despite the prompt cap; mid-range travelers should never
+       *  see $$$$. Walk the day's three tracks and clip restaurant
+       *  priceLevels to maxRestaurantPriceLevel (3 below LUXURY, 4 at
+       *  LUXURY). Non-restaurant priceLevel is left untouched. */
+      const clampPriceLevels = (dayObj: Record<string, unknown>) => {
+        const tracks = dayObj.tracks as Record<string, unknown> | undefined;
+        if (!tracks) return;
+        for (const trackName of ['shared', 'track_a', 'track_b']) {
+          const list = tracks[trackName];
+          if (!Array.isArray(list)) continue;
+          for (const act of list) {
+            if (act && typeof act === 'object' && (act as Record<string, unknown>).isRestaurant === true) {
+              const a = act as Record<string, unknown>;
+              const lvl = typeof a.priceLevel === 'number' ? a.priceLevel : null;
+              if (lvl !== null && lvl > maxRestaurantPriceLevel) {
+                a.priceLevel = maxRestaurantPriceLevel;
+              }
+            }
+          }
+        }
+      };
+
       try {
         // Open the first-pass stream with retry-with-backoff for connection-time
         // overloaded_error / 5xx. Without this, a single 529 from Anthropic kills
@@ -1850,6 +1895,7 @@ export async function POST(request: NextRequest) {
                       // sidebar can render per-day picks anchored to that day's plans.
                     }
 
+                    clampPriceLevels(dayObj);
                     send({ type: 'day', index: dayIndex, data: dayObj });
                     collectedDays.push(dayObj);
                     dayIndex++;
@@ -1930,6 +1976,7 @@ export async function POST(request: NextRequest) {
               for (const d of parsed) {
                 const dn = typeof d.day === 'number' ? d.day : -1;
                 if (dn > dayIndex) {
+                  clampPriceLevels(d);
                   send({ type: 'day', index: dayIndex, data: d });
                   collectedDays.push(d);
                   dayIndex++;
@@ -2175,6 +2222,7 @@ export async function POST(request: NextRequest) {
                         contBuf = '';
                         contStart = -1;
                       } else {
+                        clampPriceLevels(dayObj);
                         send({ type: 'day', index: dayIndex, data: dayObj });
                         collectedDays.push(dayObj);
                         dayIndex++;

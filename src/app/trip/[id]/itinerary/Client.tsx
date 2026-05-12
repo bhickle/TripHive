@@ -1197,18 +1197,25 @@ function ItineraryPageContent() {
                   const merged  = [...current];
                   const dayNum  = typeof dayData.day === 'number' ? dayData.day : 0;
                   const existing = merged.findIndex(d => d.day === dayNum);
-                  if (existing >= 0) merged[existing] = dayData as ItineraryDay;
+                  const isReEmit = existing >= 0;
+                  if (isReEmit) merged[existing] = dayData as ItineraryDay;
                   else merged.push(dayData as ItineraryDay);
                   merged.sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
                   syncAiDays(merged);
-                  setLiveBuildDone(prev => prev + 1);
-                  // Status shows progress against total days. The previous
-                  // "Building day N…" label was set AFTER day N had already
-                  // streamed in, so it lagged the actual model output by one
-                  // (e.g. "Building day 3" while the model was generating
-                  // day 4). Showing the count instead is accurate without
-                  // requiring a "starting day N" SSE event we don't have.
-                  setLiveBuildStatus(`${dayNum} of ${totalDays} days built…`);
+                  // Only tick the "done" counter on NEW days. The AI can
+                  // re-emit a day on a continuation pass to fill in
+                  // sidebar arrays (foodieTips, photoSpots, etc.) that
+                  // were missing on the first pass; without this guard,
+                  // the progress bar ran past total and the status text
+                  // showed earlier day numbers ("1 of 7" while day 7 was
+                  // already on screen), making it look like the build was
+                  // rebuilding earlier days.
+                  if (!isReEmit) {
+                    setLiveBuildDone(prev => prev + 1);
+                    setLiveBuildStatus(`${dayNum} of ${totalDays} days built…`);
+                  } else {
+                    setLiveBuildStatus(`Polishing day ${dayNum}…`);
+                  }
                   break;
                 }
 
