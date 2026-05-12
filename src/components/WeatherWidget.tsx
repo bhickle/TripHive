@@ -137,10 +137,14 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
         if (windowEnd > maxForecastDate) windowEnd = new Date(maxForecastDate);
 
         // ── 3. Fetch forecast ─────────────────────────────────────────────────
+        // temperature_unit=fahrenheit because the primary audience is US-based.
+        // Open-Meteo defaults to Celsius otherwise. The PackingTip thresholds
+        // below are also in °F to match.
         const forecastUrl =
           `https://api.open-meteo.com/v1/forecast` +
           `?latitude=${latitude}&longitude=${longitude}` +
           `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+          `&temperature_unit=fahrenheit` +
           `&timezone=auto` +
           `&start_date=${fmt(windowStart)}&end_date=${fmt(windowEnd)}`;
 
@@ -253,9 +257,10 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
                     <span>{day.precipProb}%</span>
                   </div>
                 )}
-                {/* High / low temps — no fixed width, let content size it */}
+                {/* High / low temps — Fahrenheit, °F label on the high
+                    so the unit is unambiguous without crowding both temps. */}
                 <div className="text-xs font-semibold flex-shrink-0 text-right">
-                  <span className="text-rose-500">{day.tempMax}°</span>
+                  <span className="text-rose-500">{day.tempMax}°F</span>
                   <span className="text-zinc-300 mx-0.5">/</span>
                   <span className="text-sky-600">{day.tempMin}°</span>
                 </div>
@@ -278,13 +283,17 @@ function PackingTip({ days }: { days: WeatherDay[] }) {
   const hasSnow = days.some(d => [71, 73, 75, 77, 85, 86].includes(d.weatherCode));
   const hasStorm = days.some(d => [95, 96, 99].includes(d.weatherCode));
 
+  // Thresholds in Fahrenheit (matching the temperature_unit param above):
+  //   < 50°F (~10°C)  → cold
+  //   < 68°F (~20°C)  → mild but cool
+  //   > 86°F (~30°C)  → hot
   let tip = '';
   if (hasStorm)            tip = '⛈️ Thunderstorms likely — pack a compact umbrella and avoid outdoor plans in the evenings.';
   else if (hasSnow)        tip = '❄️ Snow expected — waterproof boots, a warm coat, and layers are essential.';
   else if (maxPrecip > 60) tip = '🌧️ High chance of rain — a good waterproof jacket and packable umbrella will save the day.';
-  else if (avgMax < 10)    tip = '🧥 Cold ahead — pack thermal layers, a windproof outer layer, and warm accessories.';
-  else if (avgMax < 20)    tip = '🧣 Mild but cool — light layers and a versatile jacket should cover it.';
-  else if (avgMax > 30)    tip = '☀️ Hot trip — lightweight breathable clothing, sunscreen, and a reusable water bottle.';
+  else if (avgMax < 50)    tip = '🧥 Cold ahead — pack thermal layers, a windproof outer layer, and warm accessories.';
+  else if (avgMax < 68)    tip = '🧣 Mild but cool — light layers and a versatile jacket should cover it.';
+  else if (avgMax > 86)    tip = '☀️ Hot trip — lightweight breathable clothing, sunscreen, and a reusable water bottle.';
   else                     tip = '👌 Comfortable weather — mix of light layers should work well.';
 
   return (
