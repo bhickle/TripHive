@@ -258,6 +258,7 @@ export default function DashboardPage() {
     new_message: 'new message',
     new_vote: 'new vote',
     member_joined: 'new member',
+    badge_earned: 'badge earned',
     chat: 'chat',
     vote: 'vote',
     activity: 'activity',
@@ -274,9 +275,11 @@ export default function DashboardPage() {
   // recognised; returns null when there's no trip_id at all (in which case
   // we leave the row click → markRead-only behaviour intact).
   const notifTarget = (notif: { type?: string; trip_id?: string | null }): string | null => {
+    const t = (notif.type ?? '').toLowerCase();
+    // badge_earned has no trip_id — always routes to /world
+    if (t === 'badge_earned') return '/world';
     if (!notif.trip_id) return null;
     const tripId = notif.trip_id;
-    const t = (notif.type ?? '').toLowerCase();
     if (t === 'new_message' || t === 'chat' || t === 'message') return `/trip/${tripId}/group?tab=chat`;
     if (t === 'vote' || t === 'vote_result') return `/trip/${tripId}/group?tab=yayNay`;
     if (t === 'expense') return `/trip/${tripId}/group?tab=expenses`;

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { destinationToCountry, countryToId, countryToContinent, CONTINENT_TOTALS } from '@/lib/world/countryLookup';
-import { cityToCoords } from '@/lib/world/cityCoords';
+import { geocodeCities } from '@/lib/world/geocodeCity';
 import { evaluateBadges, type TripForBadge } from '@/lib/world/badges';
 
 /**
@@ -87,8 +87,10 @@ export async function GET() {
     }));
 
     // Cities per trip — prefer user-tagged visited_cities, fall back to
-    // destination's first segment.
-    const cityVisitCounts = new Map<string, { country: string | null; count: number }>();
+    // destination's first segment. Track which trip each city came from
+    // so we can attach a representative photo (for the Nomad photo-pin
+    // gallery) by joining trip_photos.
+    const cityVisitCounts = new Map<string, { country: string | null; count: number; tripIds: string[] }>();
     for (const t of completed) {
       const country = destinationToCountry(t.destination);
       const cityNames = (t.visited_cities && t.visited_cities.length > 0)
@@ -101,14 +103,71 @@ export async function GET() {
         cityVisitCounts.set(city, {
           country: existing?.country ?? country,
           count: (existing?.count ?? 0) + 1,
+          tripIds: existing ? [...existing.tripIds, t.id] : [t.id],
         });
       }
     }
+
+    // Resolve every city to lat/lon via the 3-tier geocoder (hardcoded
+    // dict → city_geocache table → Google Geocoding API → country
+    // centroid). Batched + cached so subsequent loads are near-instant.
+    const cityList = Array.from(cityVisitCounts.entries()).map(([name, { country }]) => ({
+      city: name,
+      country,
+    }));
+    const coordsMap = await geocodeCities(supabase, cityList);
+
+    // Photo per city — one representative trip_photos.public_url per
+    // unique city, drawn from any of the trips that visited it. Picks
+    // the most recent uploaded photo so users see fresh imagery.
+    const allTripIds = Array.from(new Set(
+      Array.from(cityVisitCounts.values()).flatMap(v => v.tripIds),
+    ));
+    const cityPhotos = new Map<string, string>();
+    if (allTripIds.length > 0) {
+      const { data: photos } = await supabase
+        .from('trip_photos')
+        .select('trip_id, public_url, created_at')
+        .in('trip_id', allTripIds)
+        .not('public_url', 'is', null)
+        .order('created_at', { ascending: false });
+      if (photos) {
+        // Map trip_id → most recent public_url (the order asc=false
+        // means the first photo we see per trip is the newest).
+        const photoByTrip = new Map<string, string>();
+        for (const p of photos) {
+          if (p.public_url && !photoByTrip.has(p.trip_id)) {
+            photoByTrip.set(p.trip_id, p.public_url);
+          }
+        }
+        // For each city, grab the photo from its first associated trip
+        // that has one. Cities visited on multiple trips pick the most
+        // recently uploaded photo across those trips.
+        for (const [city, { tripIds }] of Array.from(cityVisitCounts.entries())) {
+          for (const tid of tripIds) {
+            const photo = photoByTrip.get(tid);
+            if (photo) { cityPhotos.set(city, photo); break; }
+          }
+        }
+      }
+    }
+
     const cities = Array.from(cityVisitCounts.entries())
-      .map(([name, { country, count }]) => {
-        const coords = cityToCoords(name, country);
+      .map(([name, { country, count, tripIds }]) => {
+        const coords = coordsMap.get(name);
         if (!coords) return null;
-        return { name, lon: coords[0], lat: coords[1], country, visitCount: count };
+        return {
+          name,
+          lon: coords.lon,
+          lat: coords.lat,
+          country,
+          visitCount: count,
+          // Nomad photo-pin uses this; lower tiers ignore it.
+          photoUrl: cityPhotos.get(name) ?? null,
+          // Link target — clicking a photo pin opens the most recent
+          // trip that visited this city.
+          tripId: tripIds[tripIds.length - 1],
+        };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
@@ -167,6 +226,67 @@ export async function GET() {
       photoCount,
     });
 
+    // ── Persist newly-earned badges + fire notifications ────────────
+    // Insert (ON CONFLICT DO NOTHING) every currently-earned badge.
+    // Rows that ALREADY existed don't fire notifications; new rows do.
+    // Done after the badges array is computed so we capture earned_at
+    // and can decorate the response with it.
+    const earnedIds = badges.filter(b => b.earned).map(b => b.id);
+    const earnedAtMap = new Map<string, string>();
+    if (earnedIds.length > 0) {
+      try {
+        // Fetch existing rows so we know which ones are NEW this request.
+        const { data: existing } = await supabase
+          .from('user_badges')
+          .select('badge_id, earned_at')
+          .eq('user_id', userId)
+          .in('badge_id', earnedIds);
+        const existingIds = new Set((existing ?? []).map(r => r.badge_id));
+        for (const row of existing ?? []) {
+          earnedAtMap.set(row.badge_id, row.earned_at);
+        }
+
+        const newlyEarned = earnedIds.filter(id => !existingIds.has(id));
+        if (newlyEarned.length > 0) {
+          const now = new Date().toISOString();
+          const rows = newlyEarned.map(badge_id => ({
+            user_id: userId,
+            badge_id,
+            earned_at: now,
+          }));
+          const { error: insertErr } = await supabase
+            .from('user_badges')
+            .insert(rows);
+          if (insertErr) {
+            console.warn('[/api/world] user_badges insert failed:', insertErr);
+          } else {
+            for (const id of newlyEarned) earnedAtMap.set(id, now);
+            // Fire one notification per newly-earned badge. Best-effort —
+            // failure here doesn't block the response.
+            const notifRows = newlyEarned.map(id => {
+              const def = badges.find(b => b.id === id);
+              return {
+                user_id: userId,
+                type: 'badge_earned',
+                trip_id: null,
+                trip_name: null,
+                inviter_name: null,
+                message: def ? `You earned ${def.title} ${def.emoji}` : `New badge earned`,
+              };
+            });
+            await supabase.from('notifications').insert(notifRows);
+          }
+        }
+      } catch (err) {
+        console.warn('[/api/world] badge persistence error:', err);
+      }
+    }
+    // Decorate badges with earnedAt for client display.
+    const badgesWithTimestamps = badges.map(b => ({
+      ...b,
+      earnedAt: b.earned ? (earnedAtMap.get(b.id) ?? null) : null,
+    }));
+
     // Stamps — one per completed trip. Vibe label + emoji derived from
     // the dominant priority.
     const STAMP_EMOJI: Record<string, { emoji: string; label: string; color: string }> = {
@@ -210,7 +330,7 @@ export async function GET() {
       countries,
       cities,
       continents,
-      badges,
+      badges: badgesWithTimestamps,
       stamps,
     });
   } catch (err) {

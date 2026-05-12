@@ -23,9 +23,22 @@ interface WorldData {
     daysAbroad: number;
   };
   countries: Array<{ name: string; id: string | null; visitCount: number }>;
-  cities: Array<{ name: string; lon: number; lat: number; country: string | null; visitCount: number }>;
+  cities: Array<{
+    name: string;
+    lon: number;
+    lat: number;
+    country: string | null;
+    visitCount: number;
+    /** Most-recent trip_photo public URL for any trip that visited
+     *  this city. Used by the Nomad photo-pin treatment; null when
+     *  there are no photos for those trips yet. */
+    photoUrl: string | null;
+    /** Trip ID to open when a pin is clicked (most recent trip that
+     *  visited the city). */
+    tripId: string;
+  }>;
   continents: Record<string, { visited: number; total: number }>;
-  badges: BadgeProgress[];
+  badges: Array<BadgeProgress & { earnedAt: string | null }>;
   stamps: Array<{
     tripId: string;
     destination: string;
@@ -72,6 +85,9 @@ export default function WorldClient() {
   const [error, setError] = useState(false);
   const [hoveredCountry, setHoveredCountry] = useState<{ id: string; name: string; count: number } | null>(null);
   const [hoveredCity, setHoveredCity] = useState<{ name: string; lon: number; lat: number; country: string | null; visitCount: number } | null>(null);
+  // Lightbox state — opens when a Nomad user taps a photo-pin. Contains
+  // the city name + the photoUrl shown + a deep link to the trip.
+  const [lightboxCity, setLightboxCity] = useState<{ name: string; photoUrl: string; tripId: string } | null>(null);
 
   // Redirect unauthenticated visitors to login.
   useEffect(() => {
@@ -247,16 +263,52 @@ export default function WorldClient() {
                           })
                         }
                       </Geographies>
-                      {data.cities.map(city => (
-                        <Marker
-                          key={`${city.name}-${city.lat}-${city.lon}`}
-                          coordinates={[city.lon, city.lat]}
-                          onMouseEnter={() => setHoveredCity(city)}
-                          onMouseLeave={() => setHoveredCity(null)}
-                        >
-                          <circle r={4} fill="#fff" stroke="#0369a1" strokeWidth={2} style={{ cursor: 'pointer' }} />
-                        </Marker>
-                      ))}
+                      {data.cities.map(city => {
+                        // Nomad photo-pin: render the city's representative
+                        // trip photo as a small circular thumbnail. Lower
+                        // tiers (and Nomad cities with no photos yet) get
+                        // the simple white-dot pin. SVG <image> + clipPath
+                        // for the circular crop — only one clipPath per
+                        // pin so the count scales linearly with cities.
+                        const showPhoto = tier === 'nomad' && city.photoUrl;
+                        const clipId = `city-clip-${city.name.replace(/[^a-z0-9]/gi, '_')}`;
+                        return (
+                          <Marker
+                            key={`${city.name}-${city.lat}-${city.lon}`}
+                            coordinates={[city.lon, city.lat]}
+                            onMouseEnter={() => setHoveredCity(city)}
+                            onMouseLeave={() => setHoveredCity(null)}
+                            onClick={() => {
+                              if (showPhoto) setLightboxCity({ name: city.name, photoUrl: city.photoUrl ?? '', tripId: city.tripId });
+                              else router.push(`/trip/${city.tripId}/itinerary`);
+                            }}
+                            style={{ default: { cursor: 'pointer' }, hover: { cursor: 'pointer' }, pressed: { cursor: 'pointer' } }}
+                          >
+                            {showPhoto ? (
+                              <>
+                                <defs>
+                                  <clipPath id={clipId}>
+                                    <circle r={9} />
+                                  </clipPath>
+                                </defs>
+                                <circle r={10} fill="#fff" stroke="#fff" strokeWidth={2} />
+                                <image
+                                  href={city.photoUrl ?? ''}
+                                  x={-9}
+                                  y={-9}
+                                  width={18}
+                                  height={18}
+                                  preserveAspectRatio="xMidYMid slice"
+                                  clipPath={`url(#${clipId})`}
+                                />
+                                <circle r={9} fill="none" stroke="#0369a1" strokeWidth={1.5} />
+                              </>
+                            ) : (
+                              <circle r={4} fill="#fff" stroke="#0369a1" strokeWidth={2} />
+                            )}
+                          </Marker>
+                        );
+                      })}
                     </ZoomableGroup>
                   </ComposableMap>
 
@@ -447,6 +499,46 @@ export default function WorldClient() {
 
         </div>
       </main>
+
+      {/* Photo lightbox — Nomad photo-pin gallery. Click anywhere
+          outside the photo to dismiss. */}
+      {lightboxCity && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
+          onClick={() => setLightboxCity(null)}
+        >
+          <div className="max-w-4xl w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-white/60">Memory from</p>
+                <h3 className="text-2xl font-script italic font-semibold text-white">{lightboxCity.name}</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/trip/${lightboxCity.tripId}/itinerary`}
+                  className="text-xs font-semibold text-white/80 hover:text-white px-3 py-1.5 rounded-full border border-white/20 hover:border-white/40 transition-colors"
+                >
+                  View trip →
+                </Link>
+                <button
+                  onClick={() => setLightboxCity(null)}
+                  className="text-white/60 hover:text-white w-8 h-8 rounded-full flex items-center justify-center"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxCity.photoUrl}
+              alt={lightboxCity.name}
+              className="w-full h-auto rounded-2xl shadow-2xl max-h-[75vh] object-contain bg-zinc-900"
+            />
+            <p className="text-xs text-white/40 mt-3 text-center">Click outside to close</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

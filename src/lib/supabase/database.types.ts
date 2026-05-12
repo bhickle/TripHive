@@ -1168,6 +1168,71 @@ export type Database = {
           },
         ]
       }
+      city_geocache: {
+        Row: {
+          id: string
+          city_key: string
+          country_key: string
+          display_city: string
+          display_country: string | null
+          lat: number
+          lon: number
+          source: string
+          cached_at: string
+        }
+        Insert: {
+          id?: string
+          city_key: string
+          country_key?: string
+          display_city: string
+          display_country?: string | null
+          lat: number
+          lon: number
+          source?: string
+          cached_at?: string
+        }
+        Update: {
+          id?: string
+          city_key?: string
+          country_key?: string
+          display_city?: string
+          display_country?: string | null
+          lat?: number
+          lon?: number
+          source?: string
+          cached_at?: string
+        }
+        Relationships: []
+      }
+      user_badges: {
+        Row: {
+          id: string
+          user_id: string
+          badge_id: string
+          earned_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          badge_id: string
+          earned_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          badge_id?: string
+          earned_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vote_options: {
         Row: {
           display_order: number
