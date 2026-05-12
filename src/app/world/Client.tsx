@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
-import { Globe, Share2, Loader2, Lock, Crown } from 'lucide-react';
+import { Globe, Share2, Loader2, Lock, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEntitlements } from '@/hooks/useEntitlements';
@@ -126,6 +126,48 @@ export default function WorldClient() {
   // the city name + the photoUrl shown + a deep link to the trip.
   const [lightboxCity, setLightboxCity] = useState<{ name: string; photoUrl: string; tripId: string } | null>(null);
   useEscapeKey(() => setLightboxCity(null), !!lightboxCity);
+
+  // Horizontal scroll state for the passport stamps strip. Tracks
+  // whether ◀ / ▶ arrow buttons should be enabled based on the
+  // scroll position so we don't show 'click to scroll left' when
+  // already at the start. Updated on mount, on scroll, and on
+  // resize (the latter matters when the strip's width changes).
+  const stampsScrollRef = useRef<HTMLDivElement>(null);
+  const [stampsCanScrollLeft, setStampsCanScrollLeft] = useState(false);
+  const [stampsCanScrollRight, setStampsCanScrollRight] = useState(false);
+  const updateStampsScrollState = useCallback(() => {
+    const el = stampsScrollRef.current;
+    if (!el) return;
+    // 4px tolerance — sub-pixel scrollLeft from scroll-snap can leave
+    // a tiny residual on either edge that would otherwise keep the
+    // "back to start" arrow lit forever.
+    setStampsCanScrollLeft(el.scrollLeft > 4);
+    setStampsCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  }, []);
+  const scrollStampsBy = useCallback((direction: 'left' | 'right') => {
+    const el = stampsScrollRef.current;
+    if (!el) return;
+    // Scroll by ~80% of the visible width so the next "page" of stamps
+    // comes mostly into view but the user keeps a stamp or two of
+    // context from the previous batch.
+    const delta = Math.round(el.clientWidth * 0.8) * (direction === 'left' ? -1 : 1);
+    el.scrollBy({ left: delta, behavior: 'smooth' });
+  }, []);
+  useEffect(() => {
+    // Initialize once data loads + reinitialize on window resize so
+    // resizing the window doesn't strand the user with stuck arrows.
+    updateStampsScrollState();
+    const onResize = () => updateStampsScrollState();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [updateStampsScrollState]);
+  // Re-check scroll bounds whenever the stamps array changes — fires
+  // once when data loads, then on any future data refresh. Without
+  // this the right arrow stays hidden because the initial check ran
+  // before stamps were rendered.
+  useEffect(() => {
+    updateStampsScrollState();
+  }, [data?.stamps?.length, updateStampsScrollState]);
 
   // Redirect unauthenticated visitors to login.
   useEffect(() => {
@@ -424,12 +466,42 @@ export default function WorldClient() {
                     <p className="text-sm text-zinc-500">Your first completed trip earns your first stamp. Go somewhere!</p>
                   </div>
                 ) : (
-                  // Passport-page grid: each card is a cream parchment
+                  // Passport-page strip: each card is a cream parchment
                   // page with header strip (brand + country code chip),
                   // a big inked oval stamp pressed onto the middle, and
                   // a footer strip (vibe + page #). Alternating tilt
                   // on the oval gives a hand-stamped feel.
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  // Horizontal scroll-snap so the whole passport stays
+                  // one row tall regardless of how many trips the user
+                  // has — arrow buttons advance through "pages" of
+                  // stamps. Mobile uses native swipe via overflow-x-auto.
+                  <div className="relative">
+                    {stampsCanScrollLeft && (
+                      <button
+                        type="button"
+                        onClick={() => scrollStampsBy('left')}
+                        aria-label="Scroll passport left"
+                        className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/95 border border-zinc-200 shadow-md items-center justify-center text-zinc-700 hover:bg-white hover:text-zinc-900 transition-colors"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                    )}
+                    {stampsCanScrollRight && (
+                      <button
+                        type="button"
+                        onClick={() => scrollStampsBy('right')}
+                        aria-label="Scroll passport right"
+                        className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/95 border border-zinc-200 shadow-md items-center justify-center text-zinc-700 hover:bg-white hover:text-zinc-900 transition-colors"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    )}
+                  <div
+                    ref={stampsScrollRef}
+                    onScroll={updateStampsScrollState}
+                    className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 sm:px-12 -mx-1 px-1 [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
                     {data.stamps.map((stamp, i) => {
                       const colorClass = STAMP_COLOR_STYLES[stamp.color] ?? 'text-slate-700';
                       const rotateClass = STAMP_ROTATIONS[i % STAMP_ROTATIONS.length];
@@ -446,7 +518,7 @@ export default function WorldClient() {
                         <Link
                           key={stamp.tripId}
                           href={`/trip/${stamp.tripId}/itinerary`}
-                          className="group relative aspect-[1/1.35] rounded-md overflow-hidden flex flex-col justify-between p-3 transition-all hover:-translate-y-[3px]"
+                          className="group relative flex-shrink-0 snap-start w-[200px] sm:w-[220px] aspect-[1/1.35] rounded-md overflow-hidden flex flex-col justify-between p-3 transition-all hover:-translate-y-[3px]"
                           style={{
                             background: STAMP_WATERMARK_BG,
                             backgroundSize: '200px 80px, cover',
@@ -496,13 +568,14 @@ export default function WorldClient() {
                     {/* "Next stamp" placeholder — empty passport page */}
                     <Link
                       href="/trip/new"
-                      className="aspect-[1/1.35] rounded-md border border-dashed flex flex-col items-center justify-center text-center font-mono transition-colors"
+                      className="flex-shrink-0 snap-start w-[200px] sm:w-[220px] aspect-[1/1.35] rounded-md border border-dashed flex flex-col items-center justify-center text-center font-mono transition-colors hover:border-amber-600 hover:text-amber-700"
                       style={{ borderColor: '#d4c89a', color: '#b6a878' }}
                     >
                       <span className="text-3xl leading-none mb-2">+</span>
                       <p className="text-[9px] font-bold tracking-[0.2em]">NEXT STAMP</p>
                       <p className="text-[9px] mt-1.5 tracking-wider">Plan a trip</p>
                     </Link>
+                  </div>
                   </div>
                 )}
               </section>
