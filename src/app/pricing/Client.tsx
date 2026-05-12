@@ -287,7 +287,7 @@ function PricingPageInner() {
             <ArrowLeft className="w-4 h-4" />
             Back
           </Link>
-          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" />
+          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
           <Link href="/auth/signup" className="px-4 py-2 bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold rounded-full transition-all">
             Get started free
           </Link>

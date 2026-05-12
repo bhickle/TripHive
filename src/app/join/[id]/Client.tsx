@@ -288,7 +288,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
         <header className="bg-white border-b border-slate-200 py-4 px-6">
           <div className="max-w-2xl mx-auto">
             <Link href="/">
-              <Image src="/tripcoord_logo.png" alt="TripCoord" width={140} height={36} className="h-9 w-auto" />
+              <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={36} className="h-9 w-auto" priority />
             </Link>
           </div>
         </header>
@@ -309,7 +309,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
         <header className="bg-white border-b border-slate-200 py-4 px-6">
           <div className="max-w-2xl mx-auto">
             <Link href="/">
-              <Image src="/tripcoord_logo.png" alt="TripCoord" width={140} height={36} className="h-9 w-auto" />
+              <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={36} className="h-9 w-auto" priority />
             </Link>
           </div>
         </header>
@@ -339,7 +339,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       <header className="bg-white border-b border-slate-200 py-4 px-6">
         <div className="max-w-2xl mx-auto">
           <Link href="/">
-            <Image src="/tripcoord_logo.png" alt="TripCoord" width={140} height={36} className="h-9 w-auto" />
+            <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={36} className="h-9 w-auto" priority />
           </Link>
         </div>
       </header>

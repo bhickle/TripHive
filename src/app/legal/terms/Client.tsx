@@ -10,7 +10,7 @@ export default function TermsPage() {
       <header className="bg-white border-b border-slate-200 py-4 px-6">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link href="/">
-            <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-8 w-auto" />
+            <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-8 w-auto" priority />
           </Link>
           <Link href="/auth/login" className="text-sm font-medium text-sky-700 hover:text-sky-800">
             Sign in →
