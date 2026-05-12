@@ -43,6 +43,7 @@ interface WorldData {
   stamps: Array<{
     tripId: string;
     destination: string;
+    country: string | null;
     date: string | null;
     emoji: string;
     vibe: string;
@@ -66,16 +67,51 @@ const TIER_STYLES: Record<string, { card: string; label: string; emoji: string }
   legendary: { card: 'border-violet-300 bg-gradient-to-br from-violet-50 to-amber-50', label: 'text-violet-700', emoji: '✨' },
 };
 
+// Passport-ink palette — darker shades that read as "stamped ink"
+// against the cream parchment page background. Drives both the dashed
+// oval border (via currentColor) AND the text inside the stamp.
 const STAMP_COLOR_STYLES: Record<string, string> = {
-  rose:    'text-rose-600',
-  violet:  'text-violet-600',
-  amber:   'text-amber-700',
-  emerald: 'text-emerald-600',
-  orange:  'text-orange-600',
-  sky:     'text-sky-700',
-  pink:    'text-pink-600',
-  slate:   'text-slate-600',
+  rose:    'text-rose-800',
+  violet:  'text-violet-800',
+  amber:   'text-amber-800',
+  emerald: 'text-emerald-800',
+  orange:  'text-orange-800',
+  sky:     'text-sky-800',
+  pink:    'text-pink-800',
+  slate:   'text-slate-700',
 };
+
+// Country-name → 3-letter passport code. Default is first 3 chars
+// uppercased; this override map fixes the obvious cases where that
+// produces a wrong/ambiguous code.
+const COUNTRY_ISO3: Record<string, string> = {
+  'United States': 'USA',
+  'United Kingdom': 'GBR',
+  'United Arab Emirates': 'UAE',
+  'New Zealand': 'NZL',
+  'South Africa': 'ZAF',
+  'South Korea': 'KOR',
+  'Czech Republic': 'CZE',
+  'Costa Rica': 'CRI',
+  'Dominican Republic': 'DOM',
+  'Saudi Arabia': 'SAU',
+};
+function countryCode(country: string | null): string {
+  if (!country) return '   ';
+  return COUNTRY_ISO3[country] ?? country.replace(/\s+/g, '').slice(0, 3).toUpperCase();
+}
+
+// Stamp watermark — repeating "TRIPCOORD ✦" diagonal text, very faint
+// against the cream parchment so it reads as security texture rather
+// than as content. Inlined as a data URL so no separate asset is needed.
+const STAMP_WATERMARK_BG =
+  // eslint-disable-next-line @next/next/no-img-element
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80' viewBox='0 0 200 80'><text x='10' y='50' font-family='Georgia, serif' font-size='14' fill='%237c6e3a' fill-opacity='0.07' transform='rotate(-18 100 40)'>TRIPCOORD ✦ TRIPCOORD ✦</text></svg>\"), " +
+  'linear-gradient(135deg, #fdf6e3 0%, #f9efd2 100%)';
+
+// Alternating tilt for the hand-stamped feel. Cycle through 4 angles
+// so adjacent stamps in the grid don't share the same rotation.
+const STAMP_ROTATIONS = ['-rotate-[3deg]', 'rotate-[3deg]', '-rotate-[1.5deg]', 'rotate-[2deg]'];
 
 export default function WorldClient() {
   const currentUser = useCurrentUser();
@@ -388,33 +424,84 @@ export default function WorldClient() {
                     <p className="text-sm text-zinc-500">Your first completed trip earns your first stamp. Go somewhere!</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                  // Passport-page grid: each card is a cream parchment
+                  // page with header strip (brand + country code chip),
+                  // a big inked oval stamp pressed onto the middle, and
+                  // a footer strip (vibe + page #). Alternating tilt
+                  // on the oval gives a hand-stamped feel.
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                     {data.stamps.map((stamp, i) => {
-                      const colorClass = STAMP_COLOR_STYLES[stamp.color] ?? 'text-slate-600';
-                      const rotate = i % 2 === 0 ? 'hover:rotate-1' : 'hover:-rotate-1';
+                      const colorClass = STAMP_COLOR_STYLES[stamp.color] ?? 'text-slate-700';
+                      const rotateClass = STAMP_ROTATIONS[i % STAMP_ROTATIONS.length];
+                      // Pages newest-first; № descending so the most
+                      // recent trip is the highest-numbered page.
+                      const pageNo = data.stamps.length - i;
+                      const code = countryCode(stamp.country);
+                      const dateLabel = stamp.date
+                        ? new Date(stamp.date + 'T12:00:00').toLocaleDateString('en-US', {
+                            day: 'numeric', month: 'short', year: '2-digit',
+                          }).toUpperCase().replace(/[, ]+/g, ' · ')
+                        : '—';
                       return (
                         <Link
                           key={stamp.tripId}
                           href={`/trip/${stamp.tripId}/itinerary`}
-                          className={`aspect-[3/4] bg-white border-2 border-zinc-200 rounded-xl p-3 flex flex-col items-center justify-center text-center ${rotate} hover:scale-105 hover:shadow-lg transition-all`}
+                          className="group relative aspect-[1/1.35] rounded-md overflow-hidden flex flex-col justify-between p-3 transition-all hover:-translate-y-[3px]"
+                          style={{
+                            background: STAMP_WATERMARK_BG,
+                            backgroundSize: '200px 80px, cover',
+                            border: '1px solid #d4c89a',
+                            boxShadow:
+                              'inset 8px 0 18px -8px rgba(120, 95, 50, 0.18), 0 1px 0 rgba(0,0,0,0.04), 0 4px 14px -8px rgba(0,0,0,0.08)',
+                          }}
                         >
-                          <p className={`text-[10px] font-semibold uppercase tracking-widest ${colorClass} mb-1`}>{stamp.destination}</p>
-                          <span className="text-4xl mb-1">{stamp.emoji}</span>
-                          <p className="text-[10px] text-zinc-500">
-                            {stamp.date ? new Date(stamp.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                          </p>
-                          <p className={`text-[9px] ${colorClass} mt-1 font-semibold uppercase tracking-wider`}>{stamp.vibe}</p>
+                          {/* Page header — brand + country code chip */}
+                          <div className="flex items-center justify-between font-mono text-[8px] font-bold tracking-[0.2em] uppercase border-b border-dashed pb-1.5" style={{ color: '#7c6e3a', borderColor: 'rgba(124, 110, 58, 0.4)' }}>
+                            <span className="truncate">TRIPCOORD ✦</span>
+                            <span className="ml-1 px-1.5 py-px rounded-sm border" style={{ background: '#fff8e6', borderColor: 'rgba(124,110,58,0.35)', color: '#5b5028' }}>
+                              {code}
+                            </span>
+                          </div>
+
+                          {/* Inked oval stamp pressed onto the page */}
+                          <div
+                            className={`self-center w-[96%] aspect-[1/0.95] border-[2.5px] border-dashed rounded-[50%/55%] flex flex-col items-center justify-between py-3 px-2 my-1 font-mono text-center ${colorClass} ${rotateClass}`}
+                            style={{
+                              background: 'rgba(255, 248, 230, 0.45)',
+                              boxShadow:
+                                'inset 0 0 0 4px rgba(255, 248, 230, 0.4), inset 0 0 14px rgba(0,0,0,0.05)',
+                              filter: 'contrast(0.96) saturate(0.92)',
+                            }}
+                          >
+                            {/* Top label with decorative side bars */}
+                            <div className="flex items-center gap-1.5 w-full px-1 text-[10px] font-bold tracking-[0.18em] leading-tight">
+                              <span className="flex-1 h-px opacity-55" style={{ borderTop: '1px solid currentColor' }} />
+                              <span className="truncate">{stamp.destination.toUpperCase()}</span>
+                              <span className="flex-1 h-px opacity-55" style={{ borderTop: '1px solid currentColor' }} />
+                            </div>
+                            <span className="text-[2.25rem] leading-none my-1">{stamp.emoji}</span>
+                            <p className="text-[9px] font-bold tracking-[0.16em]">{dateLabel}</p>
+                          </div>
+
+                          {/* Page footer — vibe + page number */}
+                          <div className="flex items-center justify-between font-mono text-[8px] font-bold tracking-[0.2em] uppercase border-t border-dashed pt-1.5" style={{ color: '#7c6e3a', borderColor: 'rgba(124, 110, 58, 0.4)' }}>
+                            <span className="truncate" style={{ color: '#5b5028' }}>{stamp.vibe}</span>
+                            <span className="ml-1 px-1.5 py-px rounded-sm tabular-nums" style={{ background: 'rgba(124,110,58,0.1)' }}>
+                              № {String(pageNo).padStart(2, '0')}
+                            </span>
+                          </div>
                         </Link>
                       );
                     })}
-                    {/* "Next stamp" placeholder — encourages the next trip */}
+                    {/* "Next stamp" placeholder — empty passport page */}
                     <Link
                       href="/trip/new"
-                      className="aspect-[3/4] bg-zinc-50 border-2 border-dashed border-zinc-300 rounded-xl p-3 flex flex-col items-center justify-center text-center text-zinc-400 hover:border-sky-300 hover:text-sky-700 transition-colors"
+                      className="aspect-[1/1.35] rounded-md border border-dashed flex flex-col items-center justify-center text-center font-mono transition-colors"
+                      style={{ borderColor: '#d4c89a', color: '#b6a878' }}
                     >
-                      <span className="text-3xl mb-1">＋</span>
-                      <p className="text-[10px] font-semibold uppercase tracking-widest">Next stamp</p>
-                      <p className="text-[10px] mt-1">Plan a trip</p>
+                      <span className="text-3xl leading-none mb-2">+</span>
+                      <p className="text-[9px] font-bold tracking-[0.2em]">NEXT STAMP</p>
+                      <p className="text-[9px] mt-1.5 tracking-wider">Plan a trip</p>
                     </Link>
                   </div>
                 )}

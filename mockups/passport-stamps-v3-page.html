@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Passport stamps — passport-page mockup</title>
+<style>
+  body {
+    background: #fafaf5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #18181b;
+    padding: 40px 20px;
+    margin: 0;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #71717a;
+    margin: 0 0 16px;
+  }
+
+  /* ── Passport-page card ────────────────────────────────────────── */
+  .pages {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  @media (max-width: 700px) {
+    .pages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  .page {
+    aspect-ratio: 1 / 1.35;
+    /* Cream/parchment colour with a subtle gradient so the "page"
+       feels paper-y rather than flat. */
+    background:
+      linear-gradient(135deg, #fdf6e3 0%, #f9efd2 100%);
+    /* Watermark: very faint repeating diagonal "TRIPCOORD" SVG +
+       a top-edge "perforation" line that mimics a passport page. */
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80' viewBox='0 0 200 80'><text x='10' y='50' font-family='Georgia, serif' font-size='14' fill='%237c6e3a' fill-opacity='0.07' transform='rotate(-18 100 40)'>TRIPCOORD ✦ TRIPCOORD ✦</text></svg>"),
+      linear-gradient(135deg, #fdf6e3 0%, #f9efd2 100%);
+    background-size: 200px 80px, cover;
+    border: 1px solid #d4c89a;
+    border-radius: 6px;
+    /* Inset shadow gives the impression the page is bound into a
+       passport book — darker along the inside spine edge (left). */
+    box-shadow:
+      inset 8px 0 18px -8px rgba(120, 95, 50, 0.18),
+      0 1px 0 rgba(0,0,0,0.04),
+      0 4px 14px -8px rgba(0,0,0,0.08);
+    padding: 14px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .page:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      inset 8px 0 18px -8px rgba(120, 95, 50, 0.18),
+      0 1px 0 rgba(0,0,0,0.04),
+      0 10px 24px -10px rgba(0,0,0,0.18);
+  }
+  /* Page header: tiny passport-style top strip with the country code */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Courier New', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: #7c6e3a;
+    border-bottom: 1px dashed rgba(124, 110, 58, 0.4);
+    padding-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .page-header .code {
+    background: #fff8e6;
+    border: 1px solid rgba(124,110,58,0.35);
+    padding: 1px 6px;
+    border-radius: 2px;
+    color: #5b5028;
+  }
+
+  /* Pressed stamp — sits on top of the page background, rotated.
+     The "pressed" effect is an inset box-shadow + tinted bg. */
+  .pressed-stamp {
+    align-self: center;
+    width: 86%;
+    /* Slight angle per stamp, varied below via :nth-child */
+    transform: rotate(-4deg);
+    background: rgba(255, 248, 230, 0.5);
+    border: 2.5px dashed currentColor;
+    border-radius: 8px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin: 8px 0;
+    font-family: 'Courier New', monospace;
+    /* Inset shadow + slight ink-bleed look */
+    box-shadow:
+      inset 0 0 0 4px rgba(255, 248, 230, 0.4),
+      inset 0 0 12px rgba(0,0,0,0.04);
+    /* Very subtle blur on the edge so it feels imprinted */
+    filter: contrast(0.95) saturate(0.9);
+  }
+  /* Alternate the stamp rotation per card so each page feels
+     hand-stamped at a slightly different angle. */
+  .page:nth-child(odd) .pressed-stamp  { transform: rotate(-4deg); }
+  .page:nth-child(even) .pressed-stamp { transform: rotate(3deg); }
+  .page:nth-child(3n) .pressed-stamp   { transform: rotate(-1.5deg); }
+
+  /* Per-vibe ink colors — drives the dashed border + text on the
+     pressed stamp. Darker, more saturated than v2 so they read
+     correctly on the cream background. */
+  .ink-culture    { color: #991b1b; }
+  .ink-food       { color: #92400e; }
+  .ink-adventure  { color: #115e59; }
+  .ink-beach      { color: #075985; }
+  .ink-nature     { color: #166534; }
+  .ink-nightlife  { color: #5b21b6; }
+  .ink-history    { color: #78350f; }
+  .ink-wellness   { color: #0e7490; }
+
+  .stamp-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .stamp-emoji {
+    font-size: 30px;
+    line-height: 1;
+    margin: 2px 0;
+    filter: saturate(.95);
+  }
+  .stamp-date {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    margin-top: 4px;
+  }
+
+  /* Page footer: passport-style bottom strip with vibe + page # */
+  .page-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Courier New', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: #7c6e3a;
+    border-top: 1px dashed rgba(124, 110, 58, 0.4);
+    padding-top: 6px;
+    text-transform: uppercase;
+  }
+  .page-footer .vibe {
+    color: #5b5028;
+  }
+  .page-footer .pageno {
+    background: rgba(124,110,58,0.1);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Add-page (empty slot) ─────────────────────────────────────── */
+  .page-add {
+    aspect-ratio: 1 / 1.35;
+    background: transparent;
+    border: 1px dashed #d4c89a;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #b6a878;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color .2s ease, border-color .2s ease, background .2s ease;
+  }
+  .page-add:hover {
+    color: #5b5028;
+    border-color: #7c6e3a;
+    background: rgba(253, 246, 227, 0.4);
+  }
+  .page-add-plus {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .page-add-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+  }
+
+  /* ── Badges section (kept current style — for visual comparison) ── */
+  .badges {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+  }
+  @media (max-width: 700px) {
+    .badges { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .badge {
+    background: #fff;
+    border: 2px solid #e4e4e7;
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .badge.gold   { border-color: #fbbf24; background: linear-gradient(180deg, #fffbeb, #fff); }
+  .badge.silver { border-color: #cbd5e1; background: linear-gradient(180deg, #f8fafc, #fff); }
+  .badge-emoji  { font-size: 28px; margin-bottom: 6px; }
+  .badge-title  { font-size: 11px; font-weight: 700; color: #27272a; line-height: 1.25; }
+  .badge-tier   { font-size: 9px; font-weight: 700; color: #71717a; letter-spacing: 0.1em; margin-top: 4px; text-transform: uppercase; }
+
+  .note {
+    margin-top: 32px;
+    padding: 16px 20px;
+    background: #f4f4f5;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #52525b;
+    line-height: 1.6;
+  }
+  .note b { color: #27272a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h2>Your Passport</h2>
+<p class="subtitle">One stamp per completed trip · each page is a real passport page with the stamp pressed in</p>
+
+<div class="pages">
+
+  <a class="page" href="#">
+    <div class="page-header">
+      <span>TRIPCOORD ✦ PASSPORT</span>
+      <span class="code">ITA</span>
+    </div>
+    <div class="pressed-stamp ink-culture">
+      <div class="stamp-title">ROMA</div>
+      <div class="stamp-emoji">🏛️</div>
+      <div class="stamp-date">15 · JUN · 26</div>
+    </div>
+    <div class="page-footer">
+      <span class="vibe">CULTURE</span>
+      <span class="pageno">№ 07</span>
+    </div>
+  </a>
+
+  <a class="page" href="#">
+    <div class="page-header">
+      <span>TRIPCOORD ✦ PASSPORT</span>
+      <span class="code">JPN</span>
+    </div>
+    <div class="pressed-stamp ink-food">
+      <div class="stamp-title">TOKYO</div>
+      <div class="stamp-emoji">🍜</div>
+      <div class="stamp-date">02 · APR · 26</div>
+    </div>
+    <div class="page-footer">
+      <span class="vibe">FOOD</span>
+      <span class="pageno">№ 06</span>
+    </div>
+  </a>
+
+  <a class="page" href="#">
+    <div class="page-header">
+      <span>TRIPCOORD ✦ PASSPORT</span>
+      <span class="code">GRC</span>
+    </div>
+    <div class="pressed-stamp ink-beach">
+      <div class="stamp-title">SANTORINI</div>
+      <div class="stamp-emoji">🏝️</div>
+      <div class="stamp-date">22 · AUG · 25</div>
+    </div>
+    <div class="page-footer">
+      <span class="vibe">BEACH</span>
+      <span class="pageno">№ 05</span>
+    </div>
+  </a>
+
+  <a class="page" href="#">
+    <div class="page-header">
+      <span>TRIPCOORD ✦ PASSPORT</span>
+      <span class="code">NZL</span>
+    </div>
+    <div class="pressed-stamp ink-adventure">
+      <div class="stamp-title">QUEENSTOWN</div>
+      <div class="stamp-emoji">🏔️</div>
+      <div class="stamp-date">10 · FEB · 25</div>
+    </div>
+    <div class="page-footer">
+      <span class="vibe">ADVENTURE</span>
+      <span class="pageno">№ 04</span>
+    </div>
+  </a>
+
+  <a class="page" href="#">
+    <div class="page-header">
+      <span>TRIPCOORD ✦ PASSPORT</span>
+      <span class="code">ARG</span>
+    </div>
+    <div class="pressed-stamp ink-nature">
+      <div class="stamp-title">PATAGONIA</div>
+      <div class="stamp-emoji">🌲</div>
+      <div class="stamp-date">04 · NOV · 24</div>
+    </div>
+    <div class="page-footer">
+      <span class="vibe">NATURE</span>
+      <span class="pageno">№ 03</span>
+    </div>
+  </a>
+
+  <a class="page" href="#">
+    <div class="page-header">
+      <span>TRIPCOORD ✦ PASSPORT</span>
+      <span class="code">DEU</span>
+    </div>
+    <div class="pressed-stamp ink-nightlife">
+      <div class="stamp-title">BERLIN</div>
+      <div class="stamp-emoji">🎶</div>
+      <div class="stamp-date">19 · MAY · 24</div>
+    </div>
+    <div class="page-footer">
+      <span class="vibe">NIGHTLIFE</span>
+      <span class="pageno">№ 02</span>
+    </div>
+  </a>
+
+  <a class="page" href="#">
+    <div class="page-header">
+      <span>TRIPCOORD ✦ PASSPORT</span>
+      <span class="code">JPN</span>
+    </div>
+    <div class="pressed-stamp ink-history">
+      <div class="stamp-title">KYOTO</div>
+      <div class="stamp-emoji">⛩️</div>
+      <div class="stamp-date">07 · OCT · 23</div>
+    </div>
+    <div class="page-footer">
+      <span class="vibe">HISTORY</span>
+      <span class="pageno">№ 01</span>
+    </div>
+  </a>
+
+  <a class="page-add" href="#">
+    <div class="page-add-plus">+</div>
+    <div class="page-add-label">NEXT STAMP</div>
+    <div style="font-size:9px; margin-top: 6px; letter-spacing: 0.05em;">Plan a trip</div>
+  </a>
+
+</div>
+
+<h2>Travel Badges</h2>
+<p class="subtitle">For visual comparison — badges stay as rectangular tier cards. Distinct from the passport pages above (parchment ink vs. white card).</p>
+
+<div class="badges">
+  <div class="badge gold">
+    <span class="badge-emoji">🌍</span>
+    <span class="badge-title">World Wanderer</span>
+    <span class="badge-tier">GOLD</span>
+  </div>
+  <div class="badge silver">
+    <span class="badge-emoji">🍴</span>
+    <span class="badge-title">Foodie Pilgrim</span>
+    <span class="badge-tier">SILVER</span>
+  </div>
+  <div class="badge">
+    <span class="badge-emoji">🗺️</span>
+    <span class="badge-title">Continent Hopper</span>
+    <span class="badge-tier">COMMON</span>
+  </div>
+  <div class="badge silver">
+    <span class="badge-emoji">📸</span>
+    <span class="badge-title">Picture Perfect</span>
+    <span class="badge-tier">SILVER</span>
+  </div>
+  <div class="badge">
+    <span class="badge-emoji">🎒</span>
+    <span class="badge-title">First Trip</span>
+    <span class="badge-tier">COMMON</span>
+  </div>
+  <div class="badge">
+    <span class="badge-emoji">🏝️</span>
+    <span class="badge-title">Beach Bum</span>
+    <span class="badge-tier">COMMON</span>
+  </div>
+</div>
+
+<div class="note">
+  <b>What's different from v2 (oval stamp):</b>
+  Instead of just the stamp, each card is now a <b>passport page</b> — cream/parchment background with a faint repeating "TRIPCOORD ✦" watermark, a spine-shadow on the left edge (like the page is bound into a book), and a country code chip at the top ("ITA", "JPN", "GRC"…). The actual stamp is <b>pressed onto the page</b>, rotated slightly, in vibe-coloured ink.
+  <br><br>
+  <b>What stays distinct from badges:</b>
+  Badges keep their clean white-card-with-bright-emoji look. Passport pages are warm cream with monospace + watermark — completely different palette, no risk of confusion.
+  <br><br>
+  <b>Implementation cost:</b>
+  Slightly heavier than v2 (~50 lines of CSS, one inline SVG watermark) but still pure CSS and no new image assets. The country code is derived from <code>stamp.country</code> (already in the data shape, just truncated to a 3-letter code).
+</div>
+
+</div>
+</body>
+</html>

@@ -313,6 +313,7 @@ export async function GET() {
       return {
         tripId: t.id,
         destination: t.destination.split(',')[0]?.trim() ?? t.destination,
+        country: destinationToCountry(t.destination) ?? null,
         date: t.start_date ?? null,
         emoji: meta.emoji,
         vibe: meta.label,

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Passport stamps — inked oval mockup</title>
+<style>
+  body {
+    background: #fafaf5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #18181b;
+    padding: 40px 20px;
+    margin: 0;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #71717a;
+    margin: 0 0 16px;
+  }
+
+  /* ── Inked oval stamp ─────────────────────────────────────────── */
+  .stamps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    margin-bottom: 48px;
+  }
+  @media (max-width: 700px) {
+    .stamps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  .stamp {
+    aspect-ratio: 1 / 1.05;
+    border-radius: 50% / 55%;
+    border: 2.5px dashed currentColor;
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+    font-family: 'Courier New', 'Courier', monospace;
+    background: rgba(255,255,255,0.65);
+    transition: transform .25s ease, box-shadow .25s ease;
+    cursor: pointer;
+    /* Subtle ink-on-paper feel */
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+    text-decoration: none;
+  }
+  .stamp:hover {
+    transform: rotate(0deg) scale(1.04) !important;
+    box-shadow: 0 10px 28px -10px rgba(0,0,0,0.18);
+  }
+  /* Alternating tilt — gives the "hand-stamped" feel without
+     looking forced. Even/odd cycles ±3°. */
+  .stamp:nth-child(odd)   { transform: rotate(-3deg); }
+  .stamp:nth-child(even)  { transform: rotate(3deg); }
+
+  /* Per-vibe ink colors. currentColor drives the dashed border + text. */
+  .ink-culture    { color: #b91c1c; } /* red */
+  .ink-food       { color: #b45309; } /* amber */
+  .ink-adventure  { color: #0d9488; } /* teal */
+  .ink-beach      { color: #0369a1; } /* sky-blue */
+  .ink-nature     { color: #15803d; } /* emerald */
+  .ink-nightlife  { color: #6d28d9; } /* violet */
+  .ink-history    { color: #92400e; } /* brown */
+  .ink-wellness   { color: #0891b2; } /* cyan */
+
+  .stamp-header {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    justify-content: center;
+  }
+  .stamp-header::before,
+  .stamp-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    border-top: 1px solid currentColor;
+    opacity: 0.5;
+  }
+  .stamp-emoji {
+    font-size: 38px;
+    line-height: 1;
+    margin: 6px 0;
+    filter: saturate(.95);
+  }
+  .stamp-date {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+  .stamp-vibe {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    opacity: 0.75;
+  }
+
+  /* ── The Add Stamp empty slot ──────────────────────────────────── */
+  .stamp-add {
+    aspect-ratio: 1 / 1.05;
+    border-radius: 50% / 55%;
+    border: 2.5px dashed #d4d4d8;
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: transparent;
+    color: #a1a1aa;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color .2s ease, border-color .2s ease;
+  }
+  .stamp-add:hover {
+    color: #0369a1;
+    border-color: #7dd3fc;
+  }
+  .stamp-add-plus {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stamp-add-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+  }
+
+  /* ── Badges section (kept current style — for visual comparison) ── */
+  .badges {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+  }
+  @media (max-width: 700px) {
+    .badges { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .badge {
+    background: #fff;
+    border: 2px solid #e4e4e7;
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .badge.gold   { border-color: #fbbf24; background: linear-gradient(180deg, #fffbeb, #fff); }
+  .badge.silver { border-color: #cbd5e1; background: linear-gradient(180deg, #f8fafc, #fff); }
+  .badge-emoji  { font-size: 28px; margin-bottom: 6px; }
+  .badge-title  { font-size: 11px; font-weight: 700; color: #27272a; line-height: 1.25; }
+  .badge-tier   { font-size: 9px; font-weight: 700; color: #71717a; letter-spacing: 0.1em; margin-top: 4px; text-transform: uppercase; }
+
+  .note {
+    margin-top: 32px;
+    padding: 16px 20px;
+    background: #f4f4f5;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #52525b;
+    line-height: 1.6;
+  }
+  .note b { color: #27272a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h2>Your Passport</h2>
+<p class="subtitle">One stamp per completed trip · vibe-coloured ink, hand-stamped tilt</p>
+
+<div class="stamps">
+
+  <a class="stamp ink-culture" href="#">
+    <div class="stamp-header">ROMA · ITALIA</div>
+    <div class="stamp-emoji">🏛️</div>
+    <div class="stamp-date">15 · JUN · 2026</div>
+    <div class="stamp-vibe">CULTURE</div>
+  </a>
+
+  <a class="stamp ink-food" href="#">
+    <div class="stamp-header">TOKYO · 日本</div>
+    <div class="stamp-emoji">🍜</div>
+    <div class="stamp-date">02 · APR · 2026</div>
+    <div class="stamp-vibe">FOOD</div>
+  </a>
+
+  <a class="stamp ink-beach" href="#">
+    <div class="stamp-header">SANTORINI · GR</div>
+    <div class="stamp-emoji">🏝️</div>
+    <div class="stamp-date">22 · AUG · 2025</div>
+    <div class="stamp-vibe">BEACH</div>
+  </a>
+
+  <a class="stamp ink-adventure" href="#">
+    <div class="stamp-header">QUEENSTOWN · NZ</div>
+    <div class="stamp-emoji">🏔️</div>
+    <div class="stamp-date">10 · FEB · 2025</div>
+    <div class="stamp-vibe">ADVENTURE</div>
+  </a>
+
+  <a class="stamp ink-nature" href="#">
+    <div class="stamp-header">PATAGONIA · AR</div>
+    <div class="stamp-emoji">🌲</div>
+    <div class="stamp-date">04 · NOV · 2024</div>
+    <div class="stamp-vibe">NATURE</div>
+  </a>
+
+  <a class="stamp ink-nightlife" href="#">
+    <div class="stamp-header">BERLIN · DE</div>
+    <div class="stamp-emoji">🎶</div>
+    <div class="stamp-date">19 · MAY · 2024</div>
+    <div class="stamp-vibe">NIGHTLIFE</div>
+  </a>
+
+  <a class="stamp ink-history" href="#">
+    <div class="stamp-header">KYOTO · 日本</div>
+    <div class="stamp-emoji">⛩️</div>
+    <div class="stamp-date">07 · OCT · 2023</div>
+    <div class="stamp-vibe">HISTORY</div>
+  </a>
+
+  <a class="stamp-add" href="#">
+    <div class="stamp-add-plus">+</div>
+    <div class="stamp-add-label">NEXT STAMP</div>
+    <div style="font-size:9px; margin-top: 6px; letter-spacing: 0.05em;">Plan a trip</div>
+  </a>
+
+</div>
+
+<h2>Travel Badges</h2>
+<p class="subtitle">For visual comparison — badges stay as rectangular tier cards. Distinct from the inked passport stamps above.</p>
+
+<div class="badges">
+  <div class="badge gold">
+    <span class="badge-emoji">🌍</span>
+    <span class="badge-title">World Wanderer</span>
+    <span class="badge-tier">GOLD</span>
+  </div>
+  <div class="badge silver">
+    <span class="badge-emoji">🍴</span>
+    <span class="badge-title">Foodie Pilgrim</span>
+    <span class="badge-tier">SILVER</span>
+  </div>
+  <div class="badge">
+    <span class="badge-emoji">🗺️</span>
+    <span class="badge-title">Continent Hopper</span>
+    <span class="badge-tier">COMMON</span>
+  </div>
+  <div class="badge silver">
+    <span class="badge-emoji">📸</span>
+    <span class="badge-title">Picture Perfect</span>
+    <span class="badge-tier">SILVER</span>
+  </div>
+  <div class="badge">
+    <span class="badge-emoji">🎒</span>
+    <span class="badge-title">First Trip</span>
+    <span class="badge-tier">COMMON</span>
+  </div>
+  <div class="badge">
+    <span class="badge-emoji">🏝️</span>
+    <span class="badge-title">Beach Bum</span>
+    <span class="badge-tier">COMMON</span>
+  </div>
+</div>
+
+<div class="note">
+  <b>What changed:</b>
+  Passport stamps are now <b>inked ovals</b> with dashed ribbed borders, monospace typography, and per-vibe ink colors.
+  Each oval rotates alternately ±3° for the hand-stamped feel; hover snaps to 0° and lifts.
+  <br><br>
+  <b>What stayed:</b>
+  Badges keep the rectangular tier-card design.
+  Tier styling (gold border + warm gradient, silver border + cool gradient) keeps badges visually distinct.
+  <br><br>
+  <b>Implementation:</b>
+  Pure CSS — no new image assets. The existing <code>STAMP_COLOR_STYLES</code> map drives the <code>.ink-*</code> classes.
+  Drop-in replacement for the current rectangle grid.
+</div>
+
+</div>
+</body>
+</html>
