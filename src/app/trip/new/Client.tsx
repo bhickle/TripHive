@@ -700,6 +700,12 @@ function TripBuilderPage() {
       accessibilityNeeds: state.accessibilityNeeds,
       mustHaves: state.mustHaves,
       additionalContext: state.additionalContext,
+      // Featured Itinerary backbone (when user came from /discover/[slug]
+      // → "Start planning this trip"). Forwards the slug so generate-
+      // itinerary can fetch the editorial picks and inject them into the
+      // prompt as an EDITORIAL BACKBONE section. Null/empty if the user
+      // came in via Trip Builder directly.
+      featuredSlug: searchParams.get('featured') ?? null,
       destinations,
       daysPerDestination: state.daysPerDestination,
       localMode: state.localMode,

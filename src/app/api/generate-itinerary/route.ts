@@ -350,12 +350,31 @@ function buildPrompt(params: {
     budgetPerDay?: number;
   }>;
   groupSize?: number;
+  /** Optional editorial backbone from a Featured Itinerary the user is
+   *  building from ("Start planning this trip" on /discover/[slug]).
+   *  Each entry is a per-day list of editorial picks the AI should keep
+   *  as named venues where they fit the user's priorities + pace. The
+   *  AI still emits the full ItineraryDay schema (addresses, priceLevel,
+   *  sidebar arrays, etc.) — featuredSeed is a starting point, not a copy. */
+  featuredSeed?: {
+    title: string;
+    days: Array<{
+      day: number;
+      title?: string;
+      activities: Array<{
+        time?: string;
+        title?: string;
+        description?: string;
+        affiliate_url?: string;
+      }>;
+    }>;
+  } | null;
 }) {
   const {
     destination, startDate, endDate, tripLength,
     groupType, budget,
     localMode, dateNight, curiosityLevel, flexibleDates, modality, accommodationType,
-    bookedFlight, realPlaces,
+    bookedFlight, realPlaces, featuredSeed,
   } = params;
   // Guard optional/potentially-missing array fields against undefined at runtime.
   // budgetBreakdown is moved out of the destructure because it's accessed via
@@ -547,6 +566,33 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
 
   const dateNightText = dateNight
     ? '\n- DATE NIGHT: On the most fitting evening of the trip (typically mid-trip, not the first or last night), reserve the dinner slot for a romantic, special experience — a candlelit restaurant, a scenic rooftop, a private tasting, or something the destination is known for that feels intimate and memorable. Label the dinner on that day as "Date Night 🌙" and write the description in a warm, romantic tone. All other evenings should be planned normally.'
+    : '';
+
+  // When the user started this trip from a Featured Itinerary ("Start
+  // planning this trip" on /discover/[slug]), inject the editorial picks
+  // as an "EDITORIAL BACKBONE" so the AI keeps those venues where they
+  // fit the user's priorities + pace. The AI still emits the full
+  // schema (addresses, priceLevel, sidebar arrays, transport legs, etc.)
+  // — featuredSeed seeds named venues, not the entire day. Picks that
+  // clash with the user's priorities (e.g., a vegan caller, a steakhouse
+  // pick) should be swapped out by the AI rather than forced in.
+  const featuredSeedText = featuredSeed && featuredSeed.days.length > 0
+    ? (() => {
+        const lines: string[] = [];
+        lines.push(`\n- EDITORIAL BACKBONE: This trip is inspired by tripcoord's "${featuredSeed.title}" itinerary. The picks below are anchor recommendations — keep the named venues where they fit the user's priorities, pace, and budget tier; you MAY shift them between days, swap an individual pick for an equivalent if it clashes with the user's dietary/accessibility/priority constraints, and you MUST still emit every field of the full schema (addresses, timeSlot, priceLevel, isRestaurant, sidebar arrays, etc.). When an editorial pick is a real named landmark/restaurant/attraction in the destination, prefer it over generating a similar venue of your own. This rule overrides Rule 11's iconic-landmarks default WHEN an editorial pick already covers the iconic stop for a given day. Otherwise Rule 11 applies normally.`);
+        for (const d of featuredSeed.days) {
+          const dayTitle = d.title ? ` — ${d.title}` : '';
+          lines.push(`  Day ${d.day}${dayTitle}:`);
+          for (const a of d.activities) {
+            const parts: string[] = [];
+            if (a.time) parts.push(`[${a.time}]`);
+            if (a.title) parts.push(a.title);
+            const trail = a.description ? ` — ${a.description}` : '';
+            lines.push(`    - ${parts.join(' ')}${trail}`);
+          }
+        }
+        return lines.join('\n');
+      })()
     : '';
 
   // If a confirmed rental car is declared, it overrides the modality preference entirely
@@ -988,7 +1034,7 @@ ${startDate ? `- Day-by-day calendar (use this to match each venue's per-weekday
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${organizerPaceText}${personaText}${preBookingText}${multiCityText}
+- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${organizerPaceText}${personaText}${preBookingText}${multiCityText}${featuredSeedText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -1600,6 +1646,62 @@ export async function POST(request: NextRequest) {
   const streamBudgetTier = (body.curiosityLevel as number | undefined) ?? 50;
   const maxRestaurantPriceLevel = streamBudgetTier < 85 ? 3 : 4;
 
+  // Featured Itinerary backbone: when the user comes from "Start planning
+  // this trip" on /discover/[slug], Trip Builder sends featuredSlug. We
+  // fetch the editorial picks here so they can be injected into the
+  // prompt as the EDITORIAL BACKBONE section. Server-side fetch via
+  // admin client (featured_itineraries is public-read but admin
+  // bypasses any future restrictions). Failures are silent — a missing
+  // featured itinerary just falls back to the normal AI build with no
+  // backbone seeding.
+  type FeaturedSeed = NonNullable<Parameters<typeof buildPrompt>[0]['featuredSeed']>;
+  let featuredSeed: FeaturedSeed | null = null;
+  const featuredSlug = typeof body.featuredSlug === 'string' ? body.featuredSlug : null;
+  // Only seed on the first segment of a multi-city / chunked build so we
+  // don't paste the entire editorial backbone into every chunk's prompt.
+  // citySegment is set when the build is a chunk; first chunk has dayStart=1.
+  const isFirstChunk = !citySegment || citySegment.dayStart === 1;
+  if (featuredSlug && isFirstChunk) {
+    try {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const admin = createAdminClient();
+      const { data: featured } = await admin
+        .from('featured_itineraries')
+        .select('title, itinerary')
+        .eq('slug', featuredSlug)
+        .eq('published', true)
+        .maybeSingle();
+      const featuredDays = (featured?.itinerary as { days?: unknown[] } | null)?.days;
+      if (featured?.title && Array.isArray(featuredDays) && featuredDays.length > 0) {
+        // Coerce to the shape buildPrompt expects. Tolerate missing
+        // fields on individual activities (the editorial format is
+        // permissive).
+        const seedDays = (featuredDays as Array<{
+          day?: number;
+          title?: string;
+          activities?: Array<{ time?: string; title?: string; description?: string; affiliate_url?: string }>;
+        }>)
+          .filter(d => typeof d.day === 'number' && Array.isArray(d.activities))
+          .map(d => ({
+            day: d.day as number,
+            title: d.title,
+            activities: (d.activities ?? []).map(a => ({
+              time: a.time,
+              title: a.title,
+              description: a.description,
+              affiliate_url: a.affiliate_url,
+            })),
+          }));
+        if (seedDays.length > 0) {
+          featuredSeed = { title: featured.title as string, days: seedDays };
+          console.log(`[generate-itinerary] Featured backbone: ${featuredSlug} (${seedDays.length} days)`);
+        }
+      }
+    } catch (err) {
+      console.warn('[generate-itinerary] Could not load featured seed:', err);
+    }
+  }
+
   const { user: prompt, cacheableGuidance } = buildPrompt({
     destination: resolvedDestination,
     startDate: resolvedStartDate,
@@ -1632,6 +1734,7 @@ export async function POST(request: NextRequest) {
     organizerPace: (body.organizerPace as 'relaxed' | 'balanced' | 'packed' | null | undefined) ?? null,
     memberPersonas,
     groupSize: Number(body.groupSize) || 2,
+    featuredSeed,
   });
 
   // ── City-segment post-processing: inject day-numbering override + continuity ──

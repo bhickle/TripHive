@@ -360,6 +360,14 @@ function ItineraryPageContent() {
   const [savingTripEdit, setSavingTripEdit] = useState(false);
   const [editTripError, setEditTripError] = useState<string | null>(null);
 
+  // AI enrichment — generates the per-day sidebar arrays (photoSpots,
+  // foodieTips, etc.) for a day that has activities but no highlights.
+  // Used on manually-built trips and to refresh stale ones.
+  // enrichingDay holds the day number currently being enriched so the
+  // button can show a spinner; null means idle.
+  const [enrichingDay, setEnrichingDay] = useState<number | null>(null);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
+
   // Add Day modal
   const [showAddDayModal, setShowAddDayModal] = useState(false);
   const [addDayPosition, setAddDayPosition] = useState<'before' | 'after' | 'end'>('end');
@@ -2334,6 +2342,41 @@ function ItineraryPageContent() {
 
   // activeDays / trip / currentDayData declared earlier (above persistDays) so callbacks can use them
 
+  // ─── AI enrichment handler ───────────────────────────────────────────────────
+  // Calls /api/enrich-itinerary to fill in a day's sidebar arrays
+  // (photoSpots / foodieTips / nightlifeHighlights / shoppingGuide /
+  // priorityHighlights / destinationTip). Used when the day has user-added
+  // activities but no AI-generated highlights anchoring them.
+  const handleEnrichDay = useCallback(async (dayNum: number) => {
+    if (enrichingDay !== null) return;
+    setEnrichingDay(dayNum);
+    setEnrichError(null);
+    try {
+      const res = await fetch('/api/enrich-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId: params.id, dayNumbers: [dayNum] }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setEnrichError(data?.message || data?.error || "Couldn't generate highlights. Please try again.");
+        return;
+      }
+      if (Array.isArray(data?.days)) {
+        // Server returned the full updated days array — sync to local state.
+        // persistDays writes both to localStorage and to the local React
+        // state used for rendering, but doesn't re-PATCH the server
+        // (which already persisted via the enrich route).
+        persistDays(data.days as ItineraryDay[]);
+      }
+    } catch (err) {
+      console.error('[enrich-itinerary] failed:', err);
+      setEnrichError("Couldn't generate highlights. Please try again.");
+    } finally {
+      setEnrichingDay(null);
+    }
+  }, [enrichingDay, params.id, persistDays]);
+
   // ─── Add Day handler ─────────────────────────────────────────────────────────
   const handleAddDay = useCallback(async () => {
     setAddDayGenerating(true);
@@ -4139,8 +4182,50 @@ function ItineraryPageContent() {
                 }
               }
 
-              if (items.length === 0) return null;
               const isCollapsed = collapsedSections.dayHighlights ?? false;
+
+              // Empty state — day has activities but no highlights yet.
+              // Offer the AI enrichment CTA so users on manual trips (and
+              // AI builds where highlights got dropped) can fill in
+              // photo/food/nightlife/etc. picks on demand. Hidden when:
+              //   - no activities exist yet (AI has nothing to anchor to)
+              //   - user can't edit (3+ trip viewer)
+              //   - day is for a mock/demo trip
+              if (items.length === 0) {
+                const dayHasActivities =
+                  (currentDayData.tracks?.shared?.length ?? 0) +
+                  (currentDayData.tracks?.track_a?.length ?? 0) +
+                  (currentDayData.tracks?.track_b?.length ?? 0) > 0;
+                if (!dayHasActivities || !canEditItinerary || isMockTrip) return null;
+                const isEnriching = enrichingDay === currentDayData.day;
+                return (
+                  <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-base flex-shrink-0">✨</span>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Day Highlights</p>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 mb-4">
+                        Use AI to surface photo spots, food picks, and local tips anchored to this day&apos;s neighborhoods.
+                      </p>
+                      <button
+                        onClick={() => handleEnrichDay(currentDayData.day)}
+                        disabled={isEnriching}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-xl transition-colors"
+                      >
+                        {isEnriching ? (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating highlights…</>
+                        ) : (
+                          <><Sparkles className="w-3.5 h-3.5" /> Generate highlights (1 credit)</>
+                        )}
+                      </button>
+                      {enrichError && enrichingDay === null && (
+                        <p className="text-[11px] text-rose-600 mt-2">{enrichError}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">

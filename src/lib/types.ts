@@ -93,6 +93,12 @@ export const AI_CREDIT_COSTS = {
   generate_packing: 1,
   // /api/generate-phrases — Sonnet, 8192-token output (~$0.15). Nomad-only.
   generate_phrases: 2,
+  // /api/enrich-itinerary — generates the per-day sidebar arrays
+  // (photoSpots, foodieTips, nightlifeHighlights, shoppingGuide,
+  // priorityHighlights, destinationTip) for a single day. Used to fill
+  // in highlights on manually-built trips, or to refresh stale ones.
+  // Haiku, ~1500 output tokens/day (~$0.02). Cheap.
+  enrich_day: 1,
 } as const;
 
 export type AiAction = keyof typeof AI_CREDIT_COSTS;
