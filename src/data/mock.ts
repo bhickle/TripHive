@@ -487,7 +487,7 @@ export const messages: Message[] = [
 export const prepTasks: PrepTask[] = [
   { id: 'prep_1', category: 'document', title: 'Check passport validity (6+ months required)', dueDate: '2026-08-01', completed: true },
   { id: 'prep_2', category: 'document', title: 'No visa required for US citizens (Schengen area)', completed: true },
-  { id: 'prep_3', category: 'document', title: 'Purchase travel insurance', dueDate: '2026-09-01', completed: false, urgent: true },
+  { id: 'prep_3', category: 'document', title: 'Purchase travel insurance', dueDate: '2026-09-01', completed: false },
   { id: 'prep_4', category: 'document', title: 'Download offline map of Iceland', dueDate: '2026-09-14', completed: false },
   { id: 'prep_5', category: 'logistics', title: 'Book airport transfer or arrange car pickup', dueDate: '2026-09-10', completed: true },
   { id: 'prep_6', category: 'logistics', title: 'Arrange pet care for trip duration', dueDate: '2026-09-12', completed: false },

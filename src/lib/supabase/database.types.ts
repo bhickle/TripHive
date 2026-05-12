@@ -686,7 +686,6 @@ export type Database = {
           id: string
           title: string
           trip_id: string
-          urgent: boolean
         }
         Insert: {
           category?: string
@@ -697,7 +696,6 @@ export type Database = {
           id?: string
           title: string
           trip_id: string
-          urgent?: boolean
         }
         Update: {
           category?: string
@@ -708,7 +706,6 @@ export type Database = {
           id?: string
           title?: string
           trip_id?: string
-          urgent?: boolean
         }
         Relationships: [
           {

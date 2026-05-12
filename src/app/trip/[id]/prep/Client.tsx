@@ -27,7 +27,7 @@ import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface PrepTask { id: string; category: string; title: string; dueDate?: string; completed: boolean; urgent?: boolean; }
+interface PrepTask { id: string; category: string; title: string; dueDate?: string; completed: boolean; }
 interface PackingItem { id: string; name: string; category: string; packed: boolean; affiliateUrl?: string; }
 // Inbound row shape from /api/trips/[id]/packing (and the gen route's
 // post-create reload). Same shape on every endpoint, used in 4 mappers.
@@ -155,7 +155,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         title: string;
         due_date?: string;
         completed: boolean;
-        urgent?: boolean;
       };
       type PackingRow = { id: string; name: string; category: string; packed: boolean };
       type SouvenirRow = { id: string; person: string; idea: string; purchased: boolean };
@@ -168,7 +167,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           title: t.title,
           dueDate: t.due_date,
           completed: t.completed,
-          urgent: t.urgent,
         }));
         setPrepTasks(tasks);
         setCompletedTasks(new Set(tasks.filter(t => t.completed).map(t => t.id)));
@@ -855,7 +853,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 )}
                 {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>}
               </div>
-              {task.urgent && !completedTasks.has(task.id) && editingTaskId !== task.id && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
               {editingTaskId !== task.id && (
                 <>
                   <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">
@@ -1298,7 +1295,6 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 )}
                 {task.dueDate && <p className="text-xs text-zinc-500 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>}
               </div>
-              {task.urgent && !completedTasks.has(task.id) && editingTaskId !== task.id && <div className="flex-shrink-0 w-2 h-2 rounded-full bg-sky-800" />}
               {editingTaskId !== task.id && (
                 <>
                   <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">

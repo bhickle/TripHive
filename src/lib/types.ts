@@ -481,7 +481,6 @@ export interface PrepTask {
   title: string;
   dueDate?: string;
   completed: boolean;
-  urgent?: boolean;
 }
 
 export interface PackingItem {
