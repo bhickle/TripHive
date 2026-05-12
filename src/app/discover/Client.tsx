@@ -88,6 +88,13 @@ interface CommunityTrip {
 
 const CONTINENTS = ['All', 'Africa', 'Asia', 'Europe', 'North America', 'Oceania', 'South America'];
 
+// Normalize a destination name for cross-card wishlist matching. Strips
+// trailing country segments and collapses case so "Paris", "Paris, France",
+// and "PARIS " all match the same wishlist entry.
+function normalizeDestName(n: string): string {
+  return n.trim().split(',')[0].trim().toLowerCase();
+}
+
 const timeConfig = {
   morning:   { dot: 'bg-amber-400',  badge: 'bg-amber-50  text-amber-700  border-amber-200',  icon: Sun,    label: 'Morning'   },
   afternoon: { dot: 'bg-sky-400',    badge: 'bg-sky-50    text-sky-700    border-sky-200',    icon: Sunset, label: 'Afternoon' },
@@ -108,9 +115,12 @@ interface FeaturedItineraryCardProps {
   item: FeaturedItinerary;
   days: ItineraryDay[];
   loadingDays: boolean;
+  wishlisted: boolean;
+  canWishlist: boolean;
+  onWishlist: () => void;
 }
 
-function FeaturedItineraryCard({ item, days, loadingDays }: FeaturedItineraryCardProps) {
+function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlist, onWishlist }: FeaturedItineraryCardProps) {
   const previewDays = days.slice(0, 4);
 
   return (
@@ -136,6 +146,18 @@ function FeaturedItineraryCard({ item, days, loadingDays }: FeaturedItineraryCar
             Editor&apos;s Pick
           </div>
         )}
+
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onWishlist(); }}
+          title={canWishlist ? (wishlisted ? 'Saved to On My Radar' : 'Save to On My Radar') : 'Explorer plan required to save destinations'}
+          aria-label={canWishlist ? (wishlisted ? 'Remove from On My Radar' : 'Save to On My Radar') : 'Save (Explorer plan required)'}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition-all"
+        >
+          {canWishlist
+            ? <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+            : <Lock className="w-3.5 h-3.5 text-white/80" />
+          }
+        </button>
 
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <div className="flex items-center gap-1.5 text-white/60 text-xs mb-1">
@@ -385,7 +407,19 @@ function DestinationCard({
 
 // ─── Top Search Card ────────────────────────────────────────────────────────
 
-function TopSearchCard({ name, rank, onSearch }: { name: string; rank: number; onSearch: (name: string) => void }) {
+function TopSearchCard({
+  name, rank, onSearch, featuredSlug, wishlisted, canWishlist, onWishlist,
+}: {
+  name: string;
+  rank: number;
+  onSearch: (name: string) => void;
+  /** If a featured itinerary exists for this destination, the card opens
+   *  the full preview instead of dropping into the trip builder blind. */
+  featuredSlug: string | null;
+  wishlisted: boolean;
+  canWishlist: boolean;
+  onWishlist: () => void;
+}) {
   return (
     <div
       className="relative bg-gradient-to-br from-sky-600 to-indigo-700 rounded-2xl overflow-hidden cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
@@ -399,7 +433,17 @@ function TopSearchCard({ name, rank, onSearch }: { name: string; rank: number; o
             <TrendingUp className="w-3 h-3" />
             Trending #{rank}
           </span>
-          <Search className="w-4 h-4 text-white/40 group-hover:text-white/70 transition-colors" />
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onWishlist(); }}
+            title={canWishlist ? (wishlisted ? 'Saved to On My Radar' : 'Save to On My Radar') : 'Explorer plan required to save destinations'}
+            aria-label={canWishlist ? (wishlisted ? 'Remove from On My Radar' : 'Save to On My Radar') : 'Save (Explorer plan required)'}
+            className="w-7 h-7 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all"
+          >
+            {canWishlist
+              ? <Heart className={`w-3.5 h-3.5 transition-colors ${wishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+              : <Lock className="w-3 h-3 text-white/80" />
+            }
+          </button>
         </div>
 
         {/* Destination name */}
@@ -408,16 +452,28 @@ function TopSearchCard({ name, rank, onSearch }: { name: string; rank: number; o
           <h3 className="font-script italic text-2xl font-bold text-white leading-tight">{name}</h3>
         </div>
 
-        {/* CTA */}
+        {/* CTA — prefer opening a built itinerary preview when one exists for
+            this destination, so users don't have to save blind. */}
         <div className="flex items-center justify-between mt-3">
-          <Link
-            href={`/trip/new?destination=${encodeURIComponent(name)}`}
-            onClick={e => e.stopPropagation()}
-            className="flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-colors"
-          >
-            <Sparkles className="w-3 h-3" />
-            Plan this trip
-          </Link>
+          {featuredSlug ? (
+            <Link
+              href={`/discover/${featuredSlug}`}
+              onClick={e => e.stopPropagation()}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-colors"
+            >
+              <Sparkles className="w-3 h-3" />
+              See 7-day itinerary
+            </Link>
+          ) : (
+            <Link
+              href={`/trip/new?destination=${encodeURIComponent(name)}`}
+              onClick={e => e.stopPropagation()}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-colors"
+            >
+              <Sparkles className="w-3 h-3" />
+              Plan this trip
+            </Link>
+          )}
           <span className="text-white/40 text-xs group-hover:text-white/60 transition-colors">
             Search →
           </span>
@@ -453,11 +509,13 @@ export default function DiscoverPage() {
   // destination grid to just the collection's destinations and surfaces
   // the collection title in the section header.
   const [activeCollection, setActiveCollection] = useState<SeasonalCollection | null>(null);
-  const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
-  // Map discover destination id → wishlist row id, so the heart toggle can
-  // DELETE the right row on un-save. Populated on mount (load existing
-  // wishlist) and after each save.
-  const [wishlistRowByDestId, setWishlistRowByDestId] = useState<Record<string, string>>({});
+  // Unified wishlist state — normalized destination name → wishlist row id.
+  // Every card type (DestinationCard / FeaturedItineraryCard / TopSearchCard)
+  // checks against this single map so a save from any surface reflects on
+  // every other surface for the same destination. Use '__pending__' as a
+  // placeholder row id between optimistic insert and the server returning
+  // the real row id.
+  const [wishlistedNames, setWishlistedNames] = useState<Map<string, string>>(new Map());
   const [showWishlistToast, setShowWishlistToast] = useState(false);
   // Generic action-failure toast — used by fork-failure path so the user
   // gets feedback instead of a silent modal close.
@@ -487,10 +545,10 @@ export default function DiscoverPage() {
       .catch(() => { /* silent — empty state is fine */ });
   }, []);
 
-  // Hydrate wishlistedIds from the user's saved wishlist on mount so the
-  // hearts on /discover reflect what's already saved. Maps by destination
-  // string ("Kyoto" matches a wishlist row destination of "Kyoto") so the
-  // hearts persist across refreshes.
+  // Hydrate wishlistedNames from the user's saved wishlist on mount so
+  // hearts on every Discover surface reflect what's already saved.
+  // Normalizes by first-segment lower-case so DB rows saved as either
+  // "Kyoto" or "Kyoto, Japan" both resolve.
   useEffect(() => {
     if (!hasWishlist) return;
     if (currentUser.isLoading || currentUser.isDemo) return;
@@ -500,31 +558,11 @@ export default function DiscoverPage() {
       .then(data => {
         const items: Array<{ id: string; destination: string }> | undefined = data?.items;
         if (!items?.length) return;
-        // Build name → wishlistRowId map. Discover destination IDs encode
-        // the city ("kyoto-japan"); we match against the saved row's
-        // destination string case-insensitively.
-        const byName: Record<string, string> = {};
+        const map = new Map<string, string>();
         for (const it of items) {
-          if (it.destination) byName[it.destination.toLowerCase()] = it.id;
+          if (it.destination) map.set(normalizeDestName(it.destination), it.id);
         }
-        // Match against the destinations that are loaded — anything not
-        // in the catalog stays unmatched until the page state catches up.
-        setDestinations(currentDests => {
-          const matchedIds = new Set<string>();
-          const map: Record<string, string> = {};
-          for (const d of currentDests) {
-            const rowId = byName[d.name.toLowerCase()];
-            if (rowId) {
-              matchedIds.add(d.id);
-              map[d.id] = rowId;
-            }
-          }
-          if (matchedIds.size > 0) {
-            setWishlistedIds(matchedIds);
-            setWishlistRowByDestId(map);
-          }
-          return currentDests; // no change to destinations
-        });
+        if (map.size > 0) setWishlistedNames(map);
       })
       .catch(() => { /* swallow — discover hearts default to unsaved */ });
   }, [hasWishlist, currentUser.id, currentUser.isLoading, currentUser.isDemo]);
@@ -579,10 +617,17 @@ export default function DiscoverPage() {
     }
   }, []);
 
-  // Pill click: drill into a single destination by name. Falls through to
-  // the existing search-query filter, which is a substring match — exact
-  // names will exact-match and resolve to one card.
+  // Pill click: prefer routing to a built featured itinerary preview when
+  // one exists for this destination — that's the whole point of the
+  // seasonal collection (handing the user a fully-planned 7-day trip).
+  // Fall through to the search-query filter only if no featured exists.
   const handleSeasonalPillClick = useCallback((destinationName: string) => {
+    const key = normalizeDestName(destinationName);
+    const matched = featured.find(f => normalizeDestName(f.destination) === key);
+    if (matched) {
+      window.location.href = `/discover/${matched.slug}`;
+      return;
+    }
     setActiveCollection(null);
     setActiveVibes([]);
     setActiveContinent('All');
@@ -592,7 +637,7 @@ export default function DiscoverPage() {
         document.getElementById('layer-2-destinations')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 50);
     }
-  }, []);
+  }, [featured]);
 
 
   const handleSearchChange = useCallback((value: string) => {
@@ -699,72 +744,87 @@ export default function DiscoverPage() {
     }
   };
 
-  const handleWishlist = async (id: string) => {
+  // Unified heart toggle. Accepts a payload (destination + optional metadata)
+  // and toggles the wishlist for that destination name. Same handler powers
+  // every heart on the Discover page — DestinationCard, FeaturedItineraryCard,
+  // TopSearchCard — so a save from any surface reflects on all of them.
+  const handleWishlistToggle = useCallback(async (payload: {
+    destination: string;
+    country?: string | null;
+    coverImage?: string | null;
+    bestSeason?: string | null;
+    estimatedCost?: number | null;
+    tags?: string[];
+  }) => {
     if (!hasWishlist) return;
     if (currentUser.isLoading) return;
     if (!currentUser.id || currentUser.isDemo) {
-      // Logged-out / demo — toast only, no persistence (matches the
-      // discover community-like flow which gates on auth too).
       window.location.href = `/auth/login?redirect=${encodeURIComponent('/discover')}`;
       return;
     }
-    const wasSaved = wishlistedIds.has(id);
-    const dest = destinations.find(d => d.id === id);
-    if (!dest) return;
+    const key = normalizeDestName(payload.destination);
+    const existingRowId = wishlistedNames.get(key);
+    const wasSaved = !!existingRowId;
 
-    // Optimistic toggle — flip the heart immediately, persist behind it,
-    // roll back if the server call fails.
-    setWishlistedIds(prev => {
-      const next = new Set(prev);
-      wasSaved ? next.delete(id) : next.add(id);
+    // Optimistic — flip heart immediately, reconcile on server response.
+    setWishlistedNames(prev => {
+      const next = new Map(prev);
+      if (wasSaved) next.delete(key);
+      else next.set(key, '__pending__');
       return next;
     });
-    setShowWishlistToast(true);
-    setTimeout(() => setShowWishlistToast(false), 2000);
+    if (!wasSaved) {
+      setShowWishlistToast(true);
+      setTimeout(() => setShowWishlistToast(false), 2000);
+    }
 
     try {
       if (wasSaved) {
-        // Remove via the saved wishlist row id we captured at save time
-        // (or hydrated on mount). If we don't have a row id mapping,
-        // we can't DELETE — surface the rollback so state stays sane.
-        const rowId = wishlistRowByDestId[id];
-        if (!rowId) throw new Error('no row id mapping');
-        const res = await fetch(`/api/wishlist?id=${rowId}`, { method: 'DELETE' });
+        if (existingRowId === '__pending__') throw new Error('row id not yet resolved');
+        const res = await fetch(`/api/wishlist?id=${existingRowId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`wishlist DELETE ${res.status}`);
-        setWishlistRowByDestId(prev => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
       } else {
         const res = await fetch('/api/wishlist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            destination: dest.name,
-            country: dest.country,
-            coverImage: dest.image,
-            bestSeason: dest.bestMonths,
-            estimatedCost: dest.avgCost,
-            tags: dest.vibes,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(`wishlist POST ${res.status}`);
         const out = await res.json();
         if (out?.item?.id) {
-          setWishlistRowByDestId(prev => ({ ...prev, [id]: out.item.id }));
+          setWishlistedNames(prev => {
+            const next = new Map(prev);
+            next.set(key, out.item.id);
+            return next;
+          });
         }
       }
     } catch (err) {
       console.error('[discover] wishlist toggle failed:', err);
-      // Roll back to the pre-toggle state on failure.
-      setWishlistedIds(prev => {
-        const next = new Set(prev);
-        wasSaved ? next.add(id) : next.delete(id);
+      setWishlistedNames(prev => {
+        const next = new Map(prev);
+        if (wasSaved && existingRowId) next.set(key, existingRowId);
+        else next.delete(key);
         return next;
       });
     }
-  };
+  }, [hasWishlist, currentUser, wishlistedNames]);
+
+  // Adapter so the existing DestinationCard (which calls onWishlist with a
+  // destination id) doesn't need a signature change. Resolves the id back
+  // to the destination row + builds the payload.
+  const handleWishlistById = useCallback((id: string) => {
+    const dest = destinations.find(d => d.id === id);
+    if (!dest) return;
+    handleWishlistToggle({
+      destination: dest.name,
+      country: dest.country,
+      coverImage: dest.image,
+      bestSeason: dest.bestMonths,
+      estimatedCost: dest.avgCost,
+      tags: dest.vibes,
+    });
+  }, [destinations, handleWishlistToggle]);
 
   const filtered = useMemo(() => {
     // Pre-compute lowercased collection names + per-name "first segment"
@@ -895,6 +955,9 @@ export default function DiscoverPage() {
                   {c}
                 </button>
               ))}
+              {activeContinent !== 'All' && (
+                <button onClick={() => setActiveContinent('All')} className="text-xs text-zinc-400 hover:text-zinc-600 underline ml-1">Clear</button>
+              )}
             </div>
           </div>
 
@@ -902,33 +965,71 @@ export default function DiscoverPage() {
               LAYER 1 — Featured itineraries + Top Searches (2+2 grid)
               Only shown when no filters active
           ══════════════════════════════════════════════════════════════ */}
-          {!isFiltering && (featured.length > 0 || topSearches.length > 0) && (
+          {!isFiltering && featured.length > 0 && (
             <section>
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Featured Itineraries</h2>
-                  <p className="text-sm text-zinc-400 mt-0.5">Hand-built trips from the tripcoord team — plus what travelers are searching right now</p>
+                  <p className="text-sm text-zinc-400 mt-0.5">Hand-built 7-day trips from the tripcoord team — preview the days, then fork into your own</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Editorial picks — capped at 2 */}
                 {featured.slice(0, 2).map(item => (
                   <FeaturedItineraryCard
                     key={item.slug}
                     item={item}
                     days={featuredDays[item.slug] ?? []}
                     loadingDays={loadingFeaturedDays && !featuredDays[item.slug]}
+                    wishlisted={wishlistedNames.has(normalizeDestName(item.destination))}
+                    canWishlist={hasWishlist}
+                    onWishlist={() => handleWishlistToggle({
+                      destination: item.destination,
+                      country: item.country,
+                      coverImage: item.heroImage,
+                      bestSeason: item.seasonTags?.[0] ?? null,
+                      estimatedCost: item.avgCostPerDay ? item.avgCostPerDay * item.durationDays : null,
+                      tags: item.vibes,
+                    })}
                   />
                 ))}
-                {/* Top search cards — fill up to 2 slots */}
-                {topSearches.slice(0, 2).map((s, i) => (
-                  <TopSearchCard
-                    key={s.name}
-                    name={s.name}
-                    rank={i + 1}
-                    onSearch={handleSearchChange}
-                  />
-                ))}
+              </div>
+            </section>
+          )}
+
+          {!isFiltering && topSearches.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Trending Now</h2>
+                  <p className="text-sm text-zinc-400 mt-0.5">What travelers are searching for this week — tap to see a built itinerary or save for later</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {topSearches.slice(0, 4).map((s, i) => {
+                  // Match the trending name to a featured itinerary so the
+                  // card can offer a real preview instead of dropping the
+                  // user straight into the blank Trip Builder.
+                  const matched = featured.find(f =>
+                    normalizeDestName(f.destination) === normalizeDestName(s.name)
+                  );
+                  return (
+                    <TopSearchCard
+                      key={s.name}
+                      name={s.name}
+                      rank={i + 1}
+                      onSearch={handleSearchChange}
+                      featuredSlug={matched?.slug ?? null}
+                      wishlisted={wishlistedNames.has(normalizeDestName(s.name))}
+                      canWishlist={hasWishlist}
+                      onWishlist={() => handleWishlistToggle({
+                        destination: s.name,
+                        country: matched?.country ?? null,
+                        coverImage: matched?.heroImage ?? null,
+                        tags: matched?.vibes ?? [],
+                      })}
+                    />
+                  );
+                })}
               </div>
             </section>
           )}
@@ -1043,8 +1144,22 @@ export default function DiscoverPage() {
               against the editor-curated discover_destinations rows so
               search/vibe/collection filtering still has something to
               bite on. The id is a scroll anchor for collection-card
-              and seasonal-pill clicks. */}
-          {isFiltering && (
+              and seasonal-pill clicks.
+
+              Special case: when a Seasonal Collection is the active
+              filter, surface the matching featured itineraries (with
+              full 7-day previews) above the destination grid — that's
+              what the user came here for. */}
+          {isFiltering && (() => {
+            // Featured itineraries that belong to the active collection
+            // (matched by first-segment name). Empty array if no collection
+            // is active or no featured itinerary matches.
+            const collectionFeatured = activeCollection
+              ? activeCollection.destinationNames
+                  .map(n => featured.find(f => normalizeDestName(f.destination) === normalizeDestName(n)))
+                  .filter((x): x is FeaturedItinerary => !!x)
+              : [];
+            return (
             <section id="layer-2-destinations">
               <div className="flex items-center justify-between mb-5">
                 <div>
@@ -1054,7 +1169,9 @@ export default function DiscoverPage() {
                         {activeCollection.title}
                       </h2>
                       <p className="text-sm text-zinc-400 mt-0.5">
-                        {filtered.length} destination{filtered.length !== 1 ? 's' : ''}
+                        {collectionFeatured.length > 0
+                          ? `${collectionFeatured.length} ready-to-fork 7-day itineraries`
+                          : `${filtered.length} destination${filtered.length !== 1 ? 's' : ''}`}
                         {activeCollection.description && ` · ${activeCollection.description}`}
                       </p>
                     </>
@@ -1072,30 +1189,55 @@ export default function DiscoverPage() {
                 </button>
               </div>
 
+              {collectionFeatured.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                  {collectionFeatured.map(item => (
+                    <FeaturedItineraryCard
+                      key={item.slug}
+                      item={item}
+                      days={featuredDays[item.slug] ?? []}
+                      loadingDays={loadingFeaturedDays && !featuredDays[item.slug]}
+                      wishlisted={wishlistedNames.has(normalizeDestName(item.destination))}
+                      canWishlist={hasWishlist}
+                      onWishlist={() => handleWishlistToggle({
+                        destination: item.destination,
+                        country: item.country,
+                        coverImage: item.heroImage,
+                        bestSeason: item.seasonTags?.[0] ?? null,
+                        estimatedCost: item.avgCostPerDay ? item.avgCostPerDay * item.durationDays : null,
+                        tags: item.vibes,
+                      })}
+                    />
+                  ))}
+                </div>
+              )}
+
               {filtered.length === 0 ? (
                 activeCollection ? (
                   // Collection-specific empty state: many seasonal collections
                   // reference destinations that don't exist in our destination
                   // catalog yet. Surface the collection's intended destinations
                   // as quick-plan chips so the user can still take action.
-                  <div className="bg-white border border-zinc-100 rounded-2xl p-8 text-center">
-                    <Globe2 className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
-                    <p className="text-zinc-700 font-semibold">We&apos;re still building itineraries for these</p>
-                    <p className="text-zinc-500 text-sm mt-1 mb-5">
-                      Pick one and plan it yourself in the meantime.
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {activeCollection.destinationNames.map(name => (
-                        <Link
-                          key={name}
-                          href={`/trip/new?destination=${encodeURIComponent(name)}`}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 text-sm font-medium rounded-full transition-colors"
-                        >
-                          <Plane className="w-3.5 h-3.5" /> {name}
-                        </Link>
-                      ))}
+                  collectionFeatured.length === 0 && (
+                    <div className="bg-white border border-zinc-100 rounded-2xl p-8 text-center">
+                      <Globe2 className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+                      <p className="text-zinc-700 font-semibold">We&apos;re still building itineraries for these</p>
+                      <p className="text-zinc-500 text-sm mt-1 mb-5">
+                        Pick one and plan it yourself in the meantime.
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {activeCollection.destinationNames.map(name => (
+                          <Link
+                            key={name}
+                            href={`/trip/new?destination=${encodeURIComponent(name)}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 text-sm font-medium rounded-full transition-colors"
+                          >
+                            <Plane className="w-3.5 h-3.5" /> {name}
+                          </Link>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )
                 ) : (
                   <div className="text-center py-20">
                     <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
@@ -1109,8 +1251,8 @@ export default function DiscoverPage() {
                     <DestinationCard
                       key={dest.id}
                       dest={dest}
-                      onWishlist={handleWishlist}
-                      wishlisted={wishlistedIds.has(dest.id)}
+                      onWishlist={handleWishlistById}
+                      wishlisted={wishlistedNames.has(normalizeDestName(dest.name))}
                       canWishlist={hasWishlist}
                       onCardClick={() => logDestinationEvent(dest.name, 'card_click')}
                       onPlanClick={() => logDestinationEvent(dest.name, 'plan_click')}
@@ -1119,7 +1261,8 @@ export default function DiscoverPage() {
                 </div>
               )}
             </section>
-          )}
+            );
+          })()}
 
           {/* ══════════════════════════════════════════════════════════════
               LAYER 3 — Seasonal collections (SEO-driven)

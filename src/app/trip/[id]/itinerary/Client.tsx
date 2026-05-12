@@ -49,6 +49,7 @@ import {
   Map,
   AlignJustify,
   UserPlus,
+  Calendar,
   CalendarPlus,
   PlusSquare,
   Wand2,
@@ -2210,6 +2211,10 @@ function ItineraryPageContent() {
   // ─── Edit trip destination / dates ───────────────────────────────────────────
   const handleOpenEditTrip = useCallback(() => {
     setEditDest(aiMeta?.destination ?? trip.destination);
+    // For forked-without-dates trips, aiMeta.startDate is empty but the
+    // days array still carries the source's dates. Pre-fill the modal's
+    // start/end inputs as blank (so the user picks fresh) — the save
+    // handler will rebase from the first day's date as the anchor.
     setEditStartDate(aiMeta?.startDate ?? '');
     setEditEndDate(aiMeta?.endDate ?? '');
     setEditTripError(null);
@@ -2225,19 +2230,30 @@ function ItineraryPageContent() {
       const newTitle = `${city} Adventure`;
 
       // Shift day dates if the start date changed.
+      // Anchor:
+      //   1. aiMeta.startDate (existing trip-wide start) if set
+      //   2. else first day's existing date — handles forked trips that
+      //      were created with "Skip — I'll pick dates later" (trip.start_date
+      //      is null but the copied days still carry the source's dates,
+      //      which need to be rebased to the user's chosen start)
       // Noon-pad every YYYY-MM-DD parse so timezone-west-of-UTC users don't
-      // get an off-by-one when toISOString() converts back (UTC midnight
-      // would render as the prior day's date in their locale).
+      // get an off-by-one when toISOString() converts back.
       let updatedDays: ItineraryDay[] | null = null;
-      if (editStartDate && aiMeta?.startDate && editStartDate !== aiMeta.startDate) {
-        const oldStart = new Date(aiMeta.startDate + 'T12:00:00');
-        const newStart = new Date(editStartDate + 'T12:00:00');
-        const diffDays = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
-        updatedDays = (activeDays as ItineraryDay[]).map(day => {
-          const d = new Date(day.date + 'T12:00:00');
-          d.setDate(d.getDate() + diffDays);
-          return { ...day, date: d.toISOString().split('T')[0] };
-        });
+      if (editStartDate) {
+        const anchor = aiMeta?.startDate
+          ?? ((activeDays as ItineraryDay[])[0]?.date);
+        if (anchor && anchor !== editStartDate) {
+          const oldStart = new Date(anchor + 'T12:00:00');
+          const newStart = new Date(editStartDate + 'T12:00:00');
+          const diffDays = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays !== 0) {
+            updatedDays = (activeDays as ItineraryDay[]).map(day => {
+              const d = new Date(day.date + 'T12:00:00');
+              d.setDate(d.getDate() + diffDays);
+              return { ...day, date: d.toISOString().split('T')[0] };
+            });
+          }
+        }
       }
 
       const tripId = params.id;
@@ -2604,6 +2620,30 @@ function ItineraryPageContent() {
           <div className="mb-4 flex items-center gap-3 px-5 py-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl">
             <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
             <span className="text-sm font-medium">{liveBuildError}</span>
+          </div>
+        )}
+
+        {/* Missing-dates banner — shown when the trip has no start_date
+            (e.g. forked from a community template with "Skip — I'll pick
+            dates later"). The day pills still render whatever dates were
+            copied from the source, which is confusing. Surface a clear
+            CTA that opens the edit-trip modal with the date inputs
+            pre-anchored on the first existing day. */}
+        {aiDays && canEditItinerary && !tripRow?.start_date && !aiMeta?.startDate && !isLiveBuilding && (
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 bg-sky-50 border border-sky-200 rounded-2xl">
+            <div className="flex items-center gap-3 min-w-0">
+              <Calendar className="w-5 h-5 flex-shrink-0 text-sky-700" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900">Add your travel dates</p>
+                <p className="text-xs text-zinc-500">Your itinerary is showing dates from the original template — pick yours and we&apos;ll shift every day.</p>
+              </div>
+            </div>
+            <button
+              onClick={handleOpenEditTrip}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-xl transition-colors whitespace-nowrap"
+            >
+              <Pencil className="w-3.5 h-3.5" /> Set dates
+            </button>
           </div>
         )}
 
@@ -5059,8 +5099,14 @@ function ItineraryPageContent() {
                 />
               </div>
 
-              {/* Hint: dates will shift */}
-              {editStartDate && aiMeta?.startDate && editStartDate !== aiMeta.startDate && (
+              {/* Hint: dates will shift. Fires either when an existing
+                  start is being changed, or when the trip had no start
+                  yet but the user is now setting one (rebasing the
+                  copied source dates from a fork-without-dates flow). */}
+              {editStartDate && (() => {
+                const anchor = aiMeta?.startDate ?? (activeDays as ItineraryDay[])[0]?.date;
+                return anchor && anchor !== editStartDate;
+              })() && (
                 <p className="flex items-center gap-1.5 text-xs text-sky-600 font-medium">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   Day dates will shift to match the new start date.
