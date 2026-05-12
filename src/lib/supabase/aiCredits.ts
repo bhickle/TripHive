@@ -95,7 +95,7 @@ export async function checkAiCredits(
  *
  * Race condition: two simultaneous calls both pass the check (read same
  * baseline) then both increment, allowing one over-charge. Acceptable on
- * the small numeric caps we enforce (10–350). For atomic increments use
+ * the small numeric caps we enforce (10–300). For atomic increments use
  * a Postgres RPC; supabase-js doesn't expose `+= 1` directly.
  */
 export async function incrementAiCreditsUsed(

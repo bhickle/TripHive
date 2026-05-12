@@ -1456,7 +1456,7 @@ export async function POST(request: NextRequest) {
   // generate-itinerary calls = 30 credits total. Free users with multi-
   // city would 402 on the second chunk. Multi-city is a paid feature
   // anyway (canSplitTracks gate runs upstream), so this is mostly
-  // theoretical for free tier — but explorer (100/mo) and nomad (350/mo)
+  // theoretical for free tier — but explorer (100/mo) and nomad (300/mo)
   // can absorb the per-chunk charge fine.
   const credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate');
   if (!credits.ok) return credits.response;

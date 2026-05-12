@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
 // ─── AI credit allocations per tier ──────────────────────────────────────────
 const TIER_CREDITS: Record<string, number> = {
   explorer: 100,
-  nomad:    350,
+  nomad:    300,
   free:     10,
 };
 

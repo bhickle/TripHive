@@ -38,7 +38,7 @@ export const PRICING = {
   nomad: {
     monthly: 14.99,
     annual: 143.99,         // ~$12/mo, 20% off
-    aiCreditsPerMonth: 350,
+    aiCreditsPerMonth: 300,
   },
 } as const;
 
@@ -70,13 +70,13 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
   ai_credits_empty: {
     reason: 'ai_credits_empty',
     headline: "You've used your AI build for this month",
-    body: "Your free credit refreshes at the start of next month. Upgrade to Explorer for 100 credits a month, or Nomad for 350.",
+    body: "Your free credit refreshes at the start of next month. Upgrade to Explorer for 100 credits a month, or Nomad for 300.",
     ctaLabel: 'See plans',
   },
   ai_credits_low: {
     reason: 'ai_credits_low',
     headline: 'Running low on AI credits',
-    body: "You're getting close to your monthly limit. Nomad gives you 350 credits — plenty for even the busiest planner.",
+    body: "You're getting close to your monthly limit. Nomad gives you 300 credits — plenty for even the busiest planner.",
     ctaLabel: 'See Nomad',
   },
   trip_limit: {

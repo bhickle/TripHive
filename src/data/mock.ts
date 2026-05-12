@@ -82,7 +82,7 @@ export const currentUser = {
   },
   subscriptionTier: 'nomad' as const,
   aiCredits: {
-    total: 350,
+    total: 300,
     used: 42,
     refreshAt: '2026-05-01T00:00:00Z',
   },

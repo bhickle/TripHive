@@ -188,7 +188,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   nomad: {
     activeTrips: 999,          // unlimited in practice — AI credits are the constraint
     travelersPerTrip: 15,
-    aiCreditsPerMonth: 350,
+    aiCreditsPerMonth: 300,
     maxTripDays: 14,
     maxBookedHotels: 7,
     canUseAI: true,
