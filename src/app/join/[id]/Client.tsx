@@ -338,7 +338,9 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 py-4 px-6">
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-2xl font-script italic font-semibold text-sky-900">tripcoord</h1>
+          <Link href="/">
+            <Image src="/tripcoord_logo.png" alt="TripCoord" width={140} height={36} className="h-9 w-auto" />
+          </Link>
         </div>
       </header>
 
