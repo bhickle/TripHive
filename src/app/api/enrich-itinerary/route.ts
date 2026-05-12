@@ -39,10 +39,16 @@ interface ActivityLite {
   neighborhood?: string;
   city?: string;
   address?: string;
+  // Surface isRestaurant so the route can detect days missing meals
+  // and ask the AI to fill them in (parsed uploads without restaurants
+  // are the common case).
+  isRestaurant?: boolean;
+  mealType?: 'breakfast' | 'lunch' | 'dinner' | null;
 }
 
 interface DayLite {
   day: number;
+  date?: string;
   city?: string | null;
   theme?: string | null;
   tracks?: {
@@ -50,6 +56,17 @@ interface DayLite {
     track_a?: ActivityLite[];
     track_b?: ActivityLite[];
   };
+}
+
+/** Count restaurant activities on a day (across all tracks). Used to
+ *  decide whether the AI should fill in breakfast/lunch/dinner. */
+function countRestaurants(day: DayLite): number {
+  const acts: ActivityLite[] = [
+    ...(day.tracks?.shared ?? []),
+    ...(day.tracks?.track_a ?? []),
+    ...(day.tracks?.track_b ?? []),
+  ];
+  return acts.filter(a => a.isRestaurant === true).length;
 }
 
 /** Render a day's existing activities into a compact context string the
@@ -79,6 +96,12 @@ function buildEnrichmentPrompt(
   destination: string,
   priorities: string[],
   days: DayLite[],
+  /** Day numbers that need breakfast/lunch/dinner restaurant suggestions
+   *  added to their tracks. Empty set = highlights only (original behavior). */
+  daysNeedingRestaurants: Set<number>,
+  /** budgetTierLevel from preferences. Drives priceLevel cap on restaurants.
+   *  Defaults to 50 (MID-RANGE) when missing. */
+  budgetTierLevel: number,
 ): string {
   const hasFood = priorities.includes('food');
   const hasNightlife = priorities.includes('nightlife');
@@ -92,8 +115,31 @@ function buildEnrichmentPrompt(
      'beach', 'themepark', 'family'].includes(p)
   );
 
+  // Per-meal priceLevel ceilings mirror the buildPrompt-internal logic
+  // in generate-itinerary so enrichment-added restaurants don't outrun
+  // the user's budget tier.
+  const mealPriceLevels = budgetTierLevel < 30
+    ? { breakfast: 1, lunch: 1, dinner: 2 }
+    : budgetTierLevel < 60
+    ? { breakfast: 1, lunch: 2, dinner: 2 }
+    : budgetTierLevel < 85
+    ? { breakfast: 2, lunch: 2, dinner: 3 }
+    : { breakfast: 2, lunch: 3, dinner: 4 };
+  const maxRestaurantPriceLevel = budgetTierLevel < 85 ? 3 : 4;
+
+  // List the day numbers that need restaurants so the per-day prompt
+  // text can be conditional. (We still ask for highlights on every day.)
+  const restaurantDayList = days
+    .filter(d => daysNeedingRestaurants.has(d.day))
+    .map(d => d.day);
+
   const daysBlock = days
-    .map(d => `\n  Day ${d.day} — ${summarizeDay(d)}`)
+    .map(d => {
+      const restaurantMark = daysNeedingRestaurants.has(d.day)
+        ? ' [needs breakfast/lunch/dinner suggestions — day has no restaurants yet]'
+        : '';
+      return `\n  Day ${d.day}${restaurantMark} — ${summarizeDay(d)}`;
+    })
     .join('');
 
   return `You generate per-day sidebar highlights for an existing travel itinerary in ${destination}.
@@ -125,7 +171,10 @@ Return ONLY valid JSON — no markdown, no commentary — matching this shape:
       ${discoveryPriorities.length > 0 ? `"priorityHighlights": [
         { "name": "real specific spot/activity/site", "neighborhood": "district", "priority": "${discoveryPriorities.join('|')}", "description": "1-sentence reason this is worth seeing" }
       ],` : ''}
-      "destinationTip": "one punchy insider fact about this city or region tied to the day's theme/neighborhood"
+      "destinationTip": "one punchy insider fact about this city or region tied to the day's theme/neighborhood"${restaurantDayList.length > 0 ? `,
+      "restaurants": [
+        { "name": "real restaurant name", "neighborhood": "district near today's activities", "mealType": "breakfast|lunch|dinner", "timeSlot": "HH:MM–HH:MM (en-dash)", "address": "full street address if known else null", "priceLevel": <0-${maxRestaurantPriceLevel}>, "description": "1-sentence why this spot — cite the source of its reputation (local institution, neighborhood favorite, etc.)" }
+      ]` : ''}
     }
   ]
 }
@@ -138,7 +187,8 @@ ${hasShopping ? '4. shoppingGuide: exactly 2 per day. Same anchoring + dedup rul
 ${discoveryPriorities.length > 0 ? `5. priorityHighlights: 1–2 per day covering the discovery priorities (${discoveryPriorities.join(', ')}). Anchor to neighborhoods.` : ''}
 ${discoveryPriorities.length === 0 ? '5.' : '6.'} destinationTip: punchy, specific, tied to the day's location. Rotate the topic across days (food → tradition → quirky fact → etc.).
 ${discoveryPriorities.length === 0 ? '6.' : '7.'} All venues must be real and accurately named. Anchor to the neighborhoods the user is already visiting that day — don't send them across town.
-${discoveryPriorities.length === 0 ? '7.' : '8.'} Return exactly ${days.length} day objects, one for each day above, in order.`;
+${discoveryPriorities.length === 0 ? '7.' : '8.'} Return exactly ${days.length} day objects, one for each day above, in order.${restaurantDayList.length > 0 ? `
+${discoveryPriorities.length === 0 ? '8.' : '9.'} RESTAURANT BACKFILL — for ONLY these day numbers: ${restaurantDayList.join(', ')}, include the "restaurants" array with EXACTLY 3 entries: one breakfast, one lunch, one dinner. Each must be a REAL named restaurant in ${destination}, geographically anchored to the day's existing activities (no cross-town detours). Time slots: breakfast 07:30–09:00, lunch 12:30–14:00, dinner 19:00–21:00 (en-dash). Use mealType: "breakfast" | "lunch" | "dinner". priceLevel ceilings: breakfast ≤ ${mealPriceLevels.breakfast}, lunch ≤ ${mealPriceLevels.lunch}, dinner ≤ ${mealPriceLevels.dinner} (NEVER exceed ${maxRestaurantPriceLevel} on any meal). Address is best-effort — null is acceptable if you're not sure. Do NOT include restaurants for days NOT in that list, and do NOT re-suggest a restaurant the user already has in their day's activities. The description should cite the source of the restaurant's reputation, not invent a star rating.` : ''}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -146,14 +196,14 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   // Parse body up-front so we can reach tripId for the access check.
-  let body: { tripId?: string; dayNumbers?: number[] };
+  let body: { tripId?: string; dayNumbers?: number[]; includeRestaurants?: boolean };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
 
-  const { tripId, dayNumbers } = body;
+  const { tripId, dayNumbers, includeRestaurants } = body;
   if (!tripId || typeof tripId !== 'string') {
     return NextResponse.json({ error: 'tripId required' }, { status: 400 });
   }
@@ -221,15 +271,32 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Pull priorities from trips.preferences.priorities. Fallback to the
-  // itinerary meta.preferences.priorities (older schema). Empty array
-  // is fine — the prompt handles it.
-  const preferences = (trip.preferences ?? {}) as { priorities?: string[] };
-  const metaPrefs = ((itinerary.meta as { preferences?: { priorities?: string[] } } | null)?.preferences ?? {}) as { priorities?: string[] };
+  // Pull priorities + budget tier from trips.preferences. Fallback to the
+  // itinerary meta.preferences (older schema). Empty array / default 50
+  // is fine — the prompt handles missing values.
+  const preferences = (trip.preferences ?? {}) as { priorities?: string[]; curiosityLevel?: number };
+  const metaPrefs = ((itinerary.meta as { preferences?: { priorities?: string[]; curiosityLevel?: number } } | null)?.preferences ?? {}) as { priorities?: string[]; curiosityLevel?: number };
   const priorities = preferences.priorities ?? metaPrefs.priorities ?? [];
+  const budgetTierLevel = preferences.curiosityLevel ?? metaPrefs.curiosityLevel ?? 50;
+
+  // When the caller asks to backfill restaurants, only apply to target
+  // days that actually have zero restaurants. Days that already have
+  // meals are skipped to avoid duplicating the user's existing plan.
+  const daysNeedingRestaurants = new Set<number>();
+  if (includeRestaurants) {
+    for (const d of targetDays) {
+      if (countRestaurants(d) === 0) daysNeedingRestaurants.add(d.day);
+    }
+  }
 
   const destination = (trip.destination as string) ?? 'this destination';
-  const userPrompt = buildEnrichmentPrompt(destination, priorities, targetDays);
+  const userPrompt = buildEnrichmentPrompt(
+    destination,
+    priorities,
+    targetDays,
+    daysNeedingRestaurants,
+    budgetTierLevel,
+  );
 
   let parsed: { days: Array<Record<string, unknown>> };
   try {
@@ -273,6 +340,46 @@ export async function POST(req: NextRequest) {
     if (dn !== null) enrichmentByDay.set(dn, ed);
   }
 
+  /** Build a full Activity object from an AI-emitted restaurant shape.
+   *  The enrich endpoint produces a slim shape (name, neighborhood,
+   *  mealType, timeSlot, address, priceLevel, description); we fill in
+   *  the rest with defaults so the itinerary page renders it correctly. */
+  const buildRestaurantActivity = (
+    dayNum: number,
+    idx: number,
+    r: Record<string, unknown>,
+  ): Record<string, unknown> => {
+    const name = typeof r.name === 'string' ? r.name : '';
+    const mealType = r.mealType === 'breakfast' || r.mealType === 'lunch' || r.mealType === 'dinner'
+      ? r.mealType
+      : null;
+    return {
+      id: `enrich_d${dayNum}_r${idx + 1}_${Date.now().toString(36)}`,
+      name,
+      title: name,
+      timeSlot: typeof r.timeSlot === 'string' ? r.timeSlot : (
+        mealType === 'breakfast' ? '07:30–09:00' :
+        mealType === 'lunch' ? '12:30–14:00' :
+        '19:00–21:00'
+      ),
+      description: typeof r.description === 'string' ? r.description : '',
+      address: typeof r.address === 'string' ? r.address : null,
+      website: null,
+      isRestaurant: true,
+      mealType,
+      track: 'shared',
+      priceLevel: typeof r.priceLevel === 'number' ? r.priceLevel : 2,
+      costEstimate: 0,
+      confidence: 0.8,
+      verified: false,
+      packingTips: [],
+      transportToNext: null,
+      // Surface neighborhood so the itinerary page can show it in the
+      // activity card meta row.
+      neighborhood: typeof r.neighborhood === 'string' ? r.neighborhood : undefined,
+    };
+  };
+
   const mergedDays = days.map(d => {
     const enriched = enrichmentByDay.get(d.day);
     if (!enriched) return d;
@@ -280,8 +387,33 @@ export async function POST(req: NextRequest) {
     // fields the AI omitted. DayLite only types the fields we read for
     // prompt context, not the sidebar fields we're writing here.
     const existing = d as unknown as Record<string, unknown>;
+
+    // Restaurant backfill: only fires when this day was in the
+    // daysNeedingRestaurants set AND the AI returned a "restaurants"
+    // array. We append to tracks.shared so the itinerary page's
+    // existing sort-by-timeSlot logic handles ordering.
+    let mergedTracks = existing.tracks as {
+      shared?: unknown[]; track_a?: unknown[]; track_b?: unknown[];
+    } | undefined;
+    if (
+      daysNeedingRestaurants.has(d.day) &&
+      Array.isArray(enriched.restaurants) &&
+      enriched.restaurants.length > 0
+    ) {
+      const newRestaurants = (enriched.restaurants as Array<Record<string, unknown>>)
+        .filter(r => typeof r.name === 'string' && r.name.trim().length > 0)
+        .map((r, i) => buildRestaurantActivity(d.day, i, r));
+      const existingShared = Array.isArray(mergedTracks?.shared) ? (mergedTracks?.shared as unknown[]) : [];
+      mergedTracks = {
+        shared: [...existingShared, ...newRestaurants],
+        track_a: mergedTracks?.track_a,
+        track_b: mergedTracks?.track_b,
+      };
+    }
+
     return {
       ...existing,
+      ...(mergedTracks ? { tracks: mergedTracks } : {}),
       // Keep existing values if AI omitted the field; otherwise overwrite.
       photoSpots: enriched.photoSpots ?? existing.photoSpots ?? null,
       foodieTips: enriched.foodieTips ?? existing.foodieTips ?? null,
@@ -313,5 +445,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     days: mergedDays,
     enrichedDayCount: targetDays.length,
+    restaurantsAddedCount: daysNeedingRestaurants.size * 3,
   });
 }

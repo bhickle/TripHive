@@ -2345,9 +2345,10 @@ function ItineraryPageContent() {
   // ─── AI enrichment handler ───────────────────────────────────────────────────
   // Calls /api/enrich-itinerary to fill in a day's sidebar arrays
   // (photoSpots / foodieTips / nightlifeHighlights / shoppingGuide /
-  // priorityHighlights / destinationTip). Used when the day has user-added
-  // activities but no AI-generated highlights anchoring them.
-  const handleEnrichDay = useCallback(async (dayNum: number) => {
+  // priorityHighlights / destinationTip). When `includeRestaurants` is
+  // set, also asks the AI to suggest breakfast/lunch/dinner restaurants
+  // — used on parsed uploads where the source plan didn't include meals.
+  const handleEnrichDay = useCallback(async (dayNum: number, includeRestaurants = false) => {
     if (enrichingDay !== null) return;
     setEnrichingDay(dayNum);
     setEnrichError(null);
@@ -2355,7 +2356,7 @@ function ItineraryPageContent() {
       const res = await fetch('/api/enrich-itinerary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tripId: params.id, dayNumbers: [dayNum] }),
+        body: JSON.stringify({ tripId: params.id, dayNumbers: [dayNum], includeRestaurants }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -4191,12 +4192,22 @@ function ItineraryPageContent() {
               //   - no activities exist yet (AI has nothing to anchor to)
               //   - user can't edit (3+ trip viewer)
               //   - day is for a mock/demo trip
+              //
+              // Restaurant backfill: if the day has activities but ZERO
+              // restaurants (typical of parsed uploads where the source
+              // plan didn't include meals), the button also offers to
+              // fill in breakfast/lunch/dinner suggestions anchored to
+              // the day's neighborhoods. Same 1-credit cost — Haiku
+              // absorbs the slightly larger output.
               if (items.length === 0) {
-                const dayHasActivities =
-                  (currentDayData.tracks?.shared?.length ?? 0) +
-                  (currentDayData.tracks?.track_a?.length ?? 0) +
-                  (currentDayData.tracks?.track_b?.length ?? 0) > 0;
+                const allActs = [
+                  ...(currentDayData.tracks?.shared ?? []),
+                  ...(currentDayData.tracks?.track_a ?? []),
+                  ...(currentDayData.tracks?.track_b ?? []),
+                ];
+                const dayHasActivities = allActs.length > 0;
                 if (!dayHasActivities || !canEditItinerary || isMockTrip) return null;
+                const dayHasRestaurants = allActs.some(a => (a as { isRestaurant?: boolean }).isRestaurant === true);
                 const isEnriching = enrichingDay === currentDayData.day;
                 return (
                   <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
@@ -4206,17 +4217,21 @@ function ItineraryPageContent() {
                         <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Day Highlights</p>
                       </div>
                       <p className="text-[11px] text-zinc-400 mb-4">
-                        Use AI to surface photo spots, food picks, and local tips anchored to this day&apos;s neighborhoods.
+                        {dayHasRestaurants
+                          ? 'Use AI to surface photo spots, food picks, and local tips anchored to this day’s neighborhoods.'
+                          : 'No meals on this day yet — use AI to add breakfast/lunch/dinner suggestions plus photo + local highlights, anchored to your planned stops.'}
                       </p>
                       <button
-                        onClick={() => handleEnrichDay(currentDayData.day)}
+                        onClick={() => handleEnrichDay(currentDayData.day, !dayHasRestaurants)}
                         disabled={isEnriching}
                         className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-xl transition-colors"
                       >
                         {isEnriching ? (
-                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating highlights…</>
-                        ) : (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {dayHasRestaurants ? 'Generating highlights…' : 'Adding restaurants & highlights…'}</>
+                        ) : dayHasRestaurants ? (
                           <><Sparkles className="w-3.5 h-3.5" /> Generate highlights (1 credit)</>
+                        ) : (
+                          <><Sparkles className="w-3.5 h-3.5" /> Add restaurants & highlights (1 credit)</>
                         )}
                       </button>
                       {enrichError && enrichingDay === null && (
