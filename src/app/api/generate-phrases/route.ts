@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -162,26 +162,23 @@ const MOCK_PHRASES = {
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
+// Auth + Nomad-tier required. Pre-launch QA flagged the prior
+// demo-passthrough pattern as a P0 — it let unauthenticated callers
+// burn Anthropic spend on 8K-token outputs.
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+  if (auth.ctx.tier !== 'nomad') {
+    return NextResponse.json(
+      { error: 'NOMAD_REQUIRED', message: 'AI phrasebook is a Nomad feature' },
+      { status: 403 },
+    );
+  }
+
   try {
-    // Tier check — Nomad only
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      if (user) {
-        const admin = createAdminClient();
-        const { data: profile } = await admin
-          .from('profiles')
-          .select('subscription_tier')
-          .eq('id', user.id)
-          .single();
-        const tier = profile?.subscription_tier ?? 'free';
-        if (tier !== 'nomad') {
-          return NextResponse.json({ error: 'NOMAD_REQUIRED', message: 'AI phrasebook is a Nomad feature' }, { status: 403 });
-        }
-      }
-      // No session (demo/guest) — allow through so the demo experience still works
-    } catch { /* ignore auth errors — don't block demo users */ }
+    // Credit gate (two-phase). Charged after parsing succeeds.
+    const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_phrases');
+    if (!credits.ok) return credits.response;
 
     const body = await request.json();
     const { destination = 'Iceland', language, destinations } = body as {
@@ -222,6 +219,8 @@ export async function POST(request: NextRequest) {
     raw = raw.slice(start, end + 1);
 
     const parsed = JSON.parse(raw);
+
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     // Normalise: always return { language, languageCode, destination, categories }
     // For multi-language, wrap in { languages: [...] } so the frontend can handle it

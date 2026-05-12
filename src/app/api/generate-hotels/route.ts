@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+
+  // Credit gate (two-phase). Charged after suggestions parse cleanly.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_hotels');
+  if (!credits.ok) return credits.response;
 
   const { destination, startDate, endDate, budget, budgetBreakdown } = await request.json();
 
@@ -51,6 +56,7 @@ Rules: (1) All hotels must be real and accurately named. (2) Vary the 3 picks â€
     const objStart = cleaned.indexOf('{');
     const objEnd = cleaned.lastIndexOf('}');
     const parsed = JSON.parse(cleaned.slice(objStart, objEnd + 1));
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
     return NextResponse.json(parsed);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

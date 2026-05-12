@@ -50,14 +50,23 @@ export async function POST(request: NextRequest) {
     const isSkeleton = skeleton === true;
     const isDraft = !isSkeleton && (!itinerary || itinerary.length === 0);
 
-    // Identify the current user (cookie-based auth) — optional, anon saves are allowed
+    // Identify the current user. Trips are owner-scoped; we never allow
+    // anonymous trip writes through this route (admin client below
+    // bypasses RLS, so we MUST gate at the route level — without this
+    // check, anon bots could poison the trips/itineraries tables).
     let userId: string | null = null;
     try {
       const authClient = await createClient();
       const { data: { user } } = await authClient.auth.getUser();
       userId = user?.id ?? null;
     } catch {
-      // If auth check fails, proceed as anonymous
+      // fall through — userId stays null, then we 401 below
+    }
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'UNAUTHORIZED', message: 'You must be signed in to save a trip.' },
+        { status: 401 },
+      );
     }
 
     // All DB writes use the admin client (bypasses RLS, no cookie dependency)

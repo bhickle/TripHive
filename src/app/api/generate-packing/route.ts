@@ -1,42 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 /**
- * POST /api/generate-packing
+ * POST /api/generate-packing   [auth + Nomad tier required]
  * Generates an AI packing list for a trip and saves it to Supabase.
  * Body: { tripId, destination, startDate?, endDate? }
  *
  * Returns { items } on success.
- * Nomad-only feature — requires subscription_tier = 'nomad'.
+ *
+ * Auth gate: pre-launch QA flagged the prior demo-passthrough pattern
+ * (try { auth } catch { allow }) as a P0 — it let unauthenticated
+ * callers burn Anthropic spend. Now requires a real auth session.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+  if (auth.ctx.tier !== 'nomad') {
+    return NextResponse.json(
+      { error: 'NOMAD_REQUIRED', message: 'AI packing list is a Nomad feature' },
+      { status: 403 },
+    );
+  }
+
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'NO_API_KEY' }, { status: 500 });
     }
 
-    // Tier check — Nomad only
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      if (user) {
-        const admin = createAdminClient();
-        const { data: profile } = await admin
-          .from('profiles')
-          .select('subscription_tier')
-          .eq('id', user.id)
-          .single();
-        const tier = profile?.subscription_tier ?? 'free';
-        if (tier !== 'nomad') {
-          return NextResponse.json({ error: 'NOMAD_REQUIRED', message: 'AI packing list is a Nomad feature' }, { status: 403 });
-        }
-      }
-      // No session (demo/guest) — allow through so the demo experience still works
-    } catch { /* ignore auth errors — don't block demo users */ }
+    // Credit gate (two-phase). Charged after the packing list is saved.
+    const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_packing');
+    if (!credits.ok) return credits.response;
 
     const { tripId, destination, startDate, endDate } = await req.json();
     if (!tripId || !destination) {
@@ -110,6 +108,8 @@ Rules:
       console.error('generate-packing insert error:', JSON.stringify(error));
       return NextResponse.json({ error: 'Failed to save packing items' }, { status: 500 });
     }
+
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json({ items });
   } catch (err) {

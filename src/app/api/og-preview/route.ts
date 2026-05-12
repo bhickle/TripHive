@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 /**
- * POST /api/og-preview
+ * POST /api/og-preview   [auth required]
  * Body: { url: string }
  *
  * Server-side fetch + Open Graph parse for a user-supplied URL. Used by
  * the wishlist page so pasted links render as rich preview cards
  * (title / image / description / site name).
+ *
+ * Auth gate: pre-launch QA flagged this as a P0 — without auth, anyone
+ * could use the endpoint as an HTTP-fetch proxy (cache-amplified). The
+ * SSRF blocklist below mitigates the worst class of abuse (internal
+ * network probes) but doesn't stop generic web scraping.
  *
  * SSRF protections:
  *   - Only http/https schemes
@@ -23,6 +29,9 @@ import { NextResponse } from 'next/server';
  * just stores the bare URL when we can't extract metadata.
  */
 export async function POST(req: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const { url } = await req.json();
     if (!url || typeof url !== 'string') {

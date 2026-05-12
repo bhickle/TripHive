@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -33,6 +34,10 @@ lineItems should list every individual item/charge on the receipt.`;
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+
+  // Credit gate (two-phase). Charged after parse succeeds.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'parse_receipt');
+  if (!credits.ok) return credits.response;
 
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -93,6 +98,8 @@ export async function POST(request: NextRequest) {
     if (!parsed.merchant || parsed.total === undefined || !parsed.currency || !parsed.category) {
       throw new Error('Missing required fields in parsed receipt');
     }
+
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json(parsed);
 

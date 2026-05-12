@@ -80,6 +80,19 @@ export const AI_CREDIT_COSTS = {
   // a full itinerary_generate; charged 2 credits as a round number — free
   // tier gets ~5 add-day calls per month.
   add_day: 2,
+  // Receipt OCR via /api/parse-receipt — Opus + vision, ~500 output tokens
+  // plus the image itself (~$0.04–0.06 each). 1 credit ≈ $0.01.
+  parse_receipt: 1,
+  // /api/generate-hotels — Haiku, ~800 output tokens (~$0.02). Cheap.
+  generate_hotels: 1,
+  // /api/generate-discover — Haiku, 4096-token output (~$0.05). Cheap.
+  generate_discover: 1,
+  // /api/generate-layover — Sonnet, 6000-token output (~$0.10). Medium.
+  generate_layover: 2,
+  // /api/generate-packing — Haiku, 2048-token output (~$0.03). Nomad-only.
+  generate_packing: 1,
+  // /api/generate-phrases — Sonnet, 8192-token output (~$0.15). Nomad-only.
+  generate_phrases: 2,
 } as const;
 
 export type AiAction = keyof typeof AI_CREDIT_COSTS;

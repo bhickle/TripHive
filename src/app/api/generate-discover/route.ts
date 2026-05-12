@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -12,6 +13,10 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+
+  // Credit gate (two-phase). Charged after items parse cleanly.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_discover');
+  if (!credits.ok) return credits.response;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 500 });
@@ -95,6 +100,8 @@ Rules:
 
     const items = JSON.parse(raw.slice(arrStart, arrEnd + 1));
     if (!Array.isArray(items)) throw new Error('Expected array');
+
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json({ items });
   } catch (err) {

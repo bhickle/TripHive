@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -165,7 +166,8 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!process.env.ANTHROPIC_API_KEY) {
-      // Return mock data — swap airport name so it feels responsive
+      // Return mock data — no Anthropic call, so no credit charge either.
+      // Swap airport name so it feels responsive.
       const hoursNum = parseFloat(layoverHours) || 4;
       const mock = { ...MOCK_RESPONSE };
       mock.airport = {
@@ -183,6 +185,11 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json(mock);
     }
+
+    // Credit gate (two-phase). Placed after the no-key mock branch so a
+    // misconfigured environment doesn't burn credits on canned data.
+    const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_layover');
+    if (!credits.ok) return credits.response;
 
     const hoursNum = parseFloat(layoverHours) || 4;
     const userPrompt = buildUserPrompt(
@@ -230,6 +237,7 @@ export async function POST(request: NextRequest) {
       throw new Error('No JSON object in response');
     }
     const parsed = JSON.parse(cleaned.slice(objStart, objEnd + 1));
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
     return NextResponse.json(parsed);
 
   } catch (err) {

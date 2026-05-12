@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 /**
- * POST /api/integration-vote
+ * POST /api/integration-vote   [auth required]
  *
  * Body: { integrationId: string, integrationName: string, action: 'vote' | 'unvote' | 'comment', comment?: string }
  *
@@ -11,17 +12,17 @@ import { NextRequest, NextResponse } from 'next/server';
  *   AIRTABLE_BASE_ID   — The base ID (starts with "app"), found in the API docs for your base
  *   AIRTABLE_TABLE_NAME — Name of the table to write to (default: "Integration Feedback")
  *
- * Table schema (create once in Airtable):
- *   Integration   — Single line text
- *   Type          — Single select  (Vote / Unvote / Comment)
- *   Comment       — Long text
- *   Timestamp     — Date (include time)
+ * Auth is required to prevent open Airtable spam — pre-launch QA flagged
+ * this as a P0 (unauthenticated write-to-external-system endpoint).
  *
  * If the env vars are absent the route returns 200 silently so the UI
  * never breaks in dev/demo mode.
  */
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { integrationId, integrationName, action, comment } = body as {
@@ -35,6 +36,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Defensive caps so a malicious authed user can't dump huge blobs
+    // into the Airtable base.
+    const safeName = String(integrationName ?? '').slice(0, 200);
+    const safeComment = comment ? String(comment).slice(0, 2000) : undefined;
+
     const apiKey   = process.env.AIRTABLE_API_KEY;
     const baseId   = process.env.AIRTABLE_BASE_ID;
     const table    = process.env.AIRTABLE_TABLE_NAME ?? 'Integration Feedback';
@@ -47,11 +53,11 @@ export async function POST(request: NextRequest) {
     const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
 
     const fields: Record<string, string> = {
-      Integration: integrationName,
+      Integration: safeName,
       Type: action === 'vote' ? 'Vote' : action === 'unvote' ? 'Unvote' : 'Comment',
       Timestamp: new Date().toISOString(),
     };
-    if (comment) fields.Comment = comment;
+    if (safeComment) fields.Comment = safeComment;
 
     const res = await fetch(url, {
       method: 'POST',
