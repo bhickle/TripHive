@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowLeft, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import type { TripMemberPreferences, DietaryTag, AccessibilityNeed, PaceLevel } from '@/lib/types';
 
@@ -153,45 +154,65 @@ export default function PreferencesPage() {
     }
   };
 
+  // Shared logo header — newly added members hit this page from an
+  // invite link without the usual app sidebar, so the form needs its
+  // own brand mark up top (same pattern as the /join and /auth pages).
+  const logoHeader = (
+    <header className="bg-white border-b border-slate-200 py-4 px-6">
+      <div className="max-w-2xl mx-auto">
+        <Link href="/">
+          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={36} className="h-9 w-auto" priority />
+        </Link>
+      </div>
+    </header>
+  );
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-parchment flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
-      </main>
+      <div className="min-h-screen bg-parchment flex flex-col">
+        {logoHeader}
+        <main className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
+        </main>
+      </div>
     );
   }
 
   if (saved) {
     return (
-      <main className="min-h-screen bg-parchment flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-sm p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
-            <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+      <div className="min-h-screen bg-parchment flex flex-col">
+        {logoHeader}
+        <main className="flex-1 flex items-center justify-center px-4 py-10">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-sm p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
+              <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+            </div>
+            <h1 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">Thanks — you&apos;re in</h1>
+            <p className="text-zinc-600 mb-6">
+              Your preferences are saved. The trip organizer will see them when they generate the itinerary.
+            </p>
+            <Link
+              href={`/trip/${params.id}/itinerary`}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold rounded-full transition-colors"
+            >
+              Go to the trip
+            </Link>
+            <button
+              onClick={() => setSaved(false)}
+              className="block mx-auto mt-3 text-sm text-zinc-500 hover:text-zinc-700"
+            >
+              Update my answers
+            </button>
           </div>
-          <h1 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">Thanks — you&apos;re in</h1>
-          <p className="text-zinc-600 mb-6">
-            Your preferences are saved. The trip organizer will see them when they generate the itinerary.
-          </p>
-          <Link
-            href={`/trip/${params.id}/itinerary`}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold rounded-full transition-colors"
-          >
-            Go to the trip
-          </Link>
-          <button
-            onClick={() => setSaved(false)}
-            className="block mx-auto mt-3 text-sm text-zinc-500 hover:text-zinc-700"
-          >
-            Update my answers
-          </button>
-        </div>
-      </main>
+        </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-parchment">
-      <div className="max-w-2xl mx-auto px-4 py-8 md:py-12">
+    <div className="min-h-screen bg-parchment">
+      {logoHeader}
+      <main className="max-w-2xl mx-auto px-4 py-8 md:py-12">
         <Link
           href={`/trip/${params.id}/itinerary`}
           className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 mb-6"
@@ -373,7 +394,7 @@ export default function PreferencesPage() {
             </button>
           </div>
         </form>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
