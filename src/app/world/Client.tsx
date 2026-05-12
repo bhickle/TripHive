@@ -127,6 +127,47 @@ export default function WorldClient() {
   const [lightboxCity, setLightboxCity] = useState<{ name: string; photoUrl: string; tripId: string } | null>(null);
   useEscapeKey(() => setLightboxCity(null), !!lightboxCity);
 
+  // Share-my-map: native Web Share API on supported browsers (mobile),
+  // clipboard fallback on desktop. Composes a short brag-text from the
+  // user's stats so the share has context, not just a bare URL.
+  const [shareToast, setShareToast] = useState<string | null>(null);
+  const handleShareMap = useCallback(async () => {
+    if (!data) return;
+    const { totalCountries, totalCities, totalContinents } = data.stats;
+    // Pluralise so "1 countries" doesn't read odd. No countries also
+    // gets a gentler message — still shareable, just less braggy.
+    const countriesLabel = totalCountries === 1 ? '1 country' : `${totalCountries} countries`;
+    const citiesLabel = totalCities === 1 ? '1 city' : `${totalCities} cities`;
+    const continentsLabel = totalContinents === 1 ? '1 continent' : `${totalContinents} continents`;
+    const text = totalCountries > 0
+      ? `I've explored ${countriesLabel} and ${citiesLabel} across ${continentsLabel} on tripcoord 🌎`
+      : `Planning my next adventure on tripcoord 🌎`;
+    const url = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tripcoord.ai') + '/world';
+
+    // Web Share API is available on most mobile browsers + Safari macOS
+    // recent versions. Falls through to clipboard otherwise.
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'My travel map · tripcoord', text, url });
+        // Don't toast on native share — the OS sheet is enough feedback.
+        return;
+      } catch (err) {
+        // User-cancel throws AbortError; only fall through on other errors.
+        const name = (err as Error)?.name;
+        if (name === 'AbortError') return;
+      }
+    }
+    // Clipboard fallback
+    try {
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      setShareToast('Copied to clipboard — paste it anywhere!');
+      setTimeout(() => setShareToast(null), 2500);
+    } catch {
+      setShareToast("Couldn't copy. Long-press to copy: " + url);
+      setTimeout(() => setShareToast(null), 5000);
+    }
+  }, [data]);
+
   // Horizontal scroll state for the passport stamps strip. Tracks
   // whether ◀ / ▶ arrow buttons should be enabled based on the
   // scroll position so we don't show 'click to scroll left' when
@@ -241,9 +282,10 @@ export default function WorldClient() {
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <h1 className="text-4xl font-script italic font-semibold tracking-tight text-zinc-900">My World</h1>
               <button
-                className="bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-700 font-semibold px-4 py-2 rounded-full text-sm inline-flex items-center gap-2 transition-colors disabled:opacity-50"
-                disabled
-                title="Coming soon — share a snapshot of your map"
+                onClick={handleShareMap}
+                disabled={!data}
+                className="bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-700 font-semibold px-4 py-2 rounded-full text-sm inline-flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Share your travel stats — uses your phone's share sheet or copies to clipboard"
               >
                 <Share2 className="w-3.5 h-3.5" />
                 Share my map
@@ -650,7 +692,7 @@ export default function WorldClient() {
                       <h2 className="text-lg font-semibold text-zinc-900 mt-2">Bring your map to life</h2>
                       <p className="text-sm text-zinc-600 mt-1">Photo pins · animated time-lapse of every trip in order · shareable map card</p>
                     </div>
-                    <Link href="/pricing" className="bg-zinc-900 hover:bg-zinc-800 text-white font-semibold px-5 py-2.5 rounded-full text-sm whitespace-nowrap">
+                    <Link href="/pricing#nomad" className="bg-zinc-900 hover:bg-zinc-800 text-white font-semibold px-5 py-2.5 rounded-full text-sm whitespace-nowrap">
                       See Nomad
                     </Link>
                   </div>
@@ -661,6 +703,15 @@ export default function WorldClient() {
 
         </div>
       </main>
+
+      {/* Share-my-map toast — clipboard-fallback feedback. Native share
+          sheet path doesn't render a toast (the OS sheet is enough). */}
+      {shareToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 text-white text-sm font-semibold px-5 py-3 rounded-full shadow-xl flex items-center gap-2 max-w-[90vw]">
+          <Share2 className="w-4 h-4 text-sky-300 flex-shrink-0" />
+          <span className="truncate">{shareToast}</span>
+        </div>
+      )}
 
       {/* Photo lightbox — Nomad photo-pin gallery. Click anywhere
           outside the photo to dismiss. */}

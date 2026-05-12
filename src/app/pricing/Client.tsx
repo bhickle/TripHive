@@ -382,7 +382,7 @@ function PricingPageInner() {
 
           {/* Trip Pass */}
           {billing === 'monthly' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-3xl p-7 flex flex-col">
+          <div id="trip-pass" className="bg-amber-50 border border-amber-200 rounded-3xl p-7 flex flex-col scroll-mt-24">
             <div className="mb-5">
               <p className="text-amber-700 text-xs font-bold uppercase tracking-widest mb-1.5">Trip Pass</p>
               <p className="text-amber-800 text-sm leading-snug">One trip, fully unlocked. No subscription needed.</p>
@@ -424,7 +424,7 @@ function PricingPageInner() {
           )}
 
           {/* Explorer — Most Popular */}
-          <div className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20">
+          <div id="explorer" className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20 scroll-mt-24">
             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-sky-500 to-green-500 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md">
               Most Popular
             </div>
@@ -478,7 +478,7 @@ function PricingPageInner() {
           </div>
 
           {/* Nomad */}
-          <div className="bg-white border border-zinc-200 rounded-3xl p-7 flex flex-col relative">
+          <div id="nomad" className="bg-white border border-zinc-200 rounded-3xl p-7 flex flex-col relative scroll-mt-24">
             <div className="absolute top-6 right-6">
               <Crown className="w-5 h-5 text-amber-400" />
             </div>
