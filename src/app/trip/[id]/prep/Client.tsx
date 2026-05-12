@@ -1048,6 +1048,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); }}
               className="flex-1 min-w-0 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 text-sm" />
             <button onClick={onAdd} disabled={!category || !value.trim()}
+              aria-label="Add item"
               className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-800 hover:bg-sky-900 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
               <Plus className="w-5 h-5" />
             </button>
@@ -1181,6 +1182,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                       onKeyDown={(e) => { if (e.key === 'Enter') addSouvenirItem(); }}
                       className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
                     <button onClick={addSouvenirItem} disabled={!newSouvenirPerson.trim()}
+                      aria-label="Add gift idea"
                       className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors">
                       <Plus className="w-5 h-5" />
                     </button>

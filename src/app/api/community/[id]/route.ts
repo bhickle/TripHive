@@ -43,7 +43,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       userId
         ? supabase.from('itinerary_likes').select('id').eq('trip_id', params.id).eq('user_id', userId).maybeSingle()
         : Promise.resolve({ data: null }),
-      supabase.from('activity_likes').select('activity_id, user_id').eq('trip_id', params.id),
+      // Cap at 5000 likes — a viral template with more than that won't
+      // need every individual row (we only return counts + viewer-liked
+      // flags). Without a cap, this turns into a perf cliff at scale.
+      supabase.from('activity_likes').select('activity_id, user_id').eq('trip_id', params.id).limit(5000),
       trip.organizer_id
         ? supabase.from('profiles').select('id, name, avatar_url').eq('id', trip.organizer_id).single()
         : Promise.resolve({ data: null }),

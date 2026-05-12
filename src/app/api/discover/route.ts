@@ -79,6 +79,12 @@ export async function POST(request: NextRequest) {
     if (!destination || !['search', 'card_click', 'plan_click'].includes(eventType)) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
+    // Defensive cap. The endpoint is intentionally open for anonymous
+    // event logging — without a length limit, a bot could write
+    // multi-KB payloads into destination_events forever.
+    if (typeof destination !== 'string' || destination.length > 100) {
+      return NextResponse.json({ ok: false, error: 'destination too long' }, { status: 400 });
+    }
 
     // Resolve user if logged in (best-effort, not required)
     let userId: string | null = null;

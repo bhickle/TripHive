@@ -13,11 +13,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (!access.ok) return access.response;
     const { userId, supabase } = access.ctx;
 
+    // Cap at 500 photos. Trips routinely cap at <200 photos but a few
+    // power users could sit on more; without a cap the per-photo
+    // like/comment fan-out would slow the page noticeably. Future
+    // pagination cursor would replace this if needed.
     const { data: photos, error } = await supabase
       .from('trip_photos')
       .select('id, public_url, uploader_name, uploaded_by, day_number, caption, taken_at, created_at')
       .eq('trip_id', params.id)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(500);
 
     if (error) return NextResponse.json({ photos: [] });
 

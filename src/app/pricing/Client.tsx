@@ -10,6 +10,7 @@ import {
   ChevronUp, Lock, Crown, Loader2, Receipt, AlertCircle, Plus,
 } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
 import { useAuth } from '@/context/AuthContext';
 
@@ -160,6 +161,7 @@ function PricingPageInner() {
   // After signup, the URL carries ?intent=trip_pass which auto-triggers the
   // picker so the user doesn't have to click "Buy a Pass" twice.
   const [showTripPicker, setShowTripPicker] = useState(false);
+  useEscapeKey(() => setShowTripPicker(false), showTripPicker);
   const [tripPickerTrips, setTripPickerTrips] = useState<PickerTrip[]>([]);
   const [tripPickerLoading, setTripPickerLoading] = useState(false);
 
@@ -660,6 +662,9 @@ function PricingPageInner() {
       {showTripPicker && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose a trip for your pass"
           onClick={() => setShowTripPicker(false)}
         >
           <div

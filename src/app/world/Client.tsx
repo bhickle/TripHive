@@ -8,6 +8,7 @@ import { Globe, Share2, Loader2, Lock, Crown } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type { BadgeProgress } from '@/lib/world/badges';
 
 // Public world TopoJSON — 110m resolution, ~100KB. Same dataset
@@ -88,6 +89,7 @@ export default function WorldClient() {
   // Lightbox state — opens when a Nomad user taps a photo-pin. Contains
   // the city name + the photoUrl shown + a deep link to the trip.
   const [lightboxCity, setLightboxCity] = useState<{ name: string; photoUrl: string; tripId: string } | null>(null);
+  useEscapeKey(() => setLightboxCity(null), !!lightboxCity);
 
   // Redirect unauthenticated visitors to login.
   useEffect(() => {
@@ -505,6 +507,9 @@ export default function WorldClient() {
       {lightboxCity && (
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Memory from ${lightboxCity.name}`}
           onClick={() => setLightboxCity(null)}
         >
           <div className="max-w-4xl w-full" onClick={e => e.stopPropagation()}>

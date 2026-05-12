@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 /**
- * POST /api/unsplash/track
+ * POST /api/unsplash/track   [auth required]
  * Body: { downloadLocation: string }
  *
  * Pings Unsplash's per-photo download endpoint as required by their API
@@ -12,10 +13,15 @@ import { NextResponse } from 'next/server';
  * access key off the client. The client gates calls via sessionStorage
  * so each photo is tracked at most once per browser session.
  *
+ * Auth gate: pre-launch QA flagged this as quota-drainable.
+ *
  * Fire-and-forget — the response body just contains a download URL we
  * don't need. Errors are swallowed so a tracking blip never breaks the UI.
  */
 export async function POST(req: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const { downloadLocation } = await req.json();
     if (!downloadLocation || typeof downloadLocation !== 'string') {

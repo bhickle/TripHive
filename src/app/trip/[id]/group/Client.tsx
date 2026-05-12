@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import type { ItineraryDay, Activity } from '@/lib/types';
 
@@ -468,6 +469,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   // Vote → Add to Itinerary state
   const [addToItinVote, setAddToItinVote] = useState<{ voteId: string; label: string } | null>(null);
+  useEscapeKey(() => setAddToItinVote(null), !!addToItinVote);
   const [addToItinDay, setAddToItinDay] = useState<number>(1);
   const [addToItinDays, setAddToItinDays] = useState<number>(7);
   const [addToItinSaving, setAddToItinSaving] = useState(false);
@@ -678,6 +680,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   // Invite Members Modal
   const [showInviteModal, setShowInviteModal] = useState(false);
+  useEscapeKey(() => setShowInviteModal(false), showInviteModal);
   const [inviteMethod, setInviteMethod] = useState<'email' | 'text' | 'link'>('email');
   const [inviteContact, setInviteContact] = useState('');
   const [inviteSent, setInviteSent] = useState(false);
@@ -744,11 +747,13 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
   // Create Vote Modal
   const [showVoteModal, setShowVoteModal] = useState(false);
+  useEscapeKey(() => setShowVoteModal(false), showVoteModal);
   const [voteQuestion, setVoteQuestion] = useState('');
   const [voteOptions, setVoteOptions] = useState(['', '', '']);
 
   // Add Expense Modal
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  useEscapeKey(() => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); }, showAddExpenseModal);
 
   // ── Shared modal UX (Escape key + body scroll lock) ──────────────────────
   // Inline arrows are fine — state setters are stable per React's guarantee,
@@ -1869,7 +1874,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
             {/* Add Expense Modal */}
             {showAddExpenseModal && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); }}>
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add expense" onClick={() => { setShowAddExpenseModal(false); setUploadedReceipt(null); setScannedData(null); }}>
                 <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                   <div className="flex items-start justify-between mb-5">
                     <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Add Expense</h3>
@@ -2514,7 +2519,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             )}
 
             {showVoteModal && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowVoteModal(false)}>
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Create vote" onClick={() => setShowVoteModal(false)}>
                 <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
                   <div className="flex items-start justify-between mb-6">
                     <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Put It to a Vote</h3>
@@ -2647,7 +2652,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
             {/* Add to Itinerary modal */}
             {addToItinVote && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setAddToItinVote(null)}>
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add to itinerary" onClick={() => setAddToItinVote(null)}>
                 <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
                   {addToItinDone ? (
                     <div className="text-center py-4">
@@ -2806,6 +2811,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   disabled={!messageInput.trim()}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full flex items-center justify-center transition-colors"
                   title="Send message"
+                  aria-label="Send message"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -2817,7 +2823,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
       {/* Invite Modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Invite to trip" onClick={() => setShowInviteModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-6">
               <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Invite to Trip</h3>

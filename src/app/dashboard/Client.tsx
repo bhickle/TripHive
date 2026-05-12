@@ -11,6 +11,7 @@ import { TripStoryModal } from '@/components/TripStoryModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { trips } from '@/data/mock';
 import {
   PlusCircle,
@@ -208,6 +209,11 @@ export default function DashboardPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [inviteTripId, setInviteTripId] = useState<string | null>(null);
+
+  // Bind Escape on the two dashboard dialogs so keyboard-only users
+  // can dismiss without a mouse.
+  useEscapeKey(() => setShowNotifications(false), showNotifications);
+  useEscapeKey(() => { setShowInviteModal(false); setInviteSent(false); setInviteError(null); setInviteContact(''); }, showInviteModal);
   const [inviteMethod, setInviteMethod] = useState<'email' | 'text' | 'link'>('email');
   const [inviteContact, setInviteContact] = useState('');
   const [inviteSent, setInviteSent] = useState(false);
@@ -509,7 +515,7 @@ export default function DashboardPage() {
 
           {/* Notification Panel */}
           {showNotifications && (
-            <div className="fixed inset-0 z-50" onClick={() => setShowNotifications(false)}>
+            <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowNotifications(false)}>
               <div
                 className="absolute top-20 right-2 md:right-8 w-[calc(100vw-16px)] md:w-[420px] max-h-[560px] bg-white rounded-2xl shadow-2xl border border-zinc-100 overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
@@ -535,6 +541,7 @@ export default function DashboardPage() {
                     )}
                     <button
                       onClick={() => setShowNotifications(false)}
+                      aria-label="Close notifications"
                       className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
                     >
                       <X className="w-4 h-4 text-zinc-500" />
@@ -584,7 +591,14 @@ export default function DashboardPage() {
                         {body}
                       </Link>
                     ) : (
-                      <div key={notif.id} onClick={() => markRead(notif.id)} className={baseClass}>
+                      <div
+                        key={notif.id}
+                        onClick={() => markRead(notif.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markRead(notif.id); } }}
+                        className={baseClass}
+                      >
                         {body}
                       </div>
                     );
@@ -918,7 +932,7 @@ export default function DashboardPage() {
 
       {/* Invite Modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowInviteModal(false); setInviteSent(false); setInviteError(null); setInviteContact(''); }}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Invite someone" onClick={() => { setShowInviteModal(false); setInviteSent(false); setInviteError(null); setInviteContact(''); }}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Add Someone</h3>
 

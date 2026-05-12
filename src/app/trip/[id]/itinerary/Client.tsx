@@ -57,6 +57,7 @@ import {
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { MapView } from '@/components/MapView';
@@ -350,6 +351,11 @@ function ItineraryPageContent() {
   const [showEditTripModal, setShowEditTripModal] = useState(false);
   const [editDest, setEditDest] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
+  // Escape-key dismiss for the two most-trafficked itinerary modals.
+  // Other dialogs in this file (add-hotel/flight, transport parse,
+  // upgrade prompt, etc.) still need wiring — tracked in PRE_LAUNCH_QA.
+  useEscapeKey(() => setShowEditTripModal(false), showEditTripModal);
+  useEscapeKey(() => setShowAddActivityModal(false), showAddActivityModal);
   const [editEndDate, setEditEndDate] = useState('');
   const [savingTripEdit, setSavingTripEdit] = useState(false);
   const [editTripError, setEditTripError] = useState<string | null>(null);
@@ -4378,7 +4384,7 @@ function ItineraryPageContent() {
 
       {/* ─── Add Activity Modal ─── */}
       {showAddActivityModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={handleCloseModal}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={editingActivity ? 'Edit activity' : 'Add activity'} onClick={handleCloseModal}>
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex items-center justify-between">
@@ -4390,7 +4396,7 @@ function ItineraryPageContent() {
                   {editingActivity ? 'Update the details for this activity' : 'Search for a place or enter manually'}
                 </p>
               </div>
-              <button onClick={handleCloseModal} className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors">
+              <button onClick={handleCloseModal} aria-label="Close" className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors">
                 <X className="w-4 h-4 text-zinc-500" />
               </button>
             </div>
@@ -4669,7 +4675,7 @@ function ItineraryPageContent() {
               <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
                 <span className="text-2xl">🏨</span> {editingHotelIndex !== null ? 'Edit Hotel' : 'Add Hotel'}
               </h2>
-              <button onClick={() => { setShowAddHotelModal(false); setBookingError(null); setEditingHotelIndex(null); }} className="p-1.5 rounded-full hover:bg-zinc-100">
+              <button onClick={() => { setShowAddHotelModal(false); setBookingError(null); setEditingHotelIndex(null); }} aria-label="Close" className="p-1.5 rounded-full hover:bg-zinc-100">
                 <X className="w-4 h-4 text-zinc-500" />
               </button>
             </div>
@@ -5005,6 +5011,9 @@ function ItineraryPageContent() {
       {showEditTripModal && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit destination and dates"
           onClick={() => setShowEditTripModal(false)}
         >
           <div

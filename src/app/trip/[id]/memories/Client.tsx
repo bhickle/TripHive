@@ -14,6 +14,7 @@ import { Avatar } from '@/components/Avatar';
 // as anonymous and silently fail RLS on the trip_photos insert.
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type { ItineraryDay } from '@/lib/types';
 
 // Photo shape used both by the local mock pool and the API response.
@@ -140,6 +141,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   }, [isMockTrip, params.id]);
 
   const [selectedPhoto, setSelectedPhoto] = useState<MemoryPhoto | null>(null);
+  useEscapeKey(() => setSelectedPhoto(null), !!selectedPhoto);
   // Comments for the currently-open photo modal. Loaded fresh each time
   // the modal opens so we don't keep stale comments around when the user
   // jumps between photos.
@@ -322,9 +324,16 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   // intentionally only subscribe for the open photo to avoid maintaining
   // N concurrent channels for the whole gallery; on modal close the
   // useEffect cleanup tears it down.
+  // Channel is keyed on the open photo's id, not the full selectedPhoto
+  // object. The handlers below mutate selectedPhoto (likeCount /
+  // commentCount), which changes its identity — depending on the object
+  // would force a tear-down + resubscribe on every cross-user reaction.
+  // photoId is the only thing that actually identifies which channel we
+  // need, so use that as the dep.
+  const selectedPhotoId = selectedPhoto?.id ?? null;
   useEffect(() => {
-    if (!selectedPhoto || isMockTrip) return;
-    const photoId = selectedPhoto.id;
+    if (!selectedPhotoId || isMockTrip) return;
+    const photoId = selectedPhotoId;
     const supabase = createSupabaseBrowserClient();
     const channel = supabase
       .channel(`photo:${photoId}`)
@@ -414,7 +423,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedPhoto, params.id, isMockTrip]);
+  }, [selectedPhotoId, params.id, isMockTrip]);
 
   const startEditComment = (c: PhotoComment) => {
     setEditingCommentId(c.id);
@@ -1170,6 +1179,9 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       {selectedPhoto && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo"
           onClick={() => setSelectedPhoto(null)}
         >
           <div className="relative bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { wishlistItems as mockWishlistItems } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { WishlistItem, WishlistLink } from '@/lib/types';
 import {
   Heart, Plus, Sparkles, Calendar, DollarSign, Search,
@@ -247,8 +248,11 @@ function AddDestinationModal({
     onClose();
   }, [destination, vibes, tripDays, socialUrl, onSave, onClose]);
 
+  // Modal only mounts while open, so the hook is always active here.
+  useEscapeKey(onClose, true);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add a destination">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
@@ -259,7 +263,7 @@ function AddDestinationModal({
             <Heart className="w-4 h-4 text-sky-600" />
             <h2 className="font-script italic font-semibold text-slate-900">Add a Destination</h2>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors">
+          <button onClick={onClose} aria-label="Close" className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -891,11 +895,22 @@ export default function WishlistPage() {
 
                   {/* Plan-this-trip CTA */}
                   <div
-                    className="mt-3 pt-3 border-t border-zinc-50 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+                    className="mt-3 pt-3 border-t border-zinc-50 flex items-center justify-between opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Plan a trip to ${item.destination}`}
                     onClick={() => {
                       const params = new URLSearchParams({ destination: `${item.destination}, ${item.country}` });
                       if (item.tripDays) params.set('days', String(item.tripDays));
                       window.location.href = `/trip/new?${params.toString()}`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        const params = new URLSearchParams({ destination: `${item.destination}, ${item.country}` });
+                        if (item.tripDays) params.set('days', String(item.tripDays));
+                        window.location.href = `/trip/new?${params.toString()}`;
+                      }
                     }}
                   >
                     <span className="text-xs font-medium text-sky-700">Plan this trip</span>

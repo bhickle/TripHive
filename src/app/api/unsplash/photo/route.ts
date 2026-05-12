@@ -1,22 +1,27 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 /**
- * GET /api/unsplash/photo?q=<destination>
+ * GET /api/unsplash/photo?q=<destination>   [auth required]
  *
  * Server-side proxy to Unsplash so the access key never reaches the browser.
  * Returns the top-relevance landscape photo for a destination keyword, or
  * { photo: null } if no key is configured, the search returns nothing, or
  * Unsplash rate-limits us.
  *
+ * Auth gate: pre-launch QA flagged this as a quota-drainable endpoint —
+ * the 50 req/hr demo-tier key would burn down quickly from anonymous
+ * abuse. Now signed-in users only.
+ *
  * Caching: Next.js fetch cache holds each query response for 7 days. With
  * curated DEST_PHOTOS handling popular destinations synchronously in
  * TripCard, this endpoint only fires for the long tail — and then at most
  * once per destination per week.
- *
- * Demo-tier key allows 50 req/hr. With caching this is plenty; without it
- * a busy dashboard would torch the budget in a single page load.
  */
 export async function GET(req: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   const url = new URL(req.url);
   const query = (url.searchParams.get('q') ?? '').trim();
   if (!query) {

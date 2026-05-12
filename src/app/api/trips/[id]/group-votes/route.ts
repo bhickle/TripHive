@@ -98,12 +98,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const userName = profile?.name ?? profile?.email?.split('@')[0] ?? 'A traveler';
 
     const body = await req.json();
-    const { title, options, closesAt, createdByName } = body;
+    const { title, options, closesAt } = body;
 
     if (!title || !Array.isArray(options) || options.length < 2) {
       return NextResponse.json({ error: 'title and at least 2 options required' }, { status: 400 });
     }
 
+    // created_by_name is always the server-resolved display name now.
+    // Previously the body could supply `createdByName`, which a client
+    // could spoof to attribute a vote to someone else.
     const { data: vote, error: voteError } = await supabase
       .from('group_votes')
       .insert({
@@ -111,7 +114,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         title,
         status: 'open',
         closes_at: closesAt ?? null,
-        created_by_name: createdByName ?? userName,
+        created_by_name: userName,
       })
       .select()
       .single();
@@ -144,7 +147,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       tripId: params.id,
       excludeUserId: userId,
       type: 'new_vote',
-      fromName: createdByName ?? userName,
+      fromName: userName,
       message: title,
     });
 

@@ -20,11 +20,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (!access.ok) return access.response;
     const { supabase } = access.ctx;
 
+    // Cap at 500 expenses per trip. Real trips rarely exceed ~50 rows
+    // but a runaway integration or test could push much higher; without
+    // a cap the response can balloon and slow group-page paint.
     const { data: expenses, error } = await supabase
       .from('expenses')
       .select('*')
       .eq('trip_id', params.id)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(500);
 
     if (error) return NextResponse.json({ expenses: [] });
 
