@@ -21,7 +21,7 @@ import Link from 'next/link';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FilterType = string; // 'all' or a priority tag id
-type SortType = 'cost-low' | 'cost-high' | 'name';
+// SortType removed — single-option dropdown was dropped with the budget display.
 type TravelVibe =
   | 'nature' | 'food' | 'nightlife' | 'history' | 'sports' | 'photography'
   | 'wellness' | 'shopping' | 'adventure' | 'culture' | 'beach' | 'themepark' | 'family';
@@ -483,7 +483,8 @@ export default function WishlistPage() {
   const { hasWishlist, getUpgradePrompt } = useEntitlements();
 
   const [filterType, setFilterType] = useState<FilterType>('all');
-  const [sortType, setSortType] = useState<SortType>('name');
+  // sortType state removed alongside the cost-sort dropdown — items are
+  // always sorted alphabetically now.
   const [allItems, setAllItems] = useState<WishlistItem[]>(currentUser.isDemo ? mockWishlistItems : []);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set(currentUser.isDemo ? mockWishlistItems.map(i => i.id) : []));
   const [showModal, setShowModal] = useState(false);
@@ -581,9 +582,9 @@ export default function WishlistPage() {
       );
     }
 
-    if (sortType === 'cost-low')  filtered.sort((a, b) => a.estimatedCost - b.estimatedCost);
-    else if (sortType === 'cost-high') filtered.sort((a, b) => b.estimatedCost - a.estimatedCost);
-    else filtered.sort((a, b) => a.destination.localeCompare(b.destination));
+    // Only sort-by-name remains — price sort dropped along with the
+    // budget display.
+    filtered.sort((a, b) => a.destination.localeCompare(b.destination));
 
     return filtered;
   };
@@ -751,17 +752,9 @@ export default function WishlistPage() {
                 </button>
               ))}
             </div>
-            <div className="flex justify-end">
-              <select
-                value={sortType}
-                onChange={(e) => setSortType(e.target.value as SortType)}
-                className="px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-700 bg-white hover:border-sky-400 focus:ring-2 focus:ring-sky-700 transition-all text-sm"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="cost-low">Price: Low to High</option>
-                <option value="cost-high">Price: High to Low</option>
-              </select>
-            </div>
+            {/* Sort dropdown removed — was a single-option select once
+                the Price sorts were dropped with the budget display.
+                Items always sort alphabetically by destination. */}
           </div>
 
           {/* Wishlist Grid */}
@@ -858,23 +851,19 @@ export default function WishlistPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
+                  {/* Budget intentionally hidden — kept in the row's data for
+                      AI prompts when the wishlist item gets converted to a trip. */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                      <Calendar className="w-3 h-3" />
+                      <span>{item.bestSeason}</span>
+                    </div>
+                    {item.tripDays && (
                       <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-                        <Calendar className="w-3 h-3" />
-                        <span>{item.bestSeason}</span>
+                        <MapPin className="w-3 h-3" />
+                        <span>{item.tripDays} days</span>
                       </div>
-                      {item.tripDays && (
-                        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-                          <MapPin className="w-3 h-3" />
-                          <span>{item.tripDays} days</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="font-script italic text-xl text-zinc-900">${item.estimatedCost.toLocaleString()}</span>
-                      <span className="text-xs text-zinc-400">est. cost</span>
-                    </div>
+                    )}
                   </div>
 
                   {/* Saved links — TripAdvisor reviews, blog posts, etc.

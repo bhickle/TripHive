@@ -8,7 +8,7 @@ import { discoverDestinations as mockDiscoverDestinations, DiscoverDestination, 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
-  Globe2, ArrowRight, Sparkles, Clock, DollarSign, Lock, TrendingUp,
+  Globe2, ArrowRight, Sparkles, Clock, Lock, TrendingUp,
   ExternalLink, Sun, Sunset, Moon, ChevronRight, MapPin, Calendar,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
@@ -168,10 +168,11 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — budget intentionally not displayed; it's collected on
+          the Trip Builder for hotel-tier + food-spend AI prompts but
+          isn't a user-facing stat on Discover. */}
       <div className="flex items-center gap-4 px-4 py-2.5 border-b border-zinc-100 text-xs text-zinc-500">
         <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-sky-500" />{item.durationDays} days</span>
-        {item.avgCostPerDay && <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5 text-emerald-500" />~${item.avgCostPerDay}/day</span>}
         {item.vibes.slice(0, 2).map(v => (
           <span key={v} className="capitalize bg-zinc-100 px-2 py-0.5 rounded-full">{v}</span>
         ))}
@@ -365,7 +366,6 @@ function DestinationCard({
           ))}
         </div>
         <div className="flex items-center gap-4 text-xs text-zinc-500 mb-5">
-          <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" />~${dest.avgCost.toLocaleString()}/wk</span>
           <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{dest.flightHours}h flight</span>
         </div>
         <div className="grid grid-cols-3 gap-2">

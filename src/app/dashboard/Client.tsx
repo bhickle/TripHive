@@ -886,21 +886,12 @@ export default function DashboardPage() {
                         <span key={tag} className="text-xs font-medium text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full">{tag}</span>
                       ))}
                     </div>
-                    <div className="flex items-center justify-between text-xs text-zinc-500 mb-4">
+                    {/* Budget intentionally hidden — kept on the wishlist_items
+                        row for AI prompts when this gets converted to a trip. */}
+                    <div className="flex items-center text-xs text-zinc-500 mb-4">
                       <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" /> {item.bestSeason ?? '—'}
+                        <Calendar className="w-3.5 h-3.5" /> {item.bestSeason ?? 'Year-round'}
                       </span>
-                      {/* estimatedCost is nullable in wishlist_items — saves from
-                          the Discover trending strip and other surfaces that don't
-                          know a price land here as null. Skip the est. price block
-                          entirely when it's missing rather than crashing render
-                          on .toLocaleString(). */}
-                      {typeof item.estimatedCost === 'number' && (
-                        <span className="font-script italic text-base text-zinc-900 font-semibold">
-                          ~${item.estimatedCost.toLocaleString()}
-                          <span className="text-xs text-zinc-500 font-normal ml-1">est.</span>
-                        </span>
-                      )}
                     </div>
                     <Link
                       href={`/trip/new?destination=${encodeURIComponent(`${item.destination}, ${item.country}`)}`}

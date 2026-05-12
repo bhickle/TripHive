@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   MapPin,
   Clock,
-  DollarSign,
   ExternalLink,
   Sparkles,
   Sun,
@@ -193,12 +192,8 @@ export default function DiscoverItineraryPage() {
             <Calendar className="w-4 h-4 text-sky-500" />
             <span>{itinerary.durationDays} days</span>
           </div>
-          {itinerary.avgCostPerDay && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <DollarSign className="w-4 h-4 text-emerald-500" />
-              <span>~${itinerary.avgCostPerDay}/day</span>
-            </div>
-          )}
+          {/* Budget intentionally hidden — collected on Trip Builder for
+              AI prompts only, not surfaced as a user-facing stat. */}
           {itinerary.vibes.slice(0, 3).map(v => (
             <span key={v} className="shrink-0 capitalize bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full text-xs">
               {v}
