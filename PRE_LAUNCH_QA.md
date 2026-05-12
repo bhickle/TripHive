@@ -63,7 +63,7 @@ Commits: `26b74c6` (P0 batch) · `cd6611d` (P1 DB+API+perf+a11y) · `01237a4` (P
 
 - **[P1-3] ✅ SHIPPED** (`p1_db_integrity_batch`) — `REVOKE EXECUTE` on `handle_new_user()` from anon/authenticated/public; `search_path` pinned too.
 
-- **[P1-4] ✅ SHIPPED** (`p1_db_integrity_batch`) — Dropped broad `storage.objects` SELECT policies for `avatars` + `trip-photos`. Public-URL access continues to work; `.list()` from the client SDK is now blocked.
+- **[P1-4] ✅ SHIPPED + CORRECTED** — Original (`p1_db_integrity_batch`) dropped both SELECT policies entirely. That broke photo upload — Supabase storage's upload response includes a SELECT on the newly-created `storage.objects` row to return its metadata, and without any SELECT policy the read hung until the client's 60s timeout fired (reported as "upload bar stuck at 88%"). Corrected with `fix_storage_objects_select_for_uploaders` (2026-05-12): replaced the broad policies with narrow per-owner SELECT (`bucket_id = X AND owner = auth.uid()`). Uploaders can now read back their own rows; `.list()` returns only the caller's own files (not other users'); public URL access still goes through the public-bucket flag, unaffected.
 
 - **[P1-5] ✅ SHIPPED** (`p1_db_integrity_batch`) — `activity_likes` + `itinerary_likes` SELECT scoped to own rows. Aggregate counts continue to surface via admin-client server routes. `city_geocache` left as `USING(true)` — false positive (no user data).
 
