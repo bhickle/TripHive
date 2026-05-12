@@ -706,8 +706,8 @@ export default function DashboardPage() {
             </Link>
 
             <Link
-              href="/trips?status=completed"
-              title={totalDays > 0 ? `≈ ${(totalDays * 24).toLocaleString()} hours of memories` : 'Completed trips will count here.'}
+              href="/world"
+              title={totalDays > 0 ? `≈ ${(totalDays * 24).toLocaleString()} hours of memories — see your travel map` : 'Open your travel map.'}
               className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 md:p-6 flex-1 text-center hover:shadow-xl hover:-translate-y-1 hover:border-sky-200 transition-all duration-300 block"
             >
               <div className="flex justify-center mb-2 md:mb-3">
