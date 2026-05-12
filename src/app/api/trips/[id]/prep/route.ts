@@ -4,7 +4,7 @@ import { requireTripAccess } from '@/lib/supabase/tripAccess';
 const GENERIC_PREP_TASKS = [
   { category: 'document', title: 'Check passport validity (6+ months required for most destinations)', urgent: false, display_order: 0 },
   { category: 'document', title: 'Confirm visa or entry authorization for your destination', urgent: false, display_order: 1 },
-  { category: 'document', title: 'Purchase travel insurance', urgent: true, display_order: 2 },
+  { category: 'document', title: 'Purchase travel insurance', urgent: false, display_order: 2 },
   { category: 'document', title: 'Save copies of passport & bookings to phone/cloud', urgent: false, display_order: 3 },
   { category: 'document', title: 'Save flight confirmations / boarding passes', urgent: false, display_order: 4 },
   { category: 'document', title: 'Save hotel & lodging confirmations', urgent: false, display_order: 5 },
