@@ -171,12 +171,18 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
   // Without this, "2026-05-06" parses as UTC midnight → renders as May 5 in
   // any timezone west of UTC (the Day 1=May 6 / card="May 5" mismatch from
   // QA 5/10 was this bug — the DB was correct, the display was off-by-one).
-  const startDate = new Date(trip.startDate + 'T12:00:00');
-  const endDate = new Date(trip.endDate + 'T12:00:00');
+  // hasDates: trips can be created (or forked) without dates picked yet —
+  // we render a friendlier "Pick your dates" prompt in that case instead
+  // of the JS-default "Invalid Date – Invalid Date".
+  const hasDates = !!trip.startDate && !!trip.endDate;
+  const startDate = hasDates ? new Date(trip.startDate + 'T12:00:00') : null;
+  const endDate = hasDates ? new Date(trip.endDate + 'T12:00:00') : null;
   // Prefer the builder-selected trip length over date-diff.
   // For flexible-date trips the stored dates span the availability window
   // (e.g. "anytime in June"), making date-diff much larger than the actual trip.
-  const dateDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const dateDiff = startDate && endDate
+    ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
   const daysCount = (trip.tripLength && trip.tripLength > 0) ? trip.tripLength : dateDiff;
   const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const status = statusConfig[trip.status];
@@ -303,7 +309,11 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
         <div className="space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-zinc-500">
             <Calendar className="w-3 h-3" />
-            <span>{formatDate(startDate)} – {formatDate(endDate)}</span>
+            {startDate && endDate ? (
+              <span>{formatDate(startDate)} – {formatDate(endDate)}</span>
+            ) : (
+              <span className="italic text-sky-700">Dates not set yet — tap to pick</span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-zinc-500">
             <Users className="w-3 h-3" />

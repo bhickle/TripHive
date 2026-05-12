@@ -64,11 +64,14 @@ export default function DashboardPage() {
     if (!startDate) return 'planning';
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const start = new Date(startDate);
+    // Noon-pad so YYYY-MM-DD doesn't parse as UTC midnight (which is the
+    // previous day in any timezone west of UTC, causing 'active' to flip
+    // a day early).
+    const start = new Date(startDate + 'T12:00:00');
     start.setHours(0, 0, 0, 0);
     if (today < start) return 'planning';
     if (!endDate) return 'active';
-    const end = new Date(endDate);
+    const end = new Date(endDate + 'T12:00:00');
     end.setHours(0, 0, 0, 0);
     return today <= end ? 'active' : 'completed';
   }
@@ -405,8 +408,8 @@ export default function DashboardPage() {
       if (trip.tripLength && trip.tripLength > 0) return sum + trip.tripLength;
       // Fall back to date-diff for older trips that pre-date the tripLength field
       if (!trip.startDate || !trip.endDate) return sum;
-      const start = new Date(trip.startDate);
-      const end = new Date(trip.endDate);
+      const start = new Date(trip.startDate + 'T12:00:00');
+      const end = new Date(trip.endDate + 'T12:00:00');
       if (isNaN(start.getTime()) || isNaN(end.getTime())) return sum;
       return sum + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     }, 0);
@@ -418,11 +421,13 @@ export default function DashboardPage() {
     day: 'numeric',
   });
 
-  // Find next upcoming trip (soonest future start date)
+  // Find next upcoming trip (soonest future start date). Filter out trips
+  // with no startDate (forked-without-dates / draft trips) since they
+  // can't be "upcoming". Noon-pad to keep timezone math consistent.
   const now = new Date();
   const upcomingTrips = allTrips
-    .filter(t => new Date(t.startDate) > now && (t.status === 'planning' || t.status === 'active'))
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    .filter(t => t.startDate && new Date(t.startDate + 'T12:00:00') > now && (t.status === 'planning' || t.status === 'active'))
+    .sort((a, b) => new Date(a.startDate + 'T12:00:00').getTime() - new Date(b.startDate + 'T12:00:00').getTime());
   const nextTrip = upcomingTrips[0] || activeSoon[0];
 
   // Pick a photo based on destination
@@ -451,7 +456,8 @@ export default function DashboardPage() {
   const heroPhoto = photos[hashCode(dailySeed) % photos.length];
 
   const calculateDaysUntil = (startDate: string) => {
-    const start = new Date(startDate);
+    // Noon-pad to avoid the UTC-midnight off-by-one in west-of-UTC zones.
+    const start = new Date(startDate + 'T12:00:00');
     const today = new Date();
     const days = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(0, days);

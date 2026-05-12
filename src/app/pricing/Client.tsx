@@ -688,7 +688,7 @@ function PricingPageInner() {
                 const extraPeople = Math.max(0, groupSize - PRICING.trip_pass.baseGroupSize);
                 const totalPrice = PRICING.trip_pass.base + extraPeople * PRICING.trip_pass.extraPersonFee;
                 const dateRange = trip.start_date && trip.end_date
-                  ? `${new Date(trip.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(trip.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                  ? `${new Date(trip.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(trip.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
                   : null;
                 const purchasing = checkingOut === STRIPE_PRICES.trip_pass.base;
                 return (

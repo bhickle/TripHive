@@ -2770,7 +2770,7 @@ function ItineraryPageContent() {
               })()}
             </div>
             <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
-              {new Date(currentDayData.date + 'T00:00:00').toLocaleDateString('en-US', {
+              {new Date(currentDayData.date + 'T12:00:00').toLocaleDateString('en-US', {
                 weekday: 'long', month: 'long', day: 'numeric',
               })}
             </h1>
@@ -3173,7 +3173,7 @@ function ItineraryPageContent() {
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {activeDays.map((day: { day: number; date: string }) => {
-              const dayDateStr = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const dayDateStr = new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               const locked = isLocked(day.day);
               const isDragging = draggingDay === day.day;
               const isValidDropTarget = draggingDay !== null && draggingDay !== day.day && canSwap(draggingDay, day.day);

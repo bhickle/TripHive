@@ -23,16 +23,19 @@ type StatusFilter = 'all' | 'planning' | 'active' | 'completed';
 type ShareFilter = 'all' | 'mine' | 'shared_with_me';
 type ViewMode = 'grid' | 'list';
 
-/** Compute trip status from dates rather than the stored column. */
+/** Compute trip status from dates rather than the stored column.
+ *  Noon-pad so YYYY-MM-DD doesn't parse as UTC midnight (which is the
+ *  previous day in any timezone west of UTC, causing 'active' to flip
+ *  one day early). */
 function computeStatus(startDate?: string, endDate?: string): 'planning' | 'active' | 'completed' {
   if (!startDate) return 'planning';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate);
+  const start = new Date(startDate + 'T12:00:00');
   start.setHours(0, 0, 0, 0);
   if (today < start) return 'planning';
   if (!endDate) return 'active';
-  const end = new Date(endDate);
+  const end = new Date(endDate + 'T12:00:00');
   end.setHours(0, 0, 0, 0);
   return today <= end ? 'active' : 'completed';
 }
@@ -200,8 +203,10 @@ export default function TripsPage() {
 
   // Noon-pad so YYYY-MM-DD strings parse as LOCAL noon, not UTC midnight.
   // Without this, "2026-05-06" rendered as "May 5" in any timezone west of UTC.
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Returns null for empty/missing dates so callers can render a friendly
+  // "no dates" hint instead of JS's "Invalid Date" output.
+  const formatDate = (dateStr: string | null | undefined) =>
+    dateStr ? new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
 
   return (
     <div className="flex h-screen bg-parchment">
@@ -464,9 +469,16 @@ export default function TripsPage() {
         {!tripsLoading && viewMode === 'list' && filteredTrips.length > 0 && (
           <div className="space-y-3">
             {sortedFilteredTrips.map((trip) => {
-              const startDate = new Date(trip.startDate);
-              const endDate = new Date(trip.endDate);
-              const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+              // Trips without dates set use 0 as days fallback; the TripCard
+              // (used in the grid view) shows a "Dates not set yet" hint
+              // in that case. The list view below shows the trip length
+              // from tripLength field when available.
+              const hasDates = !!trip.startDate && !!trip.endDate;
+              const startDate = hasDates ? new Date(trip.startDate + 'T12:00:00') : null;
+              const endDate = hasDates ? new Date(trip.endDate + 'T12:00:00') : null;
+              const days = startDate && endDate
+                ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+                : (trip.tripLength ?? 0);
               const status = (trip.status as string) in { planning: 1, active: 1, completed: 1 }
                 ? (trip.status as 'planning' | 'active' | 'completed')
                 : 'planning';
@@ -507,7 +519,9 @@ export default function TripsPage() {
                       </span>
                       <span className="flex items-center gap-1.5 whitespace-nowrap">
                         <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        {formatDate(trip.startDate)} — {formatDate(trip.endDate)} ({days}d)
+                        {trip.startDate && trip.endDate
+                          ? <>{formatDate(trip.startDate)} — {formatDate(trip.endDate)} ({days}d)</>
+                          : <span className="italic text-sky-700">Dates not set yet</span>}
                       </span>
                       {/* Mobile-only travelers chip — desktop hoists it to
                           its own Stats column on the right. */}
