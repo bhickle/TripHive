@@ -131,17 +131,14 @@ export default function WorldClient() {
   // clipboard fallback on desktop. Composes a short brag-text from the
   // user's stats so the share has context, not just a bare URL.
   //
-  // Tier behaviour:
-  //   - Nomad: link points at /share/world/[userId], a public landing
-  //     page that previews with a rich rendered share-card image
-  //     (1200×630 PNG) on Twitter / iMessage / Slack / etc.
-  //   - Free / Trip Pass / Explorer: link points at /world, the same
-  //     URL that drove the original text-share. No image card.
-  // The Nomad differentiator is the rich preview — the underlying
-  // share UX (native sheet or clipboard) is identical.
+  // Nomad-only feature. The shared URL is /share/world/[userId], a
+  // public landing page that previews with a rich rendered share-card
+  // image (1200×630 PNG) on Twitter / iMessage / Slack / etc. Lower
+  // tiers don't see the share button at all — they see the Nomad
+  // upsell card lower on the page instead.
   const [shareToast, setShareToast] = useState<string | null>(null);
   const handleShareMap = useCallback(async () => {
-    if (!data) return;
+    if (!data || tier !== 'nomad' || !currentUser.id) return;
     const { totalCountries, totalCities, totalContinents } = data.stats;
     const countriesLabel = totalCountries === 1 ? '1 country' : `${totalCountries} countries`;
     const citiesLabel = totalCities === 1 ? '1 city' : `${totalCities} cities`;
@@ -150,9 +147,7 @@ export default function WorldClient() {
       ? `I've explored ${countriesLabel} and ${citiesLabel} across ${continentsLabel} on tripcoord 🌎`
       : `Planning my next adventure on tripcoord 🌎`;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tripcoord.ai';
-    const url = tier === 'nomad' && currentUser.id
-      ? `${appUrl}/share/world/${currentUser.id}`
-      : `${appUrl}/world`;
+    const url = `${appUrl}/share/world/${currentUser.id}`;
 
     // Web Share API is available on most mobile browsers + Safari macOS
     // recent versions. Falls through to clipboard otherwise.
@@ -170,9 +165,7 @@ export default function WorldClient() {
     // Clipboard fallback
     try {
       await navigator.clipboard.writeText(`${text}\n${url}`);
-      setShareToast(tier === 'nomad'
-        ? 'Copied to clipboard — your share card will preview with the link!'
-        : 'Copied to clipboard — paste it anywhere!');
+      setShareToast('Copied to clipboard — your share card will preview with the link!');
       setTimeout(() => setShareToast(null), 3500);
     } catch {
       setShareToast("Couldn't copy. Long-press to copy: " + url);
@@ -293,15 +286,22 @@ export default function WorldClient() {
             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">Your Travel Story</p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <h1 className="text-4xl font-script italic font-semibold tracking-tight text-zinc-900">My World</h1>
-              <button
-                onClick={handleShareMap}
-                disabled={!data}
-                className="bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-700 font-semibold px-4 py-2 rounded-full text-sm inline-flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Share your travel stats — uses your phone's share sheet or copies to clipboard"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                Share my map
-              </button>
+              {/* Share my map — Nomad-only. The share URL points at a
+                  public landing page (/share/world/[userId]) that
+                  previews with a rendered card image. Lower tiers
+                  don't get the button; they get the Nomad upsell
+                  card lower on the page instead. */}
+              {tier === 'nomad' && (
+                <button
+                  onClick={handleShareMap}
+                  disabled={!data}
+                  className="bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-700 font-semibold px-4 py-2 rounded-full text-sm inline-flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Share your travel stats — uses your phone's share sheet or copies to clipboard"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  Share my map
+                </button>
+              )}
             </div>
           </header>
 
