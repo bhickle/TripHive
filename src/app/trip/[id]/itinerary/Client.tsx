@@ -3405,7 +3405,7 @@ function ItineraryPageContent() {
                                 <dd>
                                   <ul className="space-y-1">
                                     {pn.usefulPhrases.map((phrase, i) => (
-                                      <li key={i} className="text-sm text-zinc-800 leading-snug">{phrase}</li>
+                                      <li key={`${phrase}-${i}`} className="text-sm text-zinc-800 leading-snug">{phrase}</li>
                                     ))}
                                   </ul>
                                 </dd>
@@ -3776,7 +3776,7 @@ function ItineraryPageContent() {
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                   {activity.packingTips.map((tip, i) => (
-                                    <span key={i} className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                                    <span key={`${tip}-${i}`} className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
                                       {tip}
                                     </span>
                                   ))}
@@ -3977,7 +3977,7 @@ function ItineraryPageContent() {
                   {todaysHotels.map((h, i) => {
                     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.address ?? aiMeta?.destination ?? ''}`.trim())}`;
                     return (
-                      <div key={i} className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                      <div key={`${h.name}-${i}`} className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
                         <span className="text-base flex-shrink-0 mt-0.5">🛏️</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-bold uppercase tracking-wide text-amber-500 mb-0.5">Tonight's Stay</p>
@@ -4160,7 +4160,7 @@ function ItineraryPageContent() {
                           const meta = HIGHLIGHT_CATEGORY_META[item.category];
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.name} ${item.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           return (
-                            <div key={idx} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0 overflow-hidden`}>
+                            <div key={`${item.name}-${idx}`} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0 overflow-hidden`}>
                               {/* Name row + badges row are deliberately stacked
                                   (not flex-row sharing). Earlier layout used
                                   flex-wrap + flex-1 on name vs. flex-shrink-0
@@ -4183,7 +4183,7 @@ function ItineraryPageContent() {
                               {item.badges && item.badges.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-1 mb-1.5">
                                   {item.badges.map((b, i) => (
-                                    <span key={i} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${meta.pill} max-w-full break-words`}>
+                                    <span key={`${b}-${i}`} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${meta.pill} max-w-full break-words`}>
                                       {b}
                                     </span>
                                   ))}
@@ -4249,7 +4249,7 @@ function ItineraryPageContent() {
                 {aiMeta.bookedHotels.map((h, i) => {
                   const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.address ?? aiMeta?.destination ?? ''}`.trim())}`;
                   return (
-                    <div key={i} className="p-3 bg-sky-50 rounded-xl border border-sky-100">
+                    <div key={`${h.name}-${i}`} className="p-3 bg-sky-50 rounded-xl border border-sky-100">
                       <div className="flex items-start gap-1.5">
                         <p className="text-sm font-semibold text-sky-900 leading-snug flex-1">{h.name}</p>
                         <a href={hotelMapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
@@ -4296,7 +4296,7 @@ function ItineraryPageContent() {
                           {group.hotels.map((h, i) => {
                             const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.neighborhood ?? ''} ${group.city ?? aiMeta?.destination ?? ''}`.trim())}`;
                             return (
-                              <div key={i} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                              <div key={`${h.name}-${i}`} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
                                 <div className="flex items-start justify-between gap-2 mb-1">
                                   <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                     <p className="text-sm font-semibold text-amber-900 leading-snug">{h.name}</p>

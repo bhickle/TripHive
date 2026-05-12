@@ -1463,7 +1463,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       {(member.interests ?? []).length > 0 && (
                         <div className="flex flex-wrap gap-1 justify-center mb-2">
                           {(member.interests ?? []).slice(0, 3).map((interest, i) => (
-                            <span key={i} className="text-[10px] font-semibold px-2 py-0.5 bg-sky-50 text-sky-700 rounded-full border border-sky-100">
+                            <span key={`${interest}-${i}`} className="text-[10px] font-semibold px-2 py-0.5 bg-sky-50 text-sky-700 rounded-full border border-sky-100">
                               {interest}
                             </span>
                           ))}
@@ -1597,7 +1597,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   </div>
                   <div className="divide-y divide-zinc-50">
                     {settlements.map((txn, idx) => (
-                      <div key={idx} className="flex items-center justify-between px-5 py-4">
+                      <div key={`${txn.from}->${txn.to}-${idx}`} className="flex items-center justify-between px-5 py-4">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-zinc-900">{txn.from}</span>
                           <span className="text-zinc-400 text-xs">→</span>
@@ -1747,7 +1747,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                             {!isEditing ? (
                               <div className="pt-3 space-y-1.5">
                                 {lineItems.map((li, i) => (
-                                  <div key={i} className="flex items-center justify-between text-xs">
+                                  <div key={`${li.description}-${i}`} className="flex items-center justify-between text-xs">
                                     <span className="text-zinc-600 break-words">{li.description}</span>
                                     <span className="text-zinc-500 tabular-nums flex-shrink-0 ml-3">
                                       {li.amount > 0 ? `$${li.amount.toFixed(2)}` : '—'}

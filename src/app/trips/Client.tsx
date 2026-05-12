@@ -211,7 +211,7 @@ export default function TripsPage() {
         <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">Your Collection</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">Your Collection</p>
           <div className="flex items-center justify-between">
             <h1 className="text-4xl font-script italic font-semibold tracking-tight text-zinc-900">My Trips</h1>
             <Link
@@ -228,7 +228,7 @@ export default function TripsPage() {
         <div className="flex flex-col gap-4 mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="relative flex-1 max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
               <input
                 type="text"
                 placeholder="Search by trip, destination, or person..."
@@ -264,7 +264,7 @@ export default function TripsPage() {
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2 rounded-md transition-all ${
-                  viewMode === 'grid' ? 'bg-sky-100 text-sky-700' : 'text-zinc-400 hover:text-zinc-600'
+                  viewMode === 'grid' ? 'bg-sky-100 text-sky-700' : 'text-zinc-500 hover:text-zinc-600'
                 }`}
                 title="Grid view"
                 aria-label="Grid view"
@@ -275,7 +275,7 @@ export default function TripsPage() {
               <button
                 onClick={() => setViewMode('list')}
                 className={`p-2 rounded-md transition-all ${
-                  viewMode === 'list' ? 'bg-sky-100 text-sky-700' : 'text-zinc-400 hover:text-zinc-600'
+                  viewMode === 'list' ? 'bg-sky-100 text-sky-700' : 'text-zinc-500 hover:text-zinc-600'
                 }`}
                 title="List view"
                 aria-label="List view"
@@ -288,7 +288,7 @@ export default function TripsPage() {
 
           {/* Share filter row — shows owned vs invited trips */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mr-1">Show</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mr-1">Show</span>
             {([
               { value: 'all', label: 'All trips' },
               { value: 'mine', label: 'Shared by me' },
@@ -317,7 +317,7 @@ export default function TripsPage() {
               className={`p-2 rounded-md transition-all ${
                 viewMode === 'grid'
                   ? 'bg-sky-100 text-sky-700'
-                  : 'text-zinc-400 hover:text-zinc-600'
+                  : 'text-zinc-500 hover:text-zinc-600'
               }`}
               title="Grid view"
               aria-label="Grid view"
@@ -330,7 +330,7 @@ export default function TripsPage() {
               className={`p-2 rounded-md transition-all ${
                 viewMode === 'list'
                   ? 'bg-sky-100 text-sky-700'
-                  : 'text-zinc-400 hover:text-zinc-600'
+                  : 'text-zinc-500 hover:text-zinc-600'
               }`}
               title="List view"
               aria-label="List view"

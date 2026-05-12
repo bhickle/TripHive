@@ -23,6 +23,13 @@ export async function PATCH(
     if (!emoji || typeof emoji !== 'string') {
       return NextResponse.json({ error: 'emoji required' }, { status: 400 });
     }
+    // Cap to ~16 chars. Real emoji "characters" can be multiple code
+    // points (e.g. flag sequences, ZWJ joiners) but never approach this.
+    // Without the cap a caller could shove arbitrary-size strings into
+    // the reactions JSONB.
+    if (emoji.length > 16) {
+      return NextResponse.json({ error: 'emoji too long' }, { status: 400 });
+    }
 
     // Fetch current message
     const { data: message, error: fetchError } = await supabase

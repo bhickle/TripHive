@@ -842,7 +842,7 @@ export default function WishlistPage() {
                   {item.highlights && item.highlights.length > 0 ? (
                     <ul className="space-y-1 mb-3">
                       {item.highlights.slice(0, 3).map((h, i) => (
-                        <li key={i} className="flex items-start gap-1.5 text-xs text-zinc-600">
+                        <li key={`${h}-${i}`} className="flex items-start gap-1.5 text-xs text-zinc-600">
                           <ChevronRight className="w-3 h-3 text-sky-400 flex-shrink-0 mt-0.5" />
                           {h}
                         </li>

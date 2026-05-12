@@ -472,7 +472,7 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-6 py-8">
           {/* Welcome Header */}
           <div className="mb-12">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">
               {dateString}
             </p>
             <div className="flex items-center justify-between">
@@ -553,7 +553,7 @@ export default function DashboardPage() {
                 <div className="flex-1 overflow-y-auto divide-y divide-zinc-100">
                   {notifications.length === 0 && (
                     <div className="px-5 py-10 text-center">
-                      <p className="text-sm text-zinc-400">No notifications yet</p>
+                      <p className="text-sm text-zinc-500">No notifications yet</p>
                     </div>
                   )}
                   {notifications.map((notif) => {
@@ -578,7 +578,7 @@ export default function DashboardPage() {
                             {notif.title}
                           </p>
                           <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2">{notif.message}</p>
-                          <p className="text-[11px] text-zinc-400 mt-1">{notif.trip}{notif.trip ? ' · ' : ''}{notif.time}</p>
+                          <p className="text-[11px] text-zinc-500 mt-1">{notif.trip}{notif.trip ? ' · ' : ''}{notif.time}</p>
                         </div>
                       </div>
                     );
@@ -732,7 +732,7 @@ export default function DashboardPage() {
               </p>
               <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Days Out There</p>
               {totalDays > 0 && (
-                <p className="text-[10px] text-zinc-400 mt-1 leading-tight">
+                <p className="text-[10px] text-zinc-500 mt-1 leading-tight">
                   ≈ {(totalDays * 24).toLocaleString()} hours
                 </p>
               )}
@@ -756,7 +756,7 @@ export default function DashboardPage() {
           {/* Active Trips Section */}
           <section className="mb-12">
             <div className="mb-6">
-              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1">
                 What's Happening
               </p>
               <h2 className="text-2xl font-script italic font-semibold text-zinc-900">
@@ -791,7 +791,7 @@ export default function DashboardPage() {
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-12 text-center">
                 <p className="text-3xl mb-3">🌍</p>
                 <p className="text-zinc-600 mb-1 font-semibold">Tumbleweeds...</p>
-                <p className="text-zinc-400 text-sm mb-5">No trips in progress. That needs to change.</p>
+                <p className="text-zinc-500 text-sm mb-5">No trips in progress. That needs to change.</p>
                 <Link
                   href="/trip/new"
                   className="inline-flex items-center gap-2 bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full shadow-sm"
@@ -886,13 +886,13 @@ export default function DashboardPage() {
                         <span key={tag} className="text-xs font-medium text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full">{tag}</span>
                       ))}
                     </div>
-                    <div className="flex items-center justify-between text-xs text-zinc-400 mb-4">
+                    <div className="flex items-center justify-between text-xs text-zinc-500 mb-4">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" /> {item.bestSeason}
                       </span>
                       <span className="font-script italic text-base text-zinc-900 font-semibold">
                         ~${item.estimatedCost.toLocaleString()}
-                        <span className="text-xs text-zinc-400 font-normal ml-1">est.</span>
+                        <span className="text-xs text-zinc-500 font-normal ml-1">est.</span>
                       </span>
                     </div>
                     <Link
@@ -911,7 +911,7 @@ export default function DashboardPage() {
           {/* Past Trips Section */}
           {completedTrips.length > 0 && (
             <section>
-              <h2 className="text-2xl font-script italic font-semibold text-zinc-400 mb-6 opacity-75">
+              <h2 className="text-2xl font-script italic font-semibold text-zinc-500 mb-6 opacity-75">
                 The Archives
               </h2>
 
@@ -937,7 +937,7 @@ export default function DashboardPage() {
             <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-6">Add Someone</h3>
 
             {userTrips.length === 0 ? (
-              <p className="text-sm text-zinc-400 mb-4 text-center py-4">Create a trip first, then invite your crew.</p>
+              <p className="text-sm text-zinc-500 mb-4 text-center py-4">Create a trip first, then invite your crew.</p>
             ) : (
               <>
                 {/* Trip selector */}

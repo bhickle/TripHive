@@ -271,7 +271,7 @@ export default function DiscoverItineraryPage() {
                       const Icon = cfg.icon;
                       return (
                         <div
-                          key={idx}
+                          key={`${activity.title}-${idx}`}
                           className={`p-4 md:p-5 border-l-4 ${cfg.border} ml-0`}
                         >
                           <div className="flex items-start gap-3">

@@ -33,7 +33,15 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response;
   const { userId } = auth.ctx;
 
-  const { id, markAllRead } = await req.json();
+  // Wrap body parse so a malformed/non-JSON body returns a clean 400
+  // instead of bubbling to an uncaught 500.
+  let body: { id?: string; markAllRead?: boolean };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
+  }
+  const { id, markAllRead } = body;
 
   const supabase = createAdminClient();
 

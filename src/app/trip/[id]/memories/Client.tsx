@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import {
   Share2, Lock, Camera, Download, Heart, MessageCircle, X,
@@ -563,7 +563,10 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
   // flows through, and "Mallory" + "You" don't show up as two entries
   // for the same person. Photos without an id fall back to their
   // snapshotted name.
-  const uniqueUploaders = (() => {
+  // Memoize so this doesn't recompute every render. The IIFE form ran
+  // on every state change in a 1400-line client component — a no-op
+  // most of the time, but free perf wins are free perf wins.
+  const uniqueUploaders = useMemo(() => {
     const memberById = new Map(groupMembers.map(m => [m.id, m.name]));
     const byId: Map<string, { value: string; label: string }> = new Map();
     const looseNames = new Set<string>();
@@ -583,7 +586,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
       ...Array.from(byId.values()),
       ...Array.from(looseNames).map(name => ({ value: name, label: name })),
     ];
-  })();
+  }, [groupMembers, tripPhotos]);
 
   return (
     <main className="min-h-screen bg-parchment">

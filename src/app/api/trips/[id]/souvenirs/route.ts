@@ -101,7 +101,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function PATCH(req: Request, { params: _params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
     const userId = await getAuthUserId();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -123,11 +123,15 @@ export async function PATCH(req: Request, { params: _params }: { params: { id: s
     }
 
     const supabase = createAdminClient();
+    // Scope to user_id AND the URL's trip_id so a user can't PATCH a
+    // souvenir they own but that belongs to a different trip via a
+    // mistyped URL. Same-user / wrong-URL writes are now 0-row no-ops.
     const { error } = await supabase
       .from('souvenir_items')
       .update(updates)
       .eq('id', itemId)
-      .eq('user_id', userId); // RLS: can only update own items
+      .eq('user_id', userId)
+      .eq('trip_id', params.id);
 
     if (error) return NextResponse.json({ error: 'Failed to update item' }, { status: 500 });
     return NextResponse.json({ success: true });
@@ -137,7 +141,7 @@ export async function PATCH(req: Request, { params: _params }: { params: { id: s
   }
 }
 
-export async function DELETE(req: Request, { params: _params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
     const userId = await getAuthUserId();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -146,11 +150,13 @@ export async function DELETE(req: Request, { params: _params }: { params: { id: 
     if (!itemId) return NextResponse.json({ error: 'itemId required' }, { status: 400 });
 
     const supabase = createAdminClient();
+    // Scope by trip_id too (see PATCH comment above).
     const { error } = await supabase
       .from('souvenir_items')
       .delete()
       .eq('id', itemId)
-      .eq('user_id', userId); // RLS: can only delete own items
+      .eq('user_id', userId)
+      .eq('trip_id', params.id);
 
     if (error) return NextResponse.json({ error: 'Failed to delete item' }, { status: 500 });
     return NextResponse.json({ success: true });

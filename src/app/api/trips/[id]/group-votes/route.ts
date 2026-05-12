@@ -172,7 +172,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const body = await req.json();
     // Default to 'cast' when no action is supplied — the existing client only
     // ever sends { voteId, optionId } for casts. 'close' must be opted into.
+    // Validate the enum explicitly so an unknown value 400s instead of
+    // silently falling through to 'cast' (which was the prior behaviour).
     const action = body.action ?? 'cast';
+    if (action !== 'cast' && action !== 'close') {
+      return NextResponse.json({ error: "action must be 'cast' or 'close'" }, { status: 400 });
+    }
 
     if (action === 'cast') {
       const { voteId, optionId } = body;

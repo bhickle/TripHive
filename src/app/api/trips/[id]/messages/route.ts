@@ -64,6 +64,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!content?.trim()) {
       return NextResponse.json({ error: 'content required' }, { status: 400 });
     }
+    // Cap chat content at 4000 chars. Chat is meant for conversation,
+    // not pasting essays; without a cap a single user could shove
+    // arbitrary-size blobs into the realtime feed.
+    const trimmed = (content as string).trim();
+    if (trimmed.length > 4000) {
+      return NextResponse.json({ error: 'content too long (max 4000 chars)' }, { status: 400 });
+    }
 
     const { data: message, error } = await supabase
       .from('group_messages')
@@ -71,7 +78,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         trip_id: params.id,
         sender_id: userId,
         sender_name: userName,
-        content: content.trim(),
+        content: trimmed,
       })
       .select()
       .single();

@@ -189,7 +189,7 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
             {previewDays.map(day => (
               <div key={day.day} className="bg-stone-50 rounded-xl p-3 border border-zinc-100">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1.5">Day {day.day}</div>
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Day {day.day}</div>
                 <div className="text-xs font-semibold text-zinc-700 mb-2 leading-snug line-clamp-1">{day.title}</div>
                 <div className="space-y-1.5">
                   {day.activities.map((act, idx) => {
@@ -364,7 +364,7 @@ function DestinationCard({
             <span key={v} className="text-[11px] font-semibold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">{v}</span>
           ))}
         </div>
-        <div className="flex items-center gap-4 text-xs text-zinc-400 mb-5">
+        <div className="flex items-center gap-4 text-xs text-zinc-500 mb-5">
           <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" />~${dest.avgCost.toLocaleString()}/wk</span>
           <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{dest.flightHours}h flight</span>
         </div>
@@ -904,10 +904,10 @@ export default function DiscoverPage() {
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
                 <h1 className="text-4xl font-script italic font-semibold text-zinc-900">Where to next?</h1>
-                <p className="text-sm text-zinc-400 mt-1">Hand-curated itineraries, destination inspiration, and one-click booking.</p>
+                <p className="text-sm text-zinc-500 mt-1">Hand-curated itineraries, destination inspiration, and one-click booking.</p>
               </div>
               <div className="relative w-full sm:w-72 flex-shrink-0">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
                   value={query}
@@ -922,7 +922,7 @@ export default function DiscoverPage() {
           {/* ── Filters ────────────────────────────────────────────────── */}
           <div className="space-y-3 -mt-4">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mr-1">Vibe</span>
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mr-1">Vibe</span>
               {(['Adventure', 'Culture', 'Food', 'Photography', 'Nature', 'Wellness', 'Nightlife', 'Sports', 'History', 'Shopping'] as VibeTag[]).map(v => (
                 <button
                   key={v}
@@ -937,11 +937,11 @@ export default function DiscoverPage() {
                 </button>
               ))}
               {activeVibes.length > 0 && (
-                <button onClick={() => setActiveVibes([])} className="text-xs text-zinc-400 hover:text-zinc-600 underline ml-1">Clear</button>
+                <button onClick={() => setActiveVibes([])} className="text-xs text-zinc-500 hover:text-zinc-600 underline ml-1">Clear</button>
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mr-1">Region</span>
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mr-1">Region</span>
               {CONTINENTS.map(c => (
                 <button
                   key={c}
@@ -956,7 +956,7 @@ export default function DiscoverPage() {
                 </button>
               ))}
               {activeContinent !== 'All' && (
-                <button onClick={() => setActiveContinent('All')} className="text-xs text-zinc-400 hover:text-zinc-600 underline ml-1">Clear</button>
+                <button onClick={() => setActiveContinent('All')} className="text-xs text-zinc-500 hover:text-zinc-600 underline ml-1">Clear</button>
               )}
             </div>
           </div>
@@ -970,7 +970,7 @@ export default function DiscoverPage() {
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Featured Itineraries</h2>
-                  <p className="text-sm text-zinc-400 mt-0.5">Hand-built 7-day trips from the tripcoord team — preview the days, then fork into your own</p>
+                  <p className="text-sm text-zinc-500 mt-0.5">Hand-built 7-day trips from the tripcoord team — preview the days, then fork into your own</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1001,7 +1001,7 @@ export default function DiscoverPage() {
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Trending Now</h2>
-                  <p className="text-sm text-zinc-400 mt-0.5">What travelers are searching for this week — tap to see a built itinerary or save for later</p>
+                  <p className="text-sm text-zinc-500 mt-0.5">What travelers are searching for this week — tap to see a built itinerary or save for later</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1048,7 +1048,7 @@ export default function DiscoverPage() {
                   <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
                     What the community is building
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-0.5">
+                  <p className="text-sm text-zinc-500 mt-0.5">
                     Real itineraries from TripCoord travelers — like &apos;em, save &apos;em, or use one as your starting point
                   </p>
                 </div>
@@ -1058,7 +1058,7 @@ export default function DiscoverPage() {
                 <div className="text-center py-20 bg-white rounded-2xl border border-zinc-100">
                   <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
                   <p className="text-zinc-700 font-semibold">No public itineraries yet</p>
-                  <p className="text-zinc-400 text-sm mt-1 max-w-md mx-auto">
+                  <p className="text-zinc-500 text-sm mt-1 max-w-md mx-auto">
                     Be the first — toggle <span className="font-semibold">Share publicly</span> on
                     one of your itineraries to add it here.
                   </p>
@@ -1108,7 +1108,7 @@ export default function DiscoverPage() {
                             )}
                           </div>
                           {trip.organizerName && (
-                            <p className="text-xs text-zinc-400">by {trip.organizerName.split(/\s+/)[0]}</p>
+                            <p className="text-xs text-zinc-500">by {trip.organizerName.split(/\s+/)[0]}</p>
                           )}
                           <div className="flex items-center gap-2 mt-auto">
                             <button
@@ -1168,7 +1168,7 @@ export default function DiscoverPage() {
                       <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
                         {activeCollection.title}
                       </h2>
-                      <p className="text-sm text-zinc-400 mt-0.5">
+                      <p className="text-sm text-zinc-500 mt-0.5">
                         {collectionFeatured.length > 0
                           ? `${collectionFeatured.length} ready-to-fork 7-day itineraries`
                           : `${filtered.length} destination${filtered.length !== 1 ? 's' : ''}`}
@@ -1183,7 +1183,7 @@ export default function DiscoverPage() {
                 </div>
                 <button
                   onClick={() => { setActiveVibes([]); setActiveContinent('All'); setQuery(''); setActiveCollection(null); }}
-                  className="text-xs text-zinc-400 hover:text-zinc-700 font-semibold underline"
+                  className="text-xs text-zinc-500 hover:text-zinc-700 font-semibold underline"
                 >
                   Clear all filters
                 </button>
@@ -1242,7 +1242,7 @@ export default function DiscoverPage() {
                   <div className="text-center py-20">
                     <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
                     <p className="text-zinc-500 font-semibold">No destinations match your filters</p>
-                    <p className="text-zinc-400 text-sm mt-1">Try broadening your search</p>
+                    <p className="text-zinc-500 text-sm mt-1">Try broadening your search</p>
                   </div>
                 )
               ) : (
