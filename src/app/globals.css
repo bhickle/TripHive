@@ -6,7 +6,11 @@
 
 @layer base {
   html { scroll-behavior: smooth; }
-  body { @apply antialiased text-zinc-800 bg-stone-50; }
+  /* Match the dominant in-app surface (parchment) so any tiny layout gap
+     or overscroll bounce doesn't reveal a stone-50 white bar at the
+     bottom of sparse pages. Pages that want a different surface still
+     set their own bg explicitly on their root container. */
+  body { @apply antialiased text-zinc-800 bg-parchment; }
 }
 
 @layer components {
