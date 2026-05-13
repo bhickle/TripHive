@@ -674,7 +674,15 @@ export default function WorldClient() {
                           <p className={`text-[9px] uppercase tracking-wide font-semibold ${muted ? 'text-zinc-400' : styles.label} mt-1`}>
                             {styles.emoji} {badge.tier}
                           </p>
-                          {badge.progressLabel && (
+                          {/* Earned: show what got the user the badge (specific
+                              trips, countries, continents…) so completed badges
+                              tell the story instead of just sitting there. */}
+                          {badge.earned && badge.earnedDetail && (
+                            <p className="text-[10px] text-zinc-500 mt-1.5 leading-snug">
+                              {badge.earnedDetail}
+                            </p>
+                          )}
+                          {!badge.earned && badge.progressLabel && (
                             <>
                               <p className="text-[10px] text-zinc-400 mt-1">{badge.progressLabel}</p>
                               {typeof badge.progress === 'number' && (

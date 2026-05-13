@@ -589,7 +589,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               {/* Itinerary Preview - Read Only */}
               <div className="mb-8">
                 <h4 className="font-semibold text-zinc-900 mb-4">Your {tripData.itineraryPreview.length}-Day Itinerary (Read-Only)</h4>
-                <p className="text-sm text-zinc-600 mb-4">You can view the full itinerary below, but to edit or plan your own trip, download the app.</p>
+                <p className="text-sm text-zinc-600 mb-4">You can view the full itinerary below, but to edit or plan your own trip, sign up for free.</p>
                 <div className="space-y-3">
                   {tripData.itineraryPreview.slice(0, 3).map((day) => (
                     <div key={day.day} className="flex items-start space-x-3 p-3 border border-slate-200 rounded-lg">
@@ -638,7 +638,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                     <h4 className="font-semibold text-zinc-900">Get more from this trip</h4>
                   </div>
                   <p className="text-sm text-zinc-700 mb-4">
-                    Your preferences have been submitted. But the app is where the trip really comes alive. For $7.99/month (Explorer plan), you get:
+                    Your preferences have been submitted. But the trip really comes alive once you sign up. For $7.99/month (Explorer plan), you get:
                   </p>
                   <ul className="space-y-2 text-sm text-zinc-700 mb-4">
                     <li className="flex items-center space-x-2">
@@ -658,11 +658,10 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                       <span>Plan and organize your own trips</span>
                     </li>
                   </ul>
-                  {/* "Download the App" CTA hidden for launch — no native
-                      app exists yet. The previous placeholder fired a
-                      browser alert() ("Opening tripcoord App Store page…")
-                      which read as broken to real users. Restore once the
-                      iOS / Android builds are live. */}
+                  {/* CTA intentionally not added here — tripcoord is a web
+                      product, no native app. The "View Full Trip" link
+                      below already covers the action for everyone who
+                      finished the join flow. */}
                 </div>
               )}
 
