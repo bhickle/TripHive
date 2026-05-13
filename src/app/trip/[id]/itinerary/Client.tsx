@@ -5410,7 +5410,8 @@ function ItineraryPageContent() {
                         const link = `${window.location.origin}/join/${tripPageId}`;
                         await navigator.clipboard.writeText(link).catch(() => {});
                         setInviteMethod('link');
-                        setInviteError('Email isn\'t set up yet — invite link copied to clipboard!');
+                        const channel = inviteMethod === 'email' ? 'Email' : 'SMS';
+                        setInviteError(`${channel} isn't set up yet — invite link copied to clipboard!`);
                         return;
                       }
                       setInviteSent(true);

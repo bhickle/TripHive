@@ -66,9 +66,14 @@ export async function POST(request: NextRequest) {
     !authToken  || authToken  === 'your_twilio_auth_token_here'  ||
     !fromPhone  || fromPhone  === 'your_twilio_phone_number_here'
   ) {
-    // Not yet configured — return a helpful stub response in dev
-    console.log('[invite/sms] Twilio not configured. Would have texted:', phone);
-    return NextResponse.json({ success: true, stub: true });
+    // Twilio not configured — mirror the email route's noService contract so
+    // the client falls back to copying the invite link. Previously this
+    // returned success:true,stub:true which made the sender see "Invite
+    // sent!" while the recipient got nothing — exactly the silent-failure
+    // path Brandon flagged 2026-05-12. The trip_invites audit row above
+    // was already written, so the link in the clipboard carries a valid token.
+    console.log('[invite/sms] Twilio not configured. Falling back to link copy for:', phone);
+    return NextResponse.json({ success: false, noService: true });
   }
 
   // Fallback domain corrected from `tripcoord.app` (wrong TLD) to

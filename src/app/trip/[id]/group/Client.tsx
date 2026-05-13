@@ -2965,11 +2965,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     const data = await res.json();
 
                     if (data.noService) {
-                      // Email service not configured yet — fall back to link copy
+                      // Email or SMS service not configured — fall back to link copy.
                       const inviteLink = `${window.location.origin}/join/${params.id}`;
                       await navigator.clipboard.writeText(inviteLink).catch(() => {});
                       setInviteMethod('link');
-                      setInviteError('Email isn\'t set up yet — invite link copied to clipboard! Paste it to your guest.');
+                      const channel = inviteMethod === 'email' ? 'Email' : 'SMS';
+                      setInviteError(`${channel} isn't set up yet — invite link copied to clipboard! Paste it to your guest.`);
                       return;
                     }
 

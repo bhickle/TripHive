@@ -93,7 +93,15 @@ function rowToNotification(row: ApiNotificationRow): Notification {
  * Returns null if there's no relevant destination.
  */
 function destinationUrl(notif: Notification): string | null {
-  if (!notif.tripId) return null;
+  // Trip-less notifications route to a global page based on type. Without
+  // this branch, clicking a badge_earned notif (trip_id null) does nothing
+  // — matches the "click goes nowhere" symptom Brandon flagged.
+  if (!notif.tripId) {
+    switch (notif.dbType) {
+      case 'badge_earned': return '/world';
+      default:             return null;
+    }
+  }
   switch (notif.dbType) {
     // trip_invite → same URL the email/SMS link uses, so guests get the same
     // intro/preferences flow whether they came in via email or the bell.

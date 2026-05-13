@@ -7,10 +7,14 @@ import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Bell, ArrowLeft, Loader2 } from 'lucide-react';
 
-// Server returns rows from the `notifications` table — see /api/notifications/route.ts
+// Server returns rows from the `notifications` table — see /api/notifications/route.ts.
+// `type` is typed loosely because the DB writes DB-side type names
+// (`new_message`, `new_vote`, `member_joined`, `pass_pending_prefs`,
+// `badge_earned`, etc.) and any new type added on the server side should
+// keep working here without a TS narrowing change.
 interface NotificationRow {
   id: string;
-  type: 'activity' | 'chat' | 'expense' | 'vote' | 'member' | 'ai' | 'prep' | 'trip_invite' | 'partner_added';
+  type: string;
   trip_id: string | null;
   trip_name: string | null;
   inviter_name: string | null;
@@ -19,16 +23,22 @@ interface NotificationRow {
   created_at: string;
 }
 
-const TYPE_META: Record<NotificationRow['type'], { label: string; color: string; icon: string }> = {
-  activity:    { label: 'Activity',     color: 'bg-sky-100 text-sky-700',           icon: '📍' },
-  chat:        { label: 'Chat',         color: 'bg-violet-100 text-violet-700',     icon: '💬' },
-  expense:     { label: 'Expense',      color: 'bg-emerald-100 text-emerald-700',   icon: '💸' },
-  vote:        { label: 'Vote',         color: 'bg-amber-100 text-amber-700',       icon: '🗳️' },
-  member:      { label: 'Group',        color: 'bg-rose-100 text-rose-700',         icon: '👥' },
-  ai:          { label: 'AI',           color: 'bg-indigo-100 text-indigo-700',     icon: '✦' },
-  prep:        { label: 'Prep',         color: 'bg-orange-100 text-orange-700',     icon: '📋' },
-  trip_invite: { label: 'Invite',       color: 'bg-teal-100 text-teal-700',         icon: '✉️' },
-  partner_added: { label: 'Added',      color: 'bg-rose-100 text-rose-700',         icon: '👥' },
+const TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
+  activity:           { label: 'Activity', color: 'bg-sky-100 text-sky-700',         icon: '📍' },
+  // DB-side aliases written by /api/messages and chat/vote routes.
+  new_message:        { label: 'Chat',     color: 'bg-violet-100 text-violet-700',   icon: '💬' },
+  chat:               { label: 'Chat',     color: 'bg-violet-100 text-violet-700',   icon: '💬' },
+  expense:            { label: 'Expense',  color: 'bg-emerald-100 text-emerald-700', icon: '💸' },
+  new_vote:           { label: 'Vote',     color: 'bg-amber-100 text-amber-700',     icon: '🗳️' },
+  vote:               { label: 'Vote',     color: 'bg-amber-100 text-amber-700',     icon: '🗳️' },
+  member_joined:      { label: 'Group',    color: 'bg-rose-100 text-rose-700',       icon: '👥' },
+  member:             { label: 'Group',    color: 'bg-rose-100 text-rose-700',       icon: '👥' },
+  ai:                 { label: 'AI',       color: 'bg-indigo-100 text-indigo-700',   icon: '✦' },
+  prep:               { label: 'Prep',     color: 'bg-orange-100 text-orange-700',   icon: '📋' },
+  trip_invite:        { label: 'Invite',   color: 'bg-teal-100 text-teal-700',       icon: '✉️' },
+  partner_added:      { label: 'Added',    color: 'bg-rose-100 text-rose-700',       icon: '👥' },
+  pass_pending_prefs: { label: 'Reminder', color: 'bg-orange-100 text-orange-700',   icon: '📋' },
+  badge_earned:       { label: 'Badge',    color: 'bg-indigo-100 text-indigo-700',   icon: '🏅' },
 };
 
 function timeAgo(iso: string): string {
@@ -45,21 +55,37 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// Map a notification to the right destination tab. Chat / vote notifications
-// deep-link to the group page with the right tab pre-selected (the group
-// page already honors ?tab=chat | votes per the existing notification bell).
+// Map a notification to the right destination tab. Keyed on the DB-side
+// type values written by the API routes (`new_message`, `new_vote`,
+// `member_joined`, `trip_invite`, `partner_added`, `pass_pending_prefs`,
+// `badge_earned`). Previously this switched on UI-side aliases (`chat`,
+// `vote`, `member`) that the DB never actually writes — so every
+// chat/vote/member notification fell through to /itinerary instead of
+// /group?tab=…. The bell's destinationUrl is the canonical mapping; this
+// stays in sync with it.
 function destinationFor(n: NotificationRow): string | null {
-  if (!n.trip_id) return null;
+  // Trip-less notifications route to a global page based on type.
+  if (!n.trip_id) {
+    switch (n.type) {
+      case 'badge_earned': return '/world';
+      default:             return null;
+    }
+  }
   switch (n.type) {
-    case 'chat':        return `/trip/${n.trip_id}/group?tab=chat`;
-    case 'vote':        return `/trip/${n.trip_id}/group?tab=votes`;
-    case 'expense':     return `/trip/${n.trip_id}/group?tab=expenses`;
-    case 'member':      return `/trip/${n.trip_id}/group`;
-    case 'trip_invite': return `/join/${n.trip_id}`;
+    case 'new_message':
+    case 'chat':              return `/trip/${n.trip_id}/group?tab=chat`;
+    case 'new_vote':
+    case 'vote':              return `/trip/${n.trip_id}/group?tab=votes`;
+    case 'expense':           return `/trip/${n.trip_id}/group?tab=expenses`;
+    case 'member_joined':
+    case 'member':            return `/trip/${n.trip_id}/group`;
+    case 'pass_pending_prefs':return `/trip/${n.trip_id}/group`;
+    case 'trip_invite':       return `/join/${n.trip_id}`;
+    case 'partner_added':
     case 'activity':
     case 'ai':
     case 'prep':
-    default:            return `/trip/${n.trip_id}/itinerary`;
+    default:                  return `/trip/${n.trip_id}/itinerary`;
   }
 }
 

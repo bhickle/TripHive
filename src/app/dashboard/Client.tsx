@@ -1070,7 +1070,8 @@ export default function DashboardPage() {
                         const url = `${window.location.origin}/join/${inviteTripId}`;
                         await navigator.clipboard.writeText(url).catch(() => {});
                         setInviteMethod('link');
-                        setInviteError('Email isn\'t set up yet — invite link copied! Paste it to your guest.');
+                        const channel = inviteMethod === 'email' ? 'Email' : 'SMS';
+                        setInviteError(`${channel} isn't set up yet — invite link copied! Paste it to your guest.`);
                         return;
                       }
                       setInviteSent(true);
