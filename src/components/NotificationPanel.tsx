@@ -37,6 +37,7 @@ interface ApiNotificationRow {
 function dbTypeToUi(t: string): NotifType {
   switch (t) {
     case 'trip_invite':         return 'member';
+    case 'partner_added':       return 'member';
     case 'new_message':         return 'chat';
     case 'new_vote':            return 'vote';
     case 'pass_pending_prefs':  return 'reminder';
@@ -49,6 +50,7 @@ function buildTitle(row: ApiNotificationRow): string {
   const trip = row.trip_name ?? 'a trip';
   switch (row.type) {
     case 'trip_invite':        return `${who} invited you to ${trip}`;
+    case 'partner_added':      return `${who} added you to ${trip}`;
     case 'new_message':        return `New message from ${who}`;
     case 'new_vote':           return `${who} started a vote`;
     case 'pass_pending_prefs': return `${trip}: heads up before generating`;

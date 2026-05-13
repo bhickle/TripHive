@@ -10,7 +10,7 @@ import { Bell, ArrowLeft, Loader2 } from 'lucide-react';
 // Server returns rows from the `notifications` table — see /api/notifications/route.ts
 interface NotificationRow {
   id: string;
-  type: 'activity' | 'chat' | 'expense' | 'vote' | 'member' | 'ai' | 'prep' | 'trip_invite';
+  type: 'activity' | 'chat' | 'expense' | 'vote' | 'member' | 'ai' | 'prep' | 'trip_invite' | 'partner_added';
   trip_id: string | null;
   trip_name: string | null;
   inviter_name: string | null;
@@ -28,6 +28,7 @@ const TYPE_META: Record<NotificationRow['type'], { label: string; color: string;
   ai:          { label: 'AI',           color: 'bg-indigo-100 text-indigo-700',     icon: '✦' },
   prep:        { label: 'Prep',         color: 'bg-orange-100 text-orange-700',     icon: '📋' },
   trip_invite: { label: 'Invite',       color: 'bg-teal-100 text-teal-700',         icon: '✉️' },
+  partner_added: { label: 'Added',      color: 'bg-rose-100 text-rose-700',         icon: '👥' },
 };
 
 function timeAgo(iso: string): string {

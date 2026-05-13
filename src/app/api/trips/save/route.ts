@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       try {
         const { data: organizerProfile } = await supabase
           .from('profiles')
-          .select('default_partner_id')
+          .select('default_partner_id, name, email')
           .eq('id', userId)
           .maybeSingle();
         const partnerId = organizerProfile?.default_partner_id ?? null;
@@ -186,6 +186,31 @@ export async function POST(request: NextRequest) {
               });
             if (memberErr) {
               console.warn('[trips/save] default partner auto-add failed:', memberErr.message);
+            } else {
+              // Notification: without this, the partner is silently added to
+              // the trip and has no breadcrumb that a new trip even exists —
+              // the bell stays empty for this trip and they click an older
+              // unread notification thinking it's the new one (Brandon +
+              // Luke saw this 2026-05-12). 'partner_added' falls through to
+              // the default /trip/[id]/itinerary route, which is the right
+              // landing for someone who's already a member.
+              const organizerName =
+                organizerProfile?.name
+                ?? organizerProfile?.email?.split('@')[0]
+                ?? 'A friend';
+              const { error: notifErr } = await supabase
+                .from('notifications')
+                .insert({
+                  user_id: partnerProfile.id,
+                  type: 'partner_added',
+                  trip_id: trip.id,
+                  trip_name: tripMeta.title || tripMeta.destination,
+                  inviter_name: organizerName,
+                  message: 'Open the trip to add your preferences.',
+                });
+              if (notifErr) {
+                console.warn('[trips/save] partner notification insert failed:', notifErr.message);
+              }
             }
           }
         }
