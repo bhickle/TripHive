@@ -767,7 +767,13 @@ function ItineraryPageContent() {
     };
     sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payload));
     sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(meta));
-    router.push('/trip/generating');
+    // Route through the itinerary page's chunked live-build effect rather than
+    // /trip/generating's single unchunked call. Long trips (11+ days) hit
+    // Vercel's 300s maxDuration on a single call and truncate; chunking
+    // requests each 3-day slice separately so every slice has its own budget.
+    // fresh=1 tells the resume-detection logic to ignore previously persisted
+    // days (this is a regenerate — start over, don't pick up where we left off).
+    router.push(`/trip/${tripPageId}/itinerary?mode=generating&fresh=1`);
   }, [aiMeta, tripRow, tripPageId, router]);
 
   useEffect(() => {
@@ -977,8 +983,14 @@ function ItineraryPageContent() {
       // segment that spans the resume boundary so we only request the
       // missing tail. If everything is already persisted (server finished
       // while the tab was gone), short-circuit and clean up.
+      //
+      // Regenerate flow (?fresh=1) bypasses resume detection: the user wants
+      // to fully rebuild over the existing days, not resume an interrupted
+      // build. Without this bypass, the persisted N days from the prior build
+      // would make resumeStartFromDay > totalDays and exit immediately.
+      const isFreshRebuild = searchParams.get('fresh') === '1';
       let resumeStartFromDay = 1;
-      if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+      if (!isFreshRebuild && tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
         try {
           const res = await fetch(`/api/trips/${tripPageId}`);
           if (res.ok) {
