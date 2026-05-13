@@ -95,7 +95,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   nomad: [
     'Unlimited trips',
     'Up to 15 travelers',
-    '300 AI credits / month',
+    '250 AI credits / month',
     'AI itinerary generation',
     'Transport confirmation parser',
     'Split-track itineraries',
@@ -517,7 +517,7 @@ export default function SettingsPage() {
   const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
 
   // Credit totals derived from tier — not from the mock currentUser hook which has no real data for paid tiers
-  const AI_CREDIT_TOTALS: Record<string, number> = { free: 10, explorer: 100, nomad: 300, trip_pass: 30 };
+  const AI_CREDIT_TOTALS: Record<string, number> = { free: 10, explorer: 100, nomad: 250, trip_pass: 30 };
   const aiUsed  = authLoading ? 0 : (user ? (authProfile?.ai_credits_used ?? 0) : (currentUser.aiCredits?.used ?? 0));
   const aiTotal = authLoading ? 0 : (AI_CREDIT_TOTALS[tier] ?? 10);
   const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : '0 / 10';

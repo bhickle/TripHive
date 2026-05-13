@@ -76,6 +76,42 @@ export type Database = {
         }
         Relationships: []
       }
+      city_geocache: {
+        Row: {
+          cached_at: string
+          city_key: string
+          country_key: string
+          display_city: string
+          display_country: string | null
+          id: string
+          lat: number
+          lon: number
+          source: string
+        }
+        Insert: {
+          cached_at?: string
+          city_key: string
+          country_key?: string
+          display_city: string
+          display_country?: string | null
+          id?: string
+          lat: number
+          lon: number
+          source?: string
+        }
+        Update: {
+          cached_at?: string
+          city_key?: string
+          country_key?: string
+          display_city?: string
+          display_country?: string | null
+          id?: string
+          lat?: number
+          lon?: number
+          source?: string
+        }
+        Relationships: []
+      }
       destination_events: {
         Row: {
           created_at: string
@@ -479,6 +515,45 @@ export type Database = {
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lifecycle_emails_sent: {
+        Row: {
+          email_type: string
+          id: string
+          sent_at: string
+          trip_id: string | null
+          user_id: string
+        }
+        Insert: {
+          email_type: string
+          id?: string
+          sent_at?: string
+          trip_id?: string | null
+          user_id: string
+        }
+        Update: {
+          email_type?: string
+          id?: string
+          sent_at?: string
+          trip_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifecycle_emails_sent_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lifecycle_emails_sent_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1165,60 +1240,24 @@ export type Database = {
           },
         ]
       }
-      city_geocache: {
-        Row: {
-          id: string
-          city_key: string
-          country_key: string
-          display_city: string
-          display_country: string | null
-          lat: number
-          lon: number
-          source: string
-          cached_at: string
-        }
-        Insert: {
-          id?: string
-          city_key: string
-          country_key?: string
-          display_city: string
-          display_country?: string | null
-          lat: number
-          lon: number
-          source?: string
-          cached_at?: string
-        }
-        Update: {
-          id?: string
-          city_key?: string
-          country_key?: string
-          display_city?: string
-          display_country?: string | null
-          lat?: number
-          lon?: number
-          source?: string
-          cached_at?: string
-        }
-        Relationships: []
-      }
       user_badges: {
         Row: {
-          id: string
-          user_id: string
           badge_id: string
           earned_at: string
+          id: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
           badge_id: string
           earned_at?: string
+          id?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
           badge_id?: string
           earned_at?: string
+          id?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -1381,7 +1420,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      trip_cities: {
+        Args: { trip_ids: string[] }
+        Returns: {
+          cities: string[]
+          trip_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -165,7 +165,7 @@ ItineraryDay {
 | `free` | 10 AI credits/mo, 4 travelers, 7-day max trip |
 | `trip_pass` | 30 credits per pass, 6 base travelers (extras purchasable), 7-day max |
 | `explorer` | 100 credits/mo, 8 travelers, 10-day max, split tracks + co-organizer |
-| `nomad` | 300 credits/mo, 15 travelers, 14-day max, all features |
+| `nomad` | 250 credits/mo, 15 travelers, 14-day max, all features |
 
 Gates live in `useEntitlements` hook → checked against `profile.subscription_tier` from Supabase.  
 `UpgradeModal` + `LockBadge` components handle the UI gating.

@@ -74,7 +74,7 @@ export const AI_CREDIT_COSTS = {
   // because PDFs ship as document blocks — a 5–10 page PDF burns ~10–20K
   // input tokens before output, costing ~$0.10–0.15 per parse. 1 credit was
   // 5–10× underpriced relative to other actions (where 1 credit ≈ $0.01).
-  // Free tier (10/mo) now gets ~3 parses, explorer ~33, nomad ~116.
+  // Free tier (10/mo) now gets ~3 parses, explorer ~33, nomad ~83.
   parse_itinerary: 3,
   // Single-day AI generation via /api/trips/[id]/add-day. Roughly 1/Nth of
   // a full itinerary_generate; charged 2 credits as a round number — free
@@ -194,7 +194,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   nomad: {
     activeTrips: 999,          // unlimited in practice — AI credits are the constraint
     travelersPerTrip: 15,
-    aiCreditsPerMonth: 300,
+    aiCreditsPerMonth: 250,
     maxTripDays: 14,
     maxBookedHotels: 7,
     canUseAI: true,

@@ -35,7 +35,7 @@ const featureRows: {
   { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   // AI
   { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
-  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '10 / month', trip_pass: '30 per pass', explorer: '100 / month', nomad: '300 / month', nomadHighlight: true },
+  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '10 / month', trip_pass: '30 per pass', explorer: '100 / month', nomad: '250 / month', nomadHighlight: true },
   { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
@@ -70,7 +70,7 @@ const faqs = [
   },
   {
     q: 'What happens if I use all my AI credits?',
-    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you 300 credits — enough for even the most enthusiastic planner.",
+    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you 250 credits — enough for even the most enthusiastic planner.",
   },
   {
     q: 'Can I switch plans?',
@@ -512,7 +512,7 @@ function PricingPageInner() {
                 { text: 'Everything in Explorer', highlight: false },
                 { text: 'Up to 15 travelers per trip', highlight: false },
                 { text: 'AI itineraries up to 14 days', highlight: true },
-                { text: '300 AI credits / month', highlight: true },
+                { text: '250 AI credits / month', highlight: true },
                 { text: 'AI receipt scanning (scan to split)', highlight: true },
                 { text: 'AI packing list (destination-specific)', highlight: true },
                 { text: 'AI travel phrasebook', highlight: true },

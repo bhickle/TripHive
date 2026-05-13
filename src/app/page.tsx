@@ -366,7 +366,7 @@ export default function HomePage() {
                 {[
                   { text: 'Everything in Explorer', highlight: false },
                   { text: 'Up to 15 travelers per trip', highlight: false },
-                  { text: '300 AI credits / month', highlight: true },
+                  { text: '250 AI credits / month', highlight: true },
                   { text: 'Split-track itineraries', highlight: true },
                   { text: 'Co-organizer role', highlight: true },
                   { text: 'Year in Review', highlight: true },
