@@ -107,6 +107,14 @@ interface TripWizardState {
   daysPerDestination: Record<string, number>;
   /** Free-text notes for the AI — "anything else we should know?" */
   additionalContext: string;
+  /** "Do you generally know what you want to do each day?" Toggle on Step 5.
+   *  When true, the wizard reveals one textarea per trip day. The contents
+   *  flow through to the AI as a day-by-day skeleton it builds around.
+   *  When false, dailyOutlines is ignored and the AI plans normally. */
+  knowsDailyPlans: boolean;
+  /** Per-day outlines. Index N = day N+1. Empty strings are ignored. Length
+   *  is kept in lock-step with tripLength; resized when the date range changes. */
+  dailyOutlines: string[];
 }
 
 const priorityOptions = [
@@ -394,6 +402,8 @@ function TripBuilderPage() {
     destinations: [],
     daysPerDestination: {},
     additionalContext: '',
+    knowsDailyPlans: false,
+    dailyOutlines: [],
   });
 
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
@@ -700,6 +710,13 @@ function TripBuilderPage() {
       accessibilityNeeds: state.accessibilityNeeds,
       mustHaves: state.mustHaves,
       additionalContext: state.additionalContext,
+      // Only forward dailyOutlines when the user said yes to the per-day-plan
+      // question. Slice/pad to exactly tripLength so trailing/leading indices
+      // line up with day numbers on the server. Empty strings are kept; the
+      // prompt builder ignores them per-day.
+      dailyOutlines: state.knowsDailyPlans
+        ? Array.from({ length: state.tripLength }, (_, i) => (state.dailyOutlines[i] ?? '').trim())
+        : [],
       // Featured Itinerary backbone (when user came from /discover/[slug]
       // → "Start planning this trip"). Forwards the slug so generate-
       // itinerary can fetch the editorial picks and inject them into the
@@ -2565,6 +2582,69 @@ function TripBuilderPage() {
                     rows={3}
                     className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 resize-none"
                   />
+                </div>
+
+                {/* Do you know what you want each day? */}
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                    Do you generally know what you want to do each day? 🗓️
+                  </label>
+                  <p className="text-xs text-zinc-500 mb-3">
+                    If you already have a rough day-by-day plan in mind, jot it down and we'll build the itinerary around it. Skip this if you'd rather let us surprise you.
+                  </p>
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setState(prev => ({ ...prev, knowsDailyPlans: true }))}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        state.knowsDailyPlans
+                          ? 'bg-sky-800 text-white'
+                          : 'bg-slate-100 text-zinc-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Yes, I have a plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setState(prev => ({ ...prev, knowsDailyPlans: false }))}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        !state.knowsDailyPlans
+                          ? 'bg-sky-800 text-white'
+                          : 'bg-slate-100 text-zinc-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Surprise me
+                    </button>
+                  </div>
+                  {state.knowsDailyPlans && state.tripLength > 0 && (
+                    <div className="space-y-3">
+                      {Array.from({ length: state.tripLength }, (_, i) => {
+                        const value = state.dailyOutlines[i] ?? '';
+                        return (
+                          <div key={i}>
+                            <label className="block text-xs font-semibold text-zinc-700 mb-1">
+                              Day {i + 1}
+                            </label>
+                            <textarea
+                              value={value}
+                              onChange={(e) => {
+                                const next = [...state.dailyOutlines];
+                                while (next.length < state.tripLength) next.push('');
+                                next[i] = e.target.value;
+                                setState(prev => ({ ...prev, dailyOutlines: next.slice(0, state.tripLength) }));
+                              }}
+                              placeholder={i === 0 ? 'e.g. Arrive, hotel check-in, easy walk near the hotel, dinner nearby' : i === state.tripLength - 1 ? 'e.g. One last meal, pack, head to the airport' : 'e.g. Uffizi in the morning, lunch near the Duomo, leather market in the afternoon'}
+                              rows={2}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 resize-none"
+                            />
+                          </div>
+                        );
+                      })}
+                      <p className="text-xs text-zinc-400 italic">
+                        Leave any day blank to let us plan it for you.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

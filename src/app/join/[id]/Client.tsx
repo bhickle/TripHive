@@ -220,6 +220,56 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
     });
   };
 
+  // Skip the preferences form entirely — join the trip with empty preferences.
+  // Used for invitees who already know the plan is set (organizer ran the build)
+  // and don't want to influence the itinerary. They can still fill these in
+  // later from /trip/[id]/preferences.
+  const handleSkipPreferences = async () => {
+    if (!guestData.name.trim()) return;
+    const isRealTrip = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tripId);
+    if (isRealTrip) {
+      setJoining(true);
+      setJoinError(null);
+      try {
+        const preferences: TripMemberPreferences = {
+          priorities: [],
+          pace: 'balanced',
+          dietary: { tags: [] },
+          accessibility: { needs: [] },
+          submittedAt: new Date().toISOString(),
+        };
+        const res = await fetch(`/api/trips/${tripId}/members`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: guestData.name.trim(),
+            email: guestData.email.trim() || undefined,
+            preferences,
+            ...(inviteToken ? { inviteToken } : {}),
+          }),
+        });
+        if (!res.ok) {
+          let msg = `Couldn't join the trip (${res.status}).`;
+          try {
+            const body = await res.json();
+            if (body?.error) msg = body.error;
+          } catch { /* response wasn't JSON */ }
+          setJoinError(msg);
+          setJoining(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Skip-preferences join error:', err);
+        setJoinError('Network error — please check your connection and try again.');
+        setJoining(false);
+        return;
+      } finally {
+        setJoining(false);
+      }
+    }
+    setStep('confirmation');
+  };
+
   const handleContinue = async () => {
     if (step === 'intro' && guestData.name.trim()) {
       setStep('preferences');
@@ -541,6 +591,19 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   )}
                 </button>
               </div>
+
+              {/* Skip link — invitees joining an already-built trip who don't
+                  care about influencing the itinerary can bypass this form.
+                  Posts the join with empty preferences; they can fill them
+                  in later from /trip/[id]/preferences. */}
+              <button
+                type="button"
+                onClick={handleSkipPreferences}
+                disabled={joining}
+                className="w-full mt-3 text-sm text-zinc-500 hover:text-sky-800 underline underline-offset-2 disabled:opacity-50"
+              >
+                Skip — just join the trip
+              </button>
 
               <p className="text-xs text-zinc-500 text-center mt-4">Step 2 of 3</p>
             </div>

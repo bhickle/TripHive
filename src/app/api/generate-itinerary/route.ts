@@ -333,6 +333,12 @@ function buildPrompt(params: {
   destinations?: string[];             // ordered city list for multi-city trips
   daysPerDestination?: Record<string, number>; // optional day allocation per city
   additionalContext?: string;          // free-text notes from the user ("anything else?")
+  /** Optional per-day outlines from the Trip Builder's "do you generally know
+   *  what you want each day?" question. Index = day number - 1; entry is a
+   *  short free-text outline the user wrote for that specific day. Empty
+   *  strings are ignored. The AI uses these as a strong steer for what to
+   *  schedule on each day while still emitting the full schema. */
+  dailyOutlines?: string[];
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
   multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
   organizerPersona?: { priorities: string[]; vibes?: string[] } | null;
@@ -390,6 +396,14 @@ function buildPrompt(params: {
   const destinations = params.destinations ?? [];
   const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
+  // Per-day outlines from the "do you know what you want each day?" wizard branch.
+  // Trimmed + filtered to non-empty entries. We keep the indexing (day N → outlines[N-1])
+  // so empty days don't shift the rest.
+  const dailyOutlines = (params.dailyOutlines ?? []).map(s => (s ?? '').trim());
+  const hasDailyOutlines = dailyOutlines.some(s => s.length > 0);
+  const dailyOutlinesText = hasDailyOutlines
+    ? `\n\nUSER-SUPPLIED DAILY OUTLINES — the traveler has told us what they generally want to do each day. Build each day around the outline they wrote for that day index. Still emit the full schema (3 meals, 4-6 activities, transport legs, sidebar arrays, etc.) — the outline is the SKELETON; you fill in the venues, timing, and supporting picks. Where an outline names a specific venue, USE THAT VENUE (verify it's real and apply the same hours/price constraints as any other pick). Where an outline is vague ("museum day", "explore the old town"), interpret it generously but keep that day's focus on what they asked for. If an outline is empty for a given day, build that day normally from the priorities and rules above. Outlines:\n${dailyOutlines.map((o, i) => o ? `  Day ${i + 1}: ${o}` : `  Day ${i + 1}: (no specific request — build normally)`).join('\n')}`
+    : '';
   const multiCityPlaces = params.multiCityPlaces ?? null;
   const bookedCar = params.bookedCar ?? null;
   const organizerPersona = params.organizerPersona ?? null;
@@ -599,7 +613,23 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
   const modalityText = bookedCar
     ? '' // car rental rule will be injected in preBookingText below
     : (modality && modality !== 'mix'
-        ? `\n- Primary transport: ${modality} — build routes and day plans around this mode`
+        ? (() => {
+            // The bare "Primary transport: X" line was too soft — Rome trip user
+            // picked "train" but the model still picked rideshares for short hops
+            // because MODE SELECTION RULES below default to rideshare for sub-30-min
+            // legs. Make the user's choice override those defaults explicitly.
+            const m = modality.toLowerCase();
+            if (m === 'train' || m === 'transit' || m === 'metro' || m === 'public_transit') {
+              return `\n- PRIMARY TRANSPORT — PUBLIC TRANSIT (user-selected): The traveler explicitly chose train/metro/public transit. This is a HARD constraint that OVERRIDES the default MODE SELECTION RULES below.
+  - Within-city movement: default to WALK for legs under 1 mile / 20 min, and METRO/TRAM/BUS for everything longer. Do NOT pick rideshare/taxi for any within-city leg unless walking + transit is genuinely impractical (late-night safety, heavy luggage on transfer day, accessibility need, or a venue with no transit within 0.8 mi). When you do fall back to rideshare, state the reason in the transport note ("metro doesn't run past 23:30 — rideshare back").
+  - Between cities: train (or ferry where geographically required). Never rideshare/car_rental between cities when this preference is set.
+  - In every applicable transport note, name the specific line/stop ("Metro Line A to Spagna", "Tram 8 from Trastevere to Largo Argentina") so the traveler can follow it.`;
+            }
+            if (m === 'walking' || m === 'walk') {
+              return `\n- PRIMARY TRANSPORT — WALKING (user-selected): The traveler wants to walk this trip. Cluster every day's activities within a walkable footprint (each consecutive activity ≤ 1.2 mi from the previous one) so transport legs are walk-only. Only fall back to metro/tram/rideshare when a single leg genuinely exceeds 1.5 mi or terrain makes walking unreasonable; explain the fallback in the transport note. This OVERRIDES the default MODE SELECTION RULES below.`;
+            }
+            return `\n- Primary transport: ${modality} — build routes and day plans around this mode. This preference overrides the default MODE SELECTION RULES below when they conflict.`;
+          })()
         : '');
 
   const accommodationText = accommodationType
@@ -1279,7 +1309,7 @@ MEAL REQUIREMENTS — every day must include exactly 3 restaurant activities:
 2. Lunch (isRestaurant: true, mealType: "lunch"): timeSlot 12:30–14:00, priceLevel ${mealPriceLevels.lunch}
    → Place geographically near the midday activities — minimize detour from the day's flow
 3. Dinner (isRestaurant: true, mealType: "dinner"): timeSlot 19:00–21:00, priceLevel ${mealPriceLevels.dinner}
-   → Place near the evening meetup location
+   → Place WITHIN COMFORTABLE WALKING DISTANCE OF THE HOTEL (≤ 0.6 mi / 10 min walk). Travelers want to bookend the night close to where they're sleeping so they don't end the evening with a long ride home tired/half-drunk. If a special-occasion or destination-defining dinner has to be elsewhere, that's a once-a-trip exception — every OTHER night's dinner anchors near the hotel. Breakfast also defaults near the hotel (Rule 1 above); this dinner rule mirrors that so the day OPENS and CLOSES at home base.
 For EACH restaurant: recommend a real, named establishment. In the description, state WHY it is recommended — cite its reputation (local institution, award recognition, neighborhood favorite, featured in local food press, etc.). Do not fabricate Google star ratings; instead describe the source of the restaurant's acclaim. Choose spots that are close to surrounding activities to keep transit minimal.
 RESTAURANTS ALWAYS IN SHARED TRACK: All restaurant activities (isRestaurant: true) must ALWAYS be placed in the "shared" track — never in track_a or track_b. Meals are a shared group experience. The only exception is a trip explicitly themed around diverging dining preferences, which is rare. In all standard itineraries, restaurants go in shared.
 CRITICAL — NO DUPLICATE VENUES: Every venue name across the ENTIRE itinerary must be unique — this applies to BOTH restaurants AND non-restaurant activities. You have ${tripLength} days × 3 meals = ${tripLength * 3} restaurant slots and multiple activity slots — each slot must use a different named establishment. Never repeat any venue name on a second day or across tracks, even if it was highly rated. Variety is essential.
@@ -1330,6 +1360,13 @@ RULES:
 17. destinationTip: include on EVERY day object — one punchy, specific insider fact about the destination for that day's city. Rotate the topic across days (food, drink, tradition, cultural quirk, etc.). Never repeat the same topic two days in a row.
 18. trackALabel and trackBLabel must be IDENTICAL strings on every day that has a split. Decide the label pair once for the whole trip and repeat it exactly on every split day — never rename or rephrase a track label between days.
 19. PER-DAY DISCOVERY ARRAYS — these are MANDATORY on every day they apply to. Each day MUST include the FULL array, populated with the required number of items, BEFORE the day's closing brace. Do NOT emit a day with these arrays missing or empty when their priority is set — a day without them is INVALID and will be rejected. ${hasFoodPriority ? `When food priority is set, every day MUST include "foodieTips" with EXACTLY 2 entries anchored to that day's neighborhoods. ` : ''}${hasNightlifePriority ? `When nightlife priority is set, every day MUST include "nightlifeHighlights" with EXACTLY 2 entries anchored to that day's neighborhoods. ` : ''}${hasShoppingPriority ? `When shopping priority is set, every day MUST include "shoppingGuide" with EXACTLY 2 entries anchored to that day's neighborhoods. ` : ''}Always emit these arrays inline within their day object on the FIRST emission — never defer to a later pass.
+20. FLAGSHIP / ANCHOR ATTRACTIONS — every destination has 1–3 must-see anchor venues that define a trip there. Florence → Uffizi Gallery + Accademia (David). Rome → Colosseum + Vatican Museums + Pantheon. Paris → Louvre + Eiffel Tower + Notre-Dame area. London → British Museum + Tower of London. Amsterdam → Rijksmuseum + Van Gogh Museum. Madrid → Prado. Athens → Acropolis + Acropolis Museum. Vienna → Schönbrunn + Kunsthistorisches. Barcelona → Sagrada Família + Park Güell. Tokyo → Senso-ji + a major museum (Mori Art / TeamLab / National Museum). NYC → Met + MoMA + Statue of Liberty. DC → Smithsonian (at least one). Cairo → Egyptian Museum + Pyramids. Whatever the city, identify its flagship museum / art-and-history anchor and its flagship landmark and INCLUDE THEM as scheduled activities unless the user has explicitly opted out (e.g. they checked "I've been here before — focus on hidden gems" or chose only nightlife/beach priorities with no culture/history/family). For ${destination} specifically, identify the 1–3 flagship anchors and place them on appropriate days. A trip to Florence that omits the Uffizi is a defective trip.
+21. THEMED / NICHE REQUESTS — ANTI-HALLUCINATION: When the user's must-haves or additional notes mention a specific theme, film, book, video game, fandom, or niche cultural reference (e.g. "Angels & Demons locations", "Harry Potter spots in Edinburgh", "filming locations from a movie", "tracks from a documentary", "a specific historical figure's footsteps"), apply these rules:
+  - Only include venues that are REAL, NAMED, and that you are HIGHLY CONFIDENT actually appear in the source work or are documented as connected to it. The bar is "I could point this out to a fan and they'd recognize it" — not "this seems plausible".
+  - If you are not certain a specific location is genuinely tied to the theme, OMIT IT. It is far better to suggest fewer real spots than to invent or guess at thematic connections. A made-up "filming location" or "the chapel from chapter 7" that doesn't actually exist destroys traveler trust.
+  - For each themed venue you include, briefly state the CONCRETE connection ("Santa Maria del Popolo — the 'Earth' altar in Angels & Demons; the Chigi Chapel is here", not "featured in the book"). If you can't articulate the specific connection, drop it.
+  - If the theme has fewer real anchor locations than the user expects (e.g. the Angels & Demons "Path of Illumination" only has 4 real Roman churches), be honest — include those 4 and don't pad. Tell the user the theme has limited verified spots in the day's destinationTip or a practical note rather than inventing more.
+  - This rule OVERRIDES any pressure to fill must-have count quotas. Empty is better than fabricated.${dailyOutlinesText ? dailyOutlinesText : ''}
 ${getSeasonalContext(startDate, destination)}
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
@@ -1728,6 +1765,17 @@ export async function POST(request: NextRequest) {
     destinations: citySegment ? [] : ((body.destinations as string[] | undefined) ?? []),
     daysPerDestination: citySegment ? {} : ((body.daysPerDestination as Record<string, number> | undefined) ?? {}),
     additionalContext: (body.additionalContext as string | undefined) ?? '',
+    // For citySegment chunks: slice to just this segment's days so the prompt's
+    // "Day 1: ..." labels line up with the chunk's relative day numbers. The
+    // CRITICAL DAY NUMBERING block injected later remaps emission to absolute
+    // day numbers. Without this slice, a Florence chunk (segment days 4-6 of
+    // a Rome+Florence trip) would receive outlines labelled Day 1/2/3 that
+    // actually mean Day 4/5/6.
+    dailyOutlines: (() => {
+      const raw = (body.dailyOutlines as string[] | undefined) ?? [];
+      if (!citySegment) return raw;
+      return raw.slice(citySegment.dayStart - 1, citySegment.dayStart - 1 + citySegment.dayCount);
+    })(),
     realPlaces: resolvedRealPlaces,
     multiCityPlaces: resolvedMultiCityPlaces,
     organizerPersona,

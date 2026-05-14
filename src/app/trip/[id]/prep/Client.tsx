@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info, Gift, Trash2, Users, Pencil } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info, Gift, Trash2, Users, Pencil, Plane, X } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -67,7 +67,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [prepTasks, setPrepTasks] = useState<PrepTask[]>(isMockTrip ? (mockPrepTasks as PrepTask[]) : []);
   const [packingItems, setPackingItems] = useState<PackingItem[]>(isMockTrip ? (mockPackingItems as PackingItem[]) : []);
 
-  const [activeTab, setActiveTab] = useState<'documents' | 'packing' | 'logistics' | 'phrases'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'packing' | 'logistics' | 'phrases' | 'flights'>('documents');
   const [completedTasks, setCompletedTasks] = useState(new Set(prepTasks.filter(t => t.completed).map((t: PrepTask) => t.id)));
   const [packedItems, setPackedItems] = useState(new Set(packingItems.filter(p => p.packed).map((p: PackingItem) => p.id)));
   const [expandedCategories, setExpandedCategories] = useState(new Set(['Clothing']));
@@ -114,6 +114,37 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const [souvenirLoaded, setSouvenirLoaded] = useState(false);
   const [newSouvenirPerson, setNewSouvenirPerson] = useState('');
   const [newSouvenirIdea, setNewSouvenirIdea] = useState('');
+
+  // ─── My Flights tab ──────────────────────────────────────────────────────────
+  // Per-user private flight storage. Each row is one flight leg (outbound /
+  // return / mid-trip hops). RLS keeps rows owner-only; nobody else on the
+  // trip sees this data.
+  interface FlightBooking {
+    id: string;
+    airline: string | null;
+    flight_number: string | null;
+    confirmation_number: string | null;
+    origin: string | null;
+    destination: string | null;
+    departure_at: string | null;
+    arrival_at: string | null;
+    seat: string | null;
+    email_link: string | null;
+    notes: string | null;
+  }
+  const [flights, setFlights] = useState<FlightBooking[]>([]);
+  const [flightsLoaded, setFlightsLoaded] = useState(false);
+  const [flightAdding, setFlightAdding] = useState(false);
+  const [flightError, setFlightError] = useState<string | null>(null);
+  // Inline editor: `null` means the user is just viewing the list; an id means
+  // that flight is open for edit; 'new' means the add-new card is open.
+  const [editingFlightId, setEditingFlightId] = useState<string | 'new' | null>(null);
+  const emptyFlightDraft: Omit<FlightBooking, 'id'> = {
+    airline: '', flight_number: '', confirmation_number: '',
+    origin: '', destination: '', departure_at: '', arrival_at: '',
+    seat: '', email_link: '', notes: '',
+  };
+  const [flightDraft, setFlightDraft] = useState<Omit<FlightBooking, 'id'>>(emptyFlightDraft);
 
   // Phrases tab state
   const [phrasebooks, setPhrasebooks] = useState<PhrasebookData[]>([]);
@@ -222,6 +253,21 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       setPrepLoading(false);
     });
   }, [isMockTrip, params.id, authLoading, user]);
+
+  // Flights load — independent of the main parallel fetch above since
+  // flights are user-scoped and the route returns just this user's rows.
+  useEffect(() => {
+    if (isMockTrip) return;
+    if (authLoading || !user?.id) return;
+    if (!/^[0-9a-f-]{36}$/i.test(params.id)) return;
+    fetch(`/api/trips/${params.id}/flights`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.items) setFlights(data.items as FlightBooking[]);
+      })
+      .catch(err => console.error('[prep] flights load failed:', err))
+      .finally(() => setFlightsLoaded(true));
+  }, [isMockTrip, params.id, authLoading, user?.id]);
 
   // Realtime: re-fetch group pack when any other user adds, deletes, or
   // toggles an item. Without this, two users on the prep page disagree on
@@ -732,7 +778,304 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   );
   const CheckboxEmpty = () => <div className="w-6 h-6 rounded border-2 border-zinc-300" />;
 
+  // ─── Flights handlers ──────────────────────────────────────────────────────
+  // Opens the add/edit card. Editing pre-fills the draft from the existing row.
+  const openFlightEditor = (flightId: string | 'new') => {
+    setFlightError(null);
+    if (flightId === 'new') {
+      setFlightDraft(emptyFlightDraft);
+    } else {
+      const existing = flights.find(f => f.id === flightId);
+      if (existing) {
+        // Strip id, keep nullable shape so the editor's <input> never gets `null`.
+        const { id: _id, ...rest } = existing;
+        void _id;
+        setFlightDraft({
+          airline: rest.airline ?? '',
+          flight_number: rest.flight_number ?? '',
+          confirmation_number: rest.confirmation_number ?? '',
+          origin: rest.origin ?? '',
+          destination: rest.destination ?? '',
+          // Trim trailing seconds + tz so a value like "2026-06-01T14:30:00+00:00"
+          // round-trips into a datetime-local input cleanly.
+          departure_at: rest.departure_at ? rest.departure_at.slice(0, 16) : '',
+          arrival_at: rest.arrival_at ? rest.arrival_at.slice(0, 16) : '',
+          seat: rest.seat ?? '',
+          email_link: rest.email_link ?? '',
+          notes: rest.notes ?? '',
+        });
+      }
+    }
+    setEditingFlightId(flightId);
+  };
+
+  const closeFlightEditor = () => {
+    setEditingFlightId(null);
+    setFlightDraft(emptyFlightDraft);
+    setFlightError(null);
+  };
+
+  // Whitespace-trim + null-empty so the API stores NULL rather than "" for
+  // unfilled fields. Keeps downstream display logic (e.g. "if airline...")
+  // consistent with how rows arrive from the DB.
+  const normalizeDraft = (d: typeof flightDraft) => {
+    const out: Record<string, string | null> = {};
+    for (const [k, v] of Object.entries(d)) {
+      const trimmed = (v ?? '').trim();
+      out[k] = trimmed.length === 0 ? null : trimmed;
+    }
+    // datetime-local inputs return "YYYY-MM-DDTHH:mm" — let Postgres parse as
+    // local time (it'll be stored as timestamptz). No conversion needed.
+    return out;
+  };
+
+  const submitFlight = async () => {
+    if (isMockTrip) return;
+    setFlightAdding(true);
+    setFlightError(null);
+    const body = normalizeDraft(flightDraft);
+    try {
+      if (editingFlightId === 'new') {
+        const res = await fetch(`/api/trips/${params.id}/flights`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          setFlightError(errBody?.error ?? `Couldn't save flight (${res.status}).`);
+          return;
+        }
+        const { item } = await res.json();
+        if (item) setFlights(prev => [...prev, item as FlightBooking]);
+      } else if (editingFlightId) {
+        const res = await fetch(`/api/trips/${params.id}/flights`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId: editingFlightId, ...body }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          setFlightError(errBody?.error ?? `Couldn't update flight (${res.status}).`);
+          return;
+        }
+        setFlights(prev => prev.map(f => f.id === editingFlightId
+          ? { ...f, ...body } as FlightBooking
+          : f
+        ));
+      }
+      closeFlightEditor();
+    } catch (err) {
+      console.error('flight submit error:', err);
+      setFlightError('Network error — try again.');
+    } finally {
+      setFlightAdding(false);
+    }
+  };
+
+  const deleteFlight = async (flightId: string) => {
+    if (isMockTrip) return;
+    if (!window.confirm('Delete this flight?')) return;
+    // Optimistic: remove first, restore on error.
+    const prev = flights;
+    setFlights(prev.filter(f => f.id !== flightId));
+    try {
+      const res = await fetch(`/api/trips/${params.id}/flights`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: flightId }),
+      });
+      if (!res.ok) setFlights(prev);
+    } catch {
+      setFlights(prev);
+    }
+  };
+
   // ─── Tabs ──────────────────────────────────────────────────────────────────
+
+  const renderFlightsTab = () => {
+    const formatFlightTime = (iso: string | null) => {
+      if (!iso) return null;
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      } catch { return iso; }
+    };
+    const renderEditor = () => (
+      <div className="bg-white rounded-2xl border border-sky-200 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-zinc-900">
+            {editingFlightId === 'new' ? 'Add a flight' : 'Edit flight'}
+          </h3>
+          <button onClick={closeFlightEditor} className="text-zinc-400 hover:text-zinc-700" aria-label="Close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-1">
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Airline</label>
+            <input type="text" value={flightDraft.airline ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, airline: e.target.value }))}
+              placeholder="United Airlines" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Flight #</label>
+            <input type="text" value={flightDraft.flight_number ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, flight_number: e.target.value }))}
+              placeholder="UA1234" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">From</label>
+            <input type="text" value={flightDraft.origin ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, origin: e.target.value }))}
+              placeholder="JFK or New York" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">To</label>
+            <input type="text" value={flightDraft.destination ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, destination: e.target.value }))}
+              placeholder="FCO or Rome" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Departure</label>
+            <input type="datetime-local" value={flightDraft.departure_at ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, departure_at: e.target.value }))}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Arrival</label>
+            <input type="datetime-local" value={flightDraft.arrival_at ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, arrival_at: e.target.value }))}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Confirmation #</label>
+            <input type="text" value={flightDraft.confirmation_number ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, confirmation_number: e.target.value }))}
+              placeholder="ABC123" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Seat</label>
+            <input type="text" value={flightDraft.seat ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, seat: e.target.value }))}
+              placeholder="12A" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Link to confirmation email (optional)</label>
+            <input type="url" value={flightDraft.email_link ?? ''}
+              onChange={e => setFlightDraft(p => ({ ...p, email_link: e.target.value }))}
+              placeholder="https://mail.google.com/mail/u/0/#search/..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100" />
+            <p className="text-xs text-zinc-500 mt-1">Paste the direct URL from your inbox (Gmail, Outlook, etc.) so you can jump back to the confirmation in one click.</p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">Notes (optional)</label>
+            <textarea value={flightDraft.notes ?? ''} rows={2}
+              onChange={e => setFlightDraft(p => ({ ...p, notes: e.target.value }))}
+              placeholder="Terminal 5, checked 1 bag, requested vegetarian meal"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 resize-none" />
+          </div>
+        </div>
+        {flightError && (
+          <p className="mt-3 text-sm text-rose-700">{flightError}</p>
+        )}
+        <div className="flex gap-3 justify-end mt-4">
+          <button onClick={closeFlightEditor} disabled={flightAdding}
+            className="px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={submitFlight} disabled={flightAdding}
+            className="px-4 py-2 text-sm font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg transition-all disabled:opacity-50 flex items-center gap-2">
+            {flightAdding && <Loader2 className="w-4 h-4 animate-spin" />}
+            {editingFlightId === 'new' ? 'Save flight' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+          <div className="flex items-start justify-between mb-3 gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-900">My Flights ✈️</h3>
+              <p className="text-sm text-zinc-500 mt-1">
+                Your own private flight details for this trip. Confirmation numbers, times, seats, and a link back to the confirmation email if you have one. Only you can see this.
+              </p>
+            </div>
+            {editingFlightId !== 'new' && (
+              <button onClick={() => openFlightEditor('new')}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg transition-all">
+                <Plus className="w-4 h-4" /> Add flight
+              </button>
+            )}
+          </div>
+        </div>
+
+        {editingFlightId === 'new' && renderEditor()}
+
+        {!flightsLoaded && !isMockTrip && (
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-zinc-500 text-sm">
+            Loading your flights…
+          </div>
+        )}
+
+        {flightsLoaded && flights.length === 0 && editingFlightId !== 'new' && (
+          <div className="bg-white rounded-2xl border border-dashed border-zinc-200 p-8 text-center">
+            <Plane className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+            <p className="text-zinc-600 text-sm">
+              No flights saved yet. Add your outbound, return, and any layover legs so they're easy to find on the road.
+            </p>
+          </div>
+        )}
+
+        {flights.map(f => editingFlightId === f.id ? (
+          <div key={f.id}>{renderEditor()}</div>
+        ) : (
+          <div key={f.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Plane className="w-4 h-4 text-sky-700 shrink-0" />
+                  <span className="font-semibold text-zinc-900">
+                    {f.airline || 'Flight'} {f.flight_number ? `· ${f.flight_number}` : ''}
+                  </span>
+                  {(f.origin || f.destination) && (
+                    <span className="text-sm text-zinc-600">
+                      {f.origin ?? '?'} → {f.destination ?? '?'}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-zinc-700">
+                  {f.departure_at && <div><span className="text-zinc-500">Departs:</span> {formatFlightTime(f.departure_at)}</div>}
+                  {f.arrival_at && <div><span className="text-zinc-500">Arrives:</span> {formatFlightTime(f.arrival_at)}</div>}
+                  {f.confirmation_number && <div><span className="text-zinc-500">Confirmation:</span> <span className="font-mono">{f.confirmation_number}</span></div>}
+                  {f.seat && <div><span className="text-zinc-500">Seat:</span> {f.seat}</div>}
+                </div>
+                {f.notes && <p className="mt-2 text-sm text-zinc-600 italic">{f.notes}</p>}
+                {f.email_link && (
+                  <a href={f.email_link} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 text-sm text-sky-700 hover:text-sky-900 underline underline-offset-2">
+                    Open confirmation email <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+              <div className="flex flex-col gap-1 shrink-0">
+                <button onClick={() => openFlightEditor(f.id)}
+                  className="p-2 text-zinc-500 hover:text-sky-800 hover:bg-sky-50 rounded-lg transition-all" aria-label="Edit flight">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => deleteFlight(f.id)}
+                  className="p-2 text-zinc-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-all" aria-label="Delete flight">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const renderDocumentsTab = () => {
     const all = [...documentTasks, ...customDocTasks];
@@ -1685,6 +2028,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         <div className="mb-8 bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 inline-flex gap-1 flex-wrap">
           {[
             { id: 'documents', label: 'Important Stuff', icon: FileText },
+            { id: 'flights', label: 'My Flights', icon: Plane },
             { id: 'logistics', label: 'Admin', icon: Briefcase },
             { id: 'packing', label: 'Pack This', icon: Backpack },
             // Hide Phrases tab for domestic US trips — no foreign language needed
@@ -1709,6 +2053,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
         <div>
           {activeTab === 'documents' && renderDocumentsTab()}
+          {activeTab === 'flights' && renderFlightsTab()}
           {activeTab === 'logistics' && renderLogisticsTab()}
           {activeTab === 'packing' && renderPackingTab()}
           {activeTab === 'phrases' && renderPhrasesTab()}

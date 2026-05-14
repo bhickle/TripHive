@@ -363,6 +363,71 @@ export type Database = {
         }
         Relationships: []
       }
+      flight_bookings: {
+        Row: {
+          airline: string | null
+          arrival_at: string | null
+          confirmation_number: string | null
+          created_at: string
+          departure_at: string | null
+          destination: string | null
+          details: Json
+          email_link: string | null
+          flight_number: string | null
+          id: string
+          notes: string | null
+          origin: string | null
+          seat: string | null
+          trip_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          airline?: string | null
+          arrival_at?: string | null
+          confirmation_number?: string | null
+          created_at?: string
+          departure_at?: string | null
+          destination?: string | null
+          details?: Json
+          email_link?: string | null
+          flight_number?: string | null
+          id?: string
+          notes?: string | null
+          origin?: string | null
+          seat?: string | null
+          trip_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          airline?: string | null
+          arrival_at?: string | null
+          confirmation_number?: string | null
+          created_at?: string
+          departure_at?: string | null
+          destination?: string | null
+          details?: Json
+          email_link?: string | null
+          flight_number?: string | null
+          id?: string
+          notes?: string | null
+          origin?: string | null
+          seat?: string | null
+          trip_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flight_bookings_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_messages: {
         Row: {
           content: string
