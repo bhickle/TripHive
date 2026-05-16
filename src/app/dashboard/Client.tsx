@@ -694,7 +694,7 @@ export default function DashboardPage() {
               (since each completed trip is a place visited); Days → same
               completed-filter view plus a playful "≈ N hours" subtitle so the
               number reads as something tangible rather than abstract. */}
-          <div className="grid grid-cols-3 gap-3 md:gap-6 mb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-6 mb-12">
             <Link
               href="/trips"
               title="See all your trips"

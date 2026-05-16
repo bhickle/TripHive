@@ -1434,7 +1434,7 @@ function TripBuilderPage() {
                       </div>
 
                       {/* City cards grid */}
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {REGION_DESTINATIONS[selectedRegion].cities.map((city) => (
                           <button
                             key={city.name}
@@ -1615,7 +1615,7 @@ function TripBuilderPage() {
                         Trip Length
                       </label>
                       <p className="text-xs text-zinc-400 mb-3">How many days are you thinking?</p>
-                      <div className="grid grid-cols-5 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                         {[3, 5, 7, 10, 14].map((days) => {
                           // Only lock buttons once we know the real tier — never
                           // lock during the loading window (entitlementsReady=false).
@@ -2424,7 +2424,7 @@ function TripBuilderPage() {
                     Your pace
                   </label>
                   <p className="text-xs text-zinc-400 mb-4">How packed do you like your days?</p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {([
                       { value: 'relaxed',  label: 'Relaxed',  hint: 'A few stops, lots of downtime' },
                       { value: 'balanced', label: 'Balanced', hint: 'Mix of plans + open time' },

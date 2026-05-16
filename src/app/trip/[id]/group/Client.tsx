@@ -2853,7 +2853,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         )}
 
         {!dataLoading && activeTab === 'chat' && (
-          <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+          // Height needs to give the input bar room without trapping content
+          // off-screen on short mobile viewports. The previous min-h-[500px]
+          // override forced 500px even when the viewport was 600px — leaving
+          // the input below the fold. New formula: shorter calc on small
+          // screens (-140px to account for the smaller header + tabs), then
+          // grow on md+. Drop the min-h floor entirely; the flex column with
+          // overflow-y-auto handles short message lists naturally.
+          <div className="flex flex-col h-[calc(100vh-140px)] md:h-[calc(100vh-220px)] md:min-h-[500px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
             <div className="flex-1 overflow-y-auto px-4 py-4 bg-white" onClick={() => setShowReactionPicker(null)}>
               {chatMessages.length === 0 && (
                 // Empty state: without this, the white area + below-fold input

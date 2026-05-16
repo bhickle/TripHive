@@ -425,7 +425,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   <p className="text-zinc-600">{tripData.title}</p>
 
                   {/* Meta Info */}
-                  <div className="grid grid-cols-3 gap-4 mt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                     <div className="flex items-center space-x-2 text-zinc-600">
                       <Calendar className="w-4 h-4 text-sky-700" />
                       <span className="text-sm">{new Date(tripData.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}-{new Date(tripData.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>

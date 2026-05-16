@@ -1174,7 +1174,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           {documentTasks.map((task: PrepTask, index: number) => (
             <div key={task.id} className={`flex items-center gap-4 px-6 py-4 group ${index !== documentTasks.length - 1 ? 'border-b border-zinc-100' : ''} ${completedTasks.has(task.id) ? 'bg-zinc-50' : ''}`}>
-              <button onClick={() => toggleDocTask(task.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+              <button onClick={() => toggleDocTask(task.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-11 h-11 -m-2.5">
                 {completedTasks.has(task.id) ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
               <div className="flex-1 min-w-0">
@@ -1210,7 +1210,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           ))}
           {customDocTasks.map((task) => (
             <div key={task.id} className={`flex items-center gap-4 px-6 py-4 border-t border-zinc-100 group ${task.completed ? 'bg-zinc-50' : ''}`}>
-              <button onClick={() => setCustomDocTasks(prev => prev.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+              <button onClick={() => setCustomDocTasks(prev => prev.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-11 h-11 -m-2.5">
                 {task.completed ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
               <div className="flex-1 min-w-0">
@@ -1282,7 +1282,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                       const isPacked = packedSet.has(item.id);
                       return (
                         <div key={item.id} className="flex items-center gap-4 px-6 py-4 hover:bg-zinc-50 transition-colors group">
-                          <button onClick={() => toggleFn(item.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+                          <button onClick={() => toggleFn(item.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-11 h-11 -m-2.5">
                             {isPacked ? <CheckboxChecked /> : <CheckboxEmpty />}
                           </button>
                           <div className="flex-1">
@@ -1540,7 +1540,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                     {souvenirItems.map((item, idx) => (
                       <div key={item.id} className={`flex items-center gap-4 px-5 py-4 hover:bg-zinc-50 transition-colors group ${idx > 0 ? 'border-t border-zinc-100' : ''}`}>
                         <button onClick={() => toggleSouvenirPurchased(item.id, item.purchased)}
-                          className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+                          className="flex-shrink-0 focus:outline-none flex items-center justify-center w-11 h-11 -m-2.5">
                           {item.purchased ? <CheckboxChecked /> : <CheckboxEmpty />}
                         </button>
                         <div className="flex-1 min-w-0">
@@ -1616,7 +1616,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           {logisticsTasks.map((task: PrepTask, index: number) => (
             <div key={task.id} className={`flex items-center gap-4 px-6 py-4 group ${index !== logisticsTasks.length - 1 ? 'border-b border-zinc-100' : ''} ${completedTasks.has(task.id) ? 'bg-zinc-50' : ''}`}>
-              <button onClick={() => toggleDocTask(task.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+              <button onClick={() => toggleDocTask(task.id)} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-11 h-11 -m-2.5">
                 {completedTasks.has(task.id) ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
               <div className="flex-1 min-w-0">
@@ -1652,7 +1652,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           ))}
           {customLogTasks.map((task) => (
             <div key={task.id} className={`flex items-center gap-4 px-6 py-4 border-t border-zinc-100 group ${task.completed ? 'bg-zinc-50' : ''}`}>
-              <button onClick={() => setCustomLogTasks(prev => prev.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-6 h-6">
+              <button onClick={() => setCustomLogTasks(prev => prev.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))} className="flex-shrink-0 focus:outline-none flex items-center justify-center w-11 h-11 -m-2.5">
                 {task.completed ? <CheckboxChecked /> : <CheckboxEmpty />}
               </button>
               <div className="flex-1 min-w-0">
