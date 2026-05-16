@@ -86,7 +86,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     });
   }
 
-  const verificationMap = await runVerificationPass(allVenues, cityHint, apiKey);
+  const verificationMap = await runVerificationPass(allVenues, cityHint, apiKey, supabase);
 
   // Persist into itinerary.meta.venueVerification, preserving any other
   // meta keys (title, hotelSuggestions, departureInfo, practicalNotes,

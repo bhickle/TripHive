@@ -23,6 +23,13 @@
  */
 
 import type { ItineraryDay, Activity } from '@/lib/types';
+import type { createAdminClient } from '@/lib/supabase/admin';
+
+/** Cache TTL — entries older than this are treated as a miss on read AND
+ *  swept by the daily expire-venue-cache cron. 30 days is the right balance:
+ *  long enough that popular destinations dramatically cut Places spend,
+ *  short enough that a venue that closed last month shows up correctly. */
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type VerificationStatus =
   | 'operational'
@@ -249,24 +256,93 @@ async function verifyVenueStatus(
 }
 
 /**
+ * Build the canonical cache key for a (venue, city) pair. Lower-cased,
+ * space-collapsed, joined with a '|' disambiguator so "joe diner|orlando"
+ * never collides with "joe|diner orlando".
+ */
+function buildCacheKey(venueName: string, city: string): string {
+  return `${normalizeVenueKey(venueName)}|${normalizeVenueKey(city)}`;
+}
+
+/**
  * Run verification across the full venue list with a small concurrency
- * cap. Returns the persistence-ready map.
+ * cap. Reads from venue_verification_cache first; only Places-calls the
+ * misses; upserts new results so future trips reuse them.
+ *
+ * The cache is global (not user-scoped) because business_status is a
+ * property of the venue, not the trip — Joe's Diner is either operational
+ * or not, regardless of who's asking. Popular destinations (Orlando, Paris,
+ * Tokyo) accumulate cache hits quickly and drop the marginal cost of
+ * verification to near-zero after the first few trips.
  */
 export async function runVerificationPass(
   venues: NamedVenue[],
   cityHint: string,
   apiKey: string,
+  supabase: ReturnType<typeof createAdminClient> | null = null,
   concurrency = 8,
 ): Promise<VenueVerificationMap> {
   const entries: Record<string, VenueVerificationEntry> = {};
   const counts = { total: 0, operational: 0, closedPermanently: 0, closedTemporarily: 0, unknown: 0 };
   const checkedAt = new Date().toISOString();
+  let cacheHits = 0;
+  let cacheMisses = 0;
 
-  // Simple parallelism: chunk the venues array and Promise.all each chunk.
-  // Google's quota is generous; concurrency=8 keeps total wall time low
-  // without risking 429s on small accounts.
-  for (let i = 0; i < venues.length; i += concurrency) {
-    const chunk = venues.slice(i, i + concurrency);
+  // ── Step 1: bulk-read the cache ──────────────────────────────────────────
+  // Build cache keys for every venue and read them all in one SELECT IN.
+  // Then filter to entries that are still fresh (< CACHE_TTL_MS old).
+  const cacheKeys = venues.map(v => buildCacheKey(v.name, cityHint));
+  const cached: Record<string, { status: VerificationStatus; matched_name: string | null; checked_at: string }> = {};
+  if (supabase && cacheKeys.length > 0) {
+    const { data: cacheRows } = await supabase
+      .from('venue_verification_cache')
+      .select('cache_key, status, matched_name, checked_at')
+      .in('cache_key', cacheKeys);
+    const now = Date.now();
+    for (const row of cacheRows ?? []) {
+      const age = now - new Date(row.checked_at).getTime();
+      if (age < CACHE_TTL_MS) {
+        cached[row.cache_key] = {
+          status: row.status as VerificationStatus,
+          matched_name: row.matched_name,
+          checked_at: row.checked_at,
+        };
+      }
+      // Stale entries fall through to Places-call again; the daily cron
+      // will eventually delete them. Don't delete inline — adds latency.
+    }
+  }
+
+  // ── Step 2: split into hits vs misses ────────────────────────────────────
+  const toVerify: NamedVenue[] = [];
+  for (const venue of venues) {
+    const key = normalizeVenueKey(venue.name);
+    const cacheKey = buildCacheKey(venue.name, cityHint);
+    const hit = cached[cacheKey];
+    if (hit) {
+      cacheHits++;
+      entries[key] = {
+        status: hit.status,
+        dayNumber: venue.dayNumber,
+        category: venue.category,
+        matchedName: hit.matched_name ?? undefined,
+        checkedAt: hit.checked_at,
+      };
+      counts.total++;
+      if (hit.status === 'operational') counts.operational++;
+      else if (hit.status === 'closed_permanently') counts.closedPermanently++;
+      else if (hit.status === 'closed_temporarily') counts.closedTemporarily++;
+      else counts.unknown++;
+    } else {
+      cacheMisses++;
+      toVerify.push(venue);
+    }
+  }
+
+  // ── Step 3: Places-call the misses, concurrency-capped ───────────────────
+  const newRows: Array<{ cache_key: string; venue_name: string; city: string; status: VerificationStatus; matched_name: string | null }> = [];
+  for (let i = 0; i < toVerify.length; i += concurrency) {
+    const chunk = toVerify.slice(i, i + concurrency);
     const results = await Promise.all(
       chunk.map(async v => ({ venue: v, result: await verifyVenueStatus(v, cityHint, apiKey) })),
     );
@@ -284,8 +360,34 @@ export async function runVerificationPass(
       else if (result.status === 'closed_permanently') counts.closedPermanently++;
       else if (result.status === 'closed_temporarily') counts.closedTemporarily++;
       else counts.unknown++;
+
+      // Stage for bulk upsert. Even 'unknown' results are cached — they
+      // mean "Places can't find this with high confidence" and that fact
+      // won't change for a stable AI-generated venue name.
+      newRows.push({
+        cache_key: buildCacheKey(venue.name, cityHint),
+        venue_name: venue.name,
+        city: cityHint,
+        status: result.status,
+        matched_name: result.matchedName ?? null,
+      });
     }
   }
+
+  // ── Step 4: persist new rows to the cache ────────────────────────────────
+  if (supabase && newRows.length > 0) {
+    const { error } = await supabase
+      .from('venue_verification_cache')
+      .upsert(newRows, { onConflict: 'cache_key' });
+    if (error) {
+      // Cache write failure is non-fatal — verification results are still
+      // returned to the caller. Worst case: next trip re-pays the Places
+      // call. Log so we can spot if it persists.
+      console.warn('[verifyVenues] cache upsert failed:', error.message);
+    }
+  }
+
+  console.log(`[verifyVenues] cache: ${cacheHits} hits / ${cacheMisses} misses (saved ~$${(cacheHits * 0.032).toFixed(2)})`);
 
   return { entries, lastRunAt: checkedAt, counts };
 }

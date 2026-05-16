@@ -35,7 +35,7 @@ const featureRows: {
   { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   // AI
   { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
-  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '10 / month', trip_pass: '30 per pass', explorer: '100 / month', nomad: '250 / month', nomadHighlight: true },
+  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '25 / month (~1 build)', trip_pass: '30 per pass (~1 build)', explorer: '100 / month (~4 builds)', nomad: '250 / month (~10 builds)', nomadHighlight: true },
   { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
@@ -66,11 +66,11 @@ const faqs = [
   },
   {
     q: 'What are AI credits and what do they cost?',
-    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 10 credits. Regenerating or tweaking it costs 5. Parsing a transport confirmation costs 1. Most people never come close to their monthly limit — the cap is a backstop for edge cases, not something you'll notice in normal use. Credits refresh each billing period.",
+    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 25 credits. Regenerating or tweaking it costs 20. Adding a single day costs 3. Lightweight actions like browsing Discover, generating hotel ideas, or parsing a transport confirmation cost 1 credit each. Free tier (25 credits/mo) covers 1 build. Explorer (100/mo) covers about 4 builds. Nomad (250/mo) covers about 10 builds. Credits refresh on the first of each month.",
   },
   {
     q: 'What happens if I use all my AI credits?',
-    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you 250 credits — enough for even the most enthusiastic planner.",
+    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you enough credits for about 10 full builds a month — plenty for even the most enthusiastic planner.",
   },
   {
     q: 'Can I switch plans?',
@@ -363,7 +363,7 @@ function PricingPageInner() {
                 'Unlimited active trips',
                 'Up to 4 travelers',
                 'Manual itinerary builder',
-                '10 AI credits / month',
+                '25 AI credits / month (1 full build)',
                 'Group chat',
                 'Photo gallery',
                 'Destination wishlist (save & organize)',
@@ -403,7 +403,7 @@ function PricingPageInner() {
             <ul className="space-y-3 flex-1">
               {[
                 'Up to 6 travelers (+ add-ons)',
-                '30 AI credits for this trip',
+                '30 AI credits for this trip (1 build + tweaks)',
                 'AI itinerary generation',
                 'Transport confirmation parser',
                 'Group expense tracking (manual splits)',
@@ -457,7 +457,7 @@ function PricingPageInner() {
               {[
                 'Plan trips all year long',
                 'Up to 8 travelers per trip',
-                '100 AI credits / month',
+                '100 AI credits / month (~4 full builds)',
                 'AI itinerary generation — up to 10 days',
                 'Transport confirmation parser',
                 'Group expense tracking (manual splits)',
@@ -512,7 +512,7 @@ function PricingPageInner() {
                 { text: 'Everything in Explorer', highlight: false },
                 { text: 'Up to 15 travelers per trip', highlight: false },
                 { text: 'AI itineraries up to 14 days', highlight: true },
-                { text: '250 AI credits / month', highlight: true },
+                { text: '250 AI credits / month (~10 full builds)', highlight: true },
                 { text: 'AI receipt scanning (scan to split)', highlight: true },
                 { text: 'AI packing list (destination-specific)', highlight: true },
                 { text: 'AI travel phrasebook', highlight: true },
@@ -548,10 +548,10 @@ function PricingPageInner() {
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
             {[
-              { action: 'Generate itinerary', cost: 10, icon: '🗺️' },
-              { action: 'Tweak itinerary', cost: 5, icon: '✏️' },
-              { action: 'Parse confirmation', cost: 1, icon: '📧' },
-              { action: 'Activity suggestions', cost: 2, icon: '💡' },
+              { action: 'Generate itinerary', cost: 25, icon: '🗺️' },
+              { action: 'Tweak itinerary', cost: 20, icon: '✏️' },
+              { action: 'Add a day', cost: 3, icon: '📅' },
+              { action: 'Browse Discover', cost: 1, icon: '🌍' },
             ].map(item => (
               <div key={item.action} className="bg-white border border-zinc-100 rounded-2xl p-4">
                 <p className="text-2xl mb-2">{item.icon}</p>

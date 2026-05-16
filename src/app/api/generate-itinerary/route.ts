@@ -1585,17 +1585,18 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Credit gate ──────────────────────────────────────────────────────────
-  // Charge 10 credits per generate-itinerary call (the AI_CREDIT_COSTS
-  // entry). Free tier (10 credits/mo) gets exactly one generation per
-  // month. The increment happens just before the SSE 'done' event — if
-  // the stream errors out mid-way, no charge.
+  // Charge 25 credits per generate-itinerary call (the AI_CREDIT_COSTS
+  // entry, repriced 2026-05-16 to match real cost incl. post-gen Places
+  // verification). Free tier (25 credits/mo) gets exactly one generation
+  // per month. The increment happens just before the SSE 'done' event —
+  // if the stream errors out mid-way, no charge.
   //
   // KNOWN LIMITATION: client-side chunking for long trips and multi-city
   // calls this route once per chunk, so a 3-city trip = 3 separate
-  // generate-itinerary calls = 30 credits total. Free users with multi-
+  // generate-itinerary calls = 75 credits total. Free users with multi-
   // city would 402 on the second chunk. Multi-city is a paid feature
   // anyway (canSplitTracks gate runs upstream), so this is mostly
-  // theoretical for free tier — but explorer (100/mo) and nomad (300/mo)
+  // theoretical for free tier — but explorer (100/mo) and nomad (250/mo)
   // can absorb the per-chunk charge fine.
   const credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate');
   if (!credits.ok) return credits.response;

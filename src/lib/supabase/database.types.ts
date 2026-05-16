@@ -1340,6 +1340,33 @@ export type Database = {
           },
         ]
       }
+      venue_verification_cache: {
+        Row: {
+          cache_key: string
+          checked_at: string
+          city: string
+          matched_name: string | null
+          status: string
+          venue_name: string
+        }
+        Insert: {
+          cache_key: string
+          checked_at?: string
+          city: string
+          matched_name?: string | null
+          status: string
+          venue_name: string
+        }
+        Update: {
+          cache_key?: string
+          checked_at?: string
+          city?: string
+          matched_name?: string | null
+          status?: string
+          venue_name?: string
+        }
+        Relationships: []
+      }
       vote_options: {
         Row: {
           display_order: number

@@ -68,7 +68,7 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
   no_ai: {
     reason: 'no_ai',
     headline: 'Want more AI itineraries?',
-    body: 'Free plans include one AI itinerary build per month. Upgrade to Explorer for 10 builds a month all year, or grab a Trip Pass just for this trip.',
+    body: 'Free plans include one AI itinerary build per month. Upgrade to Explorer for 4 builds a month all year, or grab a Trip Pass just for this trip.',
     ctaLabel: 'See plans',
   },
   ai_credits_empty: {
@@ -76,13 +76,13 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
     // Body is overridden per-tier in getUpgradePrompt — this is the free-tier
     // fallback if the override isn't reached.
     headline: "You're out of AI credits for this month",
-    body: "Your credits refresh at the start of next month. Upgrade to Explorer for 100 credits a month, or Nomad for 250.",
+    body: "Your credits refresh at the start of next month. Upgrade to Explorer for 4 builds a month, or Nomad for 10.",
     ctaLabel: 'See plans',
   },
   ai_credits_low: {
     reason: 'ai_credits_low',
     headline: 'Running low on AI credits',
-    body: "You're getting close to your monthly limit. Nomad gives you 250 credits — plenty for even the busiest planner.",
+    body: "You're getting close to your monthly limit. Nomad gives you enough credits for 10 builds a month — plenty for even the busiest planner.",
     ctaLabel: 'See Nomad',
   },
   trip_limit: {
@@ -237,7 +237,7 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
       if (tier === 'nomad') {
         return {
           ...base,
-          headline: "You've used all 250 of your Nomad credits this month",
+          headline: "You've used your Nomad credits for this month",
           body: 'Your credits refresh at the start of next month. Until then, you can keep editing existing trips — only new AI builds are paused.',
           ctaLabel: 'Got it',
           suggestedTier,
@@ -247,8 +247,8 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
       if (tier === 'explorer') {
         return {
           ...base,
-          headline: "You've used your 100 Explorer credits this month",
-          body: 'Your credits refresh at the start of next month. Nomad gets 250 credits a month if you want to keep building now.',
+          headline: "You've used your Explorer credits for this month",
+          body: 'Your credits refresh at the start of next month. Nomad gets enough credits for ~10 builds a month if you want to keep building now.',
           ctaLabel: 'See Nomad',
           suggestedTier: 'nomad',
         };

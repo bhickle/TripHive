@@ -64,40 +64,60 @@ export interface AiCredits {
   refreshAt: string;
 }
 
-/** Cost of each AI action in credits */
+/** Cost of each AI action in credits.
+ *
+ * Pricing model: 1 credit ≈ $0.04 TripCoord cost. Costs revised 2026-05-16
+ * to match real spend after the post-gen venue verification feature shipped.
+ * The cost driver is the build: ~$0.40 Anthropic + ~$0.20 Places-list fetch
+ * + ~$1.40 venue verification = ~$2.00 per build. At $0.04/credit that's
+ * 25 credits per build (was 10, severely underpriced).
+ *
+ * Per-tier build counts at current credit caps (after this repricing):
+ *   Free      —  25 cr →  1 build/mo (free tier was bumped 10→25 cr to
+ *                          preserve the "1 build/mo" promise)
+ *   Trip Pass —  30 cr →  1 build + 5 cr in add-ons per pass
+ *   Explorer  — 100 cr →  4 builds/mo
+ *   Nomad     — 250 cr → 10 builds/mo
+ *
+ * Discover-style lookup actions (generate_discover, generate_hotels, etc.)
+ * stay at 1 credit because they're lightweight Haiku calls that build on
+ * existing trip data — the user shouldn't feel penalized for exploration.
+ */
 export const AI_CREDIT_COSTS = {
-  itinerary_generate: 10,
-  itinerary_regenerate: 5,
+  // Full itinerary build. Charged at the END of generation (only if
+  // daysEmitted > 0) so failed builds don't burn credits.
+  itinerary_generate: 25,
+  // Full regenerate (same flow, same cost). Was 5 — significantly
+  // underpriced. The work and the Places verification are identical to
+  // a fresh build; charge accordingly.
+  itinerary_regenerate: 20,
   transport_parse: 1,
   activity_suggest: 2,
-  // PDF / text itinerary parse via /api/parse-itinerary. Charged 3 credits
-  // because PDFs ship as document blocks — a 5–10 page PDF burns ~10–20K
-  // input tokens before output, costing ~$0.10–0.15 per parse. 1 credit was
-  // 5–10× underpriced relative to other actions (where 1 credit ≈ $0.01).
-  // Free tier (10/mo) now gets ~3 parses, explorer ~33, nomad ~83.
+  // PDF / text itinerary parse via /api/parse-itinerary. 3 credits because
+  // PDFs ship as document blocks (~10–20K input tokens, ~$0.10–0.15 per
+  // parse). Roughly aligned to $0.04/credit.
   parse_itinerary: 3,
-  // Single-day AI generation via /api/trips/[id]/add-day. Roughly 1/Nth of
-  // a full itinerary_generate; charged 2 credits as a round number — free
-  // tier gets ~5 add-day calls per month.
-  add_day: 2,
-  // Receipt OCR via /api/parse-receipt — Opus + vision, ~500 output tokens
-  // plus the image itself (~$0.04–0.06 each). 1 credit ≈ $0.01.
+  // Single-day AI generation via /api/trips/[id]/add-day. One day costs
+  // roughly 1/Nth of a full build plus its own slice of verification.
+  // 3 credits keeps add-day cheap enough that organizers extending a trip
+  // by a day or two don't feel penalized.
+  add_day: 3,
+  // Receipt OCR via /api/parse-receipt — Opus + vision, ~$0.04–0.06.
   parse_receipt: 1,
-  // /api/generate-hotels — Haiku, ~800 output tokens (~$0.02). Cheap.
+  // /api/generate-hotels — Haiku, ~800 output tokens (~$0.02). Cheap
+  // lookup — kept at 1 so exploration isn't penalized.
   generate_hotels: 1,
-  // /api/generate-discover — Haiku, 4096-token output (~$0.05). Cheap.
+  // /api/generate-discover — Haiku, 4096-token output (~$0.05). Builds on
+  // existing itinerary data; kept at 1 deliberately so users browse freely.
   generate_discover: 1,
-  // /api/generate-layover — Sonnet, 6000-token output (~$0.10). Medium.
+  // /api/generate-layover — Sonnet, 6000-token output (~$0.10).
   generate_layover: 2,
   // /api/generate-packing — Haiku, 2048-token output (~$0.03). Nomad-only.
   generate_packing: 1,
   // /api/generate-phrases — Sonnet, 8192-token output (~$0.15). Nomad-only.
-  generate_phrases: 2,
-  // /api/enrich-itinerary — generates the per-day sidebar arrays
-  // (photoSpots, foodieTips, nightlifeHighlights, shoppingGuide,
-  // priorityHighlights, destinationTip) for a single day. Used to fill
-  // in highlights on manually-built trips, or to refresh stale ones.
-  // Haiku, ~1500 output tokens/day (~$0.02). Cheap.
+  // Bumped 2→4 to match real cost.
+  generate_phrases: 4,
+  // /api/enrich-itinerary — Haiku, ~1500 output tokens/day (~$0.02). Cheap.
   enrich_day: 1,
 } as const;
 
@@ -130,11 +150,13 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
 }> = {
   free: {
     // Trip count is no longer the constraint — AI credits are.
-    // Free users can plan as many trips as they like; the 10-credit
+    // Free users can plan as many trips as they like; the 25-credit
     // monthly allowance (= 1 itinerary build) is the natural throttle.
+    // Bumped from 10 to 25 on 2026-05-16 when itinerary_generate was
+    // repriced 10→25 cr to match real Anthropic + Places verify cost.
     activeTrips: 999,
     travelersPerTrip: 4,
-    aiCreditsPerMonth: 10,
+    aiCreditsPerMonth: 25,
     maxTripDays: 7,
     maxBookedHotels: 1,
     canUseAI: true,
