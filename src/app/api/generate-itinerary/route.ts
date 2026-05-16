@@ -250,6 +250,11 @@ interface PlacesApiNewResult {
   regularOpeningHours?: {
     weekdayDescriptions?: string[];
   };
+  /** Google Places business status. We filter to OPERATIONAL only — closed
+   *  venues would otherwise leak into the prompt with stale opening hours
+   *  attached and the AI would happily schedule them. Possible values:
+   *  OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY. */
+  businessStatus?: string;
 }
 
 const PRICE_LEVEL_MAP: Record<string, string> = {
@@ -282,6 +287,7 @@ async function fetchDestinationPlaces(
               'places.priceLevel',
               'places.types',
               'places.regularOpeningHours.weekdayDescriptions',
+              'places.businessStatus',
             ].join(','),
           },
           body: JSON.stringify({ textQuery: query, maxResultCount: 20 }),
@@ -293,7 +299,21 @@ async function fetchDestinationPlaces(
         return [];
       }
 
-      const raw: GooglePlace[] = (data.places as PlacesApiNewResult[]).map(p => ({
+      // businessStatus filter runs FIRST: Places returns CLOSED_PERMANENTLY
+      // venues with their last-known hours attached. If we don't drop them
+      // here, the AI sees a perfectly-formatted "open Tue–Sun 11am–10pm"
+      // restaurant in the list and confidently schedules it for dinner.
+      // OPERATIONAL is the only status we accept; CLOSED_TEMPORARILY is
+      // also dropped because temp closures often outlast the trip window
+      // (renovation, lease dispute, etc.) and re-open dates are unreliable.
+      const operationalOnly = (data.places as PlacesApiNewResult[])
+        .filter(p => !p.businessStatus || p.businessStatus === 'OPERATIONAL');
+      const droppedClosed = data.places.length - operationalOnly.length;
+      if (droppedClosed > 0) {
+        console.log(`[fetchDestinationPlaces] "${query}": dropped ${droppedClosed} closed venues`);
+      }
+
+      const raw: GooglePlace[] = operationalOnly.map(p => ({
         name: p.displayName?.text ?? '',
         address: p.formattedAddress ?? '',
         placeId: p.id ?? '',

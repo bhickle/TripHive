@@ -479,30 +479,36 @@ export type Database = {
           created_at: string
           created_by_name: string
           id: string
+          max_picks: number | null
           result: string | null
           status: string
           title: string
           trip_id: string
+          vote_type: string
         }
         Insert: {
           closes_at?: string | null
           created_at?: string
           created_by_name?: string
           id?: string
+          max_picks?: number | null
           result?: string | null
           status?: string
           title: string
           trip_id: string
+          vote_type?: string
         }
         Update: {
           closes_at?: string | null
           created_at?: string
           created_by_name?: string
           id?: string
+          max_picks?: number | null
           result?: string | null
           status?: string
           title?: string
           trip_id?: string
+          vote_type?: string
         }
         Relationships: [
           {

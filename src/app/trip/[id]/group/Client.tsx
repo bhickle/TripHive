@@ -7,7 +7,21 @@ import { groupMembers as mockGroupMembers, expenses as mockExpenses, messages as
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }
-interface Vote { id: string; title: string; status: 'open' | 'closed'; closesAt?: string; options: VoteOption[]; }
+interface Vote {
+  id: string;
+  title: string;
+  status: 'open' | 'closed';
+  closesAt?: string;
+  options: VoteOption[];
+  /** 'single' = one pick per user (default); 'multi' = users can pick multiple. */
+  voteType?: 'single' | 'multi';
+  /** Multi-pick cap. null/undefined = no cap. */
+  maxPicks?: number | null;
+  /** Distinct users who've cast at least one pick on this poll. */
+  distinctVoterCount?: number;
+  /** Option_ids the current user has picked on this poll (server-supplied). */
+  userPicks?: string[];
+}
 interface GroupMemberData { id: string; name: string; email?: string | null; avatarUrl?: string | null; role: string; joinedAt?: string; interests?: string[]; preferencesSubmittedAt?: string | null; }
 import {
   UserPlus,
@@ -177,6 +191,15 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         }
         if (votesRes.status === 'fulfilled' && votesRes.value?.votes) {
           setVotes(votesRes.value.votes);
+          // Hydrate the current user's picks from the server so "voted"
+          // styling survives a page reload. Without this, the user sees
+          // the right vote counts but no indication of which option(s)
+          // they themselves picked.
+          const picksByVote: Record<string, string[]> = {};
+          for (const v of votesRes.value.votes as Vote[]) {
+            if (v.userPicks && v.userPicks.length > 0) picksByVote[v.id] = v.userPicks;
+          }
+          setUserVotes(picksByVote);
         }
         if (messagesRes.status === 'fulfilled' && messagesRes.value?.messages) {
           // Shape returned by /api/trips/[id]/messages — reactions is the
@@ -688,36 +711,63 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [isSending, setIsSending] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
-  // Track which option current user voted for: voteId → optionId
-  const [userVotes, setUserVotes] = useState<Record<string, string>>({});
+  // Track which options the current user has picked, per vote.
+  // Single-pick votes: the array has 0 or 1 entries (mirrors radio behavior).
+  // Multi-pick votes: the array tracks all picks, with max_picks enforced
+  // by the server on each toggle. Hydrated from server on initial load via
+  // the `userPicks` field returned by GET /group-votes.
+  const [userVotes, setUserVotes] = useState<Record<string, string[]>>({});
 
   const handleCastVote = async (voteId: string, optionId: string) => {
-    const prevOptionId = userVotes[voteId];
-    if (prevOptionId === optionId) return; // already voted this option
+    const vote = votes.find(v => v.id === voteId);
+    if (!vote || vote.status === 'closed') return;
+    const isMulti = vote.voteType === 'multi';
+    const currentPicks = userVotes[voteId] ?? [];
+    const alreadyPicked = currentPicks.includes(optionId);
+
+    // Single-pick: clicking the already-picked option is a no-op (matches
+    // existing UX — radio buttons don't deselect themselves).
+    // Multi-pick: clicking an already-picked option toggles it OFF.
+    if (!isMulti && alreadyPicked) return;
+    if (isMulti && !alreadyPicked && vote.maxPicks && currentPicks.length >= vote.maxPicks) {
+      setActionError(`You can pick at most ${vote.maxPicks} option${vote.maxPicks === 1 ? '' : 's'} on this poll.`);
+      setTimeout(() => setActionError(null), 4000);
+      return;
+    }
 
     // Capture pre-update state for rollback
     const prevVotes = votes;
     const prevUserVotes = userVotes;
 
-    // Optimistic update
-    setUserVotes(prev => ({ ...prev, [voteId]: optionId }));
+    // Compute optimistic next-picks and per-option delta
+    const nextPicks = isMulti
+      ? (alreadyPicked ? currentPicks.filter(id => id !== optionId) : [...currentPicks, optionId])
+      : [optionId];
+    const removedIds = currentPicks.filter(id => !nextPicks.includes(id));
+    const addedIds = nextPicks.filter(id => !currentPicks.includes(id));
+
+    setUserVotes(prev => ({ ...prev, [voteId]: nextPicks }));
     setVotes(prev => prev.map(v => {
       if (v.id !== voteId) return v;
       return {
         ...v,
         options: v.options.map(o => {
-          if (o.id === prevOptionId) return { ...o, votes: Math.max(0, o.votes - 1) };
-          if (o.id === optionId) return { ...o, votes: o.votes + 1 };
+          if (removedIds.includes(o.id)) return { ...o, votes: Math.max(0, o.votes - 1) };
+          if (addedIds.includes(o.id)) return { ...o, votes: o.votes + 1 };
           return o;
         }),
       };
     }));
+
     if (!isMockTrip) {
       try {
+        const payload = isMulti
+          ? { voteId, optionId, picked: !alreadyPicked }
+          : { voteId, optionId };
         const res = await fetch(`/api/trips/${params.id}/group-votes`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ voteId, optionId, prevOptionId: prevOptionId ?? null }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error('Vote failed');
         // Reconcile against the server's canonical counts. Catches
@@ -726,12 +776,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         // until Realtime caught up.
         const data = await res.json().catch(() => null);
         const serverCounts = data?.counts as Record<string, number> | undefined;
+        const serverVoterCount = data?.distinctVoterCount as number | undefined;
         if (serverCounts) {
           setVotes(prev => prev.map(v => {
             if (v.id !== voteId) return v;
             return {
               ...v,
               options: v.options.map(o => ({ ...o, votes: serverCounts[o.id] ?? 0 })),
+              ...(typeof serverVoterCount === 'number' ? { distinctVoterCount: serverVoterCount } : {}),
             };
           }));
         }
@@ -750,6 +802,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   useEscapeKey(() => setShowVoteModal(false), showVoteModal);
   const [voteQuestion, setVoteQuestion] = useState('');
   const [voteOptions, setVoteOptions] = useState(['', '', '']);
+  // Multi-pick controls for new polls. Off by default — single-pick is the
+  // common case (one decision, one winner). Toggle on for "pick your top 3
+  // restaurants for our 4-day stay" style asks.
+  const [voteAllowMulti, setVoteAllowMulti] = useState(false);
+  const [voteMaxPicksInput, setVoteMaxPicksInput] = useState<string>('');
 
   // Add Expense Modal
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
@@ -797,7 +854,17 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     const refetchVotes = async () => {
       try {
         const fresh = await fetch(`/api/trips/${params.id}/group-votes`).then(r => r.ok ? r.json() : null);
-        if (fresh?.votes) setVotes(fresh.votes);
+        if (fresh?.votes) {
+          setVotes(fresh.votes);
+          // Keep userVotes in sync after a Realtime tick too — otherwise a
+          // user who casts on device A wouldn't see the "voted" indicator
+          // update on device B after the broadcast.
+          const picksByVote: Record<string, string[]> = {};
+          for (const v of fresh.votes as Vote[]) {
+            if (v.userPicks && v.userPicks.length > 0) picksByVote[v.id] = v.userPicks;
+          }
+          setUserVotes(picksByVote);
+        }
       } catch { /* non-critical */ }
     };
 
@@ -2214,29 +2281,54 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   <div className="space-y-4">
                     <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Still Deciding</p>
                     {openVotes.map((vote) => {
+                      const isMulti = vote.voteType === 'multi';
                       const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
+                      // Voter count = distinct people who picked at least one option.
+                      // For single-pick: same as totalVotes. For multi-pick: usually
+                      // smaller, since one voter can produce several "votes".
+                      const voterCount = vote.distinctVoterCount ?? totalVotes;
+                      const myPicks = userVotes[vote.id] ?? [];
+                      // Bar % is meaningful for single-pick (share of all votes).
+                      // For multi-pick we show share-of-voters instead so each bar
+                      // can independently reach 100% if everyone picked it.
+                      const denominator = isMulti ? Math.max(1, voterCount) : Math.max(1, totalVotes);
                       return (
                         <div key={vote.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
                           <h4 className="font-bold text-zinc-900 text-base mb-1">{vote.title}</h4>
-                          {vote.closesAt && (
-                            <p className="text-xs text-zinc-400 mb-4">Closes {new Date(vote.closesAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
-                          )}
+                          <p className="text-xs text-zinc-400 mb-4">
+                            {vote.closesAt && <>Closes {new Date(vote.closesAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · </>}
+                            {isMulti
+                              ? <>{voterCount} voter{voterCount !== 1 ? 's' : ''} · pick up to {vote.maxPicks ?? vote.options.length}</>
+                              : <>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</>}
+                          </p>
                           <div className="space-y-3">
                             {vote.options.map((option) => {
-                              const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
-                              const isVoted = userVotes[vote.id] === option.id;
+                              const percentage = (option.votes / denominator) * 100;
+                              const isVoted = myPicks.includes(option.id);
                               return (
                                 <div key={option.id}>
                                   <div className="flex items-center justify-between mb-1.5 gap-2">
                                     <button
                                       onClick={() => handleCastVote(vote.id, option.id)}
-                                      className={`flex-1 text-left px-4 py-2 border rounded-xl transition-all text-sm font-medium ${
+                                      className={`flex-1 text-left px-4 py-2 border rounded-xl transition-all text-sm font-medium flex items-center gap-2 ${
                                         isVoted
                                           ? 'bg-sky-800 border-sky-800 text-white'
                                           : 'border-zinc-200 hover:border-sky-400 text-zinc-900 hover:bg-sky-50'
                                       }`}
                                     >
-                                      {isVoted && '✓ '}{option.label}
+                                      {/* Visual affordance: square for multi-pick
+                                          (checkbox metaphor), circle for single
+                                          (radio). Filled when picked. */}
+                                      {isMulti ? (
+                                        <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${isVoted ? 'bg-white border-white text-sky-800' : 'border-zinc-300'}`}>
+                                          {isVoted && <CheckCircle2 className="w-3 h-3" strokeWidth={3} />}
+                                        </span>
+                                      ) : (
+                                        <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${isVoted ? 'border-white bg-white' : 'border-zinc-300'}`}>
+                                          {isVoted && <span className="block w-2 h-2 m-[3px] rounded-full bg-sky-800" />}
+                                        </span>
+                                      )}
+                                      <span className="flex-1">{option.label}</span>
                                     </button>
                                     <span className="text-xs font-semibold text-zinc-400 flex-shrink-0">{option.votes}</span>
                                   </div>
@@ -2248,7 +2340,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                             })}
                           </div>
                           <span className="inline-block text-xs font-semibold px-3 py-1 rounded-full mt-4 bg-emerald-50 text-emerald-700 border border-emerald-100">
-                            Open · tap an option to vote
+                            {isMulti
+                              ? `Open · pick ${vote.maxPicks ? `up to ${vote.maxPicks}` : 'as many as you want'}`
+                              : 'Open · tap an option to vote'}
                           </span>
                         </div>
                       );
@@ -2260,15 +2354,22 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   <div className="space-y-4">
                     <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">The Verdict</p>
                     {closedVotes.map((vote) => {
+                      const isMulti = vote.voteType === 'multi';
                       const totalVotes = vote.options.reduce((sum, o) => sum + o.votes, 0);
                       const maxVotes = Math.max(...vote.options.map(o => o.votes));
+                      const voterCount = vote.distinctVoterCount ?? totalVotes;
+                      const denominator = isMulti ? Math.max(1, voterCount) : Math.max(1, totalVotes);
                       return (
                         <div key={vote.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
                           <h4 className="font-bold text-zinc-900 text-base mb-1">{vote.title}</h4>
-                          <p className="text-xs text-zinc-400 mb-4">{totalVotes} total vote{totalVotes !== 1 ? 's' : ''}</p>
+                          <p className="text-xs text-zinc-400 mb-4">
+                            {isMulti
+                              ? <>{voterCount} voter{voterCount !== 1 ? 's' : ''} · {totalVotes} pick{totalVotes !== 1 ? 's' : ''}</>
+                              : <>{totalVotes} total vote{totalVotes !== 1 ? 's' : ''}</>}
+                          </p>
                           <div className="space-y-3">
                             {vote.options.map((option) => {
-                              const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
+                              const percentage = (option.votes / denominator) * 100;
                               const isWinner = option.votes === maxVotes && maxVotes > 0;
                               return (
                                 <div key={option.id}>
@@ -2583,10 +2684,44 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     )}
                   </div>
 
+                  {/* Multi-pick toggle. Off by default; when on, voters pick
+                       multiple options (great for "pick our 3 dinners for the
+                       Rome leg"-style polls). max_picks is optional — left
+                       blank means no cap beyond the option count itself. */}
+                  <div className="mb-4 p-3 bg-zinc-50 rounded-lg border border-zinc-200">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-900">Let voters pick multiple</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">Good for "pick your top N" or multi-day stops.</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={voteAllowMulti}
+                        onChange={(e) => setVoteAllowMulti(e.target.checked)}
+                        className="w-5 h-5 accent-sky-700"
+                      />
+                    </label>
+                    {voteAllowMulti && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <label className="text-xs font-medium text-zinc-700">Max picks per voter</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={voteOptions.filter(o => o.trim()).length || voteOptions.length}
+                          value={voteMaxPicksInput}
+                          onChange={(e) => setVoteMaxPicksInput(e.target.value)}
+                          placeholder="no limit"
+                          className="w-20 px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
+                        />
+                        <span className="text-xs text-zinc-400">leave blank for no cap</span>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Actions */}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setShowVoteModal(false); setVoteQuestion(''); setVoteOptions(['', '', '']); }}
+                      onClick={() => { setShowVoteModal(false); setVoteQuestion(''); setVoteOptions(['', '', '']); setVoteAllowMulti(false); setVoteMaxPicksInput(''); }}
                       className="flex-1 px-4 py-2.5 border border-zinc-200 text-zinc-700 rounded-lg font-medium text-sm hover:bg-zinc-50"
                     >
                       Cancel
@@ -2596,12 +2731,20 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         const filledOptions = voteOptions.filter(o => o.trim());
                         if (!voteQuestion.trim() || filledOptions.length < 2) return;
 
+                        const resolvedType: 'single' | 'multi' = voteAllowMulti ? 'multi' : 'single';
+                        const parsedMaxPicks = voteAllowMulti && voteMaxPicksInput.trim()
+                          ? Math.max(1, Math.min(filledOptions.length, parseInt(voteMaxPicksInput, 10) || filledOptions.length))
+                          : null;
+
                         // Optimistic local state
                         const optimisticVote: Vote = {
                           id: `vote_opt_${Date.now()}`,
                           title: voteQuestion.trim(),
                           status: 'open' as const,
                           closesAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                          voteType: resolvedType,
+                          maxPicks: parsedMaxPicks,
+                          distinctVoterCount: 0,
                           options: filledOptions.map((label, i) => ({
                             id: `opt_${Date.now()}_${i}`,
                             label,
@@ -2613,6 +2756,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         setShowVoteModal(false);
                         setVoteQuestion('');
                         setVoteOptions(['', '', '']);
+                        setVoteAllowMulti(false);
+                        setVoteMaxPicksInput('');
                         setTimeout(() => setVoteCreated(false), 3000);
 
                         // Persist to Supabase for real trips
@@ -2626,6 +2771,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                                 options: filledOptions,
                                 closesAt: optimisticVote.closesAt,
                                 createdByName: currentUserName,
+                                voteType: resolvedType,
+                                maxPicks: parsedMaxPicks,
                               }),
                             });
                             if (!res.ok) throw new Error(`vote create failed: ${res.status}`);
