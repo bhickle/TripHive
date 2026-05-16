@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { itineraryDays, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
+import { normalizeVenueKey } from '@/lib/places/verifyVenues';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
 import {
   Plus,
@@ -693,6 +694,24 @@ function ItineraryPageContent() {
       name: string; type?: string; neighborhood?: string;
       description?: string; bestFor?: string; bestTime?: string; tip?: string;
     }>>;
+    /** Post-gen venue verification — populated asynchronously by
+     *  /api/trips/[id]/verify-venues after generation completes. Keyed by
+     *  normalizeVenueKey(name). Used to surface "verify open" warning
+     *  badges on activities whose named venue is flagged closed. */
+    venueVerification?: {
+      entries: Record<string, {
+        status: 'operational' | 'closed_permanently' | 'closed_temporarily' | 'unknown';
+        dayNumber?: number;
+        category?: string;
+        matchedName?: string;
+        checkedAt: string;
+      }>;
+      lastRunAt: string;
+      counts: {
+        total: number; operational: number;
+        closedPermanently: number; closedTemporarily: number; unknown: number;
+      };
+    };
   } | null>(null);
 
   // Rebuild the itinerary incorporating new member preferences (Explorer/Nomad)
@@ -1480,6 +1499,33 @@ function ItineraryPageContent() {
       setLiveBuildStatus('');
       setIsLiveBuilding(false);
       window.history.replaceState({}, '', window.location.pathname);
+
+      // 7. Post-gen venue verification. Runs in its own serverless
+      //    invocation (5-min budget); when it resolves we merge the
+      //    verification map into aiMeta so "Verify open" badges appear
+      //    in the same session without a page reload. If it fails or
+      //    is slow, badges just appear on the next itinerary load —
+      //    they're cosmetic, not blocking.
+      if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+        fetch(`/api/trips/${tripPageId}/verify-venues`, { method: 'POST' })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (!data) return;
+            // The endpoint returns { ok, counts, flaggedVenues } but to
+            // hydrate the UI we need the full entries map. Refetch the
+            // trip — meta now includes venueVerification.
+            return fetch(`/api/trips/${tripPageId}`).then(r => r.ok ? r.json() : null);
+          })
+          .then(fresh => {
+            const meta = fresh?.itinerary?.meta as Record<string, unknown> | undefined;
+            const vv = meta?.venueVerification;
+            if (vv) {
+              // Trust the server shape — verifyVenues writes it directly.
+              setAiMeta(prev => prev ? ({ ...prev, venueVerification: vv as NonNullable<typeof prev>['venueVerification'] }) : prev);
+            }
+          })
+          .catch(err => console.warn('[live-build] verify-venues failed:', err));
+      }
     };
 
     run();
@@ -3627,6 +3673,14 @@ function ItineraryPageContent() {
                     const price = priceLevelLabel(activity.priceLevel);
                     const actName = activity.name || activity.title || '';
                     const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(actName + (activity.address ? ' ' + activity.address : ' ' + trip.destination))}`;
+                    // Post-gen verification lookup. If the AI's named venue
+                    // matches a flagged entry, we'll show a small "verify
+                    // open" badge. Entries with status 'unknown' don't show
+                    // anything — we only nudge when we're confident the
+                    // venue is closed.
+                    const verifyKey = actName ? normalizeVenueKey(actName) : '';
+                    const verifyEntry = verifyKey ? aiMeta?.venueVerification?.entries?.[verifyKey] : undefined;
+                    const verifyClosed = verifyEntry?.status === 'closed_permanently' || verifyEntry?.status === 'closed_temporarily';
 
                     // Look ahead for the next activity's address (for Maps deep links)
                     const nextActItem = timelineItems.slice(index + 1).find(i => i.kind === 'activity');
@@ -3729,6 +3783,20 @@ function ItineraryPageContent() {
                                 )}
                               </h3>
                               <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* Post-gen verification flag — shown when the
+                                     named venue matched Google Places but the
+                                     business is currently closed (permanently
+                                     or temporarily). Title attribute reveals
+                                     the matched name in case the user wants
+                                     to investigate. */}
+                                {verifyClosed && (
+                                  <span
+                                    title={`Google Places reports this venue as ${verifyEntry?.status === 'closed_permanently' ? 'permanently closed' : 'temporarily closed'}${verifyEntry?.matchedName ? ` (matched "${verifyEntry.matchedName}")` : ''}. Verify current status before relying on it.`}
+                                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 whitespace-nowrap flex items-center gap-1"
+                                  >
+                                    ⚠ Verify open
+                                  </span>
+                                )}
                                 {/* AI Replaced badge */}
                                 {replacedActivityIds.has(activity.id) && (
                                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap flex items-center gap-1">
