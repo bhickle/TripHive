@@ -291,6 +291,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       console.warn('[members POST] traveler cap lookup failed, skipping:', err);
     }
 
+    // Server-stamp `submittedAt` on the preferences blob if the client
+    // forgot. The standard /join flow always sets it client-side, but a
+    // malformed payload or an alternate caller (mobile app, integration)
+    // could omit it — and then the trip GET's newPrefsCount logic would
+    // never light up the "new member added prefs" banner for the organizer.
+    // Defense in depth: stamp here whenever preferences are non-empty but
+    // submittedAt is missing.
+    let prefsToStore: Json | undefined;
+    if (preferences && typeof preferences === 'object') {
+      const prefsObj = preferences as Record<string, unknown>;
+      prefsToStore = (
+        prefsObj.submittedAt
+          ? prefsObj
+          : { ...prefsObj, submittedAt: new Date().toISOString() }
+      ) as Json;
+    }
+
     const { error: insertErr } = await supabase
       .from('trip_members')
       .insert({
@@ -300,7 +317,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         role: 'member',
         joined_at: new Date().toISOString(),
         user_id: userId ?? undefined,
-        preferences: preferences ? (preferences as Json) : undefined,
+        preferences: prefsToStore,
       });
 
     if (insertErr) {

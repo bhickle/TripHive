@@ -249,27 +249,42 @@ export default function OnboardingPage() {
       localStorage.setItem('tripcoord_profile', JSON.stringify(profileData));
     }
     // Persist name + full travel persona to Supabase for logged-in users
-    // so the data is available on any device, not just this browser's localStorage
+    // so the data is available on any device, not just this browser's
+    // localStorage. Retry once on transient failure — a silent fetch error
+    // here means the user lands on the trip wizard with their profile
+    // stuck in localStorage only, which won't survive a device switch.
     try {
       const supabase = createSupabaseBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Use the /api/auth/me PATCH endpoint so validation + admin client are consistent
-        await fetch('/api/auth/me', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: state.yourName,
-            travel_persona: {
-              vibes: state.vibes,
-              groupType: state.groupType,
-              priorities: [], // priorities are set in Settings after onboarding
-            },
-          }),
+        const body = JSON.stringify({
+          name: state.yourName,
+          travel_persona: {
+            vibes: state.vibes,
+            groupType: state.groupType,
+            priorities: [], // priorities are set in Settings after onboarding
+          },
         });
+        const doSave = () =>
+          fetch('/api/auth/me', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+          });
+        let res = await doSave().catch(() => null);
+        if (!res || !res.ok) {
+          // One retry after a short backoff. Profile-save isn't time-critical
+          // but losing it means the user has to re-set their persona later.
+          await new Promise(r => setTimeout(r, 600));
+          res = await doSave().catch(() => null);
+        }
+        if (!res || !res.ok) {
+          console.warn('[onboarding] profile save failed twice; localStorage holds the only copy');
+        }
       }
-    } catch {
+    } catch (err) {
       // Supabase save failed — localStorage fallback already set, continue
+      console.warn('[onboarding] profile save threw:', err);
     }
   };
 
