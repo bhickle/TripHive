@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -9,11 +10,20 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  // Credit gate (two-phase). Charged after suggestions parse cleanly.
-  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_hotels');
-  if (!credits.ok) return credits.response;
+  const body = await request.json();
+  const { destination, startDate, endDate, budget, budgetBreakdown } = body;
+  const tripId = typeof body?.tripId === 'string' ? body.tripId : undefined;
 
-  const { destination, startDate, endDate, budget, budgetBreakdown } = await request.json();
+  // Role gate (when tripId supplied): org/co-org only.
+  if (tripId) {
+    const roleCheck = await requireTripAiRole(tripId);
+    if (!roleCheck.ok) return roleCheck.response;
+  }
+
+  // Credit gate (two-phase). Charged after suggestions parse cleanly.
+  // tripId routes to a Trip Pass pool when one is active.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_hotels', tripId);
+  if (!credits.ok) return credits.response;
 
   const hotelBudget = budgetBreakdown?.hotel ?? 0;
   const nights = startDate && endDate

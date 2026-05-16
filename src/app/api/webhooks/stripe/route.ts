@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe, PRICE_TO_TIER } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { PRICING } from '@/hooks/useEntitlements';
 
 export const dynamic = 'force-dynamic';
 // Stripe SDK uses Node-specific APIs (Buffer, crypto); pin to Node runtime.
@@ -162,14 +163,16 @@ export async function POST(req: NextRequest) {
           // else: user already has explorer/nomad — leave subscription_tier alone
 
           if (tripId) {
-            // Upsert the trip pass record (idempotent on user_id + trip_id)
+            // Upsert the trip pass record (idempotent on user_id + trip_id).
+            // Credit budget sourced from PRICING.trip_pass.aiCredits (50 as of
+            // 2026-05-16, sized for 1 build + 1 regen + ~5 small tweaks).
             await supabaseAdmin.from('trip_passes').upsert({
               user_id: userId,
               trip_id: tripId,
               purchased_at: now.toISOString(),
               expires_at: expiresAt,
               extra_people: extraPeople,
-              ai_credits_total: 30,
+              ai_credits_total: PRICING.trip_pass.aiCredits,
               ai_credits_used: 0,
             }, { onConflict: 'user_id,trip_id' });
           }

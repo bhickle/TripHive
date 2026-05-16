@@ -87,10 +87,13 @@ export const AI_CREDIT_COSTS = {
   // Full itinerary build. Charged at the END of generation (only if
   // daysEmitted > 0) so failed builds don't burn credits.
   itinerary_generate: 25,
-  // Full regenerate (same flow, same cost). Was 5 — significantly
-  // underpriced. The work and the Places verification are identical to
-  // a fresh build; charge accordingly.
-  itinerary_regenerate: 20,
+  // Regenerate on an existing trip. Cheaper than a fresh build because
+  // the venue verification cache is 100% warm — we already verified all
+  // these venues on the initial build, so the post-gen verify call is
+  // essentially free. Real cost is ~$0.50 (Anthropic only). Bumped 5→20
+  // then dropped to 10 once the cache shipped — keeps regen affordable
+  // inside a Trip Pass (build 25 + regen 10 + 15 cr in tweaks).
+  itinerary_regenerate: 10,
   transport_parse: 1,
   activity_suggest: 2,
   // PDF / text itinerary parse via /api/parse-itinerary. 3 credits because
@@ -176,7 +179,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   trip_pass: {
     activeTrips: 'plan_based',   // only the purchased trip
     travelersPerTrip: 'plan_based', // 6 base + extras purchased
-    aiCreditsPerMonth: 'plan_based', // 30 per pass
+    aiCreditsPerMonth: 'plan_based', // 50 per pass (PRICING.trip_pass.aiCredits)
     maxTripDays: 7,
     maxBookedHotels: 3,
     canUseAI: true,

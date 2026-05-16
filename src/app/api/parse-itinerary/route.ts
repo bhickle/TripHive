@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { text, pdfBase64, fileName } = body;
+  const tripId = typeof body?.tripId === 'string' ? body.tripId : undefined;
 
   const isPdf = !!pdfBase64;
 
@@ -80,11 +82,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 500 });
   }
 
+  // Role gate (when overwriting an existing trip): only org/co-org can
+  // parse-into a trip they're already on. New-trip uploads (no tripId)
+  // skip the role gate — the user IS the future organizer.
+  if (tripId) {
+    const roleCheck = await requireTripAiRole(tripId);
+    if (!roleCheck.ok) return roleCheck.response;
+  }
+
   // ── Credit gate ──────────────────────────────────────────────────────────
   // Two-phase: check before the AI call, increment after success. Failed
   // parses don't consume credits — the user can retry without burning quota
-  // for an error that wasn't their fault.
-  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'parse_itinerary');
+  // for an error that wasn't their fault. tripId routes the charge to a
+  // Trip Pass pool when overwriting an existing trip with one.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'parse_itinerary', tripId);
   if (!credits.ok) return credits.response;
 
   try {

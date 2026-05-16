@@ -17,15 +17,20 @@ export function nextCreditResetAt(from: Date = new Date()): string {
  * from checkAiCredits and passed back into incrementAiCreditsUsed so the
  * increment lands on the same baseline value the check saw.
  *
- * `exempt: true` means this tier is not subject to the profile-level credit
- * counter — currently only trip_pass, which has its own per-pass billing
- * via the trip_passes table. incrementAiCreditsUsed is a no-op when exempt.
+ * `source` tells the increment which counter to bump:
+ *   - 'profile'  → profiles.ai_credits_used (the user's personal monthly pool)
+ *   - 'trip_pass' → trip_passes.ai_credits_used (the trip's pass-pool)
+ *   - 'exempt'   → don't bump anything (action passed through ungated)
+ *
+ * `passId` is required when source='trip_pass' so the increment knows
+ * which row to update.
  */
 export interface AiCreditCheckResult {
   used: number;
   limit: number;
   cost: number;
-  exempt: boolean;
+  source: 'profile' | 'trip_pass' | 'exempt';
+  passId?: string;
 }
 
 /**
@@ -40,6 +45,14 @@ export interface AiCreditCheckResult {
  * abort) should NOT consume credits. Splitting check from increment lets
  * the route gate first, then commit only on success.
  *
+ * Trip Pass credit pooling (2026-05-16):
+ *   When `tripId` is supplied AND the trip has an active Trip Pass purchase,
+ *   charge the pass's pool instead of the user's personal credits. This
+ *   applies to trip-scoped actions — build, regen, add-day, suggest,
+ *   transport-parse, discover, hotels, enrich. User-scoped actions
+ *   (packing, phrasebook, receipt-scan, layover) should NOT pass tripId
+ *   so they hit the user's personal pool.
+ *
  * Fail-open on Supabase lookup failure: if the profile fetch errors, we
  * return ok rather than 503. The Anthropic call is the real cost — surfacing
  * a 503 to the user for a transient profile-read flake gives a worse
@@ -49,26 +62,68 @@ export async function checkAiCredits(
   userId: string,
   tier: SubscriptionTier,
   action: AiAction,
+  tripId?: string,
 ): Promise<{ ok: true; ctx: AiCreditCheckResult } | { ok: false; response: NextResponse }> {
   const cost = AI_CREDIT_COSTS[action];
+  const admin = createAdminClient();
 
-  // trip_pass: per-pass billing tracked separately on trip_passes.ai_credits_used.
-  // The profile-level counter doesn't apply. TODO(launch): when an action
-  // targets a specific trip with an active pass, decrement that pass's
-  // counter instead — for now we let trip_pass through without enforcement.
+  // ── Step 1: Trip Pass pool takes precedence when applicable ──────────────
+  // If this is a trip-scoped action AND the trip has an active pass, charge
+  // the pass — regardless of the user's personal tier. The pass IS the
+  // trip's AI budget.
+  if (tripId) {
+    const now = new Date().toISOString();
+    const { data: pass } = await admin
+      .from('trip_passes')
+      .select('id, ai_credits_total, ai_credits_used, expires_at')
+      .eq('trip_id', tripId)
+      .gt('expires_at', now)
+      .order('purchased_at', { ascending: false })
+      .maybeSingle();
+
+    if (pass) {
+      const passUsed = pass.ai_credits_used ?? 0;
+      const passLimit = pass.ai_credits_total ?? 0;
+      if (passUsed + cost > passLimit) {
+        return {
+          ok: false,
+          response: NextResponse.json(
+            {
+              error: 'TRIP_PASS_CREDITS_EXHAUSTED',
+              message: `This trip's pass has used ${passUsed} of ${passLimit} AI credits. The organizer can buy another pass to keep building.`,
+              used: passUsed,
+              limit: passLimit,
+              action,
+              cost,
+              scope: 'trip_pass',
+            },
+            { status: 402 },
+          ),
+        };
+      }
+      return { ok: true, ctx: { used: passUsed, limit: passLimit, cost, source: 'trip_pass', passId: pass.id } };
+    }
+    // No active pass on this trip — fall through to personal-credit gate.
+  }
+
+  // ── Step 2: Personal-credit gate ─────────────────────────────────────────
+  // For users whose own tier is trip_pass but there's no pass on this trip
+  // (or this isn't a trip-scoped action), let them through ungated — they
+  // bought a pass somewhere, this isn't their pass-trip, no charge.
+  // TODO(launch): when trip_pass users hit user-scoped AI features (packing,
+  // phrasebook), decide whether to gate against their other passes' credits.
   if (tier === 'trip_pass') {
-    return { ok: true, ctx: { used: 0, limit: 0, cost, exempt: true } };
+    return { ok: true, ctx: { used: 0, limit: 0, cost, source: 'exempt' } };
   }
 
   const limitRaw = TIER_LIMITS[tier].aiCreditsPerMonth;
   if (typeof limitRaw !== 'number') {
-    // 'plan_based' should only apply to trip_pass (handled above). Defensive
-    // fallthrough — exempt rather than block on unexpected enum value.
-    return { ok: true, ctx: { used: 0, limit: 0, cost, exempt: true } };
+    // 'plan_based' only applies to trip_pass (handled above). Defensive
+    // fallthrough — exempt rather than block on an unexpected enum value.
+    return { ok: true, ctx: { used: 0, limit: 0, cost, source: 'exempt' } };
   }
   const limit = limitRaw;
 
-  const admin = createAdminClient();
   const { data: profile, error } = await admin
     .from('profiles')
     .select('ai_credits_used, ai_credits_reset_at')
@@ -76,7 +131,7 @@ export async function checkAiCredits(
     .single();
   if (error) {
     console.error('[aiCredits] profile lookup failed:', error);
-    return { ok: true, ctx: { used: 0, limit, cost, exempt: true } };
+    return { ok: true, ctx: { used: 0, limit, cost, source: 'exempt' } };
   }
 
   // Reset-on-read: if the profile's reset boundary is in the past, zero out
@@ -98,6 +153,7 @@ export async function checkAiCredits(
       used = 0;
     }
   }
+
   if (used + cost > limit) {
     return {
       ok: false,
@@ -109,29 +165,45 @@ export async function checkAiCredits(
           limit,
           action,
           cost,
+          scope: 'profile',
         },
         { status: 402 },
       ),
     };
   }
 
-  return { ok: true, ctx: { used, limit, cost, exempt: false } };
+  return { ok: true, ctx: { used, limit, cost, source: 'profile' } };
 }
 
 /**
- * Two-phase credit gate, phase 2: charge the user after the AI work succeeded.
+ * Two-phase credit gate, phase 2: charge the user (or the pass) after the AI
+ * work succeeded.
  *
  * Race condition: two simultaneous calls both pass the check (read same
  * baseline) then both increment, allowing one over-charge. Acceptable on
- * the small numeric caps we enforce (10–300). For atomic increments use
- * a Postgres RPC; supabase-js doesn't expose `+= 1` directly.
+ * the small numeric caps we enforce (50 per pass, 25-250 per profile).
+ * For atomic increments use a Postgres RPC; supabase-js doesn't expose
+ * `+= 1` directly.
  */
 export async function incrementAiCreditsUsed(
   userId: string,
   ctx: AiCreditCheckResult,
 ): Promise<void> {
-  if (ctx.exempt) return;
+  if (ctx.source === 'exempt') return;
   const admin = createAdminClient();
+
+  if (ctx.source === 'trip_pass' && ctx.passId) {
+    const { error } = await admin
+      .from('trip_passes')
+      .update({ ai_credits_used: ctx.used + ctx.cost })
+      .eq('id', ctx.passId);
+    if (error) {
+      console.error('[aiCredits] trip_pass increment failed:', error);
+    }
+    return;
+  }
+
+  // source === 'profile'
   const { error } = await admin
     .from('profiles')
     .update({ ai_credits_used: ctx.used + ctx.cost })
@@ -140,6 +212,6 @@ export async function incrementAiCreditsUsed(
     // Charge failure is non-blocking — the AI work already completed and
     // the user has their result. Worst case: they get a free credit. Logged
     // so we can spot if this happens at scale.
-    console.error('[aiCredits] increment failed:', error);
+    console.error('[aiCredits] profile increment failed:', error);
   }
 }

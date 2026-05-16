@@ -175,11 +175,15 @@ type ParseState = 'idle' | 'parsing' | 'success' | 'error';
 interface ParseTransportModalProps {
   dayNumber: number;
   dayDate: string;
+  /** Trip the parsed leg belongs to. Passed to /api/parse-transport so the
+   *  credit gate can route the charge to a Trip Pass pool when one exists,
+   *  and the role gate can enforce organizer/co-org only. */
+  tripId?: string;
   onAdd: (leg: TransportLeg) => void;
   onClose: () => void;
 }
 
-export function ParseTransportModal({ dayNumber, dayDate, onAdd, onClose }: ParseTransportModalProps) {
+export function ParseTransportModal({ dayNumber, dayDate, tripId, onAdd, onClose }: ParseTransportModalProps) {
   const [emailText, setEmailText] = useState('');
   const [parseState, setParseState] = useState<ParseState>('idle');
   const [parsedLeg, setParsedLeg] = useState<TransportLeg | null>(null);
@@ -200,7 +204,7 @@ export function ParseTransportModal({ dayNumber, dayDate, onAdd, onClose }: Pars
       const res = await fetch('/api/parse-transport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailText }),
+        body: JSON.stringify({ emailText, tripId }),
       });
       const data = await res.json();
 

@@ -111,7 +111,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   ],
   trip_pass: [
     '1 trip, up to 6 travelers',
-    '30 AI credits (1 build + tweaks)',
+    '50 AI credits (1 build + 1 regen + 5 tweaks)',
     'AI itinerary generation',
     'Transport confirmation parser',
     'Trip Story & photo gallery',

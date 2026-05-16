@@ -297,7 +297,7 @@ export default function HomePage() {
               <ul className="space-y-3 flex-1">
                 {[
                   'Up to 6 travelers (+ add-ons)',
-                  '30 AI credits for this trip (1 build + tweaks)',
+                  '50 AI credits for this trip (1 build + 1 regen + tweaks)',
                   'AI itinerary generation',
                   'Transport confirmation parser',
                   'Trip Story (shareable)',

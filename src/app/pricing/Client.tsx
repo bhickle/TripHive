@@ -35,7 +35,7 @@ const featureRows: {
   { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   // AI
   { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
-  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '25 / month (~1 build)', trip_pass: '30 per pass (~1 build)', explorer: '100 / month (~4 builds)', nomad: '250 / month (~10 builds)', nomadHighlight: true },
+  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '25 / month (~1 build)', trip_pass: '50 per pass (1 build + 1 regen + tweaks)', explorer: '100 / month (~4 builds)', nomad: '250 / month (~10 builds)', nomadHighlight: true },
   { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
@@ -66,7 +66,7 @@ const faqs = [
   },
   {
     q: 'What are AI credits and what do they cost?',
-    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 25 credits. Regenerating or tweaking it costs 20. Adding a single day costs 3. Lightweight actions like browsing Discover, generating hotel ideas, or parsing a transport confirmation cost 1 credit each. Free tier (25 credits/mo) covers 1 build. Explorer (100/mo) covers about 4 builds. Nomad (250/mo) covers about 10 builds. Credits refresh on the first of each month.",
+    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 25 credits. Regenerating an existing trip costs 10 (cheaper because we reuse the venue verification cache). Adding a single day costs 3. Lightweight actions like browsing Discover, generating hotel ideas, or parsing a transport confirmation cost 1 credit each. Free tier (25 credits/mo) covers 1 build. Trip Pass (50 per pass) covers 1 build + 1 regen + tweaks. Explorer (100/mo) covers about 4 builds. Nomad (250/mo) covers about 10 builds. Only the trip organizer or co-organizer can trigger AI changes — other members can still vote, chat, and submit preferences. Credits refresh on the first of each month.",
   },
   {
     q: 'What happens if I use all my AI credits?',
@@ -403,7 +403,7 @@ function PricingPageInner() {
             <ul className="space-y-3 flex-1">
               {[
                 'Up to 6 travelers (+ add-ons)',
-                '30 AI credits for this trip (1 build + tweaks)',
+                '50 AI credits for this trip (1 build + 1 regen + tweaks)',
                 'AI itinerary generation',
                 'Transport confirmation parser',
                 'Group expense tracking (manual splits)',
@@ -549,7 +549,7 @@ function PricingPageInner() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
             {[
               { action: 'Generate itinerary', cost: 25, icon: '🗺️' },
-              { action: 'Tweak itinerary', cost: 20, icon: '✏️' },
+              { action: 'Regenerate', cost: 10, icon: '✏️' },
               { action: 'Add a day', cost: 3, icon: '📅' },
               { action: 'Browse Discover', cost: 1, icon: '🌍' },
             ].map(item => (

@@ -163,3 +163,41 @@ export async function requireTripAccess(tripId: string): Promise<
 
   return { ok: true, ctx: { userId, supabase } };
 }
+
+/**
+ * Stricter variant of requireTripAccess: also enforces that the caller is
+ * the trip organizer or co-organizer. Used by AI-spending endpoints —
+ * only org/co-org can burn the trip's AI credit budget (per Brandon's
+ * 2026-05-16 product decision).
+ *
+ * Plain members can still submit preferences, vote on activities, chat,
+ * upload photos, manage their own packing/souvenir lists — those are
+ * non-AI actions. This guard exists specifically to prevent any of the
+ * 6+ members on a trip from each firing a Suggest Another or regen and
+ * burning through the pass's 50-credit budget in minutes.
+ *
+ * Returns 403 with a clear, member-facing error when the caller is a
+ * plain member.
+ */
+export async function requireTripAiRole(tripId: string): Promise<
+  | { ok: true; ctx: { userId: string; supabase: ReturnType<typeof createAdminClient>; role: 'organizer' | 'co_organizer' } }
+  | { ok: false; response: NextResponse }
+> {
+  const access = await requireTripAccess(tripId);
+  if (!access.ok) return access;
+  const { userId, supabase } = access.ctx;
+  const role = await getTripRole(supabase, tripId, userId);
+  if (role !== 'organizer' && role !== 'co_organizer') {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          error: 'AI actions require organizer or co-organizer role',
+          message: 'Only the trip organizer (or co-organizer) can trigger AI changes on this trip. Ask them to do it for you.',
+        },
+        { status: 403 },
+      ),
+    };
+  }
+  return { ok: true, ctx: { userId, supabase, role } };
+}

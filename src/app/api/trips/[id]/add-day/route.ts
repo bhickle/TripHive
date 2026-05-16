@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 export const maxDuration = 60;
@@ -30,7 +31,7 @@ function isRetryableAnthropicError(err: unknown): boolean {
   return false;
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
@@ -38,8 +39,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 503 });
   }
 
-  // Credit gate (two-phase). Charged after the day is successfully parsed.
-  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'add_day');
+  // Role gate: AI changes are organizer/co-organizer only.
+  const roleCheck = await requireTripAiRole(params.id);
+  if (!roleCheck.ok) return roleCheck.response;
+
+  // Credit gate (two-phase). Pass tripId so the gate routes the charge to
+  // the trip's pass pool if one is active; falls through to the user's
+  // personal credits otherwise. Charged after the day is successfully parsed.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'add_day', params.id);
   if (!credits.ok) return credits.response;
 
   let body: Record<string, unknown>;

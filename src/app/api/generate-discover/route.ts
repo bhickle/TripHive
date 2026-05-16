@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -14,18 +15,27 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  // Credit gate (two-phase). Charged after items parse cleanly.
-  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_discover');
-  if (!credits.ok) return credits.response;
-
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 500 });
   }
 
-  const { destination } = await request.json();
+  const body = await request.json();
+  const { destination } = body;
+  const tripId = typeof body?.tripId === 'string' ? body.tripId : undefined;
   if (!destination) {
     return NextResponse.json({ error: 'destination required' }, { status: 400 });
   }
+
+  // Role gate (when tripId supplied): org/co-org only.
+  if (tripId) {
+    const roleCheck = await requireTripAiRole(tripId);
+    if (!roleCheck.ok) return roleCheck.response;
+  }
+
+  // Credit gate (two-phase). Charged after items parse cleanly. tripId
+  // routes to a Trip Pass pool when one is active.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_discover', tripId);
+  if (!credits.ok) return credits.response;
 
   const prompt = `You are a travel recommendations engine. Generate 10 highly specific, real-world activities and experiences for travelers visiting: ${destination}.
 

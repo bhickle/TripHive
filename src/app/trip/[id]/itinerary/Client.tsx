@@ -1637,6 +1637,7 @@ function ItineraryPageContent() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              tripId: tripPageId,
               destination: city,
               startDate: aiMeta?.startDate,
               endDate: aiMeta?.endDate,
@@ -1960,6 +1961,18 @@ function ItineraryPageContent() {
     || viewerRole === null
     || viewerRole === 'organizer'
     || viewerRole === 'co_organizer';
+
+  // Stricter gate for AI-spending actions (regenerate, Suggest Another,
+  // add-day-with-AI, enrich-day). Per Brandon's 2026-05-16 product call,
+  // only organizer / co-organizer can burn AI credits — even on small-group
+  // trips. Members can still vote, chat, upload photos, submit preferences,
+  // and add manual activities; they just can't trigger anything that costs
+  // credits. The server-side `requireTripAiRole` enforces the same rule;
+  // this client flag just hides the buttons so members don't see a dead
+  // affordance.
+  const canTriggerAi = isMockTrip
+    || viewerRole === 'organizer'
+    || viewerRole === 'co_organizer';
   // Guard: if activeDays is empty, currentDayData will never be rendered (the
   // "no itinerary" empty state gate below returns early before any access).
   // Hardened fallback: rather than `{} as ItineraryDay` (which would let a
@@ -2204,6 +2217,7 @@ function ItineraryPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          tripId: tripPageId,
           destination: currentDayData?.city ?? trip.destination,
           dayNumber: selectedDay,
           date: currentDayData?.date ?? '',
@@ -2927,14 +2941,30 @@ function ItineraryPageContent() {
                     <CalendarPlus className="w-4 h-4 text-sky-600" /> Activity
                   </button>
                   <button
-                    onClick={() => { setShowAddDayModal(true); setShowAddMenu(false); }}
+                    onClick={() => {
+                      // Plain members can only insert blank days — pre-set
+                      // the mode so they don't open into a disabled AI tab.
+                      if (!canTriggerAi) setAddDayMode('manual');
+                      setShowAddDayModal(true);
+                      setShowAddMenu(false);
+                    }}
                     className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
                   >
                     <PlusSquare className="w-4 h-4 text-sky-600" /> Day
                   </button>
                   <button
-                    onClick={() => { hasTransportParser ? setShowParseModal(true) : setUpgradePromptKey('feature_locked'); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                    onClick={() => {
+                      // Parse-transport spends AI credits, so it's also gated
+                      // by canTriggerAi (org/co-org). Plain members can't add
+                      // transport this way — they can ask the organizer.
+                      if (!hasTransportParser) { setUpgradePromptKey('feature_locked'); setShowAddMenu(false); return; }
+                      if (!canTriggerAi) { setShowAddMenu(false); return; }
+                      setShowParseModal(true);
+                      setShowAddMenu(false);
+                    }}
+                    disabled={hasTransportParser && !canTriggerAi}
+                    title={hasTransportParser && !canTriggerAi ? 'Only the organizer or co-organizer can parse transport confirmations.' : ''}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                   >
                     <Sparkles className="w-4 h-4 text-sky-600" /> Transportation
                     {!hasTransportParser && <LockBadge />}
@@ -3091,13 +3121,14 @@ function ItineraryPageContent() {
           </p>
         )}
 
-        {/* Regenerate with group input banner — paid tiers only, organizer only.
-            Trip Pass is the primary use case (per-member preferences mini-wizard
-            drives this); Explorer/Nomad keep access for legacy behaviour. */}
+        {/* Regenerate with group input banner — paid tiers only,
+             organizer / co-organizer only. Trip Pass is the primary use
+             case (per-member preferences mini-wizard drives this);
+             Explorer/Nomad keep access for legacy behaviour. */}
         {newPrefsCount > 0
           && (tier === 'trip_pass' || tier === 'explorer' || tier === 'nomad')
           && currentUser.id
-          && tripRow?.organizer_id === currentUser.id
+          && canTriggerAi
           && (
           <div className="mb-5 flex items-center gap-3 bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
             <Users className="w-4 h-4 text-sky-600 flex-shrink-0" />
@@ -3922,8 +3953,11 @@ function ItineraryPageContent() {
                               const isMajorityNay = v.down > 0 && v.down > v.up;
                               return (
                                 <>
-                                  {/* Majority-Nay nudge banner — replace button gated to editors only */}
-                                  {isMajorityNay && canEditItinerary && (
+                                  {/* Majority-Nay nudge banner — replace is an AI action,
+                                       so gate to organizer / co-organizer only. Plain
+                                       members still see the activity got Nayed via the
+                                       vote tallies; they just can't trigger the swap. */}
+                                  {isMajorityNay && canTriggerAi && (
                                     <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
                                       <span className="text-sm">😬</span>
                                       <p className="text-xs font-semibold text-amber-800 flex-1">Not the crowd favourite — want AI to find something better?</p>
@@ -3966,10 +4000,11 @@ function ItineraryPageContent() {
                                         {v.myVote === 'up' ? "You're in ✓" : 'Not feeling it'}
                                       </span>
                                     )}
-                                    {/* Suggest another — pushes to the right. Gated to editors
-                                        on 3+ trips (hidden for plain members). Also hidden
-                                        when the majority-Nay banner is showing. */}
-                                    {!isMajorityNay && canEditItinerary && (
+                                    {/* Suggest another — AI-spending action. Gated to
+                                        organizer / co-organizer only (stricter than
+                                        canEditItinerary, which allows small-group members).
+                                        Hidden when the majority-Nay banner is showing. */}
+                                    {!isMajorityNay && canTriggerAi && (
                                       <button
                                         onClick={() => handleSuggestAnother(activity)}
                                         disabled={isSuggesting}
@@ -4286,7 +4321,9 @@ function ItineraryPageContent() {
                   ...(currentDayData.tracks?.track_b ?? []),
                 ];
                 const dayHasActivities = allActs.length > 0;
-                if (!dayHasActivities || !canEditItinerary || isMockTrip) return null;
+                // Enrich-day spends AI credits, so it's gated by canTriggerAi
+                // (org/co-org only) rather than the broader canEditItinerary.
+                if (!dayHasActivities || !canTriggerAi || isMockTrip) return null;
                 const dayHasRestaurants = allActs.some(a => (a as { isRestaurant?: boolean }).isRestaurant === true);
                 const isEnriching = enrichingDay === currentDayData.day;
                 return (
@@ -5013,15 +5050,19 @@ function ItineraryPageContent() {
                 </div>
               </div>
 
-              {/* AI vs Manual toggle */}
+              {/* AI vs Manual toggle. AI mode is restricted to organizer /
+                   co-organizer; plain members can only insert a blank day
+                   (they can still add activities manually afterwards). */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-600 mb-2">Content</label>
                 <div className="flex rounded-xl overflow-hidden border border-zinc-200">
                   <button
-                    onClick={() => setAddDayMode('ai')}
+                    onClick={() => { if (canTriggerAi) setAddDayMode('ai'); }}
+                    disabled={!canTriggerAi}
+                    title={canTriggerAi ? '' : 'Only the organizer or co-organizer can trigger AI builds.'}
                     className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
                       addDayMode === 'ai' ? 'bg-sky-700 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50'
-                    }`}
+                    } ${!canTriggerAi ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Wand2 className="w-4 h-4" /> AI-generated
                   </button>
@@ -5037,7 +5078,9 @@ function ItineraryPageContent() {
                 <p className="text-xs text-zinc-400 mt-2">
                   {addDayMode === 'ai'
                     ? 'Claude will generate a full day of activities, a theme, and photo spots for this destination.'
-                    : 'Insert an empty day — add activities manually afterwards.'}
+                    : canTriggerAi
+                      ? 'Insert an empty day — add activities manually afterwards.'
+                      : 'Insert an empty day. Only the organizer or co-organizer can trigger AI-generated days.'}
                 </p>
               </div>
 
@@ -5510,6 +5553,7 @@ function ItineraryPageContent() {
         <ParseTransportModal
           dayNumber={selectedDay}
           dayDate={currentDayData.date}
+          tripId={tripPageId}
           onAdd={handleTransportAdded}
           onClose={() => setShowParseModal(false)}
         />

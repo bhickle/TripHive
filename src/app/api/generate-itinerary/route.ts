@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { getTripRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
 import type { Json } from '@/lib/supabase/database.types';
@@ -1584,12 +1585,36 @@ export async function POST(request: NextRequest) {
     }, { status: 403 });
   }
 
+  // ── Role gate (when tripId present) ──────────────────────────────────────
+  // AI builds are organizer/co-organizer only — Brandon's product call
+  // (2026-05-16): we don't want plain members on a Trip Pass trip to be
+  // able to burn through the 50-credit pass pool with rapid-fire builds.
+  // When tripId is absent (rare, legacy/no-skeleton path) we fall through
+  // to the personal credit gate as before.
+  if (requestBodyTripId) {
+    const adminClient = createAdminClient();
+    const role = await getTripRole(adminClient, requestBodyTripId, auth.ctx.userId);
+    if (role !== 'organizer' && role !== 'co_organizer') {
+      return NextResponse.json(
+        {
+          error: 'AI_ROLE_REQUIRED',
+          message: 'Only the trip organizer (or co-organizer) can trigger AI builds. Ask them to do it for you.',
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   // ── Credit gate ──────────────────────────────────────────────────────────
   // Charge 25 credits per generate-itinerary call (the AI_CREDIT_COSTS
   // entry, repriced 2026-05-16 to match real cost incl. post-gen Places
   // verification). Free tier (25 credits/mo) gets exactly one generation
   // per month. The increment happens just before the SSE 'done' event —
   // if the stream errors out mid-way, no charge.
+  //
+  // When tripId is supplied AND the trip has an active Trip Pass, the gate
+  // charges the pass's 50-cr pool instead of the user's personal credits.
+  // See lib/supabase/aiCredits.ts for the pass-pool branch.
   //
   // KNOWN LIMITATION: client-side chunking for long trips and multi-city
   // calls this route once per chunk, so a 3-city trip = 3 separate
@@ -1598,7 +1623,7 @@ export async function POST(request: NextRequest) {
   // anyway (canSplitTracks gate runs upstream), so this is mostly
   // theoretical for free tier — but explorer (100/mo) and nomad (250/mo)
   // can absorb the per-chunk charge fine.
-  const credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate');
+  const credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate', requestBodyTripId);
   if (!credits.ok) return credits.response;
 
   // ── City segment mode — generate one city's days at a time ─────────────────

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -79,12 +80,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'NO_API_KEY', message: 'API key not configured' }, { status: 503 });
   }
 
-  // Credit gate (two-phase). Charged after the suggestion is parsed.
-  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'activity_suggest');
+  // Read body up front — tripId is needed for the role + credit gates, and
+  // the rest of the suggestion fields too. Single parse, fewer error paths.
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'BAD_REQUEST' }, { status: 400 });
+  }
+
+  // Role gate (when tripId supplied): AI changes are org/co-org only.
+  // tripId is required for the Trip Pass credit-pool routing; if a caller
+  // doesn't supply it we treat as the legacy user-scoped path and gate on
+  // user role of "any signed-in user with credits" (no role check).
+  const tripId = typeof body.tripId === 'string' ? body.tripId : undefined;
+  if (tripId) {
+    const roleCheck = await requireTripAiRole(tripId);
+    if (!roleCheck.ok) return roleCheck.response;
+  }
+
+  // Credit gate (two-phase). Pass tripId so a Trip Pass pool gets charged
+  // instead of the user's personal credits when applicable.
+  const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'activity_suggest', tripId);
   if (!credits.ok) return credits.response;
 
   try {
-    const body = await request.json();
     const {
       destination,
       dayNumber,

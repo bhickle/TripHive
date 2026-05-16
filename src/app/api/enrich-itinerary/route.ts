@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
-import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { requireTripAiRole } from '@/lib/supabase/tripAccess';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import type { Json } from '@/lib/supabase/database.types';
 
@@ -208,12 +209,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'tripId required' }, { status: 400 });
   }
 
-  // Member-scoped: anyone on the trip can enrich its highlights (this is
-  // a collab-friendly action like adding a packing item, not a destructive
-  // edit). Restricting to organizer feels too narrow.
-  const access = await requireTripAccess(tripId);
+  // Organizer/co-organizer only: enriching consumes AI credits, so it
+  // counts as an AI change per Brandon's 2026-05-16 product decision.
+  // Plain members can still browse the enriched sidebars; only org/co-org
+  // can trigger the enrich call.
+  const access = await requireTripAiRole(tripId);
   if (!access.ok) return access.response;
-  const { supabase } = access.ctx;
+  const supabase = createAdminClient();
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 503 });
@@ -245,11 +247,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No matching days to enrich' }, { status: 400 });
   }
 
-  // Charge per day. Two-phase: gate-first, charge-after-success.
+  // Charge per day. Two-phase: gate-first, charge-after-success. Passing
+  // tripId routes the charge to the Trip Pass pool when one is active.
   const credits = await checkAiCredits(
     auth.ctx.userId,
     auth.ctx.tier,
     'enrich_day',
+    tripId,
   );
   if (!credits.ok) return credits.response;
   // The cost above is for one day; for batch enrichment we want to
@@ -257,8 +261,8 @@ export async function POST(req: NextRequest) {
   // increment phase debits the full amount.
   credits.ctx.cost = credits.ctx.cost * targetDays.length;
 
-  // Now check the user can actually afford the full batch.
-  if (!credits.ctx.exempt && credits.ctx.used + credits.ctx.cost > credits.ctx.limit) {
+  // Now check the user (or the pass pool) can actually afford the full batch.
+  if (credits.ctx.source !== 'exempt' && credits.ctx.used + credits.ctx.cost > credits.ctx.limit) {
     return NextResponse.json(
       {
         error: 'CREDITS_EXHAUSTED',

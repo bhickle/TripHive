@@ -560,7 +560,7 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
     fetch('/api/generate-discover', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destination: city }),
+      body: JSON.stringify({ tripId: params.id, destination: city }),
     })
       .then(async res => {
         if (res.ok) {

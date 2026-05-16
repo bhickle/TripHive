@@ -27,7 +27,11 @@ export const PRICING = {
     extraPersonFee: 4,      // per person beyond the base 6
     baseGroupSize: 6,
     maxGroupSize: 12,
-    aiCredits: 30,
+    // 50 credits = 1 build (25) + 1 regen (10) + 5 add-days OR Suggest
+    // Anothers (15). Sized to support the trip-organizing arc: generate,
+    // tweak once, swap a few activities. Bumped from 30 on 2026-05-16
+    // when build was repriced 10→25; price stays at $30.
+    aiCredits: 50,
     validityDays: 30,       // days after trip end date
   },
   explorer: {
