@@ -2707,7 +2707,19 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
         {!dataLoading && activeTab === 'chat' && (
           <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-            <div className="flex-1 overflow-y-auto px-4 py-4 bg-parchment" onClick={() => setShowReactionPicker(null)}>
+            <div className="flex-1 overflow-y-auto px-4 py-4 bg-white" onClick={() => setShowReactionPicker(null)}>
+              {chatMessages.length === 0 && (
+                // Empty state: without this, the white area + below-fold input
+                // looks broken to first-time visitors who don't realize they
+                // can scroll. Centered vertically within the scroll area.
+                <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center px-6">
+                  <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+                    <MessageCircle className="w-6 h-6 text-zinc-400" />
+                  </div>
+                  <p className="text-sm font-medium text-zinc-700">No messages yet</p>
+                  <p className="text-xs text-zinc-500 mt-1">Scroll down and say hi to the crew below.</p>
+                </div>
+              )}
               {chatMessages.map((message) => {
                 const msgReactions = reactions[message.id] || {};
                 const activeReactions = Object.entries(msgReactions).filter(([, users]) => users.length > 0);

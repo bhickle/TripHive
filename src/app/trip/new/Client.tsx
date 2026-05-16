@@ -311,6 +311,42 @@ function getDestinationCosts(destination: string): DestinationCosts {
   return DESTINATION_COSTS.default;
 }
 
+/**
+ * Whether every night of the trip is covered by at least one pre-booked
+ * hotel. Used to suppress the "what kind of accommodation" question when
+ * the user has already committed to a place to sleep on every night —
+ * asking would be both redundant and confusing to the AI.
+ *
+ * A "night" is a date d such that startDate <= d < endDate. A hotel
+ * covers night d when checkIn <= d < checkOut. False on missing dates,
+ * invalid ranges, or no usable hotel rows.
+ */
+function allNightsCovered(
+  startDate: string,
+  endDate: string,
+  hotels: BookedHotel[],
+): boolean {
+  if (!startDate || !endDate) return false;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  if (end <= start) return false;
+
+  const validHotels = hotels.filter(h => h.name.trim() && h.checkIn && h.checkOut);
+  if (validHotels.length === 0) return false;
+
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  for (let t = start.getTime(); t < end.getTime(); t += ONE_DAY) {
+    const covered = validHotels.some(h => {
+      const ci = new Date(h.checkIn).getTime();
+      const co = new Date(h.checkOut).getTime();
+      return ci <= t && t < co;
+    });
+    if (!covered) return false;
+  }
+  return true;
+}
+
 function calcBudgetFromDestination(destination: string, tripLength: number): {
   flights: number; hotel: number; food: number; experiences: number; transport: number;
 } {
@@ -415,6 +451,14 @@ function TripBuilderPage() {
     () => state.accessibilityNeeds.length > 0
   );
   const [selectedRegion, setSelectedRegion] = useState<string>('featured');
+
+  // Derived: true when every night of the trip is already covered by a
+  // booked hotel. When true, the "Accommodation Type" question on Step 6
+  // is suppressed AND the accommodationType field is blanked in the AI
+  // payload so the model isn't fed redundant/contradictory guidance.
+  const nightsAllCovered = state.hasPreBookedHotel && allNightsCovered(
+    state.startDate, state.endDate, state.bookedHotels,
+  );
 
   // Multi-destination mode gate (Item 9)
   const [showMultiCity, setShowMultiCity] = useState(false);
@@ -735,7 +779,9 @@ function TripBuilderPage() {
       // dates as hard requirements.
       flexibleDates: state.flexibleDates,
       modality: state.modality.join(', '),
-      accommodationType: state.accommodationType.join(', '),
+      // Blank when every night is already booked — avoids feeding the AI
+      // both "user prefers hotels" and "user is booked at the Marriott."
+      accommodationType: nightsAllCovered ? '' : state.accommodationType.join(', '),
       bookedFlight: state.hasPreBookedFlight ? state.bookedFlight : null,
       bookedHotels: state.hasPreBookedHotel ? state.bookedHotels.filter(h => h.name.trim()) : [],
       bookedCar: state.hasPreBookedCar ? state.bookedCar : null,
@@ -760,7 +806,10 @@ function TripBuilderPage() {
       preferences: {
         priorities: state.priorities,
         modality: state.modality,
-        accommodationType: state.accommodationType,
+        // Blank when all nights covered — same reason as the API payload
+        // above. State still holds the default ['hotel'] so if the user
+        // later removes their bookings, the question reappears unchanged.
+        accommodationType: nightsAllCovered ? [] : state.accommodationType,
         localMode: state.localMode,
         curiosityLevel: state.curiosityLevel,
       organizerPace: state.pace,
@@ -836,7 +885,7 @@ function TripBuilderPage() {
         preferences: {
           priorities: state.priorities,
           modality: state.modality,
-          accommodationType: state.accommodationType,
+          accommodationType: nightsAllCovered ? [] : state.accommodationType,
           localMode: state.localMode,
           curiosityLevel: state.curiosityLevel,
       organizerPace: state.pace,
@@ -2338,7 +2387,7 @@ function TripBuilderPage() {
                   What's your vibe? ✨
                 </h2>
                 <p className="text-zinc-600 mb-6">
-                  Select your top priorities (we'll rank the top 3)
+                  Pick up to 8 — the AI will weave these into every day.
                 </p>
 
                 {/* Age Ranges */}
@@ -2690,38 +2739,51 @@ function TripBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Accommodation Type */}
-                  <div>
-                    <label className="block text-sm font-semibold text-zinc-900 mb-1">
-                      Accommodation Type
-                    </label>
-                    <p className="text-xs text-zinc-400 mb-4">Select all that apply</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {[
-                        { id: 'hotel', label: 'Hotel', icon: '🏨' },
-                        { id: 'airbnb', label: 'Airbnb / Rental', icon: '🏠' },
-                        { id: 'hostel', label: 'Hostel', icon: '🛏️' },
-                        { id: 'resort', label: 'Resort', icon: '🌴' },
-                      ].map((type) => {
-                        const isSelected = state.accommodationType.includes(type.id);
-                        return (
-                          <button
-                            key={type.id}
-                            onClick={() => toggleAccommodationType(type.id)}
-                            className={`p-4 rounded-lg border-2 transition-all text-center ${
-                              isSelected
-                                ? 'border-sky-700 bg-sky-50 text-sky-800'
-                                : 'border-slate-200 hover:border-sky-300 text-zinc-900'
-                            }`}
-                          >
-                            <span className="text-2xl block mb-1">{type.icon}</span>
-                            <p className="text-sm font-semibold">{type.label}</p>
-                            {isSelected && <div className="mt-1 w-3 h-3 bg-sky-700 rounded-full mx-auto" />}
-                          </button>
-                        );
-                      })}
+                  {/* Accommodation Type — suppressed when every night is
+                       already covered by pre-booked hotels (asking would be
+                       redundant and would feed contradictory hints to the AI). */}
+                  {nightsAllCovered ? (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <p className="text-sm font-semibold text-emerald-900">
+                        ✓ Your bookings cover every night
+                      </p>
+                      <p className="text-xs text-emerald-700 mt-1">
+                        No need to pick an accommodation type — the AI will plan around your hotel locations.
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-900 mb-1">
+                        Accommodation Type
+                      </label>
+                      <p className="text-xs text-zinc-400 mb-4">Select all that apply</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                          { id: 'hotel', label: 'Hotel', icon: '🏨' },
+                          { id: 'airbnb', label: 'Airbnb / Rental', icon: '🏠' },
+                          { id: 'hostel', label: 'Hostel', icon: '🛏️' },
+                          { id: 'resort', label: 'Resort', icon: '🌴' },
+                        ].map((type) => {
+                          const isSelected = state.accommodationType.includes(type.id);
+                          return (
+                            <button
+                              key={type.id}
+                              onClick={() => toggleAccommodationType(type.id)}
+                              className={`p-4 rounded-lg border-2 transition-all text-center ${
+                                isSelected
+                                  ? 'border-sky-700 bg-sky-50 text-sky-800'
+                                  : 'border-slate-200 hover:border-sky-300 text-zinc-900'
+                              }`}
+                            >
+                              <span className="text-2xl block mb-1">{type.icon}</span>
+                              <p className="text-sm font-semibold">{type.label}</p>
+                              {isSelected && <div className="mt-1 w-3 h-3 bg-sky-700 rounded-full mx-auto" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Repeat-visitor toggle — when set, the prompt skips the
                       famous tourist landmarks (the user has already been
@@ -2989,7 +3051,11 @@ function TripBuilderPage() {
                         <button onClick={() => setCurrentStep(6)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
                       </div>
                       <p className="text-lg font-semibold text-zinc-900 capitalize">
-                        {state.accommodationType.length > 0 ? state.accommodationType.join(', ') : <span className="text-zinc-400">Not set</span>}
+                        {nightsAllCovered
+                          ? <span className="text-emerald-700 normal-case">All nights booked</span>
+                          : state.accommodationType.length > 0
+                            ? state.accommodationType.join(', ')
+                            : <span className="text-zinc-400">Not set</span>}
                       </p>
                     </div>
                   </div>

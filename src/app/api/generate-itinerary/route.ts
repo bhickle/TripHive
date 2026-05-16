@@ -205,6 +205,37 @@ function getSeasonalContext(startDate: string, destination: string): string {
   if (month >= 5 && month <= 10 && (dest.includes('southeast asia') || dest.includes('thailand') || dest.includes('vietnam') || dest.includes('bali') || dest.includes('india')))
     lines.push('- MONSOON SEASON: Note wet season conditions in practicalNotes. Pack accordingly.');
 
+  // Orlando: three distinct theme-park properties that the model otherwise
+  // blurs into a single "Orlando theme parks" bucket. Without this rule the
+  // AI confidently puts Harry Potter rides inside Walt Disney World, lists
+  // EPCOT Food & Wine for a January trip, etc.
+  if (dest.includes('orlando') || dest.includes('walt disney world') || dest.includes('universal orlando')) {
+    lines.push(
+      "- ORLANDO HAS MULTIPLE DISTINCT PARK PROPERTIES — DO NOT MIX THEM. Walt Disney World Resort (Magic Kingdom, EPCOT, Disney's Hollywood Studios, Disney's Animal Kingdom, Disney Springs, Disney's water parks) and Universal Orlando Resort (Universal Studios Florida, Islands of Adventure, Volcano Bay, CityWalk, Epic Universe) are SEPARATE properties owned by different companies, located on opposite sides of Orlando (~15 miles apart), and require different tickets. SeaWorld Orlando is a third separate property. Attractions, rides, restaurants, character experiences, in-park transportation, hotel benefits, and seasonal events at one property DO NOT APPLY to the others. When naming any park-day activity, always state which property it belongs to (e.g. \"Mythos Restaurant at Islands of Adventure (Universal Orlando)\", not \"Mythos at Orlando theme parks\"). Never put Harry Potter attractions inside Disney; never put Disney character meet-and-greets inside Universal; never describe FastPass/Lightning Lane inside Universal (Universal has Express Pass, not Lightning Lane). Each park-day should commit to ONE property — do not hop between Disney and Universal on the same day."
+    );
+
+    // Named Orlando events with hard date windows. Mentioning these outside
+    // their window is a confidence-destroying mistake — the user shows up
+    // and the event doesn't exist.
+    const isFoodAndWine = month >= 8 && month <= 11;
+    const isHorrorNights = month === 9 || month === 10;
+    const isVeryMerry   = month === 11 || month === 12;
+    const isFlowerGarden = month === 3 || month === 4 || month === 5;
+
+    if (!isFoodAndWine) lines.push(
+      "- EPCOT INTERNATIONAL FOOD & WINE FESTIVAL (Disney) runs late August through mid-November ONLY. This trip is outside that window — do NOT list it as a current activity or describe it as available now. You may briefly note in a destinationTip that the festival runs annually Aug–Nov for future planning, but it is NOT happening for this trip."
+    );
+    if (!isHorrorNights) lines.push(
+      "- HALLOWEEN HORROR NIGHTS (Universal Orlando) runs early September through early November ONLY. Outside that window — do NOT include it as a scheduled activity or describe it as available."
+    );
+    if (!isVeryMerry) lines.push(
+      "- DISNEY HOLIDAY EVENTS (Mickey's Very Merry Christmas Party, EPCOT International Festival of the Holidays, Jollywood Nights) run mid-November through December ONLY. Outside that window — do NOT include them."
+    );
+    if (!isFlowerGarden) lines.push(
+      "- EPCOT INTERNATIONAL FLOWER & GARDEN FESTIVAL (Disney) runs March through May ONLY. Outside that window — do NOT include it."
+    );
+  }
+
   return lines.join('\n');
 }
 
@@ -1366,7 +1397,12 @@ RULES:
   - If you are not certain a specific location is genuinely tied to the theme, OMIT IT. It is far better to suggest fewer real spots than to invent or guess at thematic connections. A made-up "filming location" or "the chapel from chapter 7" that doesn't actually exist destroys traveler trust.
   - For each themed venue you include, briefly state the CONCRETE connection ("Santa Maria del Popolo — the 'Earth' altar in Angels & Demons; the Chigi Chapel is here", not "featured in the book"). If you can't articulate the specific connection, drop it.
   - If the theme has fewer real anchor locations than the user expects (e.g. the Angels & Demons "Path of Illumination" only has 4 real Roman churches), be honest — include those 4 and don't pad. Tell the user the theme has limited verified spots in the day's destinationTip or a practical note rather than inventing more.
-  - This rule OVERRIDES any pressure to fill must-have count quotas. Empty is better than fabricated.${dailyOutlinesText ? dailyOutlinesText : ''}
+  - This rule OVERRIDES any pressure to fill must-have count quotas. Empty is better than fabricated.
+22. VENUE OPERATING STATUS — closed-business safeguard:
+  - For restaurants, bars, cafés, smaller indie attractions, and themed/niche spots: when the REAL VENUES list above includes options, PREFER those over venues drawn from training-data memory. The Places list is freshness-filtered; your training data is not — restaurants close, change ownership, or rebrand often, and a venue you remember as great may be permanently shut.
+  - If you must reach beyond the list (sparse data for a small town), only suggest establishments you are HIGHLY CONFIDENT are still operating today. When in doubt, fall back to a more durable option — a museum, market, public park, well-known neighborhood walk, or a long-established institution — rather than a specific small business you can't be sure is still open.
+  - For very large or niche venues (single-location attractions, theme-park-specific restaurants, festival-only pop-ups), state in the activity description that travelers should verify current operating status on the official website before going, if there is any doubt.
+  - This rule applies to attractions too: an attraction you remember as open may have closed permanently. If you are not confident a niche attraction is still operating, omit it.${dailyOutlinesText ? dailyOutlinesText : ''}
 ${getSeasonalContext(startDate, destination)}
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
