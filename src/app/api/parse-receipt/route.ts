@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireAuth, requireFeature } from '@/lib/supabase/requireAuth';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -34,6 +34,12 @@ lineItems should list every individual item/charge on the receipt.`;
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+
+  // Tier gate: AI receipt scanning is a Nomad-only feature. Without this
+  // check, Free/Explorer users could still hit the endpoint directly and
+  // burn vision-API credits on what's marketed as a Nomad perk.
+  const denied = requireFeature(auth.ctx.tier, 'canUseAIReceiptScan');
+  if (denied) return denied;
 
   // Credit gate (two-phase). Charged after parse succeeds.
   const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'parse_receipt');

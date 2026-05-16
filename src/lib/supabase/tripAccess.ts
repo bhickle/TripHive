@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from './server';
 import { createAdminClient } from './admin';
+import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
 
 /**
  * Resolves the current user's ID from the Supabase session, or null if not signed in.
@@ -200,4 +201,59 @@ export async function requireTripAiRole(tripId: string): Promise<
     };
   }
   return { ok: true, ctx: { userId, supabase, role } };
+}
+
+/**
+ * Trip-scoped feature gate that respects the Trip Pass overlay.
+ *
+ * The Trip Pass overlay (per useEntitlements.ts) grants trip-scoped
+ * features (expenses, split tracks, transport parser, co-organizer
+ * eligibility) to EVERY member of a trip with an active pass — regardless
+ * of the caller's own subscription tier. A free user invited to a pass
+ * trip should be able to add expenses; this helper enforces that.
+ *
+ * Returns:
+ *   - { allowed: true }                     — caller can use the feature
+ *   - { allowed: false, reason: 'tier' }    — caller's tier doesn't include
+ *                                              and the trip has no active pass
+ *   - { allowed: false, reason: 'unknown' } — couldn't resolve tier
+ *
+ * Use for: canUseExpenses, canUseSplitTracks, canUseTransportParser,
+ * canAddCoOrganizer. Don't use for user-scoped Nomad-only features
+ * (canUseAIPacking, canUseAIPhrasebook, canUseAIReceiptScan) — those
+ * stay on the caller's own tier; the overlay doesn't apply.
+ */
+export async function hasTripFeatureAccess(
+  supabase: ReturnType<typeof createAdminClient>,
+  tripId: string,
+  userId: string,
+  feature: 'canUseExpenses' | 'canUseSplitTracks' | 'canUseTransportParser' | 'canAddCoOrganizer',
+): Promise<{ allowed: true } | { allowed: false; reason: 'tier' | 'unknown' }> {
+  // Caller's own tier check first — short-circuits the pass lookup for
+  // paid users (the common case).
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('subscription_tier')
+    .eq('id', userId)
+    .maybeSingle();
+  const tier = (profile?.subscription_tier as SubscriptionTier | null) ?? null;
+  if (!tier) return { allowed: false, reason: 'unknown' };
+
+  if (TIER_LIMITS[tier]?.[feature]) {
+    return { allowed: true };
+  }
+
+  // Pass overlay: if this trip has an active pass, the feature unlocks
+  // for every member.
+  const { data: pass } = await supabase
+    .from('trip_passes')
+    .select('id')
+    .eq('trip_id', tripId)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+  if (pass && TIER_LIMITS.trip_pass[feature]) {
+    return { allowed: true };
+  }
+
+  return { allowed: false, reason: 'tier' };
 }

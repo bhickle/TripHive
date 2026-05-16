@@ -7,6 +7,7 @@ import { Avatar } from '@/components/Avatar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAuth } from '@/context/AuthContext';
 import { PRICING } from '@/hooks/useEntitlements';
+import { TIER_LIMITS } from '@/lib/types';
 import {
   User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, Settings as SettingsIcon,
   ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap, Loader2,
@@ -517,11 +518,18 @@ export default function SettingsPage() {
   const plan = PLAN_DISPLAY[tier];
   const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
 
-  // Credit totals derived from tier — not from the mock currentUser hook which has no real data for paid tiers
-  const AI_CREDIT_TOTALS: Record<string, number> = { free: 10, explorer: 100, nomad: 250, trip_pass: 30 };
+  // Credit totals derived from tier limits (single source of truth in
+  // lib/types.ts). Previously hardcoded `{ free: 10, ... trip_pass: 30 }`
+  // which went stale on 2026-05-16 when free was bumped 10→25 and Trip Pass
+  // 30→50 — meaning the settings page showed the wrong denominator on the
+  // usage bar (50% when actually 20%, etc.).
   const aiUsed  = authLoading ? 0 : (user ? (authProfile?.ai_credits_used ?? 0) : (currentUser.aiCredits?.used ?? 0));
-  const aiTotal = authLoading ? 0 : (AI_CREDIT_TOTALS[tier] ?? 10);
-  const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : '0 / 10';
+  const aiTotal = authLoading ? 0 : (() => {
+    if (tier === 'trip_pass') return PRICING.trip_pass.aiCredits;
+    const limit = TIER_LIMITS[tier as keyof typeof TIER_LIMITS]?.aiCreditsPerMonth;
+    return typeof limit === 'number' ? limit : 0;
+  })();
+  const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : `${aiUsed} / 25`;
   const aiPct     = aiTotal > 0 ? Math.min(100, Math.round((aiUsed / aiTotal) * 100)) : 0;
 
   const tierLabel = tier === 'free' ? 'Free plan'

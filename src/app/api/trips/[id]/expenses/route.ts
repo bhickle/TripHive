@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { requireTripAccess, hasTripFeatureAccess } from '@/lib/supabase/tripAccess';
 
 /**
  * GET /api/trips/[id]/expenses
@@ -59,6 +59,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!access.ok) return access.response;
     const { userId, supabase } = access.ctx;
 
+    // Tier gate: expenses is a paid feature (Trip Pass / Explorer / Nomad).
+    // Trip Pass overlay grants this to every member of a pass trip too.
+    const featureCheck = await hasTripFeatureAccess(supabase, params.id, userId, 'canUseExpenses');
+    if (!featureCheck.allowed) {
+      return NextResponse.json(
+        { error: 'FEATURE_LOCKED', message: 'Expense tracking is a paid feature. Upgrade to Explorer/Nomad or buy a Trip Pass to unlock it.' },
+        { status: 403 },
+      );
+    }
+
     const body = await req.json();
     const { description, amount, paidByName, splitType, category, customAmounts, lineItems } = body;
 
@@ -113,7 +123,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   try {
     const access = await requireTripAccess(params.id);
     if (!access.ok) return access.response;
-    const { supabase } = access.ctx;
+    const { userId, supabase } = access.ctx;
+
+    // Same tier gate as POST — paid feature only.
+    const featureCheck = await hasTripFeatureAccess(supabase, params.id, userId, 'canUseExpenses');
+    if (!featureCheck.allowed) {
+      return NextResponse.json(
+        { error: 'FEATURE_LOCKED', message: 'Expense tracking is a paid feature. Upgrade to Explorer/Nomad or buy a Trip Pass to unlock it.' },
+        { status: 403 },
+      );
+    }
 
     const body = await req.json();
     const { expenseId, settled, lineItems } = body as {

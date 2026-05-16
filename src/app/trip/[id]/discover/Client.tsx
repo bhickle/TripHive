@@ -970,12 +970,21 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                     fetch('/api/generate-discover', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ destination: currentCity }),
+                      // tripId is required for the server's role gate (org/co-org
+                      // only) AND the credit-gate's Trip Pass pool routing.
+                      // Without it, a plain member's retry would either silently
+                      // burn their personal credits (if route falls through) or
+                      // 403 without a clear message.
+                      body: JSON.stringify({ tripId: params.id, destination: currentCity }),
                     })
                       .then(async r => {
                         if (r.ok) return r.json();
                         const body = await r.json().catch(() => ({}));
-                        setAiErrorDetail(body.detail ?? `HTTP ${r.status}`);
+                        // Prefer the server's user-facing `message` over the
+                        // raw HTTP code so role-rejection ("Only the organizer
+                        // can trigger AI…") and credit-exhaustion errors land
+                        // as readable copy instead of "HTTP 403".
+                        setAiErrorDetail(body.message ?? body.detail ?? `HTTP ${r.status}`);
                         return Promise.reject();
                       })
                       .then(({ items }) => {

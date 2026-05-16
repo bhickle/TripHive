@@ -24,7 +24,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .order('created_at', { ascending: true })
       .limit(200);
 
-    if (error) return NextResponse.json({ messages: [] });
+    if (error) {
+      // Previously returned `{ messages: [] }` silently — that made a
+      // transient DB blip look like "nobody has chatted yet" forever, with
+      // no log to diagnose and no user-facing signal. Surface the failure
+      // so the client can retry and we can spot it in Vercel logs.
+      console.error('[messages GET] supabase error for trip', params.id, error);
+      return NextResponse.json(
+        { error: 'Failed to load chat messages. Please retry.' },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       messages: (messages ?? []).map(m => ({
