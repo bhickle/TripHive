@@ -267,19 +267,18 @@ export default function HomePage() {
               </Link>
               <ul className="space-y-3 flex-1">
                 {[
-                  '1 active trip',
+                  'Unlimited active trips',
                   'Up to 4 travelers',
+                  '25 AI credits / month (1 build)',
                   'Manual itinerary builder',
-                  'Activity voting (view only)',
+                  'Group chat & photo gallery',
+                  'Activity voting',
                   'Community support',
                 ].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
                     <CheckCircle className="w-4 h-4 text-zinc-300 flex-shrink-0 mt-0.5" />{f}
                   </li>
                 ))}
-                <li className="flex items-start gap-2.5 text-sm text-slate-400">
-                  <X className="w-4 h-4 text-zinc-200 flex-shrink-0 mt-0.5" />No AI features
-                </li>
               </ul>
             </div>
 
@@ -298,7 +297,7 @@ export default function HomePage() {
               <ul className="space-y-3 flex-1">
                 {[
                   'Up to 6 travelers (+ add-ons)',
-                  '30 AI credits for this trip',
+                  '30 AI credits for this trip (1 build + tweaks)',
                   'AI itinerary generation',
                   'Transport confirmation parser',
                   'Trip Story (shareable)',
@@ -332,7 +331,7 @@ export default function HomePage() {
                 {[
                   'Plan trips all year long',
                   'Up to 8 travelers per trip',
-                  '100 AI credits / month',
+                  '100 AI credits / month (~4 full builds)',
                   'AI itinerary generation',
                   'Transport confirmation parser',
                   'Trip Story for every trip',
@@ -366,7 +365,7 @@ export default function HomePage() {
                 {[
                   { text: 'Everything in Explorer', highlight: false },
                   { text: 'Up to 15 travelers per trip', highlight: false },
-                  { text: '250 AI credits / month', highlight: true },
+                  { text: '250 AI credits / month (~10 full builds)', highlight: true },
                   { text: 'Split-track itineraries', highlight: true },
                   { text: 'Co-organizer role', highlight: true },
                   { text: 'Year in Review', highlight: true },

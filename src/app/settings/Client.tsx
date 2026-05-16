@@ -75,16 +75,17 @@ const PLAN_DISPLAY: Record<string, { name: string; price: string; per: string; g
 
 const PLAN_FEATURES: Record<string, string[]> = {
   free: [
-    '1 active trip',
+    'Unlimited trips',
     'Up to 4 travelers',
-    '10 AI credits / month',
+    '25 AI credits / month (1 build)',
     'Manual itinerary builder',
+    'Group chat & photo gallery',
     'Community support',
   ],
   explorer: [
     'Unlimited trips',
     'Up to 8 travelers',
-    '100 AI credits / month',
+    '100 AI credits / month (~4 builds)',
     'AI itinerary generation',
     'Transport confirmation parser',
     'Trip Story & photo gallery',
@@ -95,7 +96,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   nomad: [
     'Unlimited trips',
     'Up to 15 travelers',
-    '250 AI credits / month',
+    '250 AI credits / month (~10 builds)',
     'AI itinerary generation',
     'Transport confirmation parser',
     'Split-track itineraries',
@@ -110,7 +111,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   ],
   trip_pass: [
     '1 trip, up to 6 travelers',
-    '30 AI credits',
+    '30 AI credits (1 build + tweaks)',
     'AI itinerary generation',
     'Transport confirmation parser',
     'Trip Story & photo gallery',
