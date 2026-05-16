@@ -115,25 +115,39 @@ export function UpgradeModal({ prompt, onClose, tripId, tripGroupSize }: Upgrade
                 : `Up to ${baseGroup} travelers · one-time, no subscription`}
             </p>
           )}
-          <Link
-            href="/pricing"
-            onClick={onClose}
-            className={`w-full flex items-center justify-center gap-2 py-3 font-semibold rounded-full transition-all text-sm ${
-              tripId
-                ? 'border border-zinc-200 text-zinc-700 hover:bg-zinc-50'
-                : 'bg-sky-800 hover:bg-sky-900 text-white'
-            }`}
-          >
-            {!tripId && <Sparkles className="w-4 h-4" />}
-            {tripId ? 'See all plans' : prompt.ctaLabel}
-            {!tripId && <ArrowRight className="w-4 h-4" />}
-          </Link>
-          <button
-            onClick={onClose}
-            className="w-full py-3 text-zinc-500 hover:text-zinc-700 text-sm font-medium transition-colors"
-          >
-            Maybe later
-          </button>
+          {prompt.noUpgradePath ? (
+            // Top-tier user with no upgrade path — primary CTA dismisses
+            // instead of linking to /pricing. "Maybe later" row is suppressed
+            // since "Got it" is the only sensible action.
+            <button
+              onClick={onClose}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-full transition-all text-sm"
+            >
+              {prompt.ctaLabel}
+            </button>
+          ) : (
+            <>
+              <Link
+                href="/pricing"
+                onClick={onClose}
+                className={`w-full flex items-center justify-center gap-2 py-3 font-semibold rounded-full transition-all text-sm ${
+                  tripId
+                    ? 'border border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                    : 'bg-sky-800 hover:bg-sky-900 text-white'
+                }`}
+              >
+                {!tripId && <Sparkles className="w-4 h-4" />}
+                {tripId ? 'See all plans' : prompt.ctaLabel}
+                {!tripId && <ArrowRight className="w-4 h-4" />}
+              </Link>
+              <button
+                onClick={onClose}
+                className="w-full py-3 text-zinc-500 hover:text-zinc-700 text-sm font-medium transition-colors"
+              >
+                Maybe later
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -3,6 +3,16 @@ import { createAdminClient } from './admin';
 import { TIER_LIMITS, AI_CREDIT_COSTS, AiAction, SubscriptionTier } from '@/lib/types';
 
 /**
+ * Next reset boundary, as an ISO timestamp at 00:00 UTC on the first of the
+ * following month. Kept in one place so the cron and the reset-on-read path
+ * write the same value.
+ */
+export function nextCreditResetAt(from: Date = new Date()): string {
+  const next = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1));
+  return next.toISOString();
+}
+
+/**
  * Snapshot of a user's credit state at the moment of the check. Returned
  * from checkAiCredits and passed back into incrementAiCreditsUsed so the
  * increment lands on the same baseline value the check saw.
@@ -61,7 +71,7 @@ export async function checkAiCredits(
   const admin = createAdminClient();
   const { data: profile, error } = await admin
     .from('profiles')
-    .select('ai_credits_used')
+    .select('ai_credits_used, ai_credits_reset_at')
     .eq('id', userId)
     .single();
   if (error) {
@@ -69,7 +79,25 @@ export async function checkAiCredits(
     return { ok: true, ctx: { used: 0, limit, cost, exempt: true } };
   }
 
-  const used = profile?.ai_credits_used ?? 0;
+  // Reset-on-read: if the profile's reset boundary is in the past, zero out
+  // the counter and roll the boundary forward before checking. Belt-and-
+  // suspenders with the daily cron at /api/cron/reset-ai-credits — that cron
+  // keeps dashboard credit displays accurate; this branch guarantees the gate
+  // is correct even if the cron is down or runs after the user clicks Build.
+  let used = profile?.ai_credits_used ?? 0;
+  const resetAt = profile?.ai_credits_reset_at;
+  if (used > 0 && resetAt && new Date(resetAt).getTime() <= Date.now()) {
+    const nextReset = nextCreditResetAt();
+    const { error: resetErr } = await admin
+      .from('profiles')
+      .update({ ai_credits_used: 0, ai_credits_reset_at: nextReset })
+      .eq('id', userId);
+    if (resetErr) {
+      console.error('[aiCredits] lazy reset failed:', resetErr);
+    } else {
+      used = 0;
+    }
+  }
   if (used + cost > limit) {
     return {
       ok: false,

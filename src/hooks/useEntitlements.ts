@@ -58,6 +58,10 @@ export interface UpgradePrompt {
   body: string;
   ctaLabel: string;
   suggestedTier: SubscriptionTier;
+  /** When true, the modal's primary CTA dismisses instead of linking to
+   *  /pricing — used when the user is already on the top tier and there
+   *  is no upgrade path (e.g. Nomad out of credits this month). */
+  noUpgradePath?: boolean;
 }
 
 const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'>> = {
@@ -69,8 +73,10 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
   },
   ai_credits_empty: {
     reason: 'ai_credits_empty',
-    headline: "You've used your AI build for this month",
-    body: "Your free credit refreshes at the start of next month. Upgrade to Explorer for 100 credits a month, or Nomad for 250.",
+    // Body is overridden per-tier in getUpgradePrompt — this is the free-tier
+    // fallback if the override isn't reached.
+    headline: "You're out of AI credits for this month",
+    body: "Your credits refresh at the start of next month. Upgrade to Explorer for 100 credits a month, or Nomad for 250.",
     ctaLabel: 'See plans',
   },
   ai_credits_low: {
@@ -222,6 +228,33 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
       tier === 'free' ? 'explorer' :
       tier === 'trip_pass' ? 'explorer' :
       tier === 'explorer' ? 'nomad' : 'nomad';
+
+    // Tier-aware override for "out of credits" — the default copy is
+    // free-tier-framed ("Your free credit refreshes…"), which reads wrong to
+    // a Nomad user. Explorer gets a Nomad upsell; Nomad gets a wait-for-reset
+    // message with no upsell (they're already on the top tier).
+    if (reason === 'ai_credits_empty') {
+      if (tier === 'nomad') {
+        return {
+          ...base,
+          headline: "You've used all 250 of your Nomad credits this month",
+          body: 'Your credits refresh at the start of next month. Until then, you can keep editing existing trips — only new AI builds are paused.',
+          ctaLabel: 'Got it',
+          suggestedTier,
+          noUpgradePath: true,
+        };
+      }
+      if (tier === 'explorer') {
+        return {
+          ...base,
+          headline: "You've used your 100 Explorer credits this month",
+          body: 'Your credits refresh at the start of next month. Nomad gets 250 credits a month if you want to keep building now.',
+          ctaLabel: 'See Nomad',
+          suggestedTier: 'nomad',
+        };
+      }
+    }
+
     return { ...base, suggestedTier };
   }
 

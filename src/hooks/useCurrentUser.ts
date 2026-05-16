@@ -108,6 +108,15 @@ export function useCurrentUser() {
     'Traveler';
   const displayName = rawName.split(' ')[0] || 'Traveler';
 
+  // Display correction: if the profile's reset boundary is in the past, the
+  // server-side reset (cron + reset-on-read in checkAiCredits) hasn't fired
+  // yet but the user's credits are conceptually already reset. Surface 0 so
+  // the dashboard doesn't show "250/250 used" between the boundary and the
+  // next server-side touch.
+  const resetAtIso = profile?.ai_credits_reset_at;
+  const resetInPast = !!resetAtIso && new Date(resetAtIso).getTime() <= Date.now();
+  const usedForDisplay = resetInPast ? 0 : (profile?.ai_credits_used ?? 0);
+
   return {
     id: user.id,
     email: user.email ?? '',
@@ -117,7 +126,7 @@ export function useCurrentUser() {
     homeCountry: profile?.home_country ?? null,
     aiCredits: {
       total: aiTotal,
-      used: profile?.ai_credits_used ?? 0,
+      used: usedForDisplay,
       refreshAt:
         profile?.ai_credits_reset_at ??
         new Date(

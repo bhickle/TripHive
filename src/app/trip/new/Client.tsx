@@ -362,7 +362,7 @@ function TripBuilderPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
+  const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'ai_credits_empty' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
   const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady, maxTravelersForTrip } = useEntitlements();
   const [budgetInput, setBudgetInput] = useState('5000');
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
@@ -3113,7 +3113,10 @@ function TripBuilderPage() {
                     <button
                       onClick={() => {
                         if (!canAffordAction('itinerary_generate')) {
-                          setUpgradeReason('no_ai');
+                          // Paid users out of credits get the tier-appropriate
+                          // "you've used your credits" copy; free users get the
+                          // free-tier upgrade nudge.
+                          setUpgradeReason(tier === 'free' ? 'no_ai' : 'ai_credits_empty');
                           setShowUpgradeModal(true);
                           return;
                         }
