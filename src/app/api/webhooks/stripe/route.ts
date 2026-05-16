@@ -49,25 +49,47 @@ async function setTier(
   const supabaseAdmin = createAdminClient();
   const credits = TIER_CREDITS[tier] ?? 10;
 
+  // Read existing profile up front. We need it for both the idempotency
+  // skip AND the downgrade-credit-preservation logic below.
+  const { data: existing } = await supabaseAdmin
+    .from('profiles')
+    .select('subscription_tier, stripe_subscription_id, ai_credits_reset_at, ai_credits_used')
+    .eq('id', userId)
+    .single();
+
   // Idempotency: if the profile already reflects this tier + subscription_id
   // AND the credit window is still active, skip the write to avoid resetting
   // ai_credits_used on a webhook retry of a previously-processed event.
-  if (subscriptionId) {
-    const { data: existing } = await supabaseAdmin
-      .from('profiles')
-      .select('subscription_tier, stripe_subscription_id, ai_credits_reset_at')
-      .eq('id', userId)
-      .single();
+  if (
+    subscriptionId &&
+    existing?.subscription_tier === tier &&
+    existing?.stripe_subscription_id === subscriptionId &&
+    existing?.ai_credits_reset_at &&
+    new Date(existing.ai_credits_reset_at).getTime() > Date.now()
+  ) {
+    console.log(`[stripe/webhook] setTier skipped (already ${tier} for sub ${subscriptionId})`);
+    return;
+  }
 
-    if (
-      existing?.subscription_tier === tier &&
-      existing?.stripe_subscription_id === subscriptionId &&
-      existing?.ai_credits_reset_at &&
-      new Date(existing.ai_credits_reset_at).getTime() > Date.now()
-    ) {
-      console.log(`[stripe/webhook] setTier skipped (already ${tier} for sub ${subscriptionId})`);
-      return;
-    }
+  // Downgrade credit-preservation: if the user is moving to a LOWER-rank
+  // tier mid-cycle (e.g. Nomad 250 → Explorer 100 with 180 already used),
+  // don't reset ai_credits_used to 0 — that would refund 180 cr of Nomad
+  // spend they already consumed. Carry the used count forward and cap it
+  // at the new tier's total so the gate behaves sensibly.
+  //
+  // Upgrades (Explorer → Nomad) and renewals (same tier, expired cycle)
+  // still zero out, which is the right behavior — user paid for fresh
+  // credits, give them fresh credits.
+  const existingRank = SUBSCRIPTION_TIER_RANK[existing?.subscription_tier ?? 'free'] ?? 0;
+  const newRank = SUBSCRIPTION_TIER_RANK[tier] ?? 0;
+  const isDowngrade = newRank < existingRank;
+  let nextUsed = 0;
+  if (isDowngrade) {
+    const carried = existing?.ai_credits_used ?? 0;
+    nextUsed = Math.min(carried, credits); // cap at new total
+    console.log(
+      `[stripe/webhook] downgrade ${existing?.subscription_tier} → ${tier}: preserving ai_credits_used=${nextUsed} (carried ${carried}, capped at ${credits})`,
+    );
   }
 
   await supabaseAdmin
@@ -75,7 +97,7 @@ async function setTier(
     .update({
       subscription_tier: tier,
       ai_credits_total: credits,
-      ai_credits_used: 0,
+      ai_credits_used: nextUsed,
       ai_credits_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       ...(subscriptionId ? { stripe_subscription_id: subscriptionId } : {}),
     })
@@ -247,10 +269,41 @@ export async function POST(req: NextRequest) {
 
       // ── Payment failed ────────────────────────────────────────────────────
       case 'invoice.payment_failed': {
-        // Stripe will retry automatically. We log but don't downgrade yet —
-        // Stripe will fire subscription.deleted if it ultimately gives up.
+        // Stripe will retry automatically (per its smart-retry schedule).
+        // We don't downgrade yet — Stripe will fire subscription.deleted if
+        // it ultimately gives up. But we DO surface an in-app notification
+        // so the user has a path to update their payment method before
+        // their subscription dies silently.
         const invoice = event.data.object as Stripe.Invoice;
         console.warn('[stripe/webhook] payment failed for customer:', invoice.customer);
+
+        const userId = await userIdFromCustomer(invoice.customer as string);
+        if (userId) {
+          const supabaseAdmin = createAdminClient();
+          // Idempotent: only one open payment-failed notification per user
+          // at a time (dedupe by checking for an unread row first). Avoids
+          // spamming the bell every time Stripe retries.
+          const { count } = await supabaseAdmin
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('type', 'payment_failed')
+            .eq('read', false);
+          if ((count ?? 0) === 0) {
+            await supabaseAdmin.from('notifications').insert({
+              user_id: userId,
+              type: 'payment_failed',
+              trip_id: null,
+              trip_name: null,
+              inviter_name: 'TripCoord',
+              message: 'We couldn’t charge your card. Update your payment method in Settings before your subscription lapses.',
+            });
+          }
+        }
+        // TODO(launch): wire a SendGrid transactional email here too so
+        // users who don't open the app for a few days still see the dunning
+        // notice. Template + helper already exist in /api/cron/lifecycle-
+        // emails; lift the send-call into a shared helper.
         break;
       }
 
