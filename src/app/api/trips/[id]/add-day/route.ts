@@ -3,6 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { TIER_LIMITS } from '@/lib/types';
 
 export const maxDuration = 60;
 
@@ -42,6 +44,38 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   // Role gate: AI changes are organizer/co-organizer only.
   const roleCheck = await requireTripAiRole(params.id);
   if (!roleCheck.ok) return roleCheck.response;
+
+  // Tier cap: don't let add-day push the trip beyond the caller's
+  // maxTripDays. Without this check, a free user (max 7 days) could
+  // extend an existing trip indefinitely via repeated add-day calls.
+  // Matches the same per-tier limit /api/generate-itinerary enforces.
+  // Caller-tier asymmetry note: a Nomad co-org adding to a free
+  // organizer's trip will hit the Nomad cap (14), not the organizer's;
+  // acceptable for v1 since the AI build itself was already gated by
+  // the organizer's tier when the trip was first created.
+  const tierLimit = TIER_LIMITS[auth.ctx.tier].maxTripDays;
+  try {
+    const admin = createAdminClient();
+    const { data: tripRow } = await admin
+      .from('trips')
+      .select('trip_length')
+      .eq('id', params.id)
+      .maybeSingle();
+    const currentLen = tripRow?.trip_length ?? 0;
+    if (currentLen >= tierLimit) {
+      return NextResponse.json(
+        {
+          error: 'TRIP_LENGTH_LIMIT',
+          message: `Your ${auth.ctx.tier} plan supports trips up to ${tierLimit} days. Upgrade to add more.`,
+        },
+        { status: 403 },
+      );
+    }
+  } catch (err) {
+    // Lookup failure shouldn't block — log and proceed; the AI call is
+    // the real cost and the credit gate will still apply.
+    console.warn('[add-day] trip_length lookup failed, skipping cap check:', err);
+  }
 
   // Credit gate (two-phase). Pass tripId so the gate routes the charge to
   // the trip's pass pool if one is active; falls through to the user's

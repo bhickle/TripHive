@@ -75,7 +75,7 @@ export interface AiCredits {
  * Per-tier build counts at current credit caps (after this repricing):
  *   Free      —  25 cr →  1 build/mo (free tier was bumped 10→25 cr to
  *                          preserve the "1 build/mo" promise)
- *   Trip Pass —  30 cr →  1 build + 5 cr in add-ons per pass
+ *   Trip Pass —  50 cr →  1 build + 1 regen + 5 small tweaks per pass
  *   Explorer  — 100 cr →  4 builds/mo
  *   Nomad     — 250 cr → 10 builds/mo
  *

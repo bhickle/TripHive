@@ -16,19 +16,13 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { verifyCronSecret } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) {
-    console.error('[cron/expire-venue-cache] CRON_SECRET is not set');
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
-  }
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${expected}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const auth = verifyCronSecret(req, 'cron/expire-venue-cache');
+  if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();

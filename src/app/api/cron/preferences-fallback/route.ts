@@ -22,20 +22,13 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { verifyCronSecret } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  // ── Cron auth ─────────────────────────────────────────────────────────────
-  const expected = process.env.CRON_SECRET;
-  if (!expected) {
-    console.error('[cron/preferences-fallback] CRON_SECRET is not set');
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
-  }
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${expected}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const auth = verifyCronSecret(req, 'cron/preferences-fallback');
+  if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
   const now = new Date();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Database, Json } from '@/lib/supabase/database.types';
+import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
 
 type TripInsert = Database['public']['Tables']['trips']['Insert'];
 type ItineraryInsert = Database['public']['Tables']['itineraries']['Insert'];
@@ -71,6 +72,26 @@ export async function POST(request: NextRequest) {
 
     // All DB writes use the admin client (bypasses RLS, no cookie dependency)
     const supabase = createAdminClient();
+
+    // ── Tier caps (server-side enforcement) ───────────────────────────────────
+    // Trip Builder enforces maxBookedHotels client-side, but the save route
+    // was trusting the client. Re-check here so a crafted POST can't
+    // persist 10 hotels on a free trip. We trim the array silently rather
+    // than 400 — the user's other choices (destination, dates, etc.)
+    // shouldn't be discarded over a hotel-cap overage.
+    const { data: callerProfile } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    const callerTier = (callerProfile?.subscription_tier as SubscriptionTier | undefined) ?? 'free';
+    const hotelCap = TIER_LIMITS[callerTier].maxBookedHotels;
+    if (Array.isArray(tripMeta.bookedHotels) && tripMeta.bookedHotels.length > hotelCap) {
+      console.warn(
+        `[trips/save] trimming bookedHotels from ${tripMeta.bookedHotels.length} to ${hotelCap} for ${callerTier} user ${userId}`,
+      );
+      tripMeta.bookedHotels = tripMeta.bookedHotels.slice(0, hotelCap);
+    }
 
     // ── 1. Insert the trip row ────────────────────────────────────────────────
     const tripInsert: TripInsert = {

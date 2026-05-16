@@ -21,6 +21,7 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { verifyCronSecret } from '@/lib/cronAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -352,16 +353,8 @@ async function processJob(
 }
 
 export async function GET(req: NextRequest) {
-  // ── Cron auth ──────────────────────────────────────────────────────────
-  const expected = process.env.CRON_SECRET;
-  if (!expected) {
-    console.error('[cron/lifecycle-emails] CRON_SECRET is not set');
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
-  }
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${expected}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const cronAuth = verifyCronSecret(req, 'cron/lifecycle-emails');
+  if (!cronAuth.ok) return cronAuth.response;
 
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) {

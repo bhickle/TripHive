@@ -299,7 +299,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           }
         }
       } else {
-        // Single-pick (existing behavior): replace any previous response.
+        // Single-pick: contract requires NO `picked` field on the body. A
+        // client sending `picked: false` on a single-pick poll would otherwise
+        // be interpreted as "replace your vote with optionId" via the
+        // delete-then-insert flow, which is a triple-voting abuse vector
+        // when chained with rapid clicks. Reject explicitly.
+        if (picked !== undefined) {
+          return NextResponse.json(
+            { error: "BAD_REQUEST", message: "This poll is single-pick — don't send a 'picked' field." },
+            { status: 400 },
+          );
+        }
+        // Existing behavior: replace any previous response.
         const { error: delErr } = await supabase.from('vote_responses').delete()
           .eq('vote_id', voteId).eq('user_id', userId);
         if (delErr) {

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/lib/supabase/database.types';
 import { getTripRole } from '@/lib/supabase/tripAccess';
+import { TIER_LIMITS } from '@/lib/types';
 
 /**
  * GET /api/trips/[id]/members
@@ -231,6 +232,63 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (existing) {
         return NextResponse.json({ ok: true, alreadyMember: true });
       }
+    }
+
+    // Traveler cap enforcement — the Trip Builder enforces this client-side
+    // but the server was relying on trust. Now we look up the organizer's
+    // tier (or the trip's pass), compute the cap, and reject if adding this
+    // member would push the trip over.
+    //
+    // Cap by tier:
+    //   free      → 4 travelers   (organizer + 3)
+    //   trip_pass → 6 base + extras (varies per pass purchase)
+    //   explorer  → 8 travelers
+    //   nomad     → 15 travelers
+    try {
+      const { data: orgProfile } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', trip.organizer_id ?? '')
+        .maybeSingle();
+      const orgTier = (orgProfile?.subscription_tier as keyof typeof TIER_LIMITS | undefined) ?? 'free';
+
+      let cap: number;
+      if (orgTier === 'trip_pass') {
+        // Trip Pass: base 6 + the extras the buyer paid for. Look up the
+        // most recent active pass for this trip.
+        const { data: pass } = await supabase
+          .from('trip_passes')
+          .select('extra_people')
+          .eq('trip_id', params.id)
+          .gt('expires_at', new Date().toISOString())
+          .order('purchased_at', { ascending: false })
+          .maybeSingle();
+        cap = 6 + (pass?.extra_people ?? 0);
+      } else {
+        const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
+        cap = typeof tierCap === 'number' ? tierCap : 4;
+      }
+
+      // Members + 1 for the organizer themselves (organizer isn't in trip_members)
+      const { count: memberCount } = await supabase
+        .from('trip_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('trip_id', params.id);
+      const currentTravelerCount = (memberCount ?? 0) + 1;
+      if (currentTravelerCount >= cap) {
+        return NextResponse.json(
+          {
+            error: 'TRAVELER_LIMIT',
+            message: `This trip has reached its ${cap}-traveler limit. The organizer can upgrade or buy a Trip Pass with more seats to add more people.`,
+          },
+          { status: 403 },
+        );
+      }
+    } catch (err) {
+      // Cap-lookup failure shouldn't block joins — log and proceed; better
+      // to overshoot the cap by one than to lock people out due to a
+      // transient DB read failure.
+      console.warn('[members POST] traveler cap lookup failed, skipping:', err);
     }
 
     const { error: insertErr } = await supabase

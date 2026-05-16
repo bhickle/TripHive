@@ -20,19 +20,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { nextCreditResetAt } from '@/lib/supabase/aiCredits';
+import { verifyCronSecret } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) {
-    console.error('[cron/reset-ai-credits] CRON_SECRET is not set');
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
-  }
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${expected}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const auth = verifyCronSecret(req, 'cron/reset-ai-credits');
+  if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
   const nowIso = new Date().toISOString();
