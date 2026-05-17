@@ -2407,6 +2407,10 @@ function ItineraryPageContent() {
       if (updatedDays) persistDays(updatedDays as ItineraryDay[]);
 
       setShowEditTripModal(false);
+      // Success indicator — without this the modal just closes silently
+      // and the user has no confirmation their edit actually saved.
+      setActionSuccess('Trip details saved');
+      setTimeout(() => setActionSuccess(null), 2500);
     } catch (err) {
       console.error('Failed to save trip edit:', err);
       setEditTripError("Couldn't save your changes. Please try again.");

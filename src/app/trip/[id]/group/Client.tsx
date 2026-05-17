@@ -1211,19 +1211,83 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         </div>
       )}
       {showPassPurchasedToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-start gap-3 bg-emerald-700 text-white px-5 py-3.5 rounded-2xl shadow-xl max-w-sm">
-          <CheckCircle2 className="w-5 h-5 text-emerald-200 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">Trip Pass active</p>
-            <p className="text-xs text-emerald-100 mt-0.5">Invite your crew to share preferences before generating.</p>
-          </div>
-          <button
-            onClick={() => setShowPassPurchasedToast(false)}
-            className="text-emerald-200 hover:text-white"
-            aria-label="Dismiss"
+        // Post-purchase onboarding modal — fires once after a successful
+        // Stripe checkout (?checkout=success in the URL). Replaces the
+        // previous small corner toast: the post-purchase moment is the
+        // user's peak-engagement window, so it earns a celebratory modal
+        // that explicitly lists what they unlocked + drives them toward
+        // the high-leverage next step (invite the crew). Dismiss removes
+        // the ?checkout=success param so a refresh doesn't show it twice.
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            setShowPassPurchasedToast(false);
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('checkout');
+              window.history.replaceState({}, '', url.toString());
+            } catch { /* ignore */ }
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+            onClick={e => e.stopPropagation()}
           >
-            <X className="w-4 h-4" />
-          </button>
+            <div className="bg-gradient-to-br from-emerald-500 to-sky-700 px-6 py-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-3 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                <span className="text-3xl">🎉</span>
+              </div>
+              <h2 className="font-script italic text-2xl font-semibold text-white mb-1">Your Trip Pass is active</h2>
+              <p className="text-sm text-emerald-50">Here&apos;s what you just unlocked for this trip.</p>
+            </div>
+            <div className="px-6 py-6">
+              <ul className="space-y-2.5 mb-6">
+                {[
+                  { icon: '✨', text: '50 AI credits — enough for 1 full build + 1 regen + tweaks' },
+                  { icon: '👥', text: 'Up to 6 travelers (add more for $4/each)' },
+                  { icon: '💰', text: 'Group expense tracking & splits' },
+                  { icon: '🎭', text: 'Split-track itineraries (Adventure / Relaxed)' },
+                  { icon: '✈️', text: 'Transport confirmation parser' },
+                  { icon: '🤝', text: 'Co-organizer role for a trusted member' },
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm text-zinc-700">
+                    <span className="text-base flex-shrink-0 leading-tight">{item.icon}</span>
+                    <span>{item.text}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    setShowPassPurchasedToast(false);
+                    setShowInviteModal(true);
+                    try {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete('checkout');
+                      window.history.replaceState({}, '', url.toString());
+                    } catch { /* ignore */ }
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full text-sm transition-colors"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Invite the crew
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPassPurchasedToast(false);
+                    try {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete('checkout');
+                      window.history.replaceState({}, '', url.toString());
+                    } catch { /* ignore */ }
+                  }}
+                  className="w-full py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 transition-colors"
+                >
+                  Got it, I&apos;ll set up the trip first
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       <div className="max-w-5xl mx-auto">
