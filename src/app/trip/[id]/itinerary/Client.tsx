@@ -3305,67 +3305,96 @@ function ItineraryPageContent() {
             className={`flex gap-2 overflow-x-auto pb-1 flex-1 ${dayTabCanScrollLeft ? 'pl-10' : ''} ${dayTabCanScrollRight ? 'pr-10' : ''}`}
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {activeDays.map((day: { day: number; date: string }) => {
+            {activeDays.map((day: { day: number; date: string }, idx: number) => {
               const dayDateStr = new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               const locked = isLocked(day.day);
               const isDragging = draggingDay === day.day;
               const isValidDropTarget = draggingDay !== null && draggingDay !== day.day && canSwap(draggingDay, day.day);
               const isHoverTarget = dragOverDay === day.day && isValidDropTarget;
+              // Adjacent-swap chevrons: tap-friendly alternative to drag-and-
+              // drop. Resolve the day immediately before/after by index and
+              // check canSwap on the pair — same locks (Day 1, last day,
+              // cross-city) apply because we reuse the swap function below.
+              const prevDayNum = idx > 0 ? (activeDays[idx - 1] as { day: number }).day : null;
+              const nextDayNum = idx < activeDays.length - 1 ? (activeDays[idx + 1] as { day: number }).day : null;
+              const canMoveEarlier = prevDayNum !== null && canSwap(day.day, prevDayNum);
+              const canMoveLater   = nextDayNum !== null && canSwap(day.day, nextDayNum);
               const tooltip = !canEditItinerary
                 ? 'Only the organizer or co-organizer can rearrange days'
                 : locked
                   ? (day.day === 1 ? 'Day 1 stays first (trip arrival)' : 'Last day stays last (trip departure)')
-                  : 'Drag onto another day to swap their content';
+                  : 'Drag onto another day to swap, or use the chevrons';
               return (
-                <button
-                  key={day.day}
-                  draggable={canEditItinerary && !locked}
-                  onDragStart={(e) => {
-                    if (locked) { e.preventDefault(); return; }
-                    setDraggingDay(day.day);
-                    // Show a copy of the pill as the drag image (default behavior
-                    // works; explicit setDragImage with the element gives a
-                    // cleaner look on Chrome/Firefox).
-                    try { e.dataTransfer.effectAllowed = 'move'; } catch { /* ignore */ }
-                  }}
-                  onDragEnd={() => { setDraggingDay(null); setDragOverDay(null); }}
-                  onDragOver={(e) => {
-                    if (isValidDropTarget) {
+                // Wrap each pill in a 1-cell flex row so the chevrons sit
+                // tightly against it. The pill itself keeps its click +
+                // drag handlers — chevrons just expose adjacent swap as a
+                // discoverable, mobile-tap-friendly affordance.
+                <div key={day.day} className="flex items-center gap-0.5 flex-shrink-0">
+                  {canEditItinerary && !locked && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (canMoveEarlier && prevDayNum !== null) swapDayContent(day.day, prevDayNum); }}
+                      disabled={!canMoveEarlier}
+                      title={canMoveEarlier ? `Swap with Day ${prevDayNum}` : 'Cannot move earlier'}
+                      aria-label={`Move Day ${day.day} earlier`}
+                      className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    draggable={canEditItinerary && !locked}
+                    onDragStart={(e) => {
+                      if (locked) { e.preventDefault(); return; }
+                      setDraggingDay(day.day);
+                      try { e.dataTransfer.effectAllowed = 'move'; } catch { /* ignore */ }
+                    }}
+                    onDragEnd={() => { setDraggingDay(null); setDragOverDay(null); }}
+                    onDragOver={(e) => {
+                      if (isValidDropTarget) {
+                        e.preventDefault();
+                        try { e.dataTransfer.dropEffect = 'move'; } catch { /* ignore */ }
+                        if (dragOverDay !== day.day) setDragOverDay(day.day);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      setDragOverDay(prev => prev === day.day ? null : prev);
+                    }}
+                    onDrop={(e) => {
                       e.preventDefault();
-                      try { e.dataTransfer.dropEffect = 'move'; } catch { /* ignore */ }
-                      if (dragOverDay !== day.day) setDragOverDay(day.day);
-                    }
-                  }}
-                  onDragLeave={() => {
-                    setDragOverDay(prev => prev === day.day ? null : prev);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (draggingDay !== null && canSwap(draggingDay, day.day)) {
-                      swapDayContent(draggingDay, day.day);
-                      // Keep the user on whichever day they were viewing —
-                      // their selectedDay didn't move, only the content
-                      // sitting under those day numbers did.
-                    }
-                    setDraggingDay(null);
-                    setDragOverDay(null);
-                  }}
-                  onClick={() => setSelectedDay(day.day)}
-                  title={tooltip}
-                  className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all flex-shrink-0 ${
-                    locked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
-                  } ${
-                    isDragging ? 'opacity-50' : ''
-                  } ${
-                    isHoverTarget ? 'ring-2 ring-sky-400 ring-offset-1' : ''
-                  } ${
-                    selectedDay === day.day
-                      ? 'bg-zinc-900 text-white shadow-sm'
-                      : 'bg-white border border-zinc-200 text-zinc-600 hover:border-zinc-300'
-                  }`}
-                >
-                  Day {day.day} · {dayDateStr}
-                </button>
+                      if (draggingDay !== null && canSwap(draggingDay, day.day)) {
+                        swapDayContent(draggingDay, day.day);
+                      }
+                      setDraggingDay(null);
+                      setDragOverDay(null);
+                    }}
+                    onClick={() => setSelectedDay(day.day)}
+                    title={tooltip}
+                    className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
+                      locked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+                    } ${
+                      isDragging ? 'opacity-50' : ''
+                    } ${
+                      isHoverTarget ? 'ring-2 ring-sky-400 ring-offset-1' : ''
+                    } ${
+                      selectedDay === day.day
+                        ? 'bg-zinc-900 text-white shadow-sm'
+                        : 'bg-white border border-zinc-200 text-zinc-600 hover:border-zinc-300'
+                    }`}
+                  >
+                    Day {day.day} · {dayDateStr}
+                  </button>
+                  {canEditItinerary && !locked && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (canMoveLater && nextDayNum !== null) swapDayContent(day.day, nextDayNum); }}
+                      disabled={!canMoveLater}
+                      title={canMoveLater ? `Swap with Day ${nextDayNum}` : 'Cannot move later'}
+                      aria-label={`Move Day ${day.day} later`}
+                      className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
