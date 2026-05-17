@@ -30,7 +30,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .order('created_at', { ascending: true })
       .limit(500);
 
-    if (error) return NextResponse.json({ expenses: [] });
+    if (error) {
+      // Previously returned `{ expenses: [] }` silently — same bug pattern
+      // as messages GET (fixed earlier). User looked at an empty Who-Owes-
+      // Who list and assumed there were no expenses, when actually the DB
+      // read failed. Surface the error so the client can retry.
+      console.error('[expenses GET] supabase error for trip', params.id, error);
+      return NextResponse.json(
+        { error: 'Failed to load expenses. Please retry.' },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       expenses: (expenses ?? []).map(e => ({
@@ -48,8 +58,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       })),
     });
   } catch (err) {
+    // Same swallow pattern as the inline error case above — surface a 500
+    // so the client retries instead of silently rendering an empty Who-
+    // Owes-Who list.
     console.error('expenses GET error:', err);
-    return NextResponse.json({ expenses: [] });
+    return NextResponse.json(
+      { error: 'Failed to load expenses. Please retry.' },
+      { status: 500 },
+    );
   }
 }
 

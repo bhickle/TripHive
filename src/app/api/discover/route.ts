@@ -62,8 +62,15 @@ export async function GET() {
       topSearches,
     });
   } catch (err) {
+    // Same swallow pattern as messages + expenses (fixed elsewhere) —
+    // returning empty arrays on a Supabase error makes a transient DB
+    // blip look like "no destinations in our system." Now: log + 500
+    // so the client can show a retry banner instead of false-empty.
     console.error('discover GET error:', err);
-    return NextResponse.json({ destinations: [], topSearches: [] });
+    return NextResponse.json(
+      { error: 'Failed to load discover destinations. Please retry.' },
+      { status: 500 },
+    );
   }
 }
 
