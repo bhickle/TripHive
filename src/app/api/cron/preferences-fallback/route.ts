@@ -23,6 +23,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyCronSecret } from '@/lib/cronAuth';
+import { isNotificationAllowedForUser } from '@/lib/supabase/notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +103,16 @@ export async function GET(req: NextRequest) {
           ? `${namesPreview} and ${overflow} other${overflow === 1 ? '' : 's'}`
           : namesPreview;
       const bodyMessage = `Trip starts soon — ${pending.length} ${pending.length === 1 ? 'member hasn\'t' : "members haven't"} shared preferences yet${namesText ? ` (${namesText})` : ''}. They'll default to no preferences if you generate.`;
+
+      // Honor the organizer's notification preferences. pass_pending_prefs
+      // is gated on the `tripReminders` toggle in Settings.
+      const allowed = await isNotificationAllowedForUser(
+        supabase, trip.organizer_id, 'pass_pending_prefs',
+      );
+      if (!allowed) {
+        skippedDuplicates++;  // bucket muted-by-prefs into the same skip
+        continue;             // counter so the response stays single-number
+      }
 
       const { error: insertErr } = await supabase.from('notifications').insert({
         user_id: trip.organizer_id,

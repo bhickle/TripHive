@@ -2052,11 +2052,32 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         </div>
 
         <div>
-          {activeTab === 'documents' && renderDocumentsTab()}
-          {activeTab === 'flights' && renderFlightsTab()}
-          {activeTab === 'logistics' && renderLogisticsTab()}
-          {activeTab === 'packing' && renderPackingTab()}
-          {activeTab === 'phrases' && renderPhrasesTab()}
+          {prepLoading && !prepLoadError ? (
+            // Content skeleton while initial fetches resolve — without this,
+            // every tab renders as "no items" empty state for ~500ms, which
+            // looks like the user has nothing saved when really the data is
+            // just on the wire. Inline banner above (line 2007) gives the
+            // global signal; this gives shape to the soon-to-arrive content.
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-zinc-100 last:border-b-0">
+                  <div className="w-11 h-11 rounded-full bg-zinc-100 animate-pulse flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-2/3 bg-zinc-100 rounded animate-pulse" />
+                    <div className="h-3 w-1/3 bg-zinc-100 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {activeTab === 'documents' && renderDocumentsTab()}
+              {activeTab === 'flights' && renderFlightsTab()}
+              {activeTab === 'logistics' && renderLogisticsTab()}
+              {activeTab === 'packing' && renderPackingTab()}
+              {activeTab === 'phrases' && renderPhrasesTab()}
+            </>
+          )}
         </div>
       </div>
     </main>

@@ -4434,6 +4434,14 @@ function ItineraryPageContent() {
                         {items.map((item, idx) => {
                           const meta = HIGHLIGHT_CATEGORY_META[item.category];
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.name} ${item.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
+                          // Verify-open lookup for sidebar items. Hit on
+                          // food/nightlife/shopping/photo categories which are
+                          // all extracted by extractNamedVenues. Photo-spot
+                          // closures are rare (viewpoints don't close) but
+                          // food/nightlife/shopping have real risk.
+                          const iKey = item.name ? normalizeVenueKey(item.name) : '';
+                          const iVerify = iKey ? aiMeta?.venueVerification?.entries?.[iKey] : undefined;
+                          const iClosed = iVerify?.status === 'closed_permanently' || iVerify?.status === 'closed_temporarily';
                           return (
                             <div key={`${item.name}-${idx}`} className={`p-3 ${meta.bg} rounded-xl border ${meta.border} min-w-0 overflow-hidden`}>
                               {/* Name row + badges row are deliberately stacked
@@ -4450,6 +4458,14 @@ function ItineraryPageContent() {
                               <div className="flex items-start gap-1.5 mb-1 min-w-0">
                                 <span className="text-base flex-shrink-0 leading-tight" title={meta.label}>{meta.icon}</span>
                                 <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0 flex-1 [overflow-wrap:anywhere]`}>{item.name}</p>
+                                {iClosed && (
+                                  <span
+                                    title={`Google Places reports this venue as ${iVerify?.status === 'closed_permanently' ? 'permanently closed' : 'temporarily closed'}${iVerify?.matchedName ? ` (matched "${iVerify.matchedName}")` : ''}. Verify before going.`}
+                                    className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 whitespace-nowrap"
+                                  >
+                                    ⚠
+                                  </span>
+                                )}
                                 <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="View on Google Maps"
                                   className={`flex-shrink-0 ${meta.textMuted} hover:opacity-70 transition-opacity mt-0.5`} onClick={e => e.stopPropagation()}>
                                   <MapPin className="w-3 h-3" />
@@ -4570,6 +4586,14 @@ function ItineraryPageContent() {
                         <div className="space-y-3">
                           {group.hotels.map((h, i) => {
                             const hotelMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${h.name} ${h.neighborhood ?? ''} ${group.city ?? aiMeta?.destination ?? ''}`.trim())}`;
+                            // Verify-open badge for hotels: same lookup as
+                            // activity cards. Hotels are AI-suggested (not
+                            // from Places list), so the post-gen verify
+                            // pass is the only thing protecting against
+                            // recommending a closed/rebranded property.
+                            const hKey = h.name ? normalizeVenueKey(h.name) : '';
+                            const hVerify = hKey ? aiMeta?.venueVerification?.entries?.[hKey] : undefined;
+                            const hClosed = hVerify?.status === 'closed_permanently' || hVerify?.status === 'closed_temporarily';
                             return (
                               <div key={`${h.name}-${i}`} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
                                 <div className="flex items-start justify-between gap-2 mb-1">
@@ -4579,6 +4603,14 @@ function ItineraryPageContent() {
                                       className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors">
                                       <MapPin className="w-3 h-3" />
                                     </a>
+                                    {hClosed && (
+                                      <span
+                                        title={`Google Places reports this hotel as ${hVerify?.status === 'closed_permanently' ? 'permanently closed' : 'temporarily closed'}${hVerify?.matchedName ? ` (matched "${hVerify.matchedName}")` : ''}. Verify before booking.`}
+                                        className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 whitespace-nowrap"
+                                      >
+                                        ⚠ Verify
+                                      </span>
+                                    )}
                                   </div>
                                   {h.pricePerNight && (
                                     <span className="flex-shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
