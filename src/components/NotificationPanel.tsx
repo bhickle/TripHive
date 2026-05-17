@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Bell, X, CheckCheck, MapPin, MessageSquare,
   DollarSign, ThumbsUp, UserPlus, Sparkles, Route,
-  Calendar,
+  Calendar, CreditCard,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -19,7 +19,8 @@ export type NotifType =
   | 'member'
   | 'ai'
   | 'transport'
-  | 'reminder';
+  | 'reminder'
+  | 'billing';  // Stripe payment_failed / billing-related events
 
 // ─── DB row → display shape mapping ───────────────────────────────────────────
 
@@ -38,9 +39,12 @@ function dbTypeToUi(t: string): NotifType {
   switch (t) {
     case 'trip_invite':         return 'member';
     case 'partner_added':       return 'member';
+    case 'member_joined':       return 'member';
     case 'new_message':         return 'chat';
     case 'new_vote':            return 'vote';
     case 'pass_pending_prefs':  return 'reminder';
+    case 'badge_earned':        return 'ai';
+    case 'payment_failed':      return 'billing';
     default:                    return 'reminder';
   }
 }
@@ -51,9 +55,12 @@ function buildTitle(row: ApiNotificationRow): string {
   switch (row.type) {
     case 'trip_invite':        return `${who} invited you to ${trip}`;
     case 'partner_added':      return `${who} added you to ${trip}`;
+    case 'member_joined':      return `${who} joined ${trip}`;
     case 'new_message':        return `New message from ${who}`;
     case 'new_vote':           return `${who} started a vote`;
     case 'pass_pending_prefs': return `${trip}: heads up before generating`;
+    case 'badge_earned':       return row.message ?? 'You earned a badge';
+    case 'payment_failed':     return 'Payment issue — update your card';
     default:                   return who;
   }
 }
@@ -98,8 +105,11 @@ function destinationUrl(notif: Notification): string | null {
   // — matches the "click goes nowhere" symptom Brandon flagged.
   if (!notif.tripId) {
     switch (notif.dbType) {
-      case 'badge_earned': return '/world';
-      default:             return null;
+      case 'badge_earned':    return '/world';
+      // Land the user on Settings where the Stripe customer-portal
+      // button lives, so they can update their card in one click.
+      case 'payment_failed':  return '/settings';
+      default:                return null;
     }
   }
   switch (notif.dbType) {
@@ -144,6 +154,7 @@ function NotifIcon({ type }: { type: NotifType }) {
     case 'ai': return <Sparkles className={`${base} text-sky-600`} />;
     case 'transport': return <Route className={`${base} text-indigo-600`} />;
     case 'reminder': return <Calendar className={`${base} text-orange-600`} />;
+    case 'billing': return <CreditCard className={`${base} text-rose-700`} />;
     default: return <Bell className={`${base} text-slate-500`} />;
   }
 }
@@ -158,6 +169,7 @@ function notifTypeBg(type: NotifType) {
     case 'ai': return 'bg-sky-50';
     case 'transport': return 'bg-indigo-50';
     case 'reminder': return 'bg-orange-50';
+    case 'billing': return 'bg-rose-50';
     default: return 'bg-slate-50';
   }
 }
