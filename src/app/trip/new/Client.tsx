@@ -548,6 +548,49 @@ function TripBuilderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirstTrip, currentUser.isDemo, currentUser.id]);
 
+  // "Plan a similar trip" pre-fill — when a user clicks the duplicate
+  // affordance on an existing trip card, we land here with ?from=<tripId>.
+  // Fetch the source trip and copy the SHAPE of the trip (destination,
+  // priorities, group, budget) but leave dates + bookings empty so the
+  // user enters those fresh for the new trip.
+  useEffect(() => {
+    const fromTripId = searchParams.get('from');
+    if (!fromTripId || !/^[0-9a-f-]{36}$/i.test(fromTripId)) return;
+    fetch(`/api/trips/${fromTripId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const trip = data?.trip;
+        if (!trip) return;
+        const prefs = (trip.preferences ?? {}) as Record<string, unknown>;
+        setState(prev => ({
+          ...prev,
+          destination: trip.destination ?? prev.destination,
+          groupType: trip.group_type ?? prev.groupType,
+          groupSize: trip.group_size ?? prev.groupSize,
+          budget: trip.budget_total ?? prev.budget,
+          budgetBreakdown: (trip.budget_breakdown ?? prev.budgetBreakdown) as TripWizardState['budgetBreakdown'],
+          priorities: Array.isArray(prefs.priorities) ? prefs.priorities as string[] : prev.priorities,
+          modality: Array.isArray(prefs.modality) ? prefs.modality as string[] : prev.modality,
+          accommodationType: Array.isArray(prefs.accommodationType)
+            ? prefs.accommodationType as string[]
+            : prev.accommodationType,
+          curiosityLevel: typeof prefs.curiosityLevel === 'number' ? prefs.curiosityLevel : prev.curiosityLevel,
+          localMode: typeof prefs.localMode === 'boolean' ? prefs.localMode : prev.localMode,
+          ageRanges: Array.isArray(prefs.ageRanges) ? prefs.ageRanges as string[] : prev.ageRanges,
+          accessibilityNeeds: Array.isArray(prefs.accessibilityNeeds)
+            ? prefs.accessibilityNeeds as string[]
+            : prev.accessibilityNeeds,
+          pace: typeof prefs.organizerPace === 'string' ? prefs.organizerPace as TripWizardState['pace'] : prev.pace,
+          // Intentionally NOT copied: startDate, endDate, tripLength,
+          // bookedHotels, bookedFlight, mustHaves — the new trip is a
+          // different one in time + space, so those should be filled
+          // fresh by the user.
+        }));
+      })
+      .catch(() => { /* silent — user can fill the wizard themselves */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Pre-fill destination (and optionally trip length) from wishlist "Plan This Trip"
   useEffect(() => {
     const destination = searchParams.get('destination');

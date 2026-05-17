@@ -873,9 +873,19 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const deleteFlight = async (flightId: string) => {
+  // Two-stage delete: the actual API call lives in performDeleteFlight,
+  // triggered from the confirm modal below. setFlightToDelete = the ID we
+  // confirmed against. Previously used window.confirm which interrupts the
+  // page and looks unstyled on mobile.
+  const [flightToDelete, setFlightToDelete] = useState<string | null>(null);
+  const deleteFlight = (flightId: string) => {
     if (isMockTrip) return;
-    if (!window.confirm('Delete this flight?')) return;
+    setFlightToDelete(flightId);
+  };
+  const performDeleteFlight = async () => {
+    const flightId = flightToDelete;
+    if (!flightId) return;
+    setFlightToDelete(null);
     // Optimistic: remove first, restore on error.
     const prev = flights;
     setFlights(prev.filter(f => f.id !== flightId));
@@ -2080,6 +2090,41 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           )}
         </div>
       </div>
+
+      {/* Delete-flight confirm modal — replaces window.confirm which
+           looked unstyled on mobile and broke the page chrome. */}
+      {flightToDelete && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setFlightToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">
+              Delete this flight?
+            </h3>
+            <p className="text-sm text-zinc-600 mb-6">
+              This removes the flight from your prep page. You can re-add it later from your confirmation email.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFlightToDelete(null)}
+                className="flex-1 px-4 py-2.5 border border-zinc-200 text-zinc-700 rounded-lg font-medium text-sm hover:bg-zinc-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={performDeleteFlight}
+                className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold text-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

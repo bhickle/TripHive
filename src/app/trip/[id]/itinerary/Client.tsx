@@ -55,12 +55,14 @@ import {
   PlusSquare,
   Wand2,
   Globe2,
+  Share2,
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
+import { ShareTripModal } from '@/components/ShareTripModal';
 import { MapView } from '@/components/MapView';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
@@ -340,6 +342,7 @@ function ItineraryPageContent() {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [showParseModal, setShowParseModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [showMapView, setShowMapView] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -3085,6 +3088,19 @@ function ItineraryPageContent() {
               <span className="hidden sm:inline">Export</span>
             </a>
 
+            {/* Share — opens a quick-share modal with copy-link + social.
+                 Only rendered on real (non-mock) trips since mock trips
+                 don't have a real /join URL. */}
+            {!isMockTrip && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 md:px-4 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all"
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Share</span>
+              </button>
+            )}
+
             {(() => {
               // Trip Story is hidden entirely until the trip has ended. Brandon's
               // concern: showing the button on active/planning trips invites
@@ -5336,6 +5352,17 @@ function ItineraryPageContent() {
           <div
             className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
+            onKeyDown={e => {
+              // Enter submits the form (matches the Save Changes button).
+              // Skips when inside a textarea so multi-line inputs still work,
+              // and respects the disabled state by not firing on empty dest.
+              if (e.key === 'Enter' && !e.shiftKey && !(e.target instanceof HTMLTextAreaElement)) {
+                if (editDest.trim() && !savingTripEdit) {
+                  e.preventDefault();
+                  handleSaveTripEdit();
+                }
+              }
+            }}
           >
             <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex items-center justify-between">
               <div>
@@ -5643,6 +5670,16 @@ function ItineraryPageContent() {
           tripId={tripPageId}
           onAdd={handleTransportAdded}
           onClose={() => setShowParseModal(false)}
+        />
+      )}
+
+      {/* Share Trip Modal */}
+      {showShareModal && tripPageId && (
+        <ShareTripModal
+          tripId={tripPageId}
+          tripName={tripRow?.title || aiMeta?.destination || trip.destination || 'My trip'}
+          destination={tripRow?.destination || aiMeta?.destination}
+          onClose={() => setShowShareModal(false)}
         />
       )}
     </div>

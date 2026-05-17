@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Calendar, Users, ArrowRight, Trash2, X } from 'lucide-react';
+import { Calendar, Users, ArrowRight, Trash2, X, CopyPlus } from 'lucide-react';
 import { Trip } from '@/lib/types';
 
 // Photo metadata returned by /api/unsplash/photo. Photographer + links are
@@ -260,11 +260,26 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
           </span>
         </div>
 
-        {/* Duration badge + delete button */}
+        {/* Duration badge + duplicate + delete button */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">
             {daysCount}d
           </span>
+          {/* "Plan a similar trip" — opens Trip Builder with this trip's
+               shape (destination, priorities, group, budget) pre-filled
+               but dates/bookings empty. Hides while delete-confirm is
+               active so the cluster doesn't get cluttered. */}
+          {!confirmDelete && (
+            <Link
+              href={`/trip/new?from=${trip.id}`}
+              onClick={e => e.stopPropagation()}
+              title="Plan a similar trip"
+              aria-label="Plan a similar trip"
+              className="flex items-center px-1.5 py-1 rounded-full bg-black/40 backdrop-blur-sm text-white/70 hover:bg-sky-700/80 hover:text-white transition-all md:opacity-0 md:group-hover:opacity-100"
+            >
+              <CopyPlus className="w-3 h-3" />
+            </Link>
+          )}
           {onDelete && (
             <button
               onClick={handleDelete}
