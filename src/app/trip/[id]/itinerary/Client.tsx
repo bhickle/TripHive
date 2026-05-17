@@ -335,6 +335,9 @@ function ItineraryPageContent() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [suggestingActivityId, setSuggestingActivityId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Separate success toast — actionError styles red/rose which would
+  // misrepresent a successful swap as an error.
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [showParseModal, setShowParseModal] = useState(false);
   const [showMapView, setShowMapView] = useState(false);
@@ -2789,6 +2792,12 @@ function ItineraryPageContent() {
             <span className="text-sm font-semibold">Activity removed</span>
           </div>
         )}
+        {actionSuccess && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <span className="text-sm font-semibold">{actionSuccess}</span>
+          </div>
+        )}
         {actionError && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:top-6 md:bottom-auto md:translate-x-0 z-50 flex items-center gap-3 bg-rose-900 text-white px-5 py-3.5 rounded-2xl shadow-xl">
             <AlertCircle className="w-5 h-5 text-rose-300" />
@@ -3244,6 +3253,7 @@ function ItineraryPageContent() {
             return true;
           };
           const swapDayContent = (a: number, b: number) => {
+            console.log('[day-swap] requested', { a, b, canSwap: canSwap(a, b) });
             if (!canSwap(a, b)) return;
             // Swap-safe fields — everything that conceptually describes "what
             // happens on this day" rather than "which calendar day this is".
@@ -3270,6 +3280,18 @@ function ItineraryPageContent() {
               return next as unknown as ItineraryDay;
             });
             syncAiDays(swapped);
+            // Jump to the lower-numbered of the two swapped days so the user
+            // sees the result immediately. Without this, if you click Day 3's
+            // left chevron from a different day (e.g. viewing Day 1), the
+            // swap happens but you see no change because you're not looking
+            // at either affected day.
+            const focusDay = Math.min(a, b);
+            setSelectedDay(focusDay);
+            // Success toast — without explicit feedback the swap LOOKS like
+            // a no-op since day numbers + dates stay anchored. Only the
+            // theme + activities under the pill change.
+            setActionSuccess(`Swapped Day ${Math.min(a, b)} and Day ${Math.max(a, b)}`);
+            setTimeout(() => setActionSuccess(null), 2500);
             if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
               fetch(`/api/trips/${tripPageId}`, {
                 method: 'PATCH',
