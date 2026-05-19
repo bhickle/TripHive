@@ -1381,6 +1381,31 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         })()}
         {!dataLoading && activeTab === 'overview' && (
           <div className="space-y-8">
+            {/* ─── Viewer's own preference prompt ────────────────────────
+                The Crew Readiness banner below is organizer-only — a member
+                who was auto-added via default_partner_id would never see a
+                CTA pointing them at /trip/[id]/preferences. This callout
+                fixes that: shown to anyone (including the organizer) whose
+                own preferences haven't been submitted yet. */}
+            {(() => {
+              const viewer = currentUserId ? groupMembers.find(m => m.id === currentUserId) : null;
+              if (!viewer || viewer.preferencesSubmittedAt || groupMembers.length <= 1) return null;
+              return (
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5 flex flex-wrap items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sky-900">Share your travel preferences</p>
+                    <p className="text-sm text-sky-800 mt-0.5">A 1-minute mini-wizard helps the AI build a trip that fits you too.</p>
+                  </div>
+                  <a
+                    href={`/trip/${params.id}/preferences`}
+                    className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold rounded-full transition-colors whitespace-nowrap"
+                  >
+                    Open preferences →
+                  </a>
+                </div>
+              );
+            })()}
+
             {/* ─── Crew Readiness ─────────────────────────────────────────
                 Shown to the organizer/co-organizer only. Pending = members
                 who haven't filled the preferences mini-wizard yet. The
@@ -2770,14 +2795,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         <label className="text-xs font-medium text-zinc-700">Max picks per voter</label>
                         <input
                           type="number"
-                          min={1}
+                          min={2}
                           max={voteOptions.filter(o => o.trim()).length || voteOptions.length}
                           value={voteMaxPicksInput}
                           onChange={(e) => setVoteMaxPicksInput(e.target.value)}
                           placeholder="no limit"
                           className="w-20 px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-sky-700"
                         />
-                        <span className="text-xs text-zinc-400">leave blank for no cap</span>
+                        <span className="text-xs text-zinc-400">2+ picks · leave blank for no cap</span>
                       </div>
                     )}
                   </div>
@@ -2796,8 +2821,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         if (!voteQuestion.trim() || filledOptions.length < 2) return;
 
                         const resolvedType: 'single' | 'multi' = voteAllowMulti ? 'multi' : 'single';
+                        // Floor at 2 — a multi-pick poll with maxPicks=1 is just a single-pick
+                        // poll wearing a checkbox. The number input has min={2} but users can
+                        // still type 1, so clamp here too.
                         const parsedMaxPicks = voteAllowMulti && voteMaxPicksInput.trim()
-                          ? Math.max(1, Math.min(filledOptions.length, parseInt(voteMaxPicksInput, 10) || filledOptions.length))
+                          ? Math.max(2, Math.min(filledOptions.length, parseInt(voteMaxPicksInput, 10) || filledOptions.length))
                           : null;
 
                         // Optimistic local state

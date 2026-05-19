@@ -121,6 +121,10 @@ function destinationUrl(notif: Notification): string | null {
     // Land the buyer on the group page where the Crew Readiness panel
     // lives — that's the actionable surface for chasing pending members.
     case 'pass_pending_prefs':  return `/trip/${notif.tripId}/group`;
+    // Default partner was auto-added to a trip — land them on the per-trip
+    // preferences mini-wizard so the AI itinerary picks up their priorities.
+    // Without this they bounced to /itinerary with no path forward.
+    case 'partner_added':       return `/trip/${notif.tripId}/preferences`;
     default:                    return `/trip/${notif.tripId}/itinerary`;
   }
 }

@@ -102,10 +102,12 @@
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { @apply bg-zinc-200 rounded-full; }
-::-webkit-scrollbar-thumb:hover { @apply bg-zinc-300; }
+::-webkit-scrollbar-thumb { @apply bg-zinc-400 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-zinc-500; }
+/* Firefox — no -webkit selectors, needs its own properties */
+* { scrollbar-width: auto; scrollbar-color: theme('colors.zinc.400') transparent; }
 
 /* Legacy gradient classes kept for backward compat */
 .gradient-hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); }

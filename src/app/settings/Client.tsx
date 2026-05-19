@@ -13,9 +13,8 @@ import {
   ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap, Loader2,
 } from 'lucide-react';
 import Image from 'next/image';
-import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 
-type ActiveSection = 'profile' | 'persona' | 'subscription' | 'notifications' | 'apps' | 'privacy' | 'downloads';
+type ActiveSection = 'profile' | 'persona' | 'subscription' | 'notifications' | 'apps' | 'privacy';
 
 interface NotificationSettings {
   email: boolean;
@@ -156,8 +155,6 @@ export default function SettingsPage() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   // Stores the last Supabase-fetched persona so Cancel can restore it correctly
   const lastSavedPersonaRef = useRef<{ vibes: string[]; groupType: string; priorities: string[] } | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [userTrips, setUserTrips] = useState<any[]>([]);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -198,14 +195,6 @@ export default function SettingsPage() {
       }));
     }
   }, [authLoading, user, authProfile]);
-
-  // Load user uploaded trips for Downloads section
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('tripcoord_user_trips');
-      if (stored) setUserTrips(JSON.parse(stored));
-    } catch { /* ignore */ }
-  }, []);
 
   // ── Persona — load from Supabase for real users, localStorage for guests ──
   const [persona, setPersona] = useState({
@@ -284,31 +273,23 @@ export default function SettingsPage() {
     setAvatarError(null);
     try {
       if (user) {
-        // Upload to Supabase Storage avatars bucket — use the app singleton
-        // so the auth session is shared and RLS sees the right user.
-        const supabase = createSupabaseBrowserClient();
-        const ext = file.name.split('.').pop() ?? 'jpg';
-        // Use a unique timestamped path so each upload is always a new
-        // object — avoids needing an UPDATE storage policy for upsert.
-        const path = `${user.id}/avatar_${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(path, file, { contentType: file.type || 'image/jpeg' });
-        if (uploadError) {
-          console.error('Avatar upload error:', uploadError);
-          setAvatarError('Upload failed — please try again.');
+        // Route through /api/profile/avatar so both Settings and the Group
+        // page share one upload path (server-side admin client, no browser-
+        // side Storage RLS to mis-configure). Previously this page uploaded
+        // direct to Storage from the browser, which silently failed for some
+        // accounts and caused avatars to vanish on refresh.
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch('/api/profile/avatar', { method: 'POST', body: form });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setAvatarError(body?.error ?? 'Upload failed — please try again.');
         } else {
-          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-          if (urlData?.publicUrl) {
-            // Append cache-buster so the browser re-fetches after re-upload
-            const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-            setProfile(prev => ({ ...prev, avatarUrl: publicUrl }));
-            await fetch('/api/auth/me', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ avatar_url: publicUrl }),
-            });
-          }
+          const { url } = await res.json() as { url: string };
+          // Cache-buster so the <img> re-fetches after re-upload (the
+          // server-side path includes a timestamp, but mid-session swaps
+          // benefit from the extra query string).
+          setProfile(prev => ({ ...prev, avatarUrl: `${url}?t=${Date.now()}` }));
         }
       } else {
         // Guest / no Supabase — show local preview only
@@ -800,7 +781,6 @@ export default function SettingsPage() {
                 <SectionButton section="notifications" label="Notifications"   icon={Bell} />
                 <SectionButton section="apps"         label="Connected Apps"   icon={Wifi} />
                 <SectionButton section="privacy"      label="Privacy & Data"   icon={Lock} />
-                <SectionButton section="downloads"    label="Downloaded Trips" icon={Download} />
               </div>
             </div>
 
@@ -1457,39 +1437,6 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* ── DOWNLOADS ── */}
-              {activeSection === 'downloads' && (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-6">My Trips</h2>
-                  <div className="space-y-4">
-                    {userTrips.length === 0 ? (
-                      <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-center">
-                        <p className="text-slate-600">No trips uploaded yet.</p>
-                        <p className="text-sm text-slate-400 mt-1">Upload an itinerary from the dashboard to see it here.</p>
-                      </div>
-                    ) : (
-                      userTrips.map(trip => (
-                        <div key={trip.id} className="p-4 border border-slate-200 rounded-lg flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-slate-900">{trip.title || trip.destination}</p>
-                            <p className="text-sm text-slate-600 mt-1">{trip.destination} · {trip.status}</p>
-                          </div>
-                          <button
-                            onClick={() => {
-                              const updated = userTrips.filter(t => t.id !== trip.id);
-                              setUserTrips(updated);
-                              localStorage.setItem('tripcoord_user_trips', JSON.stringify(updated));
-                            }}
-                            className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-all font-medium"
-                          >
-                            <Trash2 className="w-4 h-4 inline mr-2" />Remove
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
 
             </div>
           </div>

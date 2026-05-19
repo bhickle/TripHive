@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Database, Json } from '@/lib/supabase/database.types';
 import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
+import { sendPartnerAddedEmail } from '@/lib/email/sendPartnerAddedEmail';
 
 type TripInsert = Database['public']['Tables']['trips']['Insert'];
 type ItineraryInsert = Database['public']['Tables']['itineraries']['Insert'];
@@ -232,6 +233,20 @@ export async function POST(request: NextRequest) {
               if (notifErr) {
                 console.warn('[trips/save] partner notification insert failed:', notifErr.message);
               }
+
+              // Email the partner too. The in-app notification alone is
+              // brittle — if they don't open TripCoord soon, the trip is
+              // invisible to them and the organizer assumes the auto-add
+              // didn't work. Fire-and-forget; never fail the trip save.
+              sendPartnerAddedEmail({
+                toEmail: partnerProfile.email ?? '',
+                toName: partnerProfile.name ?? null,
+                organizerName,
+                tripName: tripMeta.title || tripMeta.destination || 'a trip',
+                tripId: trip.id,
+              }).catch((emailErr) => {
+                console.warn('[trips/save] partner email send failed:', emailErr);
+              });
             }
           }
         }

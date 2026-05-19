@@ -81,7 +81,10 @@ function destinationFor(n: NotificationRow): string | null {
     case 'member':            return `/trip/${n.trip_id}/group`;
     case 'pass_pending_prefs':return `/trip/${n.trip_id}/group`;
     case 'trip_invite':       return `/join/${n.trip_id}`;
-    case 'partner_added':
+    // Default partner auto-add → land on the per-trip preferences wizard,
+    // not /itinerary, since the message ("Open the trip to add your
+    // preferences.") implies an action the wizard actually fulfills.
+    case 'partner_added':     return `/trip/${n.trip_id}/preferences`;
     case 'activity':
     case 'ai':
     case 'prep':
