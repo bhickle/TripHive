@@ -399,7 +399,7 @@ function TripBuilderPage() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'ai_credits_empty' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
-  const { canAffordAction, getUpgradePrompt, maxTripDays, tier, entitlementsReady, maxTravelersForTrip } = useEntitlements();
+  const { canAffordAction, getUpgradePrompt, maxTripDays, tier, tierResolved, entitlementsReady, maxTravelersForTrip } = useEntitlements();
   const [budgetInput, setBudgetInput] = useState('5000');
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [state, setState] = useState<TripWizardState>({
@@ -1278,12 +1278,15 @@ function TripBuilderPage() {
                       >+</button>
                     </div>
                   </div>
-                  {entitlementsReady && (
+                  {tierResolved && (
                     <p className="text-xs text-zinc-400 mt-2">
                       {/* Pull traveler caps from TIER_LIMITS so a future
                           cap change doesn't require editing this copy
                           alongside lib/types.ts. trip_pass is plan-based
-                          and resolves via maxTravelersForTrip(). */}
+                          and resolves via maxTravelersForTrip().
+                          Gated on tierResolved (not just entitlementsReady)
+                          so paid users don't see "Free plan: 4 travelers"
+                          flash when their tier hasn't loaded yet. */}
                       {tier === 'free' && `Free plan: up to ${TIER_LIMITS.free.travelersPerTrip} travelers. `}
                       {tier === 'explorer' && `Explorer plan: up to ${TIER_LIMITS.explorer.travelersPerTrip} travelers. `}
                       {tier === 'nomad' && `Nomad plan: up to ${TIER_LIMITS.nomad.travelersPerTrip} travelers. `}
@@ -1993,7 +1996,7 @@ function TripBuilderPage() {
                       <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <span>
                         We plan your itinerary assuming your return flight departs from the same airport you arrive into.
-                        {tier === 'nomad' && ' Nomad users can override this in the Return section below.'}
+                        {tierResolved && tier === 'nomad' && ' Nomad users can override this in the Return section below.'}
                       </span>
                     </div>
                   )}
@@ -2048,8 +2051,13 @@ function TripBuilderPage() {
                       <div className="border-t border-sky-100 pt-4">
                         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Return (optional)</p>
 
-                        {/* Open-jaw toggle — Nomad only */}
-                        {tier === 'nomad' && (
+                        {/* Open-jaw toggle — Nomad only.
+                            Gated on tierResolved so a non-Nomad user
+                            doesn't briefly see the toggle render via
+                            a stale cached 'nomad' that later resolves
+                            down, and a Nomad user doesn't lose it via
+                            a 'free' default that later resolves up. */}
+                        {tierResolved && tier === 'nomad' && (
                           <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-amber-100 rounded-xl">
                             <button
                               onClick={() => setState(prev => ({
@@ -2075,7 +2083,7 @@ function TripBuilderPage() {
                         )}
 
                         {/* Open-jaw airport fields — Nomad only, when toggled on */}
-                        {tier === 'nomad' && state.isOpenJaw && (
+                        {tierResolved && tier === 'nomad' && state.isOpenJaw && (
                           <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departs From</label>
@@ -2246,8 +2254,10 @@ function TripBuilderPage() {
                       ))}
 
                       {/* Add another hotel — tier-gated with progressive disclosure.
-                          Cap pulled from TIER_LIMITS.maxBookedHotels. */}
-                      {(() => {
+                          Cap pulled from TIER_LIMITS.maxBookedHotels.
+                          Gated on tierResolved so a Nomad user doesn't
+                          flash a free-tier cap before their tier loads. */}
+                      {tierResolved && (() => {
                         const maxHotels = TIER_LIMITS[tier]?.maxBookedHotels ?? 1;
                         const lastFilled = state.bookedHotels[state.bookedHotels.length - 1]?.name?.trim() !== '';
                         // Explorer: progressive — only show when last slot has a name
@@ -2272,7 +2282,7 @@ function TripBuilderPage() {
                       })()}
 
                       {/* Tier cap hint for Free / Trip Pass */}
-                      {(tier === 'free' || tier === 'trip_pass') && state.bookedHotels.length >= 1 && (
+                      {tierResolved && (tier === 'free' || tier === 'trip_pass') && state.bookedHotels.length >= 1 && (
                         <p className="text-xs text-zinc-400 flex items-center gap-1.5">
                           <Lock className="w-3 h-3" />
                           Multiple hotels require Explorer or Nomad. <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade</Link>
@@ -3224,8 +3234,12 @@ function TripBuilderPage() {
                         if (!canAffordAction('itinerary_generate')) {
                           // Paid users out of credits get the tier-appropriate
                           // "you've used your credits" copy; free users get the
-                          // free-tier upgrade nudge.
-                          setUpgradeReason(tier === 'free' ? 'no_ai' : 'ai_credits_empty');
+                          // free-tier upgrade nudge. When tier hasn't resolved
+                          // yet, default to the safer (paid) prompt — better
+                          // to show "credits empty" to a free user than show
+                          // "upgrade from free" to a paying user.
+                          const reason = tierResolved && tier === 'free' ? 'no_ai' : 'ai_credits_empty';
+                          setUpgradeReason(reason);
                           setShowUpgradeModal(true);
                           return;
                         }

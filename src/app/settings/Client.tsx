@@ -498,6 +498,14 @@ export default function SettingsPage() {
   const tier = (rawTier in PLAN_DISPLAY) ? rawTier : 'free';
   const plan = PLAN_DISPLAY[tier];
   const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
+  // True only when we have a trusted tier source — either the live
+  // authProfile or a previously-written cache. Without this flag, a
+  // paid user whose profile hasn't loaded and has no cache flashes the
+  // 'Free' label + Upgrade CTA on the Subscription tab. Mirrors the
+  // gate already used on /world and Sidebar.
+  // Unauthenticated viewers are always considered resolved — 'free' is
+  // the correct tier for that case.
+  const tierResolved = !user || !!authProfile?.subscription_tier || !!cachedUserTier;
 
   // Credit totals derived from tier limits (single source of truth in
   // lib/types.ts). Previously hardcoded `{ free: 10, ... trip_pass: 30 }`
@@ -513,7 +521,11 @@ export default function SettingsPage() {
   const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : `${aiUsed} / 25`;
   const aiPct     = aiTotal > 0 ? Math.min(100, Math.round((aiUsed / aiTotal) * 100)) : 0;
 
-  const tierLabel = tier === 'free' ? 'Free plan'
+  // Show an em-dash placeholder when the tier isn't resolved yet so a
+  // paid user doesn't see "Free plan" flash. Once resolved, the real
+  // label snaps in.
+  const tierLabel = !tierResolved ? '—'
+    : tier === 'free' ? 'Free plan'
     : tier === 'trip_pass' ? 'Trip Pass'
     : `${plan.name} plan`;
 
@@ -1143,7 +1155,12 @@ export default function SettingsPage() {
                         )}
                       </div>
                     </div>
-                    {tier === 'free' ? (
+                    {/* Skeleton placeholder until tier is trusted —
+                        otherwise a Nomad user briefly sees "Upgrade to
+                        Explorer or Nomad". */}
+                    {!tierResolved ? (
+                      <div className="w-44 h-10 rounded-lg bg-white/10 animate-pulse" />
+                    ) : tier === 'free' ? (
                       <a
                         href="/pricing"
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 hover:bg-slate-100 rounded-lg font-semibold text-sm transition-colors"
@@ -1197,7 +1214,7 @@ export default function SettingsPage() {
                         </li>
                       ))}
                     </ul>
-                    {tier === 'free' && (
+                    {tierResolved && tier === 'free' && (
                       <a href="/pricing" className="inline-flex items-center gap-2 mt-5 text-sm font-semibold text-sky-700 hover:text-sky-900 transition-colors">
                         See what Explorer &amp; Nomad unlock →
                       </a>

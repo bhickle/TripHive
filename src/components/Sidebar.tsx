@@ -12,7 +12,18 @@ import { signOutAction } from '@/app/auth/signout/actions';
 interface SidebarProps {
   activeTrip?: { id: string; title: string; destination: string; };
   activePage?: string;
-  user?: { name: string; avatarUrl?: string; subscriptionTier: 'free' | 'trip_pass' | 'explorer' | 'nomad'; };
+  user?: {
+    name: string;
+    avatarUrl?: string;
+    subscriptionTier: 'free' | 'trip_pass' | 'explorer' | 'nomad';
+    /** True only when the tier comes from a trusted source (DB profile
+     *  or last-known-good cache). When false, the badge is hidden —
+     *  otherwise a paid user whose tier hasn't resolved flashes the
+     *  'free' pill styling (`bg-white/10 text-parchment/70`), which
+     *  on the dark sidebar reads as a parchment-colored chip. Brandon
+     *  flagged this on Mallory's session 2026-05-19. */
+    tierResolved?: boolean;
+  };
 }
 
 const tierConfig = {
@@ -203,9 +214,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
             <Avatar src={user.avatarUrl} name={user.name} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate" style={{ color: '#f5f1e8' }}>{user.name}</p>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold mt-0.5 ${tierConfig[user.subscriptionTier].className}`}>
-                {tierConfig[user.subscriptionTier].label}
-              </span>
+              {/* Hide the tier pill until we trust the tier. Without this
+                  guard, a paid user whose profile hasn't loaded sees the
+                  'free' styling (parchment-tinted pill) flash through —
+                  the bug Brandon spotted on Mallory's Explorer account. */}
+              {user.tierResolved && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold mt-0.5 ${tierConfig[user.subscriptionTier].className}`}>
+                  {tierConfig[user.subscriptionTier].label}
+                </span>
+              )}
             </div>
             <ChevronRight
               className="w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200"

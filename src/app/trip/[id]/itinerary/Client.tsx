@@ -437,7 +437,7 @@ function ItineraryPageContent() {
   const [showRevertConfirm, setShowRevertConfirm] = useState<boolean>(false);
   const [reverting, setReverting] = useState<boolean>(false);
 
-  const { tier, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements(params.id, isTripPassTrip);
+  const { tier, tierResolved, hasTripStory, hasTransportParser, getUpgradePrompt } = useEntitlements(params.id, isTripPassTrip);
   const currentUser = useCurrentUser();
   const router = useRouter();
 
@@ -3155,6 +3155,7 @@ function ItineraryPageContent() {
              case (per-member preferences mini-wizard drives this);
              Explorer/Nomad keep access for legacy behaviour. */}
         {newPrefsCount > 0
+          && tierResolved
           && (tier === 'trip_pass' || tier === 'explorer' || tier === 'nomad')
           && currentUser.id
           && canTriggerAi
