@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { destinationToCountry, countryToId, countryToContinent, CONTINENT_TOTALS } from '@/lib/world/countryLookup';
 import { geocodeCities } from '@/lib/world/geocodeCity';
 import { evaluateBadges, type TripForBadge } from '@/lib/world/badges';
+import { selectPhotoPins, type TripForPins, type PhotoForPins } from '@/lib/world/photoPins';
+import type { ItineraryDay } from '@/lib/types';
 
 /**
  * GET /api/world
@@ -41,7 +43,7 @@ export async function GET() {
     // than trip.status because the stored column can lag.
     const { data: trips, error: tripsErr } = await supabase
       .from('trips')
-      .select('id, destination, start_date, end_date, trip_length, group_size, status, visited_cities, preferences, cover_image')
+      .select('id, title, destination, start_date, end_date, trip_length, group_size, status, visited_cities, preferences, cover_image')
       .eq('organizer_id', userId);
     if (tripsErr) {
       console.error('[/api/world] trips load error', tripsErr);
@@ -52,6 +54,7 @@ export async function GET() {
     now.setHours(0, 0, 0, 0);
     type TripRow = {
       id: string;
+      title: string | null;
       destination: string;
       start_date: string | null;
       end_date: string | null;
@@ -117,32 +120,44 @@ export async function GET() {
     }));
     const coordsMap = await geocodeCities(supabase, cityList);
 
-    // Photo per city — one representative trip_photos.public_url per
-    // unique city, drawn from any of the trips that visited it. Picks
-    // the most recent uploaded photo so users see fresh imagery.
+    // Pull all completed-trip photos (Nomad photo-pin feature) — needs the
+    // full list with day_number so selectPhotoPins can map photos to the
+    // right city via the trip's itinerary. Lower tiers ignore pins[] in
+    // the response, so the extra rows are wasted only for paid users that
+    // actually use them.
     const allTripIds = Array.from(new Set(
       Array.from(cityVisitCounts.values()).flatMap(v => v.tripIds),
     ));
+    const allTripPhotos: PhotoForPins[] = [];
+    // Per-city representative photo (kept for the legacy `cities[].photoUrl`
+    // single-pin renderer that lower tiers still see).
     const cityPhotos = new Map<string, string>();
     if (allTripIds.length > 0) {
       const { data: photos } = await supabase
         .from('trip_photos')
-        .select('trip_id, public_url, created_at')
+        .select('trip_id, public_url, day_number, taken_at, created_at')
         .in('trip_id', allTripIds)
         .not('public_url', 'is', null)
         .order('created_at', { ascending: false });
       if (photos) {
-        // Map trip_id → most recent public_url (the order asc=false
-        // means the first photo we see per trip is the newest).
+        for (const p of photos) {
+          if (!p.public_url) continue;
+          allTripPhotos.push({
+            tripId: p.trip_id,
+            publicUrl: p.public_url,
+            dayNumber: p.day_number,
+            takenAt: p.taken_at,
+            createdAt: p.created_at,
+          });
+        }
+        // Legacy per-city map for the single-pin renderer — keep using the
+        // most-recent photo across trips visiting that city.
         const photoByTrip = new Map<string, string>();
         for (const p of photos) {
           if (p.public_url && !photoByTrip.has(p.trip_id)) {
             photoByTrip.set(p.trip_id, p.public_url);
           }
         }
-        // For each city, grab the photo from its first associated trip
-        // that has one. Cities visited on multiple trips pick the most
-        // recently uploaded photo across those trips.
         for (const [city, { tripIds }] of Array.from(cityVisitCounts.entries())) {
           for (const tid of tripIds) {
             const photo = photoByTrip.get(tid);
@@ -151,6 +166,47 @@ export async function GET() {
         }
       }
     }
+
+    // Pull itinerary days for completed trips so selectPhotoPins can
+    // map a photo's day_number → city. Separate fetch (rather than a
+    // join) so the trip query stays unchanged and we only pay the cost
+    // when there are completed trips to render pins for.
+    const itineraryDaysByTrip = new Map<string, ItineraryDay[]>();
+    const completedTripIds = completed.map(t => t.id);
+    if (completedTripIds.length > 0) {
+      const { data: itineraries } = await supabase
+        .from('itineraries')
+        .select('trip_id, days')
+        .in('trip_id', completedTripIds);
+      for (const row of itineraries ?? []) {
+        // `days` is a JSON column — cast through unknown to the typed
+        // ItineraryDay[]. Bad shapes degrade to [] (no pins) rather than
+        // crashing the response.
+        const days = Array.isArray(row.days) ? (row.days as unknown as ItineraryDay[]) : [];
+        itineraryDaysByTrip.set(row.trip_id, days);
+      }
+    }
+
+    // Compute Nomad photo pins. Pure helper; safe to call regardless of
+    // viewer tier (lower tiers just won't render the result).
+    const tripsForPins: TripForPins[] = completed.map(t => {
+      const cityNames = (t.visited_cities && t.visited_cities.length > 0)
+        ? t.visited_cities
+        : [t.destination.split(',')[0]?.trim()].filter((s): s is string => !!s);
+      return {
+        id: t.id,
+        title: t.title ?? t.destination,
+        destination: t.destination,
+        visitedCities: cityNames,
+        coverImage: t.cover_image,
+        itineraryDays: itineraryDaysByTrip.get(t.id) ?? [],
+      };
+    });
+    const photoPins = selectPhotoPins({
+      trips: tripsForPins,
+      photos: allTripPhotos,
+      coordsByCity: coordsMap,
+    });
 
     const cities = Array.from(cityVisitCounts.entries())
       .map(([name, { country, count, tripIds }]) => {
@@ -333,6 +389,8 @@ export async function GET() {
       continents,
       badges: badgesWithTimestamps,
       stamps,
+      // Nomad-only render layer; lower tiers ignore this field.
+      pins: photoPins,
     });
   } catch (err) {
     console.error('[/api/world] unexpected error:', err);

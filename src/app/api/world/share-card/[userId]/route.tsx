@@ -2,6 +2,13 @@ import { ImageResponse } from 'next/og';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { destinationToCountry, countryToContinent } from '@/lib/world/countryLookup';
 
+/** Card-strip photo: real photo first, falls back to trip cover_image when
+ *  the strip has fewer than 6 uploaded photos. */
+interface CardPhoto {
+  url: string;
+  isCover: boolean;
+}
+
 /**
  * GET /api/world/share-card/[userId]
  *
@@ -56,7 +63,7 @@ export async function GET(_req: Request, { params }: { params: { userId: string 
       supabase.from('profiles').select('name').eq('id', params.userId).single(),
       supabase
         .from('trips')
-        .select('id, destination, start_date, end_date, preferences')
+        .select('id, destination, start_date, end_date, preferences, cover_image')
         .eq('organizer_id', params.userId)
         .not('end_date', 'is', null),
     ]);
@@ -99,17 +106,39 @@ export async function GET(_req: Request, { params }: { params: { userId: string 
       stamps.push(STAMP_EMOJI[topPriority] ?? STAMP_EMOJI.culture);
     }
 
-    // ── Recent trip photos (up to 4) ───────────────────────────────────────
+    // ── Card photos (up to 6) ──────────────────────────────────────────────
+    // Pull the 6 most-recent uploaded trip photos. If we don't have 6,
+    // fill the rest from trip cover_images so the strip always feels rich
+    // for active travellers — matches the cover-image fallback on /world.
+    const CARD_PHOTO_LIMIT = 6;
     const tripIds = completedTrips.map(t => t.id);
-    let photoUrls: string[] = [];
+    const cardPhotos: CardPhoto[] = [];
     if (tripIds.length > 0) {
       const { data: photos } = await supabase
         .from('trip_photos')
         .select('public_url')
         .in('trip_id', tripIds)
         .order('created_at', { ascending: false })
-        .limit(4);
-      photoUrls = (photos ?? []).map(p => p.public_url).filter(Boolean) as string[];
+        .limit(CARD_PHOTO_LIMIT);
+      for (const p of photos ?? []) {
+        if (p.public_url) cardPhotos.push({ url: p.public_url, isCover: false });
+      }
+    }
+    // Cover-image backfill — most-recent trip first.
+    if (cardPhotos.length < CARD_PHOTO_LIMIT) {
+      const recentCovers = completedTrips
+        .slice()
+        .sort((a, b) => (b.end_date ?? '').localeCompare(a.end_date ?? ''))
+        .map(t => t.cover_image)
+        .filter((u): u is string => !!u);
+      // Dedupe in case the same image appears as both uploaded photo and cover.
+      const seen = new Set(cardPhotos.map(p => p.url));
+      for (const url of recentCovers) {
+        if (cardPhotos.length >= CARD_PHOTO_LIMIT) break;
+        if (seen.has(url)) continue;
+        cardPhotos.push({ url, isCover: true });
+        seen.add(url);
+      }
     }
 
     const countryCount = countries.size;
@@ -185,28 +214,33 @@ export async function GET(_req: Request, { params }: { params: { userId: string 
           {/* Spacer to push the photo strip to the bottom */}
           <div style={{ display: 'flex', flex: 1 }} />
 
-          {/* Photo strip (or empty-state hint) */}
-          {photoUrls.length > 0 ? (
-            <div style={{ display: 'flex', gap: '14px', width: '100%' }}>
-              {photoUrls.map((url, i) => (
+          {/* Photo strip (or empty-state hint).
+              6 photos at 162×96, slightly tighter than the old 4×230×130
+              so the strip fits the wider count without spilling the
+              1072px usable width (64px padding × 2). Cover-image
+              fallbacks get a dashed amber border so a power user can
+              tell them apart from real uploads. */}
+          {cardPhotos.length > 0 ? (
+            <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+              {cardPhotos.map((p, i) => (
                 <div
                   key={i}
                   style={{
                     display: 'flex',
-                    width: 230,
-                    height: 130,
+                    width: 162,
+                    height: 96,
                     borderRadius: 8,
                     overflow: 'hidden',
-                    border: '2px solid #d4c89a',
+                    border: p.isCover ? '2px dashed #c4b07a' : '2px solid #d4c89a',
                     backgroundColor: '#fff8e6',
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={url}
+                    src={p.url}
                     alt=""
-                    width={230}
-                    height={130}
+                    width={162}
+                    height={96}
                     style={{ objectFit: 'cover', width: '100%', height: '100%' }}
                   />
                 </div>
@@ -230,7 +264,7 @@ export async function GET(_req: Request, { params }: { params: { userId: string 
           )}
 
           {/* Footer URL */}
-          {photoUrls.length > 0 && (
+          {cardPhotos.length > 0 && (
             <div
               style={{
                 display: 'flex',

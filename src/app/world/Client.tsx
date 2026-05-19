@@ -10,6 +10,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type { BadgeProgress } from '@/lib/world/badges';
+import { jitterPinCoords, type PhotoPin } from '@/lib/world/photoPins';
 
 // Public world TopoJSON — 110m resolution, ~100KB. Same dataset
 // react-simple-maps documentation recommends; served via the npm
@@ -49,6 +50,11 @@ interface WorldData {
     vibe: string;
     color: string;
   }>;
+  /** Nomad photo-pin layer: each pin = one photo (or cover-image fallback)
+   *  placed on a visited city. Distributed via the adaptive budget in
+   *  src/lib/world/photoPins.ts. Empty array for lower tiers (which see
+   *  the existing one-dot-per-city renderer instead). */
+  pins: PhotoPin[];
 }
 
 // Gradient sky-shade per visit count. 1 visit = pale sky-300, 2 = sky-500,
@@ -122,6 +128,9 @@ export default function WorldClient() {
   const [error, setError] = useState(false);
   const [hoveredCountry, setHoveredCountry] = useState<{ id: string; name: string; count: number } | null>(null);
   const [hoveredCity, setHoveredCity] = useState<{ name: string; lon: number; lat: number; country: string | null; visitCount: number } | null>(null);
+  // Hovered photo pin (Nomad render path) — distinct from hoveredCity
+  // because pins carry trip context (title) that city dots don't.
+  const [hoveredPin, setHoveredPin] = useState<PhotoPin | null>(null);
   // Lightbox state — opens when a Nomad user taps a photo-pin. Contains
   // the city name + the photoUrl shown + a deep link to the trip.
   const [lightboxCity, setLightboxCity] = useState<{ name: string; photoUrl: string; tripId: string } | null>(null);
@@ -397,59 +406,101 @@ export default function WorldClient() {
                           })
                         }
                       </Geographies>
-                      {data.cities.map(city => {
-                        // Nomad photo-pin: render the city's representative
-                        // trip photo as a small circular thumbnail. Lower
-                        // tiers (and Nomad cities with no photos yet) get
-                        // the simple white-dot pin. SVG <image> + clipPath
-                        // for the circular crop — only one clipPath per
-                        // pin so the count scales linearly with cities.
-                        const showPhoto = tierResolved && tier === 'nomad' && city.photoUrl;
-                        const clipId = `city-clip-${city.name.replace(/[^a-z0-9]/gi, '_')}`;
-                        return (
+                      {(() => {
+                        // Two render paths for the marker layer:
+                        //   - Nomad + tier-resolved + pins available → render
+                        //     the photo-pin layer (each pin = one photo or
+                        //     cover-image fallback, distributed via the
+                        //     adaptive budget in lib/world/photoPins.ts).
+                        //   - Everyone else → render the legacy single-dot-
+                        //     per-city layer (no photos).
+                        // The two paths are visually distinct enough that
+                        // mixing them on the same map would clutter, so we
+                        // pick one based on viewer tier.
+                        const useNomadPins = tierResolved && tier === 'nomad' && data.pins.length > 0;
+                        if (useNomadPins) {
+                          // Count pins per city so we can jitter overlapping
+                          // pins (single-city trips with many photos, or one
+                          // city visited on multiple trips).
+                          const pinsPerCity = new Map<string, number>();
+                          for (const p of data.pins) {
+                            pinsPerCity.set(p.city, (pinsPerCity.get(p.city) ?? 0) + 1);
+                          }
+                          const cityIndex = new Map<string, number>();
+                          return data.pins.map(pin => {
+                            const total = pinsPerCity.get(pin.city) ?? 1;
+                            const i = cityIndex.get(pin.city) ?? 0;
+                            cityIndex.set(pin.city, i + 1);
+                            const { lat, lon } = jitterPinCoords(pin, i, total);
+                            const clipId = `pin-clip-${pin.key.replace(/[^a-z0-9]/gi, '_')}`;
+                            const hasImage = !!pin.photoUrl;
+                            return (
+                              <Marker
+                                key={pin.key}
+                                coordinates={[lon, lat]}
+                                onMouseEnter={() => setHoveredPin(pin)}
+                                onMouseLeave={() => setHoveredPin(null)}
+                                onClick={() => {
+                                  if (hasImage) setLightboxCity({ name: pin.city, photoUrl: pin.photoUrl ?? '', tripId: pin.tripId });
+                                  else router.push(`/trip/${pin.tripId}/itinerary`);
+                                }}
+                                style={{ default: { cursor: 'pointer' }, hover: { cursor: 'pointer' }, pressed: { cursor: 'pointer' } }}
+                              >
+                                {hasImage ? (
+                                  <>
+                                    <defs>
+                                      <clipPath id={clipId}>
+                                        <circle r={9} />
+                                      </clipPath>
+                                    </defs>
+                                    <circle r={10} fill="#fff" stroke="#fff" strokeWidth={2} />
+                                    <image
+                                      href={pin.photoUrl ?? ''}
+                                      x={-9}
+                                      y={-9}
+                                      width={18}
+                                      height={18}
+                                      preserveAspectRatio="xMidYMid slice"
+                                      clipPath={`url(#${clipId})`}
+                                    />
+                                    {/* Cover-fallback pins get a dashed ring
+                                        as a subtle "this isn't your photo"
+                                        hint; uploaded photos get a solid ring. */}
+                                    <circle r={9} fill="none" stroke="#0369a1" strokeWidth={1.5} strokeDasharray={pin.isCoverFallback ? '2 2' : undefined} />
+                                  </>
+                                ) : (
+                                  <circle r={4} fill="#fff" stroke="#0369a1" strokeWidth={2} />
+                                )}
+                              </Marker>
+                            );
+                          });
+                        }
+                        // Default render: one dot per unique city
+                        return data.cities.map(city => (
                           <Marker
                             key={`${city.name}-${city.lat}-${city.lon}`}
                             coordinates={[city.lon, city.lat]}
                             onMouseEnter={() => setHoveredCity(city)}
                             onMouseLeave={() => setHoveredCity(null)}
-                            onClick={() => {
-                              if (showPhoto) setLightboxCity({ name: city.name, photoUrl: city.photoUrl ?? '', tripId: city.tripId });
-                              else router.push(`/trip/${city.tripId}/itinerary`);
-                            }}
+                            onClick={() => router.push(`/trip/${city.tripId}/itinerary`)}
                             style={{ default: { cursor: 'pointer' }, hover: { cursor: 'pointer' }, pressed: { cursor: 'pointer' } }}
                           >
-                            {showPhoto ? (
-                              <>
-                                <defs>
-                                  <clipPath id={clipId}>
-                                    <circle r={9} />
-                                  </clipPath>
-                                </defs>
-                                <circle r={10} fill="#fff" stroke="#fff" strokeWidth={2} />
-                                <image
-                                  href={city.photoUrl ?? ''}
-                                  x={-9}
-                                  y={-9}
-                                  width={18}
-                                  height={18}
-                                  preserveAspectRatio="xMidYMid slice"
-                                  clipPath={`url(#${clipId})`}
-                                />
-                                <circle r={9} fill="none" stroke="#0369a1" strokeWidth={1.5} />
-                              </>
-                            ) : (
-                              <circle r={4} fill="#fff" stroke="#0369a1" strokeWidth={2} />
-                            )}
+                            <circle r={4} fill="#fff" stroke="#0369a1" strokeWidth={2} />
                           </Marker>
-                        );
-                      })}
+                        ));
+                      })()}
                     </ZoomableGroup>
                   </ComposableMap>
 
                   {/* Hover tooltip — bottom-left of map */}
-                  {(hoveredCountry || hoveredCity) && (
+                  {(hoveredCountry || hoveredCity || hoveredPin) && (
                     <div className="absolute bottom-3 left-3 bg-zinc-900 text-white text-xs px-3 py-2 rounded-lg shadow-lg pointer-events-none">
-                      {hoveredCity ? (
+                      {hoveredPin ? (
+                        <>
+                          <p className="font-semibold">{hoveredPin.city}</p>
+                          <p className="text-[10px] text-zinc-300">{hoveredPin.tripTitle}{hoveredPin.isCoverFallback ? ' · cover photo' : ''}</p>
+                        </>
+                      ) : hoveredCity ? (
                         <>
                           <p className="font-semibold">{hoveredCity.name}</p>
                           <p className="text-[10px] text-zinc-300">{hoveredCity.country ?? ''}{hoveredCity.country && hoveredCity.visitCount > 1 ? ' · ' : ''}{hoveredCity.visitCount > 1 ? `${hoveredCity.visitCount} visits` : ''}</p>
@@ -719,11 +770,13 @@ export default function WorldClient() {
                 )}
               </section>
 
-              {/* Nomad upsell — photo pins + time-lapse + shareable card.
-                  Stub for v1; the real photo-pin gallery + animated time-lapse
-                  ship in a follow-up.
-                  Gated on tierResolved so paid users don't flash the upsell
-                  during the auth-loading window (the silent-downgrade bug). */}
+              {/* Nomad upsell — photo pins on the live map + a richer
+                  shareable OG card. Time-lapse animation is the v2 add
+                  and is intentionally NOT mentioned here so the copy
+                  matches what actually ships when a user upgrades.
+                  Gated on tierResolved so paid users don't flash the
+                  upsell during the auth-loading window (the silent-
+                  downgrade bug). */}
               {tierResolved && tier !== 'nomad' && (
                 <section className="mb-10 bg-gradient-to-br from-amber-50 via-rose-50 to-purple-50 border border-amber-200 rounded-2xl p-6">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -732,7 +785,7 @@ export default function WorldClient() {
                         <Crown className="w-2.5 h-2.5" /> Nomad
                       </span>
                       <h2 className="text-lg font-semibold text-zinc-900 mt-2">Bring your map to life</h2>
-                      <p className="text-sm text-zinc-600 mt-1">Photo pins · animated time-lapse of every trip in order · shareable map card</p>
+                      <p className="text-sm text-zinc-600 mt-1">Photo pins for every place you&apos;ve been · shareable map card</p>
                     </div>
                     <Link href="/pricing#nomad" className="bg-zinc-900 hover:bg-zinc-800 text-white font-semibold px-5 py-2.5 rounded-full text-sm whitespace-nowrap">
                       See Nomad
