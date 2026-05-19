@@ -116,7 +116,7 @@ const STAMP_ROTATIONS = ['-rotate-[3deg]', 'rotate-[3deg]', '-rotate-[1.5deg]', 
 export default function WorldClient() {
   const currentUser = useCurrentUser();
   const router = useRouter();
-  const { tier } = useEntitlements();
+  const { tier, tierResolved } = useEntitlements();
   const [data, setData] = useState<WorldData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -291,7 +291,7 @@ export default function WorldClient() {
                   previews with a rendered card image. Lower tiers
                   don't get the button; they get the Nomad upsell
                   card lower on the page instead. */}
-              {tier === 'nomad' && (
+              {tierResolved && tier === 'nomad' && (
                 <button
                   onClick={handleShareMap}
                   disabled={!data}
@@ -404,7 +404,7 @@ export default function WorldClient() {
                         // the simple white-dot pin. SVG <image> + clipPath
                         // for the circular crop — only one clipPath per
                         // pin so the count scales linearly with cities.
-                        const showPhoto = tier === 'nomad' && city.photoUrl;
+                        const showPhoto = tierResolved && tier === 'nomad' && city.photoUrl;
                         const clipId = `city-clip-${city.name.replace(/[^a-z0-9]/gi, '_')}`;
                         return (
                           <Marker
@@ -464,20 +464,40 @@ export default function WorldClient() {
                   )}
                 </div>
 
-                {/* Continent progress strip */}
+                {/* Continent progress strip — each card links to a filtered
+                    /trips view for that continent. Untouched continents
+                    (visited === 0) stay non-interactive since there's
+                    nothing to filter to. */}
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
                   {sortedContinents.map(c => {
                     const pct = c.total > 0 ? (c.visited / c.total) * 100 : 0;
                     const isUntouched = c.visited === 0;
-                    return (
-                      <div key={c.name} className={`bg-white border border-zinc-200 rounded-xl p-3 ${isUntouched ? 'opacity-60' : ''}`}>
+                    const cardInner = (
+                      <>
                         <p className="font-semibold text-zinc-700 mb-1">
                           {c.name} <span className="text-zinc-400 font-normal">{c.visited}/{c.total}</span>
                         </p>
                         <div className="h-1 bg-zinc-100 rounded-full overflow-hidden">
                           {pct > 0 && <div className="h-full bg-sky-700 rounded-full" style={{ width: `${pct}%` }} />}
                         </div>
-                      </div>
+                      </>
+                    );
+                    if (isUntouched) {
+                      return (
+                        <div key={c.name} className="bg-white border border-zinc-200 rounded-xl p-3 opacity-60">
+                          {cardInner}
+                        </div>
+                      );
+                    }
+                    return (
+                      <Link
+                        key={c.name}
+                        href={`/trips?continent=${encodeURIComponent(c.name)}`}
+                        className="bg-white border border-zinc-200 rounded-xl p-3 transition-all hover:border-sky-400 hover:shadow-sm hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        aria-label={`See your trips in ${c.name} (${c.visited} of ${c.total} countries visited)`}
+                      >
+                        {cardInner}
+                      </Link>
                     );
                   })}
                 </div>
@@ -499,13 +519,13 @@ export default function WorldClient() {
                     <h2 className="text-lg font-semibold text-zinc-900">Your Passport</h2>
                     <p className="text-xs text-zinc-500">One stamp per completed trip · vibe derived from your trip priorities</p>
                   </div>
-                  {tier === 'free' && (
+                  {tierResolved && tier === 'free' && (
                     <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
                       <Lock className="w-2.5 h-2.5" /> Trip Pass+
                     </span>
                   )}
                 </div>
-                {tier === 'free' && data.stamps.length > 0 ? (
+                {tierResolved && tier === 'free' && data.stamps.length > 0 ? (
                   <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center">
                     <Lock className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
                     <h3 className="font-semibold text-zinc-800 mb-1">Passport is a paid feature</h3>
@@ -643,13 +663,13 @@ export default function WorldClient() {
                       {earnedBadges.length} earned · {lockedBadges.length} to unlock
                     </p>
                   </div>
-                  {tier === 'free' && (
+                  {tierResolved && tier === 'free' && (
                     <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
                       <Lock className="w-2.5 h-2.5" /> Trip Pass+
                     </span>
                   )}
                 </div>
-                {tier === 'free' ? (
+                {tierResolved && tier === 'free' ? (
                   <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center">
                     <Lock className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
                     <h3 className="font-semibold text-zinc-800 mb-1">Badges are a paid feature</h3>
@@ -701,8 +721,10 @@ export default function WorldClient() {
 
               {/* Nomad upsell — photo pins + time-lapse + shareable card.
                   Stub for v1; the real photo-pin gallery + animated time-lapse
-                  ship in a follow-up. */}
-              {tier !== 'nomad' && (
+                  ship in a follow-up.
+                  Gated on tierResolved so paid users don't flash the upsell
+                  during the auth-loading window (the silent-downgrade bug). */}
+              {tierResolved && tier !== 'nomad' && (
                 <section className="mb-10 bg-gradient-to-br from-amber-50 via-rose-50 to-purple-50 border border-amber-200 rounded-2xl p-6">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>

@@ -138,6 +138,11 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
 export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
   const user = useCurrentUser();
   const tier = (user.subscriptionTier ?? 'free') as SubscriptionTier;
+  // Forwarded from useCurrentUser. UI consumers that render tier-conditional
+  // UI (upsell cards, lock badges) should gate on this to avoid the silent-
+  // downgrade flicker where a paid user briefly sees free-tier locks while
+  // the profile loads.
+  const tierResolved = user.tierResolved ?? false;
   const limits = TIER_LIMITS[tier];
 
   // Trip Pass overlay: this specific trip has an active Trip Pass purchase,
@@ -281,6 +286,15 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
 
   return {
     tier,
+    // True once we have a trusted tier (profile loaded OR last-known-good
+    // cache restored). Direct tier comparisons (`tier === 'free'`, etc) that
+    // affect what UI renders MUST be gated on this — without it, paid users
+    // briefly see free-tier upsells/locks during the auth-loading window.
+    // Distinct from `entitlementsReady` (which is just !isLoading): a user
+    // can be done-loading with NO trusted tier (profile fetch failed AND no
+    // prior cache), in which case the safe call is to render nothing rather
+    // than guess 'free'.
+    tierResolved,
     limits,
     activeTripPass,
     aiCreditsRemaining,

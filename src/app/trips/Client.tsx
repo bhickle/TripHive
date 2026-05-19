@@ -9,6 +9,7 @@ import { TagCitiesBanner, shouldShowTagCitiesBanner, rememberTagCitiesBannerDism
 import { TagCitiesModal } from '@/components/TagCitiesModal';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { trips } from '@/data/mock';
+import { destinationToCountry, countryToContinent } from '@/lib/world/countryLookup';
 import {
   Plus,
   Search,
@@ -17,6 +18,7 @@ import {
   MapPin,
   Calendar,
   Users,
+  X,
 } from 'lucide-react';
 
 type StatusFilter = 'all' | 'planning' | 'active' | 'completed';
@@ -52,6 +54,10 @@ export default function TripsPage() {
     return 'all' as StatusFilter;
   })();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
+  // ?continent= deep-link from /world's continent strip. Lives in URL state
+  // so the back button restores it; cleared via the chip's × button.
+  const initialContinent = searchParams?.get('continent') ?? null;
+  const [continentFilter, setContinentFilter] = useState<string | null>(initialContinent);
   const [shareFilter, setShareFilter] = useState<ShareFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -158,8 +164,18 @@ export default function TripsPage() {
     ? [...userTrips, ...trips]
     : userTrips;
 
+  // destination → continent for the ?continent= filter. Falls back to
+  // null when the destination string doesn't map cleanly (rare cities,
+  // typos) — those trips drop out of a filtered view but still show up
+  // when no continent filter is set.
+  const tripContinent = (destination: string): string | null => {
+    const country = destinationToCountry(destination);
+    return country ? countryToContinent(country) : null;
+  };
+
   const filteredTrips = allTrips.filter((trip) => {
     const matchesStatus = statusFilter === 'all' || trip.status === statusFilter;
+    const matchesContinent = !continentFilter || tripContinent(trip.destination) === continentFilter;
     const matchesShare =
       shareFilter === 'all' ||
       (shareFilter === 'mine' && trip.role === 'organizer') ||
@@ -173,8 +189,17 @@ export default function TripsPage() {
       // "all trips with Luke" works whether Luke is a member or the organizer.
       (trip.memberNames ?? '').toLowerCase().includes(q) ||
       (trip.organizerName ?? '').toLowerCase().includes(q);
-    return matchesStatus && matchesShare && matchesSearch;
+    return matchesStatus && matchesContinent && matchesShare && matchesSearch;
   });
+
+  // Clear-filter helper: also strips ?continent= from the URL so the back
+  // button + a refresh both honor the clear.
+  const clearContinentFilter = () => {
+    setContinentFilter(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('continent');
+    router.replace(url.pathname + (url.search ? url.search : ''));
+  };
 
   const sortByDate = (a: { startDate?: string }, b: { startDate?: string }) => {
     if (!a.startDate) return 1;
@@ -258,6 +283,20 @@ export default function TripsPage() {
                   {status.charAt(0).toUpperCase() + status.slice(1)}
                 </button>
               ))}
+              {/* Continent chip — only visible when the user deep-linked
+                  in from /world's continent strip. × clears it and the
+                  URL param together so the back button still works. */}
+              {continentFilter && (
+                <button
+                  onClick={clearContinentFilter}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold bg-sky-100 text-sky-800 border border-sky-200 hover:bg-sky-200 transition-colors"
+                  aria-label={`Clear ${continentFilter} filter`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  {continentFilter}
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {/* View mode toggle — single render, repositioned via flex.
@@ -387,17 +426,31 @@ export default function TripsPage() {
         {filteredTrips.length === 0 && !tripsLoading && !tripsLoadError && (
           <div className="text-center py-20">
             <MapPin className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
-            <h3 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">No trips here yet</h3>
+            <h3 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
+              {continentFilter ? `No trips in ${continentFilter} yet` : 'No trips here yet'}
+            </h3>
             <p className="text-zinc-600 mb-6">
-              {searchQuery ? "Try a different search term." : "Start planning your next adventure!"}
+              {continentFilter
+                ? 'Clear the filter to see all your trips, or plan something new there.'
+                : searchQuery ? 'Try a different search term.' : 'Start planning your next adventure!'}
             </p>
-            <Link
-              href="/trip/new"
-              className="bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full inline-flex items-center gap-2 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Plan a Trip
-            </Link>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              {continentFilter && (
+                <button
+                  onClick={clearContinentFilter}
+                  className="border border-zinc-300 text-zinc-700 hover:border-sky-400 font-semibold px-5 py-2.5 rounded-full inline-flex items-center gap-2 transition-colors"
+                >
+                  Clear filter
+                </button>
+              )}
+              <Link
+                href="/trip/new"
+                className="bg-sky-800 hover:bg-sky-900 text-white font-semibold px-5 py-2.5 rounded-full inline-flex items-center gap-2 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Plan a Trip
+              </Link>
+            </div>
           </div>
         )}
 
