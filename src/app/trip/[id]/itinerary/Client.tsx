@@ -3362,24 +3362,30 @@ function ItineraryPageContent() {
               const nextDayNum = idx < activeDays.length - 1 ? (activeDays[idx + 1] as { day: number }).day : null;
               const canMoveEarlier = prevDayNum !== null && canSwap(day.day, prevDayNum);
               const canMoveLater   = nextDayNum !== null && canSwap(day.day, nextDayNum);
+              // Tooltip copy is shared across the native `title=` attr (mobile
+              // fallback when the chevrons are visible) AND the custom desktop
+              // hover bubble below. Drag-only copy on desktop because chevrons
+              // are hidden there; mobile still sees the chevrons + native tip.
               const tooltip = !canEditItinerary
                 ? 'Only the organizer or co-organizer can rearrange days'
                 : locked
                   ? (day.day === 1 ? 'Day 1 stays first (trip arrival)' : 'Last day stays last (trip departure)')
-                  : 'Drag onto another day to swap, or use the chevrons';
+                  : 'Drag to swap with another day';
               return (
                 // Wrap each pill in a 1-cell flex row so the chevrons sit
                 // tightly against it. The pill itself keeps its click +
-                // drag handlers — chevrons just expose adjacent swap as a
-                // discoverable, mobile-tap-friendly affordance.
-                <div key={day.day} className="flex items-center gap-0.5 flex-shrink-0">
+                // drag handlers — chevrons stay on mobile/tablet only
+                // (md:hidden) where touch-drag is unreliable and keyboard
+                // users need a tap target. `group` + `relative` enable the
+                // desktop hover tooltip below.
+                <div key={day.day} className="flex items-center gap-0.5 flex-shrink-0 group relative">
                   {canEditItinerary && !locked && (
                     <button
                       onClick={(e) => { e.stopPropagation(); if (canMoveEarlier && prevDayNum !== null) swapDayContent(day.day, prevDayNum); }}
                       disabled={!canMoveEarlier}
                       title={canMoveEarlier ? `Swap with Day ${prevDayNum}` : 'Cannot move earlier'}
                       aria-label={`Move Day ${day.day} earlier`}
-                      className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                      className="md:hidden w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </button>
@@ -3411,7 +3417,7 @@ function ItineraryPageContent() {
                       setDragOverDay(null);
                     }}
                     onClick={() => setSelectedDay(day.day)}
-                    title={tooltip}
+                    aria-label={`Day ${day.day}${tooltip ? `. ${tooltip}` : ''}`}
                     className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
                       locked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
                     } ${
@@ -3432,11 +3438,22 @@ function ItineraryPageContent() {
                       disabled={!canMoveLater}
                       title={canMoveLater ? `Swap with Day ${nextDayNum}` : 'Cannot move later'}
                       aria-label={`Move Day ${day.day} later`}
-                      className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                      className="md:hidden w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
                     >
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   )}
+                  {/* Desktop-only hover tooltip — crisper than the native
+                      `title` attr (which has a slow ~1-1.5s appearance
+                      delay across browsers). Pointer-events-none so the
+                      tooltip never blocks clicks on adjacent pills. */}
+                  <div
+                    role="tooltip"
+                    className="hidden md:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-20 shadow-lg"
+                  >
+                    {tooltip}
+                    <span aria-hidden className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-zinc-900 rotate-45" />
+                  </div>
                 </div>
               );
             })}
