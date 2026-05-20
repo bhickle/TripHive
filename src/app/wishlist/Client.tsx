@@ -7,6 +7,7 @@ import { wishlistItems as mockWishlistItems } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { WishlistItem, WishlistLink } from '@/lib/types';
+import { parseGoogleMapsUrl, isGoogleMapsUrl } from '@/lib/google/parseMapsUrl';
 import {
   Heart, Plus, Sparkles, Calendar, DollarSign, Search,
   MapPin, X, ArrowRight, Check, ChevronRight, Lock,
@@ -184,6 +185,37 @@ function extractDestinationFromUrl(rawUrl: string): string | null {
   return null;
 }
 
+/** Async wrapper that handles Google Maps URLs first (with server-side
+ *  resolution for the maps.app.goo.gl short form), then falls through
+ *  to the sync extractor for Pinterest / IG / TikTok / generic.
+ *
+ *  Returns the extracted place / destination name, or null when the
+ *  URL didn't match any extractor. Network failures during short-URL
+ *  resolution silently fall through to the sync extractor — the user
+ *  still gets the URL saved on the wishlist card. */
+async function extractDestinationFromUrlAsync(rawUrl: string): Promise<string | null> {
+  if (isGoogleMapsUrl(rawUrl)) {
+    let parsed = parseGoogleMapsUrl(rawUrl);
+    if (parsed?.shortUrl) {
+      try {
+        const res = await fetch('/api/google/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: rawUrl }),
+        });
+        if (res.ok) {
+          const { resolvedUrl } = (await res.json()) as { resolvedUrl: string };
+          parsed = parseGoogleMapsUrl(resolvedUrl);
+        }
+      } catch {
+        // Network failed — fall through to the sync extractor below.
+      }
+    }
+    if (parsed?.name) return parsed.name;
+  }
+  return extractDestinationFromUrl(rawUrl);
+}
+
 // ─── Add Destination Modal ────────────────────────────────────────────────────
 
 function AddDestinationModal({
@@ -287,10 +319,10 @@ function AddDestinationModal({
                   placeholder="Pinterest, TikTok, Instagram, Reddit, blog URL…"
                   value={socialUrl}
                   onChange={(e) => { setSocialUrl(e.target.value); setSocialExtractError(false); }}
-                  onKeyDown={(e) => {
+                  onKeyDown={async (e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      const extracted = extractDestinationFromUrl(socialUrl);
+                      const extracted = await extractDestinationFromUrlAsync(socialUrl);
                       if (extracted) {
                         setDestination(extracted);
                         setSocialExtractError(false);
@@ -310,8 +342,8 @@ function AddDestinationModal({
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    const extracted = extractDestinationFromUrl(socialUrl);
+                  onClick={async () => {
+                    const extracted = await extractDestinationFromUrlAsync(socialUrl);
                     if (extracted) {
                       setDestination(extracted);
                       setSocialExtractError(false);

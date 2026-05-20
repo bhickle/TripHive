@@ -6,6 +6,7 @@ import { itineraryDays, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
 import { normalizeVenueKey } from '@/lib/places/verifyVenues';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
+import { parseGoogleMapsUrl, isGoogleMapsUrl } from '@/lib/google/parseMapsUrl';
 import {
   Plus,
   Cloud,
@@ -1732,6 +1733,14 @@ function ItineraryPageContent() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  // Google Maps URL paste state. Triggered when the user pastes a
+  // google.com/maps/... or maps.app.goo.gl/... URL into the Search
+  // Place field — we resolve + parse it, then run a Places Text Search
+  // biased to the parsed lat/lon, and route the top result through the
+  // existing handleSelectPlace flow so the rest of the form populates
+  // identically to a manual autocomplete pick.
+  const [urlResolving, setUrlResolving] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   const { query, setQuery, suggestions, loading: searchLoading, fetchDetails, clearSearch } = usePlacesSearch(300);
 
@@ -1774,6 +1783,53 @@ function ItineraryPageContent() {
       }
     }
     setLoadingDetails(false);
+  };
+
+  // Pasted-Google-URL handler. Three steps:
+  //   1. Resolve short URLs (maps.app.goo.gl/...) via the server endpoint.
+  //   2. Parse the resolved URL into { name, lat, lon }.
+  //   3. Run a Places Text Search biased to the lat/lon and route the
+  //      top result through handleSelectPlace above.
+  // Falls through to a user-readable error on any failure — the URL
+  // stays in the input so the user can fix it without retyping.
+  const handlePastedGoogleUrl = async (rawUrl: string) => {
+    setUrlResolving(true);
+    setUrlError(null);
+    try {
+      let parsed = parseGoogleMapsUrl(rawUrl);
+      if (parsed?.shortUrl) {
+        const resolveRes = await fetch('/api/google/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: rawUrl }),
+        });
+        if (!resolveRes.ok) {
+          throw new Error("Couldn't open that Google link — try the full URL");
+        }
+        const { resolvedUrl } = (await resolveRes.json()) as { resolvedUrl: string };
+        parsed = parseGoogleMapsUrl(resolvedUrl);
+      }
+      if (!parsed?.name) {
+        throw new Error("Couldn't pull a place name out of that link");
+      }
+      const params = new URLSearchParams({ q: parsed.name });
+      if (parsed.lat !== null && parsed.lon !== null) {
+        params.set('location', `${parsed.lat},${parsed.lon}`);
+      }
+      const searchRes = await fetch(`/api/places/search?${params.toString()}`);
+      if (!searchRes.ok) {
+        throw new Error('Place lookup failed — try searching by name instead');
+      }
+      const data = (await searchRes.json()) as { results: Array<{ placeId: string; name: string }> };
+      if (!data.results || data.results.length === 0) {
+        throw new Error("Couldn't find that place — try searching by name");
+      }
+      await handleSelectPlace(data.results[0].placeId, data.results[0].name);
+    } catch (err) {
+      setUrlError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setUrlResolving(false);
+    }
   };
 
   const resetModal = () => {
@@ -4784,7 +4840,10 @@ function ItineraryPageContent() {
 
             <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
 
-              {/* Place Search */}
+              {/* Place Search — accepts either a place name (autocomplete)
+                  OR a pasted Google Maps URL (resolved + looked up via
+                  Places Text Search, then routed through the same
+                  handleSelectPlace flow). One input, smarter behavior. */}
               <div ref={searchRef} className="relative">
                 <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
                   Search Place
@@ -4795,19 +4854,39 @@ function ItineraryPageContent() {
                     type="text"
                     value={query || newActivityName}
                     onChange={e => {
-                      setNewActivityName(e.target.value);
-                      setQuery(e.target.value);
-                      setShowSuggestions(true);
-                      if (selectedPlace) setSelectedPlace(null);
+                      const val = e.target.value;
+                      if (isGoogleMapsUrl(val)) {
+                        // URL detected — suppress autocomplete and run
+                        // the paste-link flow. Keep the URL visible in
+                        // the input until handleSelectPlace overwrites
+                        // it with the resolved place name on success.
+                        setNewActivityName(val);
+                        setQuery('');
+                        setShowSuggestions(false);
+                        if (selectedPlace) setSelectedPlace(null);
+                        handlePastedGoogleUrl(val);
+                      } else {
+                        setNewActivityName(val);
+                        setQuery(val);
+                        setShowSuggestions(true);
+                        if (selectedPlace) setSelectedPlace(null);
+                        if (urlError) setUrlError(null);
+                      }
                     }}
                     onFocus={() => setShowSuggestions(true)}
-                    placeholder="e.g., Eiffel Tower, Central Park…"
+                    placeholder="Eiffel Tower, or paste a Google Maps link"
                     className="w-full pl-9 pr-10 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
                   />
-                  {(searchLoading || loadingDetails) && (
+                  {(searchLoading || loadingDetails || urlResolving) && (
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 animate-spin" />
                   )}
                 </div>
+                {/* Inline error for failed URL resolution. Doesn't block
+                    the rest of the form — the user can still type a name
+                    or paste a different URL. */}
+                {urlError && (
+                  <p className="mt-1.5 text-xs text-rose-600">{urlError}</p>
+                )}
 
                 {/* Autocomplete Dropdown */}
                 {showSuggestions && suggestions.length > 0 && (
