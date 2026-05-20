@@ -58,6 +58,13 @@ export default function TripsPage() {
   // so the back button restores it; cleared via the chip's × button.
   const initialContinent = searchParams?.get('continent') ?? null;
   const [continentFilter, setContinentFilter] = useState<string | null>(initialContinent);
+  // Re-sync from URL when searchParams changes (e.g. user clicks Sidebar
+  // "My Adventures" from a filtered /trips?continent=Asia view — the URL
+  // strips the param but the state wouldn't update without this effect,
+  // leaving the filter visually applied with no chip to clear it).
+  useEffect(() => {
+    setContinentFilter(searchParams?.get('continent') ?? null);
+  }, [searchParams]);
   const [shareFilter, setShareFilter] = useState<ShareFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');

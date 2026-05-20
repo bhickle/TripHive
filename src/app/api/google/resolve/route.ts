@@ -1,29 +1,44 @@
 import { NextResponse } from 'next/server';
 import { isGoogleMapsUrl } from '@/lib/google/parseMapsUrl';
+import { requireAuth } from '@/lib/supabase/requireAuth';
 
 /**
  * POST /api/google/resolve
  *
  * Resolves a short Google Maps URL (maps.app.goo.gl / goo.gl/maps) by
- * following its HTTP redirect and returning the final long-form URL.
- * Body: { url: string }   Response: { resolvedUrl: string }
+ * following its HTTP redirect chain and returning the final long-form
+ * URL. Body: { url: string }   Response: { resolvedUrl: string }
  *
  * Why this lives server-side: the redirect-following fetch can't run in
- * the browser because Google blocks CORS on these endpoints. The server
- * fetch is unrestricted.
+ * the browser because Google blocks CORS on these endpoints.
  *
- * No Google Places API cost — just a single HEAD-equivalent fetch.
+ * No Google Places API cost — just a few HEAD-equivalent fetches.
  *
- * Hardened against URL-validator bypass: the input must already match
- * isGoogleMapsUrl(), so this endpoint can't be used as a generic
- * server-side fetch proxy.
+ * Security model
+ *   - requireAuth() gates the endpoint so an anonymous caller can't
+ *     drain Vercel function quota by spamming resolve requests. Both
+ *     in-app callers (wishlist + itinerary modal) are already
+ *     authenticated user flows.
+ *   - Input URL is validated against the Google-Maps host allowlist.
+ *   - Redirects are followed MANUALLY: at each hop we re-validate the
+ *     `Location` header against the allowlist before issuing the next
+ *     request. This closes the SSRF surface that `redirect: 'follow'`
+ *     opened (intermediate hops would otherwise fire against attacker-
+ *     controlled hosts, since `fetch` only exposes the FINAL `res.url`
+ *     to our allowlist check).
+ *   - 5s wall-clock budget total across all hops. 5 hop maximum.
+ *   - No cookies / referrer forwarded.
  */
 
 export const runtime = 'nodejs';
 
 const RESOLVE_TIMEOUT_MS = 5000;
+const MAX_REDIRECTS = 5;
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   let url: string;
   try {
     const body = await request.json();
@@ -40,28 +55,47 @@ export async function POST(request: Request) {
   const timer = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS);
 
   try {
-    // GET (not HEAD) because some Google short URLs return the redirect
-    // only on GET. `redirect: 'follow'` makes fetch chase the chain
-    // and expose the final URL on the response object.
-    const res = await fetch(url, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal,
-      // Don't ship cookies / referrer — keeps this endpoint stateless
-      // and avoids leaking user context across the redirect.
-      headers: { 'User-Agent': 'TripCoord-LinkResolver/1.0' },
-    });
-    clearTimeout(timer);
+    let current = url;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      const res = await fetch(current, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'TripCoord-LinkResolver/1.0' },
+      });
 
-    // Final URL is the post-redirect URL. If no redirect happened (the
-    // input was already a long URL), this still works — it just returns
-    // the input.
-    const resolvedUrl = res.url;
-    if (!resolvedUrl || !isGoogleMapsUrl(resolvedUrl)) {
-      return NextResponse.json({ error: 'Resolved URL is not a Google Maps URL' }, { status: 422 });
+      // Drop the response body promptly — we only read status + Location.
+      // Keeps the connection from sitting open while waiting on GC.
+      await res.body?.cancel().catch(() => { /* already closed */ });
+
+      // 3xx with a Location header → validate it and continue.
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get('location');
+        if (!location) {
+          clearTimeout(timer);
+          return NextResponse.json({ error: 'Redirect without Location header' }, { status: 502 });
+        }
+        // Some servers return relative redirects — resolve against the
+        // current URL before allowlist check.
+        const next = new URL(location, current).toString();
+        if (!isGoogleMapsUrl(next)) {
+          clearTimeout(timer);
+          return NextResponse.json({ error: 'Redirect target is not a Google Maps URL' }, { status: 422 });
+        }
+        current = next;
+        continue;
+      }
+
+      // Non-3xx terminal response. The `current` URL is the final one.
+      clearTimeout(timer);
+      if (!isGoogleMapsUrl(current)) {
+        return NextResponse.json({ error: 'Resolved URL is not a Google Maps URL' }, { status: 422 });
+      }
+      return NextResponse.json({ resolvedUrl: current });
     }
 
-    return NextResponse.json({ resolvedUrl });
+    clearTimeout(timer);
+    return NextResponse.json({ error: 'Too many redirects' }, { status: 508 });
   } catch (err) {
     clearTimeout(timer);
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -191,15 +191,26 @@ export function selectPhotoPins(args: {
  * base coordinates. Same trip+city always produces the same offset so
  * the jitter is stable across renders (important for React keys).
  *
- * The radius is intentionally small — visually separates a cluster
- * without misrepresenting where the photos were actually taken.
+ * Radius is ~16km wherever the pin is — a Singapore pin at the equator
+ * no longer drifts into Malaysia (the old 0.6° lat/lon flat offset was
+ * ~66km at the equator, enough to cross national borders). Longitude
+ * delta is scaled by cos(lat) so 1° lon shrinks at high latitudes —
+ * keeps the visual ring round on the rendered map instead of an
+ * elongated oval near the poles.
  */
+const JITTER_RADIUS_DEG = 0.15; // ~16km at the equator
+
 export function jitterPinCoords(pin: PhotoPin, index: number, total: number): { lat: number; lon: number } {
   if (total <= 1) return { lat: pin.lat, lon: pin.lon };
-  const radius = 0.6; // degrees — about ~70km on the equator; tweakable
   const angle = (index / total) * Math.PI * 2;
+  const latOffset = Math.sin(angle) * JITTER_RADIUS_DEG;
+  // 1 degree of longitude is shorter at higher latitudes. Dividing the
+  // lon offset by cos(lat) keeps the ring visually consistent in km
+  // whether the pin is in Quito or Reykjavík.
+  const lonScale = Math.max(0.2, Math.cos((pin.lat * Math.PI) / 180));
+  const lonOffset = (Math.cos(angle) * JITTER_RADIUS_DEG) / lonScale;
   return {
-    lat: pin.lat + Math.sin(angle) * radius,
-    lon: pin.lon + Math.cos(angle) * radius,
+    lat: pin.lat + latOffset,
+    lon: pin.lon + lonOffset,
   };
 }

@@ -121,7 +121,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     let resolvedMaxPicks: number | null = null;
     if (resolvedType === 'multi' && maxPicks !== null && maxPicks !== undefined) {
       const n = Number(maxPicks);
-      if (Number.isFinite(n) && n >= 1 && n <= options.length) {
+      // Floor at 2 — a multi-pick poll with max_picks=1 is just a single-
+      // pick poll wearing a checkbox. Client UI also enforces this (input
+      // min=2 + Math.max(2, ...) clamp) but the server is the authority;
+      // a stale client or direct API caller could otherwise recreate the
+      // bug the b912eed commit was meant to close (Brandon photographed
+      // 2026-05-19).
+      if (Number.isFinite(n) && n >= 2 && n <= options.length) {
         resolvedMaxPicks = Math.floor(n);
       }
       // Out-of-range or non-numeric → null (no cap). Don't 400, just drop.

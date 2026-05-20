@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
 import { trips } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/dom/bodyScrollLock';
 import { Copy, Check, X, Users } from 'lucide-react';
 
 interface TripLayoutProps {
@@ -64,18 +65,21 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   // page; once the user scrolls down a few pixels, the bottom of the
   // dark sidebar lifts above viewport bottom and the parchment body bg
   // shows through — what Brandon photographed as "the strip messed up
-  // again". The body-bg-to-parchment fix in 0174c4d hid this for the
-  // right column (same color), but the sidebar's #2c2826 still stood
-  // out. Locking body to overflow:hidden + h:100vh prevents the scroll
-  // path entirely; the main column keeps its own internal scroll via
-  // overflow-auto below.
+  // again". Locking body to overflow:hidden + h:100vh prevents the
+  // scroll path entirely; the main column keeps its own internal scroll
+  // via overflow-auto below.
+  //
+  // Overflow uses the shared ref-counted lock so a modal opening + closing
+  // on this page doesn't clobber the layout's own lock when the unmount
+  // order races. Height is layout-owned exclusively (no other consumer
+  // touches body.style.height) so the restore-previous pattern is safe
+  // there.
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
+    lockBodyScroll();
     const prevHeight = document.body.style.height;
-    document.body.style.overflow = 'hidden';
     document.body.style.height = '100vh';
     return () => {
-      document.body.style.overflow = prevOverflow;
+      unlockBodyScroll();
       document.body.style.height = prevHeight;
     };
   }, []);

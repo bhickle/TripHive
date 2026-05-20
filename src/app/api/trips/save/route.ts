@@ -237,16 +237,25 @@ export async function POST(request: NextRequest) {
               // Email the partner too. The in-app notification alone is
               // brittle — if they don't open TripCoord soon, the trip is
               // invisible to them and the organizer assumes the auto-add
-              // didn't work. Fire-and-forget; never fail the trip save.
-              sendPartnerAddedEmail({
-                toEmail: partnerProfile.email ?? '',
-                toName: partnerProfile.name ?? null,
-                organizerName,
-                tripName: tripMeta.title || tripMeta.destination || 'a trip',
-                tripId: trip.id,
-              }).catch((emailErr) => {
+              // didn't work.
+              //
+              // Awaited (not fire-and-forget): on Vercel a non-awaited
+              // promise gets reaped when the function returns and the
+              // SendGrid POST may never complete, costing us the email
+              // intermittently. Awaiting adds ~300ms to the trip-save
+              // response — acceptable since this is the last step. Email
+              // failure is swallowed so trip save still succeeds.
+              try {
+                await sendPartnerAddedEmail({
+                  toEmail: partnerProfile.email ?? '',
+                  toName: partnerProfile.name ?? null,
+                  organizerName,
+                  tripName: tripMeta.title || tripMeta.destination || 'a trip',
+                  tripId: trip.id,
+                });
+              } catch (emailErr) {
                 console.warn('[trips/save] partner email send failed:', emailErr);
-              });
+              }
             }
           }
         }

@@ -1741,6 +1741,11 @@ function ItineraryPageContent() {
   // identically to a manual autocomplete pick.
   const [urlResolving, setUrlResolving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
+  // De-dupes resolve attempts so a user typing a URL character-by-character
+  // doesn't fire a fresh Places Text Search (billable) on every keystroke.
+  // Real paste fires onChange exactly once; this ref is the second-line
+  // defense against the edge case.
+  const lastResolvedUrlRef = useRef<string>('');
 
   const { query, setQuery, suggestions, loading: searchLoading, fetchDetails, clearSearch } = usePlacesSearch(300);
 
@@ -3406,7 +3411,15 @@ function ItineraryPageContent() {
           )}
           <div
             ref={dayTabScrollRef}
-            onScroll={updateDayTabScroll}
+            // Dismiss the fixed-position pill tooltip on horizontal scroll
+            // — the tooltip's coords were captured at mouseenter via
+            // getBoundingClientRect and don't follow the pill as it moves.
+            // Easier to dismiss than to keep re-positioning every scroll
+            // tick (the user reacquires the hover after scrolling stops).
+            onScroll={() => {
+              updateDayTabScroll();
+              if (pillTooltip) setPillTooltip(null);
+            }}
             className={`flex gap-2 overflow-x-auto pb-1 flex-1 ${dayTabCanScrollLeft ? 'pl-10' : ''} ${dayTabCanScrollRight ? 'pr-10' : ''}`}
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
@@ -3538,8 +3551,12 @@ function ItineraryPageContent() {
               per row (not per pill) and repositioned via mouseenter on
               each pill. Hidden on mobile via `hidden md:block`. */}
           {pillTooltip && (
+            // Visual hint only — accessibility info travels via the pill
+            // button's aria-label, not this overlay. role="tooltip" was
+            // removed because there's no aria-describedby connecting the
+            // pill to this element, so the role was misleading to AT.
             <div
-              role="tooltip"
+              aria-hidden
               className="hidden md:block fixed z-50 px-2.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-md whitespace-nowrap pointer-events-none shadow-lg"
               style={{
                 top: pillTooltip.top,
@@ -4864,7 +4881,14 @@ function ItineraryPageContent() {
                         setQuery('');
                         setShowSuggestions(false);
                         if (selectedPlace) setSelectedPlace(null);
-                        handlePastedGoogleUrl(val);
+                        // Skip if we already resolved this exact URL —
+                        // avoids hammering /api/places/search if the
+                        // user types the URL out instead of pasting it
+                        // in one event.
+                        if (val !== lastResolvedUrlRef.current) {
+                          lastResolvedUrlRef.current = val;
+                          handlePastedGoogleUrl(val);
+                        }
                       } else {
                         setNewActivityName(val);
                         setQuery(val);

@@ -3199,8 +3199,11 @@ function TripBuilderPage() {
 
                   {/* CTA */}
                   <div className="pt-6 border-t border-slate-200">
-                    {/* Trip Pass + group: invite-first nudge */}
-                    {tier === 'trip_pass' && state.groupSize >= 2 && (
+                    {/* Trip Pass + group: invite-first nudge.
+                        Gated on tierResolved so a downgraded-from-paid user
+                        whose cache says trip_pass doesn't briefly see this
+                        banner before profile loads and corrects the tier. */}
+                    {tierResolved && tier === 'trip_pass' && state.groupSize >= 2 && (
                       <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                         <div className="flex items-start gap-3 mb-3">
                           <Users className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />

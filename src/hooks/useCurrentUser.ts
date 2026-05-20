@@ -44,13 +44,49 @@ const BLANK_USER = {
   isLoading: false,
 } as const;
 
+/** 24h max staleness for the localStorage tier cache. Long enough to
+ *  cover normal multi-day sessions, short enough that a Stripe-driven
+ *  downgrade (Nomad → Free at end-of-cycle) is reflected on next visit
+ *  even if the profile fetch is slow. */
+const TIER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Allowed tier strings — guards against a corrupted cache returning
+ *  something we'd pass through to UI consumers. */
+const VALID_TIERS: ReadonlySet<SubscriptionTier> = new Set<SubscriptionTier>([
+  'free', 'trip_pass', 'explorer', 'nomad',
+]);
+
+/** Read + TTL-check the tier cache for a given user ID. Returns null on
+ *  miss, parse failure, expired entry, or invalid tier. The cache is
+ *  written by AuthContext.fetchProfile as `{ tier, ts }`; older entries
+ *  pre-TTL are tolerated as bare strings and treated as expired. */
+function readCachedTier(userId: string): SubscriptionTier | null {
+  if (typeof window === 'undefined' || !userId) return null;
+  try {
+    const raw = localStorage.getItem(`tc_tier_${userId}`);
+    if (!raw) return null;
+    // New shape: { tier, ts }. Old shape: bare string. The bare string
+    // is from sessions before the TTL was introduced — treat it as
+    // expired so it gets refreshed on next profile fetch.
+    if (!raw.startsWith('{')) return null;
+    const parsed = JSON.parse(raw) as { tier?: string; ts?: number };
+    if (typeof parsed.ts !== 'number') return null;
+    if (Date.now() - parsed.ts > TIER_CACHE_TTL_MS) return null;
+    if (!parsed.tier || !VALID_TIERS.has(parsed.tier as SubscriptionTier)) return null;
+    return parsed.tier as SubscriptionTier;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * During the initial auth-loading window, read the Supabase session from
  * localStorage to get the user ID, then look up the cached tier key
  * (`tc_tier_${userId}`). This prevents paid users from briefly seeing
  * `free`-tier gates while the Supabase profile fetch is in flight.
  *
- * Falls back to null (→ 'free') if no session or cache exists.
+ * Falls back to null (→ 'free') if no session, no fresh cache, or any
+ * parse error.
  */
 function getLoadingPhaseTier(): SubscriptionTier | null {
   if (typeof window === 'undefined') return null;
@@ -60,7 +96,7 @@ function getLoadingPhaseTier(): SubscriptionTier | null {
     const parsed = JSON.parse(raw);
     const userId = parsed?.user?.id as string | undefined;
     if (!userId) return null;
-    return (localStorage.getItem(`tc_tier_${userId}`) as SubscriptionTier | null);
+    return readCachedTier(userId);
   } catch {
     return null;
   }
@@ -97,12 +133,9 @@ export function useCurrentUser() {
   }
 
   // Real authenticated user — build from Supabase profile.
-  // Fall back to localStorage-cached tier if profile hasn't loaded yet (transient
+  // Fall back to TTL-checked localStorage-cached tier if profile hasn't loaded yet (transient
   // Supabase failure) so paid users don't revert to free on every page load.
-  const cachedTier =
-    typeof window !== 'undefined'
-      ? (localStorage.getItem(`tc_tier_${user.id}`) as SubscriptionTier | null)
-      : null;
+  const cachedTier = readCachedTier(user.id);
   const tier = (profile?.subscription_tier ?? cachedTier ?? 'free') as SubscriptionTier;
   const limits = TIER_LIMITS[tier];
   const aiTotal =

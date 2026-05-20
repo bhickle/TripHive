@@ -134,8 +134,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Cache the full profile for instant hydration on next page load,
           // and also cache the tier separately for the existing tier-only fallback.
           writeCachedProfile(profile);
+          // Tier cache is timestamped so a downgraded user (Nomad → Free)
+          // doesn't see stale "paid" UI flash on the next session via a
+          // months-old cache. useCurrentUser ignores entries older than
+          // TIER_CACHE_TTL_MS. Cache the tier separately from the profile
+          // cache because the loading-phase reader (getLoadingPhaseTier)
+          // needs a one-shot synchronous lookup.
           try {
-            localStorage.setItem(`tc_tier_${userId}`, tier);
+            const payload = JSON.stringify({ tier, ts: Date.now() });
+            localStorage.setItem(`tc_tier_${userId}`, payload);
           } catch {
             // localStorage unavailable (e.g. private browsing with storage blocked) — ignore
           }

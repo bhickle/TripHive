@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/dom/bodyScrollLock';
 
 /**
  * Shared modal UX hook — call inside a modal component when it's open.
@@ -34,15 +35,14 @@ export function useModalUX(isOpen: boolean, onClose: () => void): void {
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
 
-  // Body scroll lock. Restores the previous overflow value on close, so
-  // it composes correctly if multiple modals stack (innermost wins; on
-  // close the outer modal's lock is restored).
+  // Body scroll lock via the shared ref counter. Multiple modals + the
+  // trip layout's own body lock now compose cleanly regardless of
+  // unmount order — see src/lib/dom/bodyScrollLock.ts for the rationale
+  // (the old "restore previous overflow" pattern lost the lock when a
+  // trip-page modal unmounted after its parent layout did).
   useEffect(() => {
     if (!isOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
+    lockBodyScroll();
+    return () => unlockBodyScroll();
   }, [isOpen]);
 }

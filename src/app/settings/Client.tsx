@@ -478,14 +478,20 @@ export default function SettingsPage() {
   // Use real auth profile tier when available; fall back to currentUser (mock) for demo/guest.
   // If the user is authenticated but authProfile hasn't yet hydrated (slow
   // network during the profile fetch, or fetchProfile failed), read the
-  // tier cache (`tc_tier_${userId}`) that AuthContext writes after every
-  // successful fetch. Without this fallback, paid users briefly saw
-  // "Free plan" on Settings between page paint and profile arrival —
-  // worse, if fetchProfile errored out, they saw "Free" indefinitely.
+  // TTL-checked tier cache (`tc_tier_${userId}`) that AuthContext writes
+  // after every successful fetch. Without this fallback, paid users briefly
+  // saw "Free plan" on Settings between page paint and profile arrival.
+  // The TTL prevents the opposite bug — a downgraded user seeing a stale
+  // months-old paid tier flash on this page.
   const cachedUserTier = (() => {
     if (!user || typeof window === 'undefined') return null;
     try {
-      return localStorage.getItem(`tc_tier_${user.id}`);
+      const raw = localStorage.getItem(`tc_tier_${user.id}`);
+      if (!raw || !raw.startsWith('{')) return null;
+      const parsed = JSON.parse(raw) as { tier?: string; ts?: number };
+      const TTL_MS = 24 * 60 * 60 * 1000;
+      if (typeof parsed.ts !== 'number' || Date.now() - parsed.ts > TTL_MS) return null;
+      return parsed.tier ?? null;
     } catch {
       return null;
     }
@@ -513,12 +519,16 @@ export default function SettingsPage() {
   // 30→50 — meaning the settings page showed the wrong denominator on the
   // usage bar (50% when actually 20%, etc.).
   const aiUsed  = authLoading ? 0 : (user ? (authProfile?.ai_credits_used ?? 0) : (currentUser.aiCredits?.used ?? 0));
-  const aiTotal = authLoading ? 0 : (() => {
+  // Compute denominator only once tier is trusted — without this guard, a
+  // paid user briefly saw "X / 25" (the hardcoded free fallback below)
+  // before tier resolves. Empty denominator suppresses the display row
+  // entirely until we know the right total.
+  const aiTotal = (authLoading || !tierResolved) ? 0 : (() => {
     if (tier === 'trip_pass') return PRICING.trip_pass.aiCredits;
     const limit = TIER_LIMITS[tier as keyof typeof TIER_LIMITS]?.aiCreditsPerMonth;
     return typeof limit === 'number' ? limit : 0;
   })();
-  const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : `${aiUsed} / 25`;
+  const aiDisplay = aiTotal > 0 ? `${aiUsed} / ${aiTotal}` : '—';
   const aiPct     = aiTotal > 0 ? Math.min(100, Math.round((aiUsed / aiTotal) * 100)) : 0;
 
   // Show an em-dash placeholder when the tier isn't resolved yet so a
@@ -1157,9 +1167,13 @@ export default function SettingsPage() {
                     </div>
                     {/* Skeleton placeholder until tier is trusted —
                         otherwise a Nomad user briefly sees "Upgrade to
-                        Explorer or Nomad". */}
+                        Explorer or Nomad". aria-busy + sr-only label so
+                        screen readers announce the loading state instead
+                        of jumping silently to the resolved CTA. */}
                     {!tierResolved ? (
-                      <div className="w-44 h-10 rounded-lg bg-white/10 animate-pulse" />
+                      <div className="w-44 h-10 rounded-lg bg-white/10 animate-pulse" aria-busy="true" aria-live="polite">
+                        <span className="sr-only">Loading subscription details</span>
+                      </div>
                     ) : tier === 'free' ? (
                       <a
                         href="/pricing"

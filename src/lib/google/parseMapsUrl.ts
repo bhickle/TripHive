@@ -40,17 +40,20 @@ export interface ParsedGoogleMapsUrl {
   shortUrl: boolean;
 }
 
-const GOOGLE_MAPS_HOSTS = new Set([
-  'google.com',
-  'www.google.com',
-  'maps.google.com',
-  'www.maps.google.com',
-]);
+/** Match google.com, google.co.uk, google.fr, www.google.de, maps.google.com.au,
+ *  etc. The ccTLD list is huge — accept any google.<tld> shape but require the
+ *  pathname to begin with /maps (enforced in the consumer) so an off-domain
+ *  google.com/search/... isn't treated as a Maps URL. */
+const GOOGLE_HOST_RE = /^(www\.)?(maps\.)?google\.[a-z]{2,}(\.[a-z]{2,})?$/;
 
 const SHORT_URL_HOSTS = new Set([
   'maps.app.goo.gl',
   'goo.gl',
 ]);
+
+function isGoogleMapsHost(host: string): boolean {
+  return GOOGLE_HOST_RE.test(host) || SHORT_URL_HOSTS.has(host);
+}
 
 export function parseGoogleMapsUrl(rawUrl: string): ParsedGoogleMapsUrl | null {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
@@ -68,7 +71,7 @@ export function parseGoogleMapsUrl(rawUrl: string): ParsedGoogleMapsUrl | null {
     return { name: null, lat: null, lon: null, shortUrl: true };
   }
 
-  if (!GOOGLE_MAPS_HOSTS.has(host)) {
+  if (!GOOGLE_HOST_RE.test(host)) {
     return null;
   }
 
@@ -128,17 +131,18 @@ export function isGoogleMapsUrl(input: string): boolean {
   } catch {
     return false;
   }
-  const host = url.hostname.toLowerCase();
-  return GOOGLE_MAPS_HOSTS.has(host) || SHORT_URL_HOSTS.has(host);
+  return isGoogleMapsHost(url.hostname.toLowerCase());
 }
 
 /** Decode + clean a URL path segment ("Pizzeria+Da+Michele" → "Pizzeria
- *  Da Michele"). Replaces both `+` and `-` with spaces because some
- *  Google URLs use either separator depending on share-source. */
+ *  Da Michele"). Only `+` is replaced — Google uses `+` for whitespace
+ *  in the URL-form, and we must NOT replace `-` because intentional
+ *  hyphens in place names ("Saint-Tropez", "Aix-en-Provence") would
+ *  otherwise become "Saint Tropez" / "Aix en Provence". */
 function prettifyToken(token: string): string {
   try {
-    return decodeURIComponent(token).replace(/\+/g, ' ').replace(/-/g, ' ').trim();
+    return decodeURIComponent(token).replace(/\+/g, ' ').trim();
   } catch {
-    return token.replace(/\+/g, ' ').replace(/-/g, ' ').trim();
+    return token.replace(/\+/g, ' ').trim();
   }
 }
