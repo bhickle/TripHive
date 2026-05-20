@@ -56,6 +56,30 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  // Lock body scroll while on a trip page so the outer h-screen layout
+  // is the entire scrollable surface. Without this, something inside the
+  // tree (modal portal, scroll-restoration glitch, transient overflow)
+  // can push body's content past 100vh and make body scrollable. When
+  // that happens, the `md:relative h-screen` sidebar scrolls with the
+  // page; once the user scrolls down a few pixels, the bottom of the
+  // dark sidebar lifts above viewport bottom and the parchment body bg
+  // shows through — what Brandon photographed as "the strip messed up
+  // again". The body-bg-to-parchment fix in 0174c4d hid this for the
+  // right column (same color), but the sidebar's #2c2826 still stood
+  // out. Locking body to overflow:hidden + h:100vh prevents the scroll
+  // path entirely; the main column keeps its own internal scroll via
+  // overflow-auto below.
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevHeight = document.body.style.height;
+    document.body.style.overflow = 'hidden';
+    document.body.style.height = '100vh';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.height = prevHeight;
+    };
+  }, []);
+
   // Load trip meta: try Supabase first (for UUID trip IDs), then localStorage
   useEffect(() => {
     if (mockTrip) return; // mock trip found — no need to fetch
