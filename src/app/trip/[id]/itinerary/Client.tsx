@@ -3768,8 +3768,8 @@ function ItineraryPageContent() {
                   {effectiveMeetupTime && meetupDisplayLocation &&
                    aiMeta?.groupType !== 'solo' && aiMeta?.groupType !== 'couple' && (
                     <div className="flex gap-4">
-                      <div className="w-20 flex-shrink-0 text-right pt-3.5">
-                        <p className="text-xs font-semibold text-sky-600">{effectiveMeetupTime}</p>
+                      <div className="w-16 flex-shrink-0 pt-3.5">
+                        <p className="text-xs font-semibold text-sky-600 tabular-nums">{effectiveMeetupTime}</p>
                       </div>
                       <div className="relative flex flex-col items-center pt-3.5">
                         <Flag className="w-3 h-3 text-sky-500 flex-shrink-0" />
@@ -3796,9 +3796,10 @@ function ItineraryPageContent() {
                       const cfg = transportConfig[leg.type] ?? transportConfig['car_rental'];
                       return (
                         <div key={leg.id} className="flex gap-4">
-                          {/* Time column */}
-                          <div className="w-20 flex-shrink-0 text-right pt-4">
-                            <p className="text-xs font-semibold text-zinc-400">
+                          {/* Time column — matches the activity card layout
+                              above (w-16, left-aligned, tabular-nums). */}
+                          <div className="w-16 flex-shrink-0 pt-4">
+                            <p className="text-xs font-semibold text-zinc-400 tabular-nums">
                               {leg.meetTime ?? leg.departureTime}
                             </p>
                           </div>
@@ -3894,9 +3895,13 @@ function ItineraryPageContent() {
                     return (
                       <React.Fragment key={activity.id}>
                       <div className="flex gap-4">
-                        {/* Time Column */}
-                        <div className="w-20 flex-shrink-0 text-right pt-4">
-                          <p className="text-xs font-semibold text-zinc-400">{startTime}</p>
+                        {/* Time Column — left-aligned in a w-16 column so
+                            times like "9:00 AM" and "12:00 PM" share a
+                            consistent left edge rather than the variable
+                            offset that text-right produced. Narrower
+                            column also nets ~16px back to the card. */}
+                        <div className="w-16 flex-shrink-0 pt-4">
+                          <p className="text-xs font-semibold text-zinc-400 tabular-nums">{startTime}</p>
                         </div>
 
                         {/* Center Line */}
@@ -3914,7 +3919,7 @@ function ItineraryPageContent() {
 
                         {/* Activity Card */}
                         <div className="flex-1 pb-2">
-                          <div className={`bg-white rounded-2xl border shadow-sm p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card ${activity.isPrivate ? 'border-amber-200 bg-amber-50/40' : 'border-zinc-100'}`}>
+                          <div className={`bg-white rounded-xl border shadow-sm p-3.5 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card ${activity.isPrivate ? 'border-amber-200 bg-amber-50/40' : 'border-zinc-100'}`}>
                             <div className="flex items-start justify-between mb-2 gap-2">
                               <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1 flex items-center gap-1.5">
                                 <a
