@@ -316,6 +316,12 @@ function ItineraryPageContent() {
   // blocked (would break travel-day continuity on multi-city trips).
   const [draggingDay, setDraggingDay] = useState<number | null>(null);
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+  // Hover-tooltip state for the day pills (desktop). Rendered with
+  // `position: fixed` so it escapes the day-tab scroll container's
+  // overflow clipping — a CSS-only `absolute bottom-full` tooltip got
+  // chopped off by the implicit `overflow-y: auto` that `overflow-x: auto`
+  // promotes to (per the CSS spec).
+  const [pillTooltip, setPillTooltip] = useState<{ top: number; left: number; text: string } | null>(null);
   const [activityAdded, setActivityAdded] = useState(false);
   const [activityDeleted, setActivityDeleted] = useState(false);
   const [bookingSaved, setBookingSaved] = useState<string | null>(null);
@@ -3416,6 +3422,21 @@ function ItineraryPageContent() {
                       setDraggingDay(null);
                       setDragOverDay(null);
                     }}
+                    // Mouse-only — touch devices don't get the desktop
+                    // tooltip; they get the chevrons instead (md:hidden
+                    // on the buttons, see above).
+                    onMouseEnter={(e) => {
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setPillTooltip({
+                        // 8px gap above the pill — tooltip height (~28px)
+                        // is subtracted via translate(-100%) on the y axis
+                        // in the render below.
+                        top: r.top - 8,
+                        left: r.left + r.width / 2,
+                        text: tooltip,
+                      });
+                    }}
+                    onMouseLeave={() => setPillTooltip(null)}
                     onClick={() => setSelectedDay(day.day)}
                     aria-label={`Day ${day.day}${tooltip ? `. ${tooltip}` : ''}`}
                     className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
@@ -3443,17 +3464,6 @@ function ItineraryPageContent() {
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   )}
-                  {/* Desktop-only hover tooltip — crisper than the native
-                      `title` attr (which has a slow ~1-1.5s appearance
-                      delay across browsers). Pointer-events-none so the
-                      tooltip never blocks clicks on adjacent pills. */}
-                  <div
-                    role="tooltip"
-                    className="hidden md:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-20 shadow-lg"
-                  >
-                    {tooltip}
-                    <span aria-hidden className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-zinc-900 rotate-45" />
-                  </div>
                 </div>
               );
             })}
@@ -3466,6 +3476,27 @@ function ItineraryPageContent() {
             >
               <ChevronRight className="w-4 h-4 text-zinc-600" />
             </button>
+          )}
+          {/* Desktop pill hover tooltip — `position: fixed` escapes the
+              day-tab scroll container's overflow clipping. Rendered once
+              per row (not per pill) and repositioned via mouseenter on
+              each pill. Hidden on mobile via `hidden md:block`. */}
+          {pillTooltip && (
+            <div
+              role="tooltip"
+              className="hidden md:block fixed z-50 px-2.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-md whitespace-nowrap pointer-events-none shadow-lg"
+              style={{
+                top: pillTooltip.top,
+                left: pillTooltip.left,
+                transform: 'translate(-50%, -100%)',
+              }}
+            >
+              {pillTooltip.text}
+              <span
+                aria-hidden
+                className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-zinc-900 rotate-45"
+              />
+            </div>
           )}
         </div>
           );
