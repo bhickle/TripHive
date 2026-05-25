@@ -80,6 +80,7 @@ interface CommunityTrip {
   coverImageMeta: { photographer?: string | null; photographerUrl?: string | null; photoUrl?: string | null } | null;
   organizerName: string | null;
   likeCount: number;
+  viewerLiked: boolean;
   planClickCount: number;
   createdAt: string;
 }
@@ -540,7 +541,14 @@ export default function DiscoverPage() {
     fetch('/api/community')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (Array.isArray(data?.trips)) setCommunityTrips(data.trips);
+        if (Array.isArray(data?.trips)) {
+          setCommunityTrips(data.trips);
+          // Seed the liked-state from the server so hearts the viewer already
+          // tapped render filled on load (and don't get silently toggled off).
+          setCommunityLikedIds(new Set(
+            (data.trips as CommunityTrip[]).filter(t => t.viewerLiked).map(t => t.id),
+          ));
+        }
       })
       .catch(() => { /* silent — empty state is fine */ });
   }, []);

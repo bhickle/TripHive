@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/community
@@ -23,6 +24,13 @@ export async function GET(req: Request) {
     const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10) || 0, 0);
 
     const supabase = createAdminClient();
+
+    // Resolve the viewer (if logged in) so we can flag which trips they've
+    // already liked. Without this the client starts with no liked-state, so
+    // every heart renders empty on load — and re-toggling silently removes an
+    // existing like (the "my heart didn't stay" bug).
+    const { data: { user: viewer } } = await (await createClient()).auth.getUser();
+    const viewerId = viewer?.id ?? null;
 
     // Public-template trips with their cover info. Itinerary day count
     // requires a separate join — we keep it light here and only return
@@ -48,12 +56,14 @@ export async function GET(req: Request) {
     // Aggregate like counts per trip in one pass
     const { data: likeRows } = await supabase
       .from('itinerary_likes')
-      .select('trip_id')
+      .select('trip_id, user_id')
       .in('trip_id', tripIds);
 
     const likeCounts = new Map<string, number>();
+    const viewerLikedTripIds = new Set<string>();
     for (const row of likeRows ?? []) {
       likeCounts.set(row.trip_id, (likeCounts.get(row.trip_id) ?? 0) + 1);
+      if (viewerId && row.user_id === viewerId) viewerLikedTripIds.add(row.trip_id);
     }
 
     // Plan-click counts from destination_events, last 30 days, keyed by destination string.
@@ -107,6 +117,7 @@ export async function GET(req: Request) {
       coverImageMeta: t.cover_image_meta,
       organizerName: t.organizer_id ? (organizerNames.get(t.organizer_id) ?? null) : null,
       likeCount: likeCounts.get(t.id) ?? 0,
+      viewerLiked: viewerLikedTripIds.has(t.id),
       planClickCount: planCounts.get(t.destination) ?? 0,
       createdAt: t.created_at,
     }));
