@@ -15,6 +15,14 @@ const WISHLIST_GEO_STOPWORDS = new Set([
   'old', 'town', 'the', 'greater', 'metro', 'region',
 ]);
 
+// One-tap prompts shown in the Group Votes empty state. Tapping one opens the
+// vote modal pre-filled with the question so the crew can spin up a poll fast.
+const VOTE_STARTERS = [
+  'Where should we eat dinner?',
+  'What time should we start the day?',
+  'Which activity should we add?',
+];
+
 interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }
 interface Vote {
   id: string;
@@ -2409,11 +2417,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
         {!dataLoading && activeTab === 'votes' && (
           <div className="space-y-6">
-            {/* Two-column layout: Group Votes (left) + Activity Pulse (right) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* Masonry flow: all four blocks (Group Votes, Activity Pulse,
+                Wishlist, Nay Watch) flow into two balanced columns so there's
+                no dead space when any one of them is short or empty. Each block
+                is break-inside-avoid so it never splits across a column. */}
+            <div className="columns-1 lg:columns-2 gap-6">
 
-              {/* ── Left: Group Votes ─────────────────────────────────────── */}
-              <div className="space-y-4">
+              {/* ── Group Votes ───────────────────────────────────────────── */}
+              <div className="space-y-4 break-inside-avoid mb-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Group Votes</h3>
                   <button
@@ -2426,8 +2437,24 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 </div>
 
                 {openVotes.length === 0 && closedVotes.length === 0 && (
-                  <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 text-center">
-                    <p className="text-sm text-zinc-400 mb-3">No votes yet — start one to get the crew aligned!</p>
+                  <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-center">
+                    <div className="w-12 h-12 rounded-full bg-sky-100 mx-auto flex items-center justify-center mb-3">
+                      <span className="text-xl">🗳️</span>
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-700 mb-1">No votes yet</p>
+                    <p className="text-xs text-zinc-400 mb-4">Start a quick poll to get the crew aligned. Try one of these:</p>
+                    <div className="space-y-2 text-left">
+                      {VOTE_STARTERS.map((q) => (
+                        <button
+                          key={q}
+                          onClick={() => { setVoteQuestion(q); setShowVoteModal(true); }}
+                          className="w-full flex items-center justify-between px-4 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 hover:border-sky-400 hover:bg-sky-50 transition-colors"
+                        >
+                          <span>{q}</span>
+                          <span className="text-sky-700 text-xs font-semibold">+ Start</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -2566,8 +2593,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 )}
               </div>
 
-              {/* ── Right: Activity Vote Pulse ────────────────────────────── */}
-              <div className="space-y-4">
+              {/* ── Activity Vote Pulse ───────────────────────────────────── */}
+              <div className="space-y-4 break-inside-avoid mb-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-script italic text-2xl font-semibold text-zinc-900">Activity Pulse</h3>
                   <span className="text-xs text-zinc-400 font-medium">{allVotedActivities.length} voted</span>
@@ -2616,11 +2643,10 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-            </div>{/* end grid */}
 
             {/* ── Discover Wishlist ─────────────────────────────────────────── */}
             {!isMockTrip && mergedWishlistItems.length > 0 && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 break-inside-avoid mb-6">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
                     <span className="text-sm">⭐</span>
@@ -2717,7 +2743,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
             {/* Nay Watch — only shown for real trips with majority-Nay activities */}
             {!isMockTrip && (nayActivities.length > 0 || replacedActivityIds.size > 0) && (
-              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 break-inside-avoid mb-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                     <span className="text-sm">😬</span>
@@ -2772,6 +2798,8 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 )}
               </div>
             )}
+
+            </div>{/* end masonry */}
 
             {showVoteModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Create vote" onClick={() => setShowVoteModal(false)}>
