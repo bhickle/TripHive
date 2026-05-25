@@ -661,6 +661,23 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   );
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Size the chat panel by measurement instead of a guessed viewport calc:
+  // fill from the panel's top edge down to just above the viewport bottom, so
+  // the composer is always on-screen (messages scroll inside the panel) no
+  // matter how tall the header/tabs are or what device chrome is showing.
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (activeTab !== 'chat' || dataLoading) return;
+    const fit = () => {
+      const el = chatPanelRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      el.style.height = `${Math.max(360, window.innerHeight - top - 16)}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [activeTab, dataLoading]);
   const [uploadedReceipt, setUploadedReceipt] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<ScannedReceipt | null>(null);
@@ -3038,14 +3055,11 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         )}
 
         {!dataLoading && activeTab === 'chat' && (
-          // Height needs to give the input bar room without trapping content
-          // off-screen on short mobile viewports. The previous min-h-[500px]
-          // override forced 500px even when the viewport was 600px — leaving
-          // the input below the fold. New formula: shorter calc on small
-          // screens (-140px to account for the smaller header + tabs), then
-          // grow on md+. Drop the min-h floor entirely; the flex column with
-          // overflow-y-auto handles short message lists naturally.
-          <div className="flex flex-col h-[calc(100vh-140px)] md:h-[calc(100vh-220px)] md:min-h-[500px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+          // Panel height is set by the chatPanelRef effect — it measures from
+          // the panel's top edge to the viewport bottom so the composer is
+          // always visible (messages scroll inside). The inline calc is just an
+          // SSR / first-paint fallback before the effect runs on the client.
+          <div ref={chatPanelRef} className="flex flex-col bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden" style={{ height: 'calc(100dvh - 240px)' }}>
             <div className="flex-1 overflow-y-auto px-4 py-4 bg-white" onClick={() => setShowReactionPicker(null)}>
               {chatMessages.length === 0 && (
                 // Empty state: without this, the white area + below-fold input
@@ -3056,7 +3070,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     <MessageCircle className="w-6 h-6 text-zinc-400" />
                   </div>
                   <p className="text-sm font-medium text-zinc-700">No messages yet</p>
-                  <p className="text-xs text-zinc-500 mt-1">Scroll down and say hi to the crew below.</p>
+                  <p className="text-xs text-zinc-500 mt-1">Say hi to the crew below.</p>
                 </div>
               )}
               {chatMessages.map((message) => {
