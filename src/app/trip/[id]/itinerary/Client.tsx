@@ -7,6 +7,7 @@ import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
 import { normalizeVenueKey } from '@/lib/places/verifyVenues';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
 import { parseGoogleMapsUrl, isGoogleMapsUrl } from '@/lib/google/parseMapsUrl';
+import { hotelBookingUrl, AFFILIATE_DISCLOSURE } from '@/lib/affiliate';
 import {
   Plus,
   Cloud,
@@ -4910,12 +4911,27 @@ function ItineraryPageContent() {
                                   <p className="text-xs text-amber-700 leading-relaxed mb-2">{h.whyRecommended}</p>
                                 )}
                                 <div className="flex items-center gap-3 mt-1">
-                                  {h.bookingUrl && (
+                                  {h.bookingUrl ? (
                                     <a href={h.bookingUrl} target="_blank" rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors">
                                       Book on Booking.com →
                                     </a>
-                                  )}
+                                  ) : (() => {
+                                    // Gated affiliate fallback — renders only when a hotel
+                                    // affiliate provider is configured (see lib/affiliate.ts);
+                                    // otherwise null, matching today's no-link behavior.
+                                    const affUrl = hotelBookingUrl({
+                                      query: `${h.name} ${group.city ?? aiMeta?.destination ?? ''}`.trim(),
+                                      checkIn: tripRow?.start_date,
+                                      checkOut: tripRow?.end_date,
+                                    });
+                                    return affUrl ? (
+                                      <a href={affUrl} target="_blank" rel="noopener noreferrer sponsored" title={AFFILIATE_DISCLOSURE}
+                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 transition-colors">
+                                        Find this hotel →
+                                      </a>
+                                    ) : null;
+                                  })()}
                                   <button
                                     onClick={() => handleBookHotel(h)}
                                     className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
