@@ -36,10 +36,18 @@ export async function POST(req: NextRequest) {
     const credits = await checkAiCredits(auth.ctx.userId, auth.ctx.tier, 'generate_packing');
     if (!credits.ok) return credits.response;
 
-    const { tripId, destination, startDate, endDate } = await req.json();
+    const { tripId, destination, startDate, endDate, scope } = await req.json();
     if (!tripId || !destination) {
       return NextResponse.json({ error: 'tripId and destination required' }, { status: 400 });
     }
+    // Honor the requested scope. Personal/private/mine → rows owned by the
+    // caller (visible in My Pack via ?scope=mine); group or omitted → shared
+    // rows (user_id NULL). Previously this was hardcoded to NULL, so "Generate"
+    // in My Pack produced nothing in My Pack and silently filled Group Pack.
+    const ownerForRow: string | null =
+      scope === 'personal' || scope === 'private' || scope === 'mine'
+        ? auth.ctx.userId
+        : null;
 
     // Derive trip length from dates if available
     let tripLength = 7; // default
@@ -96,7 +104,7 @@ Rules:
     const supabase = createAdminClient();
     const rows = items.map((item, idx) => ({
       trip_id: tripId,
-      user_id: null,
+      user_id: ownerForRow,
       name: item.name,
       category: item.category,
       packed: false,

@@ -370,9 +370,16 @@ export default function DayOfPage() {
 
   const transportLegs = currentDay.transportLegs || [];
 
-  // Merged + sorted timeline
+  // Merged + sorted timeline. Include all three tracks — a split-track trip
+  // (Explorer/Nomad) keeps activities on track_a/track_b, and the day-of guide
+  // previously rendered only `shared`, silently dropping them from the
+  // schedule, "Happening Now," and the done/total counters.
   const timeline: TimelineItemDayOf[] = [
-    ...currentDay.tracks.shared.map((a) => ({
+    ...[
+      ...(currentDay.tracks?.shared ?? []),
+      ...(currentDay.tracks?.track_a ?? []),
+      ...(currentDay.tracks?.track_b ?? []),
+    ].map((a) => ({
       kind: 'activity' as const,
       data: a,
       sortTime: parseTime(a.timeSlot),

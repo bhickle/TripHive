@@ -115,7 +115,10 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
     const destination = featured.country
       ? `${featured.destination}, ${featured.country}`
       : featured.destination;
-    const tripLength = featured.duration_days ?? days.length;
+    // Bind trip_length to the days we actually copied (not the catalog's
+    // duration_days column), so the trip can't claim a length its itinerary
+    // doesn't have if the two ever drift.
+    const tripLength = days.length;
 
     // Create the new trip (organizer = caller). No fork_source_id — that column
     // references trips, and the source here is a featured itinerary, not a trip.

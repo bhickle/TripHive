@@ -768,6 +768,11 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
               url: e.blobUrl,
               activity: photoLocation.trim() || e.activity,
               uploadedBy: uploaderName,
+              // Stamp the uploader id so the optimistic row groups under the
+              // same contributor as the persisted row (and matches a uuid
+              // filter selection) instead of showing as a separate loose-name
+              // entry until the next /photos refetch.
+              uploaderId: currentUser.id || null,
               day: dayNumber ?? 0,
               timestamp: new Date().toISOString(),
               location: photoLocation.trim() || undefined,
@@ -879,10 +884,16 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                       new Promise<void>(resolve => setTimeout(resolve, 5000)),
                     ]);
 
-                    // Now swap the blob URL for the Supabase URL, in both state slices.
+                    // Now swap the blob URL for the Supabase URL, in both state
+                    // slices. Match on this file's unique blob entry (URL / id)
+                    // rather than name/activity — several files in one batch
+                    // commonly share the same location label, and matching on
+                    // that swapped the first row repeatedly while leaving later
+                    // files as dead blob: URLs that vanished on refresh.
+                    const blobEntry = blobEntries[i];
                     setUploadedPhotos(prev => {
                       const updated = [...prev];
-                      const localIdx = updated.findIndex(p => p.name === file.name && p.url.startsWith('blob:'));
+                      const localIdx = updated.findIndex(p => p.url === blobEntry.blobUrl);
                       if (localIdx >= 0) {
                         URL.revokeObjectURL(updated[localIdx].url);
                         updated[localIdx] = { url: urlData.publicUrl, name: file.name };
@@ -890,9 +901,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                       return updated;
                     });
                     setTripPhotos(prev => prev.map(p =>
-                      p.url.startsWith('blob:') && p.activity === (photoLocation.trim() || file.name.replace(/\.[^.]+$/, ''))
-                        ? { ...p, url: urlData.publicUrl }
-                        : p
+                      p.id === blobEntry.id ? { ...p, url: urlData.publicUrl } : p
                     ));
                     setUploadProgress(fileEnd);
                   } catch (err) {

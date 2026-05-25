@@ -968,7 +968,10 @@ export default function DiscoverPage() {
   // ── Featured itinerary "Use as starting point" (free copy, no AI) ───────────
   const handleFeaturedFork = (slug: string, destination: string, tripLength: number) => {
     if (currentUser.isLoading) return;
-    if (!currentUser.id) {
+    // Demo users have a truthy fake id but no real session — bounce them to
+    // login like the community-fork + wishlist handlers do, rather than firing
+    // a call that 401s and shows a confusing error toast.
+    if (!currentUser.id || currentUser.isDemo) {
       window.location.href = `/auth/login?redirect=${encodeURIComponent('/discover')}`;
       return;
     }

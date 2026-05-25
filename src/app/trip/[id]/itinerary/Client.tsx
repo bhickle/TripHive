@@ -637,12 +637,24 @@ function ItineraryPageContent() {
       const canonA = countLabels('trackALabel');
       const canonB = countLabels('trackBLabel');
       const normalized: ItineraryDay[] = deduped.map(d => {
-        const hasSplit = Array.isArray(d.tracks?.track_a) && d.tracks.track_a.length > 0;
-        if (!hasSplit) return d;
+        // Guarantee all three track arrays exist on every day. This is the
+        // single chokepoint for aiDays (SSE merge, Supabase load, localStorage
+        // all route through here), so the mutation/render handlers — vote,
+        // edit/move, delete, suggest-another, revert — can map the tracks
+        // without `?? []` guards. Legacy rows or raw AI/parse output that
+        // omitted a track previously risked a `.map of undefined` crash (the
+        // vote handler iterates every day, so one malformed day broke the page).
+        const tracks = {
+          shared: Array.isArray(d.tracks?.shared) ? d.tracks.shared : [],
+          track_a: Array.isArray(d.tracks?.track_a) ? d.tracks.track_a : [],
+          track_b: Array.isArray(d.tracks?.track_b) ? d.tracks.track_b : [],
+        };
+        const hasSplit = tracks.track_a.length > 0;
         return {
           ...d,
-          trackALabel: canonA ?? d.trackALabel,
-          trackBLabel: canonB ?? d.trackBLabel,
+          tracks,
+          trackALabel: hasSplit ? (canonA ?? d.trackALabel) : d.trackALabel,
+          trackBLabel: hasSplit ? (canonB ?? d.trackBLabel) : d.trackBLabel,
         };
       });
 
@@ -2618,30 +2630,32 @@ function ItineraryPageContent() {
 
     const newDayNumber = insertIndex + 1; // 1-based day number at insertion point
 
-    // Compute new day's date by offsetting from the day before (if any)
+    // Safely offset an ISO date string by N days. Returns '' for an empty or
+    // invalid input — trips forked from a featured itinerary with no dates
+    // picked have date-less days, and `new Date('' + 'T12:00:00').toISOString()`
+    // throws RangeError, which previously crashed Add Day (and froze the modal).
+    const offsetDate = (dateStr: string | undefined, deltaDays: number): string => {
+      if (!dateStr) return '';
+      const d = new Date(dateStr + 'T12:00:00');
+      if (isNaN(d.getTime())) return '';
+      d.setDate(d.getDate() + deltaDays);
+      return d.toISOString().slice(0, 10);
+    };
+
+    // Compute new day's date by offsetting from the day before (if any).
+    // Stays '' for a date-less trip.
     const sortedDays = [...days].sort((a, b) => a.day - b.day);
     let newDate = '';
     if (sortedDays.length > 0) {
-      if (insertIndex === 0) {
-        // Before day 1 — subtract 1 day from day 1's date
-        const d = new Date(sortedDays[0].date + 'T12:00:00');
-        d.setDate(d.getDate() - 1);
-        newDate = d.toISOString().slice(0, 10);
-      } else {
-        // After insertIndex-1 — add 1 day to that day's date
-        const prevDay = sortedDays[Math.min(insertIndex - 1, sortedDays.length - 1)];
-        const d = new Date(prevDay.date + 'T12:00:00');
-        d.setDate(d.getDate() + 1);
-        newDate = d.toISOString().slice(0, 10);
-      }
+      newDate = insertIndex === 0
+        ? offsetDate(sortedDays[0].date, -1)
+        : offsetDate(sortedDays[Math.min(insertIndex - 1, sortedDays.length - 1)].date, 1);
     }
 
-    // Shift all days at or after newDayNumber up by 1 (day number + date)
+    // Shift all days at or after newDayNumber up by 1 (day number + date).
     const shiftedDays = sortedDays.map(d => {
       if (d.day >= newDayNumber) {
-        const oldDate = new Date(d.date + 'T12:00:00');
-        oldDate.setDate(oldDate.getDate() + 1);
-        return { ...d, day: d.day + 1, date: oldDate.toISOString().slice(0, 10) };
+        return { ...d, day: d.day + 1, date: offsetDate(d.date, 1) };
       }
       return d;
     });
@@ -3083,9 +3097,11 @@ function ItineraryPageContent() {
               })()}
             </div>
             <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
-              {new Date(currentDayData.date + 'T12:00:00').toLocaleDateString('en-US', {
-                weekday: 'long', month: 'long', day: 'numeric',
-              })}
+              {currentDayData.date
+                ? new Date(currentDayData.date + 'T12:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long', month: 'long', day: 'numeric',
+                  })
+                : `Day ${currentDayData.day}`}
             </h1>
             <p className="text-sm text-zinc-500">
               {sortedActivities.length} {sortedActivities.length === 1 ? 'activity' : 'activities'}
