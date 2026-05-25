@@ -590,6 +590,48 @@ export type Database = {
           },
         ]
       }
+      layover_plans: {
+        Row: {
+          airport_code: string
+          airport_name: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          id: string
+          items: Json
+          layover_hours: number | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          airport_code: string
+          airport_name?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          items?: Json
+          layover_hours?: number | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          airport_code?: string
+          airport_name?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          items?: Json
+          layover_hours?: number | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       lifecycle_emails_sent: {
         Row: {
           email_type: string

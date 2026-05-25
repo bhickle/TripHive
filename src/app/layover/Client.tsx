@@ -172,6 +172,21 @@ interface LayoverResult {
   hotelSuggestions?: HotelSuggestion[];
 }
 
+// A saved layover plan ("mini-trip"): airport + time + the activities the user
+// added, persisted to their account (api/layovers).
+interface SavedLayover {
+  id: string;
+  airportCode: string;
+  airportName: string | null;
+  city: string | null;
+  country: string | null;
+  layoverHours: number | null;
+  title: string | null;
+  items: LayoverSuggestion[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Day-pass shortcut strips ────────────────────────────────────────────────
 // Plain links to third-party day-pass services. Affiliate IDs can be added
 // later via env vars (RESORTPASS_AFFILIATE_ID, etc.) without touching the UI.
@@ -255,6 +270,99 @@ function LoungeDayPassStrip({ airportCode }: { airportCode: string }) {
   );
 }
 
+// ─── Duration parsing (best-effort) ───────────────────────────────────────────
+// Suggestion durations are free text ("3 hrs", "1.5 hours", "45 min", "in
+// terminal"). Parse a rough hour value for the time-fit indicator; return 0 when
+// we can't, so unparseable items simply don't count toward the planned total.
+function parseDurationHours(d: string): number {
+  if (!d) return 0;
+  const s = d.toLowerCase();
+  const hr = s.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/);
+  if (hr) return parseFloat(hr[1]);
+  const min = s.match(/(\d+)\s*(?:m|min|mins|minute|minutes)\b/);
+  if (min) return parseFloat(min[1]) / 60;
+  return 0;
+}
+
+// ─── My Layover basket panel ───────────────────────────────────────────────────
+function MyLayoverPanel({
+  items, airportLabel, hours, saved, saving, onRemove, onMove, onClear, onSave,
+}: {
+  items: LayoverSuggestion[];
+  airportLabel: string;
+  hours: number;
+  saved: boolean;
+  saving: boolean;
+  onRemove: (id: string) => void;
+  onMove: (id: string, dir: -1 | 1) => void;
+  onClear: () => void;
+  onSave: () => void;
+}) {
+  const plannedHours = items.reduce((sum, it) => sum + parseDurationHours(it.duration), 0);
+  const overBudget = hours > 0 && plannedHours > hours;
+  return (
+    <div className="card p-4 border-2 border-sky-200 sticky top-4">
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <h3 className="font-script italic text-lg font-semibold text-zinc-900">My Layover</h3>
+        {airportLabel && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 whitespace-nowrap">
+            {airportLabel}{hours > 0 ? ` · ${hours} hr` : ''}
+          </span>
+        )}
+      </div>
+      {items.length > 0 && (
+        <p className={`text-[11px] mb-3 ${overBudget ? 'text-amber-600 font-medium' : 'text-zinc-400'}`}>
+          {plannedHours > 0 ? `~${plannedHours.toFixed(1)} hr planned` : `${items.length} item${items.length !== 1 ? 's' : ''}`}
+          {plannedHours > 0 && hours > 0 ? ` of ${hours}` : ''}{overBudget ? ' · over your layover' : ''}
+        </p>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-sm text-zinc-400 py-6 text-center">
+          Add activities from the suggestions to build your layover.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {items.map((it, i) => (
+            <div key={it.id} className="flex items-start gap-2 p-2 rounded-lg bg-stone-50 border border-zinc-100">
+              <span className="text-xs font-bold text-zinc-400 mt-0.5 w-4 text-center flex-shrink-0">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-zinc-800 leading-snug">{it.title}</p>
+                <p className="text-[11px] text-zinc-400">
+                  {it.duration}{it.distance ? ` · ${it.distance}` : ''}{it.requiresExitAirside ? ' · ⚠ exits airside' : ''}
+                </p>
+              </div>
+              <div className="flex flex-col gap-0.5 flex-shrink-0 text-zinc-300 leading-none">
+                <button onClick={() => onMove(it.id, -1)} disabled={i === 0} title="Move up" className="hover:text-zinc-600 disabled:opacity-30 text-[10px]">▲</button>
+                <button onClick={() => onMove(it.id, 1)} disabled={i === items.length - 1} title="Move down" className="hover:text-zinc-600 disabled:opacity-30 text-[10px]">▼</button>
+              </div>
+              <button onClick={() => onRemove(it.id)} title="Remove" className="text-zinc-300 hover:text-rose-500 flex-shrink-0 text-sm">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <>
+          <div className="mt-3 flex items-center justify-between">
+            <button onClick={onClear} className="text-[11px] text-zinc-400 hover:text-zinc-600">Clear all</button>
+            <span className="text-[11px] text-zinc-400">{saving ? 'Saving…' : saved ? 'Saved ✓' : ''}</span>
+          </div>
+          {!saved && (
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className="w-full mt-2 px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              Save this layover
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Airport Search Component ─────────────────────────────────────────────────
 
 interface AirportSearchProps {
@@ -277,9 +385,15 @@ function AirportSearch({ value, onSelect }: AirportSearchProps) {
     ).slice(0, 8);
   }, [query]);
 
-  // Keep local query in sync if parent clears it
+  // Keep the visible input in sync with the parent's selectedCode — not only on
+  // clear. Without setting it when value is present, restoring a saved layover
+  // or clicking a popular airport left the field blank while selectedCode was
+  // set, so the "Find Activities" button looked usable but was greyed out (the
+  // "stuck button on return" bug).
   useEffect(() => {
-    if (!value) setQuery('');
+    if (!value) { setQuery(''); return; }
+    const a = AIRPORTS.find(x => x.code === value);
+    setQuery(a ? `${a.code} — ${a.city}` : value);
   }, [value]);
 
   // Close on outside click
@@ -380,12 +494,24 @@ export default function LayoverPlannerPage() {
     }
   }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
 
+  // Load the user's saved layovers for the switcher.
+  useEffect(() => {
+    if (currentUser.isLoading || currentUser.isDemo || !currentUser.id) return;
+    fetch('/api/layovers')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data?.layovers)) setSavedLayovers(data.layovers as SavedLayover[]); })
+      .catch(() => {});
+  }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
+
   const [selectedCode, setSelectedCode] = useState('');
   const [layoverHours, setLayoverHours] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<LayoverResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [savedItems, setSavedItems] = useState<Set<string>>(new Set());
+  const [basket, setBasket] = useState<LayoverSuggestion[]>([]);
+  const [savedLayovers, setSavedLayovers] = useState<SavedLayover[]>([]);
+  const [currentLayoverId, setCurrentLayoverId] = useState<string | null>(null);
+  const [savingLayover, setSavingLayover] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
   const [selectedAgeRanges, setSelectedAgeRanges] = useState<string[]>([]);
@@ -458,7 +584,7 @@ export default function LayoverPlannerPage() {
   // Step 1 — validate the code and reveal preferences panel
   const handleSearch = (code?: string) => {
     const searchCode = (code || selectedCode).toUpperCase().trim();
-    if (!searchCode) return;
+    if (!searchCode || !hoursNum) return; // both airport + time are required
     setSelectedCode(searchCode);
     setPendingCode(searchCode);
     setShowPreferences(true);
@@ -501,13 +627,90 @@ export default function LayoverPlannerPage() {
     }
   };
 
-  const toggleSaved = (id: string) => {
-    setSavedItems(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // ── My Layover basket ──────────────────────────────────────────────────────
+  // Persist the basket to the loaded saved layover (if any). Fire-and-forget;
+  // the UI basket is the source of truth.
+  const persistBasket = useCallback((items: LayoverSuggestion[]) => {
+    if (!currentLayoverId || currentUser.isDemo) return;
+    fetch(`/api/layovers/${currentLayoverId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, layoverHours: hoursNum || undefined }),
+    }).catch(() => {});
+  }, [currentLayoverId, currentUser.isDemo, hoursNum]);
+
+  const isInBasket = (id: string) => basket.some(b => b.id === id);
+
+  const addToBasket = (item: LayoverSuggestion) => {
+    if (basket.some(b => b.id === item.id)) return;
+    const next = [...basket, item];
+    setBasket(next);
+    persistBasket(next);
+  };
+  const removeFromBasket = (id: string) => {
+    const next = basket.filter(b => b.id !== id);
+    setBasket(next);
+    persistBasket(next);
+  };
+  const moveInBasket = (id: string, dir: -1 | 1) => {
+    const idx = basket.findIndex(b => b.id === id);
+    if (idx < 0) return;
+    const swap = idx + dir;
+    if (swap < 0 || swap >= basket.length) return;
+    const next = [...basket];
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    setBasket(next);
+    persistBasket(next);
+  };
+  const clearBasket = () => { setBasket([]); persistBasket([]); };
+
+  // ── Saved layovers ───────────────────────────────────────────────────────────
+  const loadLayover = (id: string) => {
+    const lay = savedLayovers.find(l => l.id === id);
+    if (!lay) return;
+    setCurrentLayoverId(lay.id);
+    setBasket(Array.isArray(lay.items) ? lay.items : []);
+    setSelectedCode(lay.airportCode);
+    setLayoverHours(lay.layoverHours ? String(lay.layoverHours) : '');
+    setResult(null);
+    setShowPreferences(false);
+    setError(null);
+  };
+
+  const startNewLayover = () => {
+    setCurrentLayoverId(null);
+    setBasket([]);
+    setResult(null);
+    setError(null);
+  };
+
+  const saveLayover = async () => {
+    if (currentLayoverId || basket.length === 0 || savingLayover) return;
+    setSavingLayover(true);
+    try {
+      const airport = result?.airport;
+      const fallback = AIRPORTS.find(a => a.code === selectedCode);
+      const res = await fetch('/api/layovers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          airportCode: selectedCode,
+          airportName: airport?.name ?? fallback?.name ?? null,
+          city: airport?.city ?? fallback?.city ?? null,
+          country: airport?.country ?? null,
+          layoverHours: hoursNum || undefined,
+          title: `${selectedCode}${hoursNum ? ` · ${hoursNum} hr` : ''} layover`,
+          items: basket,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.layover) {
+        setCurrentLayoverId(data.layover.id);
+        setSavedLayovers(prev => [data.layover, ...prev]);
+      }
+    } finally {
+      setSavingLayover(false);
+    }
   };
 
   const categoryColors: Record<string, string> = {
@@ -548,18 +751,45 @@ export default function LayoverPlannerPage() {
             </p>
           </div>
 
+          {/* Saved layovers switcher — only once the user has saved at least one */}
+          {savedLayovers.length > 0 && (
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <span className="text-xs text-zinc-500">Saved layovers:</span>
+              <select
+                value={currentLayoverId ?? ''}
+                onChange={(e) => { const v = e.target.value; if (v) loadLayover(v); else startNewLayover(); }}
+                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-700"
+              >
+                <option value="">— New layover —</option>
+                {savedLayovers.map(l => (
+                  <option key={l.id} value={l.id}>
+                    {l.title || `${l.airportCode}${l.layoverHours ? ` · ${l.layoverHours} hr` : ''}`}
+                  </option>
+                ))}
+              </select>
+              {currentLayoverId && (
+                <button
+                  onClick={startNewLayover}
+                  className="text-xs px-3 py-1.5 bg-sky-50 text-sky-800 hover:bg-sky-100 rounded-full font-medium transition-colors"
+                >
+                  + New layover
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Search Form */}
           <div className="card p-6 mb-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-semibold text-zinc-700 mb-2">Airport</label>
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">Airport <span className="text-rose-500">*</span></label>
                 <AirportSearch
                   value={selectedCode}
                   onSelect={(code) => setSelectedCode(code)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-zinc-700 mb-2">Layover Duration</label>
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">Layover Duration <span className="text-rose-500">*</span></label>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 flex-1">
                     <input
@@ -588,10 +818,7 @@ export default function LayoverPlannerPage() {
                 {popularAirports.map(a => (
                   <button
                     key={a.code}
-                    onClick={() => {
-                      setSelectedCode(a.code);
-                      handleSearch(a.code);
-                    }}
+                    onClick={() => setSelectedCode(a.code)}
                     className="text-xs px-3 py-1.5 bg-sky-50 text-sky-800 hover:bg-sky-100 rounded-full font-medium transition-colors"
                   >
                     {a.code} — {a.city}
@@ -600,13 +827,16 @@ export default function LayoverPlannerPage() {
               </div>
               <button
                 onClick={() => handleSearch()}
-                disabled={!selectedCode || isSearching}
+                disabled={!selectedCode || !hoursNum || isSearching}
                 className="px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
               >
                 {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                 {isSearching ? 'Generating…' : 'Find Activities'}
               </button>
             </div>
+            {(!selectedCode || !hoursNum) && (
+              <p className="text-xs text-rose-500 mt-3">Enter an airport and layover time to find activities.</p>
+            )}
           </div>
 
           {/* Preferences Panel */}
@@ -745,7 +975,10 @@ export default function LayoverPlannerPage() {
           )}
 
           {/* Results */}
-          {result && !isSearching && (
+          {(result || basket.length > 0 || currentLayoverId !== null) && !isSearching && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="lg:col-span-2 min-w-0">
+              {result ? (
             <div>
               <div className="mb-6">
                 <div className="flex items-start justify-between">
@@ -820,14 +1053,14 @@ export default function LayoverPlannerPage() {
 
                         <div className="flex items-center gap-2 mt-3">
                           <button
-                            onClick={() => toggleSaved(item.id)}
+                            onClick={() => isInBasket(item.id) ? removeFromBasket(item.id) : addToBasket(item)}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                              savedItems.has(item.id)
+                              isInBasket(item.id)
                                 ? 'bg-green-100 text-green-700'
                                 : 'bg-sky-100 text-sky-800 hover:bg-sky-200'
                             }`}
                           >
-                            {savedItems.has(item.id) ? '✓ Saved to Trip' : '+ Add to Trip'}
+                            {isInBasket(item.id) ? '✓ Added' : '+ Add to layover'}
                           </button>
                         </div>
                       </div>
@@ -904,6 +1137,30 @@ export default function LayoverPlannerPage() {
                   </div>
                 </div>
               )}
+            </div>
+              ) : (
+                <div className="card p-8 text-center text-zinc-500">
+                  <p className="text-sm">
+                    Search an airport and hit <span className="font-semibold">Find Activities</span> to add suggestions to this layover.
+                  </p>
+                </div>
+              )}
+              </div>
+
+              {/* My Layover basket — sticky sidebar (stacks below on mobile) */}
+              <div className="lg:col-span-1">
+                <MyLayoverPanel
+                  items={basket}
+                  airportLabel={result?.airport.code ?? selectedCode}
+                  hours={hoursNum}
+                  saved={!!currentLayoverId}
+                  saving={savingLayover}
+                  onRemove={removeFromBasket}
+                  onMove={moveInBasket}
+                  onClear={clearBasket}
+                  onSave={saveLayover}
+                />
+              </div>
             </div>
           )}
         </div>
