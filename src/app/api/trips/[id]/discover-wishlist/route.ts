@@ -23,6 +23,21 @@ export async function GET(
 
   if (error) return NextResponse.json({ items: [] });
 
+  // Build the set of people actually on this trip (organizer + current
+  // members). Votes are counted only for these user_ids. Without this,
+  // rows left behind by removed members — or seed/test data inserted with
+  // this trip_id — inflate the tallies, so an item could show up-votes that
+  // belong to nobody on the trip.
+  const [{ data: trip }, { data: members }] = await Promise.all([
+    supabase.from('trips').select('organizer_id').eq('id', params.id).maybeSingle(),
+    supabase.from('trip_members').select('user_id').eq('trip_id', params.id),
+  ]);
+  const memberIds = new Set<string>();
+  if (trip?.organizer_id) memberIds.add(trip.organizer_id);
+  for (const m of (members ?? [])) {
+    if (m.user_id) memberIds.add(m.user_id);
+  }
+
   // Group by item_id
   const byItem: Record<string, {
     itemData: unknown;
@@ -33,6 +48,9 @@ export async function GET(
   }> = {};
 
   for (const row of (rows ?? [])) {
+    // Skip votes from anyone not currently on the trip. An item voted on
+    // ONLY by non-members won't surface at all, which is intended.
+    if (!memberIds.has(row.user_id)) continue;
     if (!byItem[row.item_id]) {
       byItem[row.item_id] = { itemData: row.item_data, upVotes: 0, downVotes: 0, myVote: null, mySaved: false };
     }

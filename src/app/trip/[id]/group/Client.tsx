@@ -1,10 +1,19 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Avatar } from '@/components/Avatar';
 import { groupMembers as mockGroupMembers, expenses as mockExpenses, messages as mockMessages, MOCK_TRIP_IDS } from '@/data/mock';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
+
+// Generic geographic qualifiers dropped (alongside the trip's destination
+// words) when matching wishlist items that point at the same real place.
+// Deliberately conservative — words like "city"/"center" are excluded so
+// distinct venues (e.g. a "Convention Center") aren't wrongly merged.
+const WISHLIST_GEO_STOPWORDS = new Set([
+  'bay', 'area', 'downtown', 'uptown', 'midtown', 'district',
+  'old', 'town', 'the', 'greater', 'metro', 'region',
+]);
 
 interface VoteOption { id: string; label: string; votes: number; voters?: string[]; }
 interface Vote {
@@ -347,6 +356,62 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [wishlistAddingId, setWishlistAddingId] = useState<string | null>(null);
   const [wishlistAddedIds, setWishlistAddedIds] = useState<Set<string>>(new Set());
   const [wishlistDayPicker, setWishlistDayPicker] = useState<string | null>(null);
+
+  // The What's Out There feed sometimes surfaces the same real place twice
+  // under slightly different names ("Busch Gardens Tampa" vs "Busch Gardens
+  // Tampa Bay"), each a separate item with its own votes — so the votes split
+  // across two cards. Merge them into one card by a name key that drops the
+  // trip's destination words plus a few generic geo qualifiers, then re-sort
+  // by engagement (yay-heavy first) for display.
+  const mergedWishlistItems = useMemo<WishlistItem[]>(() => {
+    const destTokens = new Set(
+      tripDestination.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
+    );
+    const keyFor = (name?: string) =>
+      String(name ?? '')
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t && !destTokens.has(t) && !WISHLIST_GEO_STOPWORDS.has(t))
+        .join(' ');
+
+    const byPlace = new Map<string, WishlistItem & { _repEngagement: number }>();
+    for (const item of wishlistItems) {
+      const engagement = item.upVotes + item.downVotes;
+      // Fall back to itemId when the name normalizes to nothing, so unnamed
+      // items never collapse into one another.
+      const key = keyFor(item.itemData.name) || item.itemId;
+      const existing = byPlace.get(key);
+      if (!existing) {
+        byPlace.set(key, { ...item, _repEngagement: engagement });
+        continue;
+      }
+      existing.upVotes += item.upVotes;
+      existing.downVotes += item.downVotes;
+      if (existing.myVote === null) existing.myVote = item.myVote;
+      // Keep the higher-engagement entry as the representative so its itemId
+      // and itemData (used by the icon, link, and "Add to Trip") survive.
+      if (engagement > existing._repEngagement) {
+        existing.itemId = item.itemId;
+        existing.itemData = item.itemData;
+        existing._repEngagement = engagement;
+      }
+    }
+
+    return Array.from(byPlace.values())
+      .sort((a, b) => {
+        const engA = a.upVotes + a.downVotes;
+        const engB = b.upVotes + b.downVotes;
+        if (engB !== engA) return engB - engA;
+        return b.upVotes - a.upVotes;
+      })
+      .map((m) => ({
+        itemId: m.itemId,
+        itemData: m.itemData,
+        upVotes: m.upVotes,
+        downVotes: m.downVotes,
+        myVote: m.myVote,
+      }));
+  }, [wishlistItems, tripDestination]);
 
   // Add a Wishlist item to the itinerary on the chosen day
   const handleWishlistAddToItinerary = async (item: WishlistItem, dayNumber: number) => {
@@ -2554,7 +2619,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             </div>{/* end grid */}
 
             {/* ── Discover Wishlist ─────────────────────────────────────────── */}
-            {!isMockTrip && wishlistItems.length > 0 && (
+            {!isMockTrip && mergedWishlistItems.length > 0 && (
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
@@ -2567,7 +2632,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 </div>
 
                 <div className="space-y-3">
-                  {wishlistItems.map(item => {
+                  {mergedWishlistItems.map(item => {
                     const name = item.itemData.name ?? item.itemId;
                     const isAdded = wishlistAddedIds.has(item.itemId);
                     const isPickerOpen = wishlistDayPicker === item.itemId;
