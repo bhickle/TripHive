@@ -61,7 +61,7 @@ const transportConfig: Record<TransportType, {
 // ─── Timeline item type ───────────────────────────────────────────────────────
 
 type TimelineItemDayOf =
-  | { kind: 'activity'; data: Activity; sortTime: number }
+  | { kind: 'activity'; data: Activity; sortTime: number; trackLabel?: string | null }
   | { kind: 'transport'; data: TransportLeg; sortTime: number };
 
 function parseTime(t: string): number {
@@ -198,7 +198,7 @@ function TransportCardDayOf({ leg, status }: { leg: TransportLeg; status: 'done'
 
 // ─── Activity Card (day-of) ───────────────────────────────────────────────────
 
-function ActivityCardDayOf({ activity, status }: { activity: Activity; status: 'done' | 'now' | 'soon' | 'upcoming' }) {
+function ActivityCardDayOf({ activity, status, trackLabel }: { activity: Activity; status: 'done' | 'now' | 'soon' | 'upcoming'; trackLabel?: string | null }) {
   const addr = activity.address || activity.title;
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 
@@ -233,6 +233,11 @@ function ActivityCardDayOf({ activity, status }: { activity: Activity; status: '
               )}
               {status === 'soon' && (
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">NEXT</span>
+              )}
+              {trackLabel && (
+                <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-semibold">
+                  {trackLabel}
+                </span>
               )}
             </div>
             <h3 className={`font-semibold text-sm leading-snug ${status === 'done' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
@@ -373,17 +378,24 @@ export default function DayOfPage() {
   // Merged + sorted timeline. Include all three tracks — a split-track trip
   // (Explorer/Nomad) keeps activities on track_a/track_b, and the day-of guide
   // previously rendered only `shared`, silently dropping them from the
-  // schedule, "Happening Now," and the done/total counters.
-  const timeline: TimelineItemDayOf[] = [
-    ...[
-      ...(currentDay.tracks?.shared ?? []),
-      ...(currentDay.tracks?.track_a ?? []),
-      ...(currentDay.tracks?.track_b ?? []),
-    ].map((a) => ({
+  // schedule, "Happening Now," and the done/total counters. Activities on a
+  // split track carry the day's track label so the parallel options stay
+  // distinguishable (shared activities get no badge).
+  const trackLabelFor = (tk: 'shared' | 'track_a' | 'track_b'): string | null => {
+    if (tk === 'track_a') return currentDay.trackALabel?.trim() || 'Track A';
+    if (tk === 'track_b') return currentDay.trackBLabel?.trim() || 'Track B';
+    return null;
+  };
+  const activityItems: TimelineItemDayOf[] = (['shared', 'track_a', 'track_b'] as const).flatMap(tk =>
+    (currentDay.tracks?.[tk] ?? []).map((a) => ({
       kind: 'activity' as const,
       data: a,
       sortTime: parseTime(a.timeSlot),
+      trackLabel: trackLabelFor(tk),
     })),
+  );
+  const timeline: TimelineItemDayOf[] = [
+    ...activityItems,
     ...transportLegs.map((leg) => ({
       kind: 'transport' as const,
       data: leg,
@@ -509,6 +521,11 @@ export default function DayOfPage() {
                   {nowItem.kind === 'activity' ? formatTimeRange(nowItem.data.timeSlot) :
                     `Meet ${formatTime(nowItem.data.meetTime ?? nowItem.data.departureTime)}`}
                 </span>
+                {nowItem.kind === 'activity' && nowItem.trackLabel && (
+                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-semibold">
+                    {nowItem.trackLabel}
+                  </span>
+                )}
               </div>
               <h2 className="font-script italic text-xl font-semibold mb-1">
                 {nowItem.kind === 'activity' ? nowItem.data.title : nowItem.data.meetingPoint}
@@ -535,7 +552,7 @@ export default function DayOfPage() {
             {timeline.map((item) => {
               const status = getStatus(item);
               return item.kind === 'activity' ? (
-                <ActivityCardDayOf key={item.data.id} activity={item.data} status={status} />
+                <ActivityCardDayOf key={item.data.id} activity={item.data} status={status} trackLabel={item.trackLabel} />
               ) : (
                 <TransportCardDayOf key={item.data.id} leg={item.data} status={status} />
               );
