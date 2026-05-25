@@ -484,6 +484,85 @@ function TopSearchCard({
   );
 }
 
+// ─── Community / Founder trip card ───────────────────────────────────────────
+// Shared by the "Founder Itineraries" rail and the "What the community is
+// building" rail — both render real public trips with the same card.
+
+interface CommunityTripCardProps {
+  trip: CommunityTrip;
+  liked: boolean;
+  forking: boolean;
+  onLike: () => void;
+  onFork: () => void;
+}
+
+function CommunityTripCard({ trip, liked, forking, onLike, onFork }: CommunityTripCardProps) {
+  return (
+    <div className="snap-start shrink-0 w-[300px] sm:w-[330px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col">
+      <Link href={`/community/${trip.id}`} className="block group">
+        <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
+          {trip.coverImage && (
+            <Image
+              src={trip.coverImage}
+              alt={trip.destination}
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+          {trip.likeCount > 0 && (
+            <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
+              <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
+            </div>
+          )}
+          <div className="absolute bottom-3 left-3 right-3">
+            <p className="text-white font-script italic text-xl font-semibold drop-shadow">{trip.destination}</p>
+          </div>
+        </div>
+      </Link>
+
+      <div className="p-4 flex-1 flex flex-col gap-3">
+        <div className="flex items-center gap-3 text-xs text-zinc-500">
+          {trip.tripLength > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> {trip.tripLength} {trip.tripLength === 1 ? 'day' : 'days'}
+            </span>
+          )}
+          {trip.groupSize > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="w-3 h-3" /> {trip.groupSize} {trip.groupSize === 1 ? 'traveler' : 'travelers'}
+            </span>
+          )}
+        </div>
+        {trip.organizerName && (
+          <p className="text-xs text-zinc-500">by {trip.organizerName.split(/\s+/)[0]}</p>
+        )}
+        <div className="flex items-center gap-2 mt-auto">
+          <button
+            onClick={onLike}
+            className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+              liked
+                ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                : 'bg-zinc-50 text-zinc-600 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+            }`}
+            aria-label={liked ? 'Unlike' : 'Like'}
+          >
+            <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
+            {liked ? 'Liked' : 'Like'}
+          </button>
+          <button
+            onClick={onFork}
+            disabled={forking}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-lg transition-all"
+          >
+            {forking ? 'Copying…' : 'Use as starting point'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function DiscoverPage() {
@@ -498,14 +577,21 @@ export default function DiscoverPage() {
   const [featuredDays, setFeaturedDays] = useState<Record<string, ItineraryDay[]>>({});
   const [loadingFeaturedDays, setLoadingFeaturedDays] = useState(false);
   const [communityTrips, setCommunityTrips] = useState<CommunityTrip[]>([]);
+  // Founder-featured trips (top rail) — same shape + card as community trips.
+  const [founderTrips, setFounderTrips] = useState<CommunityTrip[]>([]);
+  // Liked-state is shared across both rails — likes are keyed by trip id, and a
+  // founder trip is just as likeable as any community trip.
   const [communityLikedIds, setCommunityLikedIds] = useState<Set<string>>(new Set());
-  // Horizontal "arrow-over" carousel for the community rail (not a stacking grid).
+  // Horizontal "arrow-over" carousels (not stacking grids).
   const communityRailRef = useRef<HTMLDivElement>(null);
-  const scrollCommunityRail = (dir: -1 | 1) => {
-    const el = communityRailRef.current;
+  const founderRailRef = useRef<HTMLDivElement>(null);
+  const scrollRail = (ref: React.RefObject<HTMLDivElement | null>, dir: -1 | 1) => {
+    const el = ref.current;
     if (!el) return;
     el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.9), behavior: 'smooth' });
   };
+  const scrollCommunityRail = (dir: -1 | 1) => scrollRail(communityRailRef, dir);
+  const scrollFounderRail = (dir: -1 | 1) => scrollRail(founderRailRef, dir);
   const [forkingId, setForkingId] = useState<string | null>(null);
   // The modal opens with a pending trip target; null means closed.
   const [pendingForkTrip, setPendingForkTrip] = useState<CommunityTrip | null>(null);
@@ -552,12 +638,34 @@ export default function DiscoverPage() {
           setCommunityTrips(data.trips);
           // Seed the liked-state from the server so hearts the viewer already
           // tapped render filled on load (and don't get silently toggled off).
-          setCommunityLikedIds(new Set(
-            (data.trips as CommunityTrip[]).filter(t => t.viewerLiked).map(t => t.id),
-          ));
+          // Merge (don't replace) — the founder rail seeds the same set.
+          const liked = (data.trips as CommunityTrip[]).filter(t => t.viewerLiked).map(t => t.id);
+          if (liked.length) setCommunityLikedIds(prev => {
+            const next = new Set(prev);
+            for (const id of liked) next.add(id);
+            return next;
+          });
         }
       })
       .catch(() => { /* silent — empty state is fine */ });
+  }, []);
+
+  // Founder-featured trips — the curated top rail. Hidden entirely when empty.
+  useEffect(() => {
+    fetch('/api/founder-itineraries')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data?.trips)) {
+          setFounderTrips(data.trips);
+          const liked = (data.trips as CommunityTrip[]).filter(t => t.viewerLiked).map(t => t.id);
+          if (liked.length) setCommunityLikedIds(prev => {
+            const next = new Set(prev);
+            for (const id of liked) next.add(id);
+            return next;
+          });
+        }
+      })
+      .catch(() => { /* silent — rail just hides when empty */ });
   }, []);
 
   // Hydrate wishlistedNames from the user's saved wishlist on mount so
@@ -669,6 +777,13 @@ export default function DiscoverPage() {
     setActiveVibes(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
   };
 
+  // Apply a like-count change to whichever rail holds the trip (founder rail
+  // and community rail share the same card + handler).
+  const updateBothLikeCounts = (id: string, next: (t: CommunityTrip) => CommunityTrip) => {
+    setCommunityTrips(prev => prev.map(t => (t.id === id ? next(t) : t)));
+    setFounderTrips(prev => prev.map(t => (t.id === id ? next(t) : t)));
+  };
+
   const handleCommunityLike = async (tripId: string) => {
     // Don't redirect while auth is still resolving — useCurrentUser is
     // briefly null on first paint, and the previous flow bounced
@@ -686,24 +801,20 @@ export default function DiscoverPage() {
       isLiked ? next.delete(tripId) : next.add(tripId);
       return next;
     });
-    setCommunityTrips(prev => prev.map(t =>
-      t.id === tripId ? { ...t, likeCount: Math.max(0, t.likeCount + (isLiked ? -1 : 1)) } : t
-    ));
+    updateBothLikeCounts(tripId, t => ({ ...t, likeCount: Math.max(0, t.likeCount + (isLiked ? -1 : 1)) }));
     try {
       const res = await fetch(`/api/trips/${tripId}/like`, { method: isLiked ? 'DELETE' : 'POST' });
       if (!res.ok) throw new Error('like failed');
       const data = await res.json();
       // Reconcile against server count
-      setCommunityTrips(prev => prev.map(t =>
-        t.id === tripId ? { ...t, likeCount: data.count ?? t.likeCount } : t
-      ));
+      updateBothLikeCounts(tripId, t => ({ ...t, likeCount: data.count ?? t.likeCount }));
       // Per product: hearting a community trip also saves it to On My Radar.
       // Additive + best-effort — only when newly liking, and we swallow
       // failures (e.g. a free-tier user without wishlist access). Unliking
       // deliberately does NOT remove the radar item, so we never delete
       // something the user may want to keep.
       if (!isLiked) {
-        const trip = communityTrips.find(t => t.id === tripId);
+        const trip = communityTrips.find(t => t.id === tripId) ?? founderTrips.find(t => t.id === tripId);
         if (trip) {
           fetch('/api/wishlist', {
             method: 'POST',
@@ -724,9 +835,7 @@ export default function DiscoverPage() {
         isLiked ? next.add(tripId) : next.delete(tripId);
         return next;
       });
-      setCommunityTrips(prev => prev.map(t =>
-        t.id === tripId ? { ...t, likeCount: Math.max(0, t.likeCount + (isLiked ? 1 : -1)) } : t
-      ));
+      updateBothLikeCounts(tripId, t => ({ ...t, likeCount: Math.max(0, t.likeCount + (isLiked ? 1 : -1)) }));
     }
   };
 
@@ -997,36 +1106,50 @@ export default function DiscoverPage() {
           </div>
 
           {/* ══════════════════════════════════════════════════════════════
-              LAYER 1 — Featured itineraries + Top Searches (2+2 grid)
-              Only shown when no filters active
+              LAYER 1 — Founder Itineraries (real trips the founders feature) +
+              Top Searches. Only shown when no filters active; the rail hides
+              entirely until a founder flags a trip (trips.is_founder_featured).
           ══════════════════════════════════════════════════════════════ */}
-          {!isFiltering && featured.length > 0 && (
+          {!isFiltering && founderTrips.length > 0 && (
             <section>
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Featured Itineraries</h2>
-                  <p className="text-sm text-zinc-500 mt-0.5">Hand-built 7-day trips from the tripcoord team — preview the days, then fork into your own</p>
+                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Founder Itineraries</h2>
+                  <p className="text-sm text-zinc-500 mt-0.5">Real trips hand-picked by the TripCoord founders — like &apos;em, save &apos;em, or use one as your starting point</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {featured.slice(0, 2).map(item => (
-                  <FeaturedItineraryCard
-                    key={item.slug}
-                    item={item}
-                    days={featuredDays[item.slug] ?? []}
-                    loadingDays={loadingFeaturedDays && !featuredDays[item.slug]}
-                    wishlisted={wishlistedNames.has(normalizeDestName(item.destination))}
-                    canWishlist={hasWishlist}
-                    onWishlist={() => handleWishlistToggle({
-                      destination: item.destination,
-                      country: item.country,
-                      coverImage: item.heroImage,
-                      bestSeason: item.seasonTags?.[0] ?? null,
-                      estimatedCost: item.avgCostPerDay ? item.avgCostPerDay * item.durationDays : null,
-                      tags: item.vibes,
-                    })}
-                  />
-                ))}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => scrollFounderRail(-1)}
+                  aria-label="Scroll left"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollFounderRail(1)}
+                  aria-label="Scroll right"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+                <div
+                  ref={founderRailRef}
+                  className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {founderTrips.map(trip => (
+                    <CommunityTripCard
+                      key={trip.id}
+                      trip={trip}
+                      liked={communityLikedIds.has(trip.id)}
+                      forking={forkingId === trip.id}
+                      onLike={() => handleCommunityLike(trip.id)}
+                      onFork={() => handleCommunityFork(trip)}
+                    />
+                  ))}
+                </div>
               </div>
             </section>
           )}
@@ -1122,76 +1245,16 @@ export default function DiscoverPage() {
                     ref={communityRailRef}
                     className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   >
-                    {communityTrips.map(trip => {
-                    const liked = communityLikedIds.has(trip.id);
-                    return (
-                      <div
+                    {communityTrips.map(trip => (
+                      <CommunityTripCard
                         key={trip.id}
-                        className="snap-start shrink-0 w-[300px] sm:w-[330px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
-                      >
-                        <Link href={`/community/${trip.id}`} className="block group">
-                          <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
-                            {trip.coverImage && (
-                              <Image
-                                src={trip.coverImage}
-                                alt={trip.destination}
-                                fill
-                                className="object-cover group-hover:scale-105 transition-transform duration-500"
-                              />
-                            )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-                            {trip.likeCount > 0 && (
-                              <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
-                                <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
-                              </div>
-                            )}
-                            <div className="absolute bottom-3 left-3 right-3">
-                              <p className="text-white font-script italic text-xl font-semibold drop-shadow">{trip.destination}</p>
-                            </div>
-                          </div>
-                        </Link>
-
-                        <div className="p-4 flex-1 flex flex-col gap-3">
-                          <div className="flex items-center gap-3 text-xs text-zinc-500">
-                            {trip.tripLength > 0 && (
-                              <span className="inline-flex items-center gap-1">
-                                <Calendar className="w-3 h-3" /> {trip.tripLength} {trip.tripLength === 1 ? 'day' : 'days'}
-                              </span>
-                            )}
-                            {trip.groupSize > 0 && (
-                              <span className="inline-flex items-center gap-1">
-                                <MapPin className="w-3 h-3" /> {trip.groupSize} {trip.groupSize === 1 ? 'traveler' : 'travelers'}
-                              </span>
-                            )}
-                          </div>
-                          {trip.organizerName && (
-                            <p className="text-xs text-zinc-500">by {trip.organizerName.split(/\s+/)[0]}</p>
-                          )}
-                          <div className="flex items-center gap-2 mt-auto">
-                            <button
-                              onClick={() => handleCommunityLike(trip.id)}
-                              className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                                liked
-                                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                                  : 'bg-zinc-50 text-zinc-600 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
-                              }`}
-                              aria-label={liked ? 'Unlike' : 'Like'}
-                            >
-                              <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
-                              {liked ? 'Liked' : 'Like'}
-                            </button>
-                            <button
-                              onClick={() => handleCommunityFork(trip)}
-                              disabled={forkingId === trip.id}
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-lg transition-all"
-                            >
-                              {forkingId === trip.id ? 'Copying…' : 'Use as starting point'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        trip={trip}
+                        liked={communityLikedIds.has(trip.id)}
+                        forking={forkingId === trip.id}
+                        onLike={() => handleCommunityLike(trip.id)}
+                        onFork={() => handleCommunityFork(trip)}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -1247,6 +1310,34 @@ export default function DiscoverPage() {
                 </button>
               </div>
 
+              {/* Per-destination "Build this trip" CTAs — each opens the Trip
+                  Builder prefilled with that destination, the collection's
+                  season (→ When step months) and, when a built preview exists,
+                  its vibes. */}
+              {activeCollection && activeCollection.destinationNames.length > 0 && (
+                <div className="mb-8">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-3">
+                    Build any of these — destination, season &amp; vibe come prefilled
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {activeCollection.destinationNames.map(name => {
+                      const matched = featured.find(f => normalizeDestName(f.destination) === normalizeDestName(name));
+                      const params = new URLSearchParams({ destination: name, days: '7', season: activeCollection.season });
+                      if (matched) params.set('featured', matched.slug);
+                      return (
+                        <Link
+                          key={name}
+                          href={`/trip/new?${params.toString()}`}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors"
+                        >
+                          <Plane className="w-3.5 h-3.5" /> Build {name.split(',')[0]}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {collectionFeatured.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                   {collectionFeatured.map(item => (
@@ -1273,27 +1364,16 @@ export default function DiscoverPage() {
               {filtered.length === 0 ? (
                 activeCollection ? (
                   // Collection-specific empty state: many seasonal collections
-                  // reference destinations that don't exist in our destination
-                  // catalog yet. Surface the collection's intended destinations
-                  // as quick-plan chips so the user can still take action.
+                  // reference destinations that aren't in our catalog yet. The
+                  // per-destination "Build" CTAs above already give the user a
+                  // way to plan each one, so here we just point them up there.
                   collectionFeatured.length === 0 && (
                     <div className="bg-white border border-zinc-100 rounded-2xl p-8 text-center">
                       <Globe2 className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
-                      <p className="text-zinc-700 font-semibold">We&apos;re still building itineraries for these</p>
-                      <p className="text-zinc-500 text-sm mt-1 mb-5">
-                        Pick one and plan it yourself in the meantime.
+                      <p className="text-zinc-700 font-semibold">We&apos;re still building previews for these</p>
+                      <p className="text-zinc-500 text-sm mt-1">
+                        Use a <span className="font-semibold">Build</span> button above to plan any of them yourself.
                       </p>
-                      <div className="flex flex-wrap justify-center gap-2">
-                        {activeCollection.destinationNames.map(name => (
-                          <Link
-                            key={name}
-                            href={`/trip/new?destination=${encodeURIComponent(name)}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 text-sm font-medium rounded-full transition-colors"
-                          >
-                            <Plane className="w-3.5 h-3.5" /> {name}
-                          </Link>
-                        ))}
-                      </div>
                     </div>
                   )
                 ) : (

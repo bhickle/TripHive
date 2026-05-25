@@ -1230,6 +1230,7 @@ export type Database = {
           group_size: number
           group_type: string | null
           id: string
+          is_founder_featured: boolean
           is_private: boolean
           is_public_template: boolean
           itinerary_generated_at: string | null
@@ -1256,6 +1257,7 @@ export type Database = {
           group_size?: number
           group_type?: string | null
           id?: string
+          is_founder_featured?: boolean
           is_private?: boolean
           is_public_template?: boolean
           itinerary_generated_at?: string | null
@@ -1282,6 +1284,7 @@ export type Database = {
           group_size?: number
           group_type?: string | null
           id?: string
+          is_founder_featured?: boolean
           is_private?: boolean
           is_public_template?: boolean
           itinerary_generated_at?: string | null

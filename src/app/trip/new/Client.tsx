@@ -390,6 +390,36 @@ function calcBudgetFromStyle(destination: string, tripLength: number, curiosityL
   };
 }
 
+/**
+ * Maps a Seasonal Collection's season ("summer", "winter", …) to the next
+ * upcoming month range, formatted as the YYYY-MM-DD start/end the wizard's
+ * flexible-dates mode expects (earliest month = startDate, latest = endDate).
+ * Used by the "Build this trip" CTA on a seasonal collection so the When step
+ * opens pre-seeded to the right time of year. Returns null for unknown seasons
+ * (e.g. "year-round") so the user just picks dates themselves.
+ */
+function seasonToMonthRange(season: string): { startDate: string; endDate: string } | null {
+  // Northern-hemisphere meteorological seasons. [startMonth, endMonth], 0-based.
+  const ranges: Record<string, [number, number]> = {
+    spring: [2, 4],   // Mar–May
+    summer: [5, 7],   // Jun–Aug
+    fall:   [8, 10],  // Sep–Nov
+    autumn: [8, 10],
+    winter: [11, 1],  // Dec–Feb (wraps into next year)
+  };
+  const r = ranges[season.trim().toLowerCase()];
+  if (!r) return null;
+  const [startM, endM] = r;
+  const now = new Date();
+  // If this year's start month has already passed, jump to next year.
+  const startYear = startM < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear();
+  const endYear = endM < startM ? startYear + 1 : startYear; // winter wraps
+  const lastDay = new Date(endYear, endM + 1, 0).getDate();
+  const fmt = (y: number, m: number, d: number) =>
+    `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  return { startDate: fmt(startYear, startM, 1), endDate: fmt(endYear, endM, lastDay) };
+}
+
 function TripBuilderPage() {
   const currentUser = useCurrentUser();
   const router = useRouter();
@@ -604,11 +634,19 @@ function TripBuilderPage() {
     const destination = searchParams.get('destination');
     const days = searchParams.get('days');
     const featured = searchParams.get('featured');
+    const season = searchParams.get('season');
     if (!destination) return;
+    // When the user builds from a Seasonal Collection, pre-seed the When step
+    // to the right time of year (flexible-dates mode, month range from the
+    // collection's season). Unknown/empty seasons leave dates untouched.
+    const seasonRange = season ? seasonToMonthRange(season) : null;
     setState(prev => ({
       ...prev,
       destination,
       ...(days ? { tripLength: parseInt(days, 10) } : {}),
+      ...(seasonRange
+        ? { flexibleDates: true, startDate: seasonRange.startDate, endDate: seasonRange.endDate }
+        : {}),
     }));
 
     // If the user came from a Featured Itinerary CTA ("Start planning

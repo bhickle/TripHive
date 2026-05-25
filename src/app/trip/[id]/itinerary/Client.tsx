@@ -64,6 +64,7 @@ import {
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { isFounderEmail } from '@/lib/founders';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
@@ -490,6 +491,9 @@ function ItineraryPageContent() {
   // header globe button). The actual is_public_template value is read
   // directly from tripRow so it stays in sync with any other writes.
   const [communityToggleSaving, setCommunityToggleSaving] = useState(false);
+  // Founder-only "Feature on Discover" toggle saving flag (sits next to the
+  // community-share globe). Value read from tripRow.is_founder_featured.
+  const [featuredToggleSaving, setFeaturedToggleSaving] = useState(false);
   const [newPrefsCount, setNewPrefsCount] = useState(0);
   // Members who joined but haven't filled preferences. Drives the confirm
   // dialog when the buyer clicks Regenerate so they're explicitly warned
@@ -2968,6 +2972,50 @@ function ItineraryPageContent() {
                     } ${communityToggleSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <Globe2 className="w-3 h-3" />
+                  </button>
+                );
+              })()}
+              {/* Founder-only "Feature on Discover" toggle — publishes this trip
+                  to the Founder Itineraries rail. Shown only to the organizer
+                  when they're a founder; the API also enforces both server-side.
+                  Featuring also flips the public-share flag on. */}
+              {currentUser.id && tripRow?.organizer_id === currentUser.id && isFounderEmail(currentUser.email) && (() => {
+                const isFeatured = !!tripRow?.is_founder_featured;
+                return (
+                  <button
+                    onClick={async () => {
+                      if (featuredToggleSaving) return;
+                      const next = !isFeatured;
+                      setFeaturedToggleSaving(true);
+                      // Optimistic — featuring also makes the trip public.
+                      setTripRow(prev => prev
+                        ? { ...prev, is_founder_featured: next, ...(next ? { is_public_template: true } : {}) }
+                        : prev);
+                      try {
+                        const res = await fetch(`/api/trips/${trip.id}/feature`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ featured: next }),
+                        });
+                        if (!res.ok) throw new Error();
+                      } catch {
+                        setTripRow(prev => prev ? { ...prev, is_founder_featured: !next } : prev);
+                      } finally {
+                        setFeaturedToggleSaving(false);
+                      }
+                    }}
+                    disabled={featuredToggleSaving}
+                    title={isFeatured
+                      ? 'Featured on Discover → Founder Itineraries. Click to remove.'
+                      : 'Founder action: feature this trip on Discover → Founder Itineraries (also shares it publicly).'}
+                    aria-label={isFeatured ? 'Remove from Founder Itineraries' : 'Feature on Founder Itineraries'}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors ${
+                      isFeatured
+                        ? 'border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100'
+                        : 'border-zinc-200 bg-white text-zinc-400 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-300'
+                    } ${featuredToggleSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <Star className={`w-3 h-3 ${isFeatured ? 'fill-current' : ''}`} />
                   </button>
                 );
               })()}
