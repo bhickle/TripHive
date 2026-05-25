@@ -61,7 +61,7 @@ interface PhrasebookData {
 export default function PrepPage({ params }: { params: { id: string } }) {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
   const { hasAIPacking, hasAIPhrasebook } = useEntitlements(params.id);
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, profile, isLoading: authLoading } = useAuth();
 
   // For real trips, prep tasks and packing items are loaded from Supabase
   const [prepTasks, setPrepTasks] = useState<PrepTask[]>(isMockTrip ? (mockPrepTasks as PrepTask[]) : []);
@@ -353,6 +353,24 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       new RegExp(`,\\s*${abbr}\\b`, 'i').test(tripDestination)
     )
   );
+
+  // ─── Home-country trip detection (drives the Visa & Entry card) ───────────────
+  // profiles.home_country is a country *name* ("United States", "France"), or
+  // null for users who predate the onboarding picker. The legacy visa card
+  // always assumed a US passport, so when home is unknown we keep assuming the
+  // US — no regression for existing US users, and non-US users who set their
+  // home get correct guidance.
+  const homeCountry = (profile?.home_country ?? '').trim();
+  const homeIsUS = !homeCountry || homeCountry.toLowerCase().includes('united states');
+  const homeCountryLabel = homeCountry || 'the United States';
+  // "Domestic" here means the destination is in the traveler's OWN country —
+  // distinct from isDomesticUS (destination-only; drives English/USD/no-
+  // phrasebook assumptions regardless of who's traveling). US home reuses the
+  // robust isDomesticUS detection; other homes match the destination string
+  // naming their country.
+  const isHomeCountryTrip = homeIsUS
+    ? isDomesticUS
+    : (!!homeCountry && destLower.includes(homeCountry.toLowerCase()));
 
   // For multi-country trips (cruises, road trips), extract individual port/country names
   // so we can generate a phrasebook per distinct language region
@@ -1156,6 +1174,21 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               </div>
             </div>
           </>
+        ) : isHomeCountryTrip ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+            <div className="flex gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-emerald-900 mb-1">Domestic Trip — No Passport Needed</h3>
+                <p className="text-sm text-emerald-700">
+                  <strong>{tripDestination}</strong> is within {homeCountryLabel}, so you won&apos;t need a passport or visa for this trip.
+                  {homeIsUS && (
+                    <> ✈️ Flying? Since <strong>May 7, 2025</strong> the TSA requires a <strong>REAL ID</strong>–compliant driver&apos;s license or state ID (look for a star in the top corner) — or another accepted ID like a U.S. passport or military ID. Driving? Your regular license is fine.</>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
@@ -1163,7 +1196,11 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 <AlertCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-semibold text-sky-900 mb-1">Visa & Entry Requirements</h3>
-                  <p className="text-sm text-sky-800">Check visa requirements for <strong>{tripDestination}</strong> based on your passport. Visit <a href="https://travel.state.gov" target="_blank" rel="noopener noreferrer" className="underline">travel.state.gov</a> for US citizens or your country&apos;s foreign affairs website.</p>
+                  {homeIsUS ? (
+                    <p className="text-sm text-sky-800">Check visa requirements for <strong>{tripDestination}</strong> based on your passport. Visit <a href="https://travel.state.gov" target="_blank" rel="noopener noreferrer" className="underline">travel.state.gov</a> for US citizens or your country&apos;s foreign affairs website.</p>
+                  ) : (
+                    <p className="text-sm text-sky-800">Check visa requirements for <strong>{tripDestination}</strong> based on your {homeCountry} passport. Check your government&apos;s official foreign-affairs or immigration website before you travel.</p>
+                  )}
                 </div>
               </div>
             </div>
