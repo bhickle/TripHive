@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { destinationToCountry, countryToContinent } from '@/lib/world/countryLookup';
+import { computeWorldStats, type WorldTripRow } from '@/lib/world/worldStats';
 import Client from './Client';
 
 /**
@@ -26,43 +26,22 @@ async function fetchSummary(userId: string) {
       supabase.from('profiles').select('name').eq('id', userId).single(),
       supabase
         .from('trips')
-        .select('destination, start_date, end_date')
-        .eq('organizer_id', userId)
-        .not('end_date', 'is', null),
+        .select('destination, start_date, end_date, trip_length, visited_cities')
+        .eq('organizer_id', userId),
     ]);
 
     const userName = (profileRes.data?.name ?? '').split(' ')[0] || 'A traveler';
-    const todayMs = Date.now();
-    const completedTrips = (tripsRes.data ?? []).filter(
-      t => t.end_date && new Date(t.end_date + 'T12:00:00').getTime() < todayMs,
-    );
-
-    const countries = new Set<string>();
-    const cities = new Set<string>();
-    const continents = new Set<string>();
-    let daysAbroad = 0;
-    for (const t of completedTrips) {
-      const country = destinationToCountry(t.destination);
-      if (country) {
-        countries.add(country);
-        const continent = countryToContinent(country);
-        if (continent) continents.add(continent);
-      }
-      const city = t.destination.split(',')[0]?.trim();
-      if (city) cities.add(city);
-      if (t.start_date && t.end_date) {
-        const ms = new Date(t.end_date + 'T12:00:00').getTime() - new Date(t.start_date + 'T12:00:00').getTime();
-        const days = Math.round(ms / 86400000);
-        if (days > 0) daysAbroad += days;
-      }
-    }
+    // Same computation as the owner's My World page (/api/world), via the
+    // shared helper, so the public share card matches what the owner sees
+    // (real multi-city counts + trip-length days, not destination-only counts).
+    const stats = computeWorldStats((tripsRes.data ?? []) as WorldTripRow[]);
 
     return {
       userName,
-      countryCount: countries.size,
-      cityCount: cities.size,
-      continentCount: continents.size,
-      daysAbroad,
+      countryCount: stats.totalCountries,
+      cityCount: stats.totalCities,
+      continentCount: stats.totalContinents,
+      daysAbroad: stats.daysAbroad,
     };
   } catch {
     return null;

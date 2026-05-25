@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { destinationToCountry, countryToId, countryToContinent, CONTINENT_TOTALS } from '@/lib/world/countryLookup';
+import { computeTripStatus, extractTripCities, tripDays } from '@/lib/world/worldStats';
 import { geocodeCities } from '@/lib/world/geocodeCity';
 import { evaluateBadges, type TripForBadge } from '@/lib/world/badges';
 import { selectPhotoPins, type TripForPins, type PhotoForPins } from '@/lib/world/photoPins';
@@ -65,17 +66,10 @@ export async function GET() {
       preferences: Record<string, unknown> | null;
       cover_image: string | null;
     };
-    const computeStatus = (t: TripRow): 'planning' | 'active' | 'completed' => {
-      if (!t.start_date) return 'planning';
-      const start = new Date(t.start_date + 'T12:00:00');
-      if (now < start) return 'planning';
-      if (!t.end_date) return 'active';
-      const end = new Date(t.end_date + 'T12:00:00');
-      return now <= end ? 'active' : 'completed';
-    };
-
     const allTrips = (trips ?? []) as TripRow[];
-    const completed = allTrips.filter(t => computeStatus(t) === 'completed');
+    // Shared helper (also used by the public /share/world page) so the two
+    // surfaces' city/country/day counts can never drift.
+    const completed = allTrips.filter(t => computeTripStatus(t, now) === 'completed');
 
     // Aggregate countries (with visit counts) from completed trip destinations.
     const countryCounts = new Map<string, number>();
@@ -96,9 +90,7 @@ export async function GET() {
     const cityVisitCounts = new Map<string, { country: string | null; count: number; tripIds: string[] }>();
     for (const t of completed) {
       const country = destinationToCountry(t.destination);
-      const cityNames = (t.visited_cities && t.visited_cities.length > 0)
-        ? t.visited_cities
-        : [t.destination.split(',')[0]?.trim()].filter((s): s is string => !!s);
+      const cityNames = extractTripCities(t);
       for (const raw of cityNames) {
         const city = raw.trim();
         if (!city) continue;
@@ -190,9 +182,7 @@ export async function GET() {
     // Compute Nomad photo pins. Pure helper; safe to call regardless of
     // viewer tier (lower tiers just won't render the result).
     const tripsForPins: TripForPins[] = completed.map(t => {
-      const cityNames = (t.visited_cities && t.visited_cities.length > 0)
-        ? t.visited_cities
-        : [t.destination.split(',')[0]?.trim()].filter((s): s is string => !!s);
+      const cityNames = extractTripCities(t);
       return {
         id: t.id,
         title: t.title ?? t.destination,
@@ -239,20 +229,8 @@ export async function GET() {
       continents[contName] = { visited, total };
     }
 
-    // Days abroad — sum of trip_length for completed trips, or date-diff fallback.
-    let daysAbroad = 0;
-    for (const t of completed) {
-      if (t.trip_length && t.trip_length > 0) {
-        daysAbroad += t.trip_length;
-        continue;
-      }
-      if (!t.start_date || !t.end_date) continue;
-      const s = new Date(t.start_date + 'T12:00:00').getTime();
-      const e = new Date(t.end_date + 'T12:00:00').getTime();
-      if (!isNaN(s) && !isNaN(e) && e >= s) {
-        daysAbroad += Math.ceil((e - s) / (1000 * 60 * 60 * 24));
-      }
-    }
+    // Days abroad — sum of each completed trip's length (shared helper).
+    const daysAbroad = completed.reduce((sum, t) => sum + tripDays(t), 0);
 
     // Photo count — for the Photo Journalist badge.
     const { count: photoCountRaw } = await supabase
