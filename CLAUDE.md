@@ -250,6 +250,15 @@ These are the active items to build/fix, in rough priority order. Note: this lis
 - [ ] **Storage cruft cleanup (low priority)** — photo-upload audit 2026-05-25: the `trip-photos` bucket has 7 orphan objects (all Apr 17–May 9, pre-fix era) with no matching `trip_photos` row, and the `avatars` bucket accumulates superseded avatars (timestamped paths, no delete-on-replace). Both are harmless storage cost, not correctness — the current upload path cleans up the storage object on a failed DB insert, so no NEW orphans accrue. Optional housekeeping script if storage cost ever matters.
 
 ### 🟢 Go-Live Prerequisites (Brandon-owned)
+- [ ] **Lowercase `tripcoord` rebrand — remaining steps.** Product copy, email templates/bodies, comments, affiliate tracking params, and forward-looking docs were rebranded + pushed 2026-05-25 (commit `910e3e1`, `tsc` clean — pure 1:1 token swap, no identifiers touched). Old variants (Wayfare / TripHive / TripCoord) are gone from app code. Brand is **strictly lowercase everywhere**. What's left is dashboard/infra work:
+  - [ ] **GitHub:** rename repo `TripHive` → `tripcoord` (Settings). Old URL auto-redirects, so nothing breaks immediately. _Then ask Claude to run `git remote set-url origin https://github.com/bhickle/tripcoord.git`._
+  - [ ] **Vercel:** rename project `TripHive` → `tripcoord` (Settings → General; project ID `prj_…` unchanged, deploys unaffected, git link follows the GitHub rename).
+  - [ ] **Vercel env:** set `SENDGRID_FROM_EMAIL=noreply@tripcoord.ai` (also tracked in the env-vars table above).
+  - [ ] **Supabase Auth → Email Templates:** paste the updated copy from `email-templates/confirm-signup.html` + `email-templates/reset-password.html` (live emails are dashboard-configured; the files are just source).
+  - [ ] **Supabase (optional, cosmetic):** rename the project display name (ref `pqizuvmtertpxhhxyemj` is immutable — nothing connects by name).
+  - [ ] **SendGrid:** update the verified sender's display name if it still reads "TripCoord" (code now sends as `tripcoord`).
+  - [ ] **Claude can do on request:** (a) read-only Supabase content scan (discover/featured/seasonal/notifications rows) for any stored "TripCoord" strings; (b) sweep `/mockups/*` (still say `TRIPCOORD`) and the stale `wayfare` path note in `CLAUDE_CODE_FIXLIST.md:296`.
+  - Note: the **local folder stays `TripHive`** on purpose — it's wired into the Claude project path; renaming gains nothing and breaks local config.
 - [ ] Re-enable email confirmation in Supabase (currently OFF for testing ease)
 - [ ] Complete SendGrid domain authentication so emails land in inbox, not spam
 - [ ] Add `/auth/update-password` to Supabase redirect allowlist
