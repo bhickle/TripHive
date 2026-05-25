@@ -17,6 +17,9 @@ import {
   ExternalLink,
   Clock,
   Utensils,
+  Camera,
+  Music,
+  ShoppingBag,
   Star,
   Search,
   Loader2,
@@ -57,6 +60,7 @@ import {
   Wand2,
   Globe2,
   Share2,
+  type LucideIcon,
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -120,13 +124,13 @@ const transportConfig: Record<
 // appear here as separate sidebar lists.
 type HighlightCategory = 'photo' | 'food' | 'nightlife' | 'shopping';
 const HIGHLIGHT_CATEGORY_META: Record<HighlightCategory, {
-  icon: string; label: string;
+  icon: LucideIcon; label: string;
   bg: string; border: string; text: string; textMuted: string; pill: string; tipText: string;
 }> = {
-  photo:     { icon: '📸', label: 'Photo',     bg: 'bg-violet-50',   border: 'border-violet-100',   text: 'text-violet-900',   textMuted: 'text-violet-600',   pill: 'bg-violet-100 text-violet-700 border-violet-200',     tipText: 'text-violet-700' },
-  food:      { icon: '🍴', label: 'Food',      bg: 'bg-rose-50',     border: 'border-rose-100',     text: 'text-rose-900',     textMuted: 'text-rose-600',     pill: 'bg-rose-100 text-rose-700 border-rose-200',           tipText: 'text-rose-700' },
-  nightlife: { icon: '🎶', label: 'Nightlife', bg: 'bg-fuchsia-50',  border: 'border-fuchsia-100',  text: 'text-fuchsia-900',  textMuted: 'text-fuchsia-600',  pill: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',  tipText: 'text-fuchsia-700' },
-  shopping:  { icon: '🛍️', label: 'Shopping',  bg: 'bg-emerald-50',  border: 'border-emerald-100',  text: 'text-emerald-900',  textMuted: 'text-emerald-600',  pill: 'bg-emerald-100 text-emerald-700 border-emerald-200',  tipText: 'text-emerald-700' },
+  photo:     { icon: Camera,      label: 'Photo',     bg: 'bg-violet-50',   border: 'border-violet-100',   text: 'text-violet-900',   textMuted: 'text-violet-600',   pill: 'bg-violet-100 text-violet-700 border-violet-200',     tipText: 'text-violet-700' },
+  food:      { icon: Utensils,    label: 'Food',      bg: 'bg-rose-50',     border: 'border-rose-100',     text: 'text-rose-900',     textMuted: 'text-rose-600',     pill: 'bg-rose-100 text-rose-700 border-rose-200',           tipText: 'text-rose-700' },
+  nightlife: { icon: Music,       label: 'Nightlife', bg: 'bg-fuchsia-50',  border: 'border-fuchsia-100',  text: 'text-fuchsia-900',  textMuted: 'text-fuchsia-600',  pill: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',  tipText: 'text-fuchsia-700' },
+  shopping:  { icon: ShoppingBag, label: 'Shopping',  bg: 'bg-emerald-50',  border: 'border-emerald-100',  text: 'text-emerald-900',  textMuted: 'text-emerald-600',  pill: 'bg-emerald-100 text-emerald-700 border-emerald-200',  tipText: 'text-emerald-700' },
 };
 
 // ─── transportToNext helpers ──────────────────────────────────────────────────
@@ -4587,6 +4591,7 @@ function ItineraryPageContent() {
                       <div className="space-y-3">
                         {items.map((item, idx) => {
                           const meta = HIGHLIGHT_CATEGORY_META[item.category];
+                          const CatIcon = meta.icon;
                           const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.name} ${item.neighborhood ?? ''} ${aiMeta?.destination ?? ''}`.trim())}`;
                           // Verify-open lookup for sidebar items. Hit on
                           // food/nightlife/shopping/photo categories which are
@@ -4610,7 +4615,7 @@ function ItineraryPageContent() {
                                   into one-letter-per-line columns. Stacking
                                   guarantees the name always has full row width. */}
                               <div className="flex items-start gap-1.5 mb-1 min-w-0">
-                                <span className="text-base flex-shrink-0 leading-tight" title={meta.label}>{meta.icon}</span>
+                                <CatIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${meta.textMuted}`} aria-label={meta.label} />
                                 <p className={`text-sm font-semibold ${meta.text} leading-snug break-words min-w-0 flex-1 [overflow-wrap:anywhere]`}>{item.name}</p>
                                 {iClosed && (
                                   <span

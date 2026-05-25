@@ -697,6 +697,26 @@ export default function DiscoverPage() {
       setCommunityTrips(prev => prev.map(t =>
         t.id === tripId ? { ...t, likeCount: data.count ?? t.likeCount } : t
       ));
+      // Per product: hearting a community trip also saves it to On My Radar.
+      // Additive + best-effort — only when newly liking, and we swallow
+      // failures (e.g. a free-tier user without wishlist access). Unliking
+      // deliberately does NOT remove the radar item, so we never delete
+      // something the user may want to keep.
+      if (!isLiked) {
+        const trip = communityTrips.find(t => t.id === tripId);
+        if (trip) {
+          fetch('/api/wishlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              destination: trip.destination,
+              coverImage: trip.coverImage ?? undefined,
+              tags: [],
+              notes: `Saved from a community itinerary${trip.organizerName ? ` by ${trip.organizerName.split(/\s+/)[0]}` : ''}.`,
+            }),
+          }).catch(() => { /* best-effort — the like itself already succeeded */ });
+        }
+      }
     } catch {
       // Roll back
       setCommunityLikedIds(prev => {
