@@ -755,17 +755,24 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // Overall progress
+  // Overall progress — documents + logistics + BOTH packing lists (group + my
+  // pack), read from the LIVE state the tabs actually update. The old code
+  // counted a stale `packingItems` mirror of the group list only, so My Pack
+  // never counted toward the headline % and a group-pack toggle didn't move
+  // this bar until reload. (Gifts/souvenirs are intentionally excluded —
+  // buying them is a trip-time activity, not pre-departure readiness.)
   const allDocTasks = [...documentTasks, ...customDocTasks];
   const allLogTasks = [...logisticsTasks, ...customLogTasks];
-  const allPackItems = [...packingItems, ...customPackItems];
 
   const docCompleted = allDocTasks.filter(t => completedTasks.has(t.id) || (customDocTasks.some(ct => ct.id === t.id) && customDocTasks.find(ct => ct.id === t.id)?.completed)).length;
   const logCompleted = allLogTasks.filter(t => completedTasks.has(t.id) || (customLogTasks.some(ct => ct.id === t.id) && customLogTasks.find(ct => ct.id === t.id)?.completed)).length;
-  const packCompleted = allPackItems.filter(i => packedItems.has(i.id) || (customPackItems.some(cp => cp.id === i.id) && customPackItems.find(cp => cp.id === i.id)?.packed)).length;
+  const packCompleted =
+    groupPackItems.filter(i => groupPackedItems.has(i.id)).length +
+    myPackItems.filter(i => myPackedItems.has(i.id)).length;
 
   const totalCompleted = docCompleted + logCompleted + packCompleted;
-  const totalItems = (allDocTasks.length || 1) + (allLogTasks.length || 1) + (allPackItems.length || 1);
+  const totalItems = (allDocTasks.length || 1) + (allLogTasks.length || 1)
+    + (groupPackItems.length + myPackItems.length || 1);
   const overallProgress = Math.round((totalCompleted / totalItems) * 100);
 
   // ─── Checkmark SVG helper ──────────────────────────────────────────────────

@@ -904,6 +904,17 @@ function TripBuilderPage() {
       organizerPace: state.pace,
         ageRanges: state.ageRanges,
         accessibilityNeeds: state.accessibilityNeeds,
+        // Persisted so regenerate (which rebuilds from saved preferences) doesn't
+        // lose them. Previously dropped: date night, must-haves, free-text notes,
+        // daily outlines, and — critically — the multi-city route, which made
+        // multi-city trips regenerate as single-city.
+        dateNight: state.dateNight,
+        mustHaves: state.mustHaves,
+        additionalContext: state.additionalContext,
+        knowsDailyPlans: state.knowsDailyPlans,
+        dailyOutlines: state.dailyOutlines,
+        destinations: state.destinations,
+        daysPerDestination: state.daysPerDestination,
         ...(state.hasPreBookedCar && state.bookedCar ? { bookedCar: state.bookedCar } : {}),
       },
     };

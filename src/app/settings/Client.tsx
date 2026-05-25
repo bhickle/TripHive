@@ -82,7 +82,7 @@ const PLAN_DISPLAY: Record<string, { name: string; price: string; per: string; g
 export default function SettingsPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
-  const { user, profile: authProfile, isLoading: authLoading } = useAuth();
+  const { user, profile: authProfile, isLoading: authLoading, refreshProfile } = useAuth();
   const [activeSection, setActiveSection] = useState<ActiveSection>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingPersona, setEditingPersona] = useState(false);
@@ -247,6 +247,9 @@ export default function SettingsPage() {
           // server-side path includes a timestamp, but mid-session swaps
           // benefit from the extra query string).
           setProfile(prev => ({ ...prev, avatarUrl: `${url}?t=${Date.now()}` }));
+          // Re-pull the profile so the sidebar avatar (driven by AuthContext)
+          // updates immediately instead of staying stale until a hard reload.
+          await refreshProfile();
         }
       } else {
         // Guest / no Supabase — show local preview only
@@ -321,6 +324,8 @@ export default function SettingsPage() {
     if (savedOk) {
       setEditingProfile(false);
       setProfileSaved(true);
+      // Sync AuthContext so the sidebar name/avatar reflect the save in-session.
+      await refreshProfile();
       setTimeout(() => setProfileSaved(false), 2000);
     } else {
       setProfileSaveError(true);

@@ -462,15 +462,10 @@ function ItineraryPageContent() {
   const [liveBuildError, setLiveBuildError]       = useState<string | null>(null);
   const liveBuildStarted                          = useRef(false);  // prevent double-run in StrictMode
 
-  // Extra transport legs added live via the parser (keyed by day number)
-  const [addedTransport, setAddedTransport] = useState<Record<number, TransportLeg[]>>({});
-
-  const handleTransportAdded = useCallback((leg: TransportLeg) => {
-    setAddedTransport(prev => ({
-      ...prev,
-      [selectedDay]: [...(prev[selectedDay] ?? []), leg],
-    }));
-  }, [selectedDay]);
+  // handleTransportAdded is defined later (after persistDays + activeDays) so a
+  // parsed transport leg is written onto its day and persisted — not held in
+  // ephemeral state. The parser charges an AI credit, so the result must
+  // survive reload.
 
   // Voting: { [activityId]: { up: number, down: number, myVote: 'up'|'down'|null } }
   const [votes, setVotes] = useState<Record<string, { up: number; down: number; myVote: 'up' | 'down' | null }>>({});
@@ -765,6 +760,26 @@ function ItineraryPageContent() {
     const accommodationTypeVal = mergedPrefs.accommodationType;
     const accommodationType = Array.isArray(accommodationTypeVal) ? (accommodationTypeVal as string[]).join(', ') : (typeof accommodationTypeVal === 'string' ? accommodationTypeVal : '');
 
+    // Multi-city route for regenerate. Prefer the persisted route; if it's
+    // missing (trips saved before destinations/daysPerDestination were
+    // persisted), derive it from the existing days' per-day `city` so a
+    // multi-city trip doesn't silently regenerate as single-city.
+    let destinationsForRegen = pickArr('destinations');
+    let daysPerDestForRegen: Record<string, number> =
+      (mergedPrefs.daysPerDestination && typeof mergedPrefs.daysPerDestination === 'object' && !Array.isArray(mergedPrefs.daysPerDestination))
+        ? (mergedPrefs.daysPerDestination as Record<string, number>)
+        : {};
+    if (destinationsForRegen.length < 2) {
+      const counts: Record<string, number> = {};
+      for (const d of (aiDaysRef.current ?? [])) {
+        const c = (d as ItineraryDay).city?.trim();
+        if (c) counts[c] = (counts[c] ?? 0) + 1;
+      }
+      const cities = Object.keys(counts);
+      if (cities.length > 1) { destinationsForRegen = cities; daysPerDestForRegen = counts; }
+    }
+    const bookedCarForRegen = (mergedPrefs.bookedCar && typeof mergedPrefs.bookedCar === 'object') ? mergedPrefs.bookedCar : null;
+
     const payload = {
       destination,
       tripLength: aiDaysRef.current?.length || tripRow?.trip_length || 7,
@@ -790,6 +805,11 @@ function ItineraryPageContent() {
       accommodationType,
       bookedHotels: aiMeta?.bookedHotels || tripRow?.booked_hotels || [],
       bookedFlight: tripRow?.booked_flight || null,
+      bookedCar: bookedCarForRegen,
+      // Multi-city route — without these the live-build effect can't rebuild
+      // city segments and a multi-city trip regenerates as single-city.
+      destinations: destinationsForRegen,
+      daysPerDestination: daysPerDestForRegen,
       preferences: mergedPrefs,
       tripId: tripPageId,
       existingTripId: tripPageId,
@@ -1926,7 +1946,12 @@ function ItineraryPageContent() {
       const res = await fetch(`/api/trips/${tripId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tripPatch: { booked_hotels: updated } }),
+        body: JSON.stringify({
+          tripPatch: { booked_hotels: updated },
+          // Keep itineraries.meta.bookedHotels in sync (the itinerary reads
+          // hotels from meta on reload).
+          metaPatch: { bookedHotels: updated },
+        }),
       });
       if (!res.ok) throw new Error(`delete failed: ${res.status}`);
     } catch {
@@ -2099,6 +2124,18 @@ function ItineraryPageContent() {
         });
     }
   }, [params.id]);
+
+  // Persist a parsed transport leg onto its day so it survives reload + syncs
+  // to Supabase (the parser charges an AI credit — the result can't be
+  // ephemeral). Matches the day by its 1-based `day` number (= selectedDay).
+  const handleTransportAdded = useCallback((leg: TransportLeg) => {
+    const updated = (activeDays as ItineraryDay[]).map(d =>
+      d.day === selectedDay
+        ? { ...d, transportLegs: [...(d.transportLegs ?? []), leg] }
+        : d,
+    );
+    persistDays(updated);
+  }, [activeDays, selectedDay, persistDays]);
 
   // ─── Save activity (add new or update existing) ──────────────────────────────
   const handleSubmit = () => {
@@ -2770,7 +2807,7 @@ function ItineraryPageContent() {
         data: a,
         sortTime: parseTime(a.timeSlot?.split(/–|—/)[0]?.trim() ?? '00:00'),
       })),
-    ...[...(currentDayData.transportLegs ?? []), ...(addedTransport[selectedDay] ?? [])].map((leg: TransportLeg) => ({
+    ...(currentDayData.transportLegs ?? []).map((leg: TransportLeg) => ({
       kind: 'transport' as const,
       data: leg,
       // Sort by meet time if present, otherwise departure time
@@ -3041,7 +3078,7 @@ function ItineraryPageContent() {
             <p className="text-sm text-zinc-500">
               {sortedActivities.length} {sortedActivities.length === 1 ? 'activity' : 'activities'}
               {(() => {
-                const total = (currentDayData.transportLegs?.length ?? 0) + (addedTransport[selectedDay]?.length ?? 0);
+                const total = currentDayData.transportLegs?.length ?? 0;
                 return total > 0
                   ? <span className="text-zinc-400"> · {total} transport {total === 1 ? 'leg' : 'legs'}</span>
                   : null;
@@ -3645,7 +3682,7 @@ function ItineraryPageContent() {
           <div className="mb-6">
             <MapView
               activities={sortedActivities}
-              transportLegs={[...(currentDayData.transportLegs ?? []), ...(addedTransport[selectedDay] ?? [])]}
+              transportLegs={currentDayData.transportLegs ?? []}
               hotels={(aiMeta?.bookedHotels ?? []).map(h => ({ name: h.name, address: h.address ?? undefined }))}
               destination={currentDayData?.city ?? trip.destination}
             />
@@ -5290,7 +5327,13 @@ function ItineraryPageContent() {
                     const res = await fetch(`/api/trips/${tripPageId}`, {
                       method: 'PATCH',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ tripPatch: { booked_hotels: updatedHotels } }),
+                      body: JSON.stringify({
+                        tripPatch: { booked_hotels: updatedHotels },
+                        // Keep itineraries.meta.bookedHotels in sync — the
+                        // itinerary reads hotels from aiMeta (meta) on reload,
+                        // so a trips-only write would vanish on refresh.
+                        metaPatch: { bookedHotels: updatedHotels },
+                      }),
                     });
                     if (!res.ok) throw new Error('Save failed');
                     // Update local tripRow AND aiMeta so Tonight's Stay card reflects immediately

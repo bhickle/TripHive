@@ -578,6 +578,10 @@ export default function WishlistPage() {
           bestSeason: item.bestSeason,
           estimatedCost: item.estimatedCost,
           tags: item.tags,
+          // Without these the pasted source link + notes from the Add
+          // Destination modal were dropped on create (the route supports both).
+          links: item.links ?? [],
+          notes: item.notes,
         }),
       });
       if (res.ok) {
