@@ -60,6 +60,8 @@ import {
   Wand2,
   Globe2,
   Share2,
+  Hotel,
+  Plane,
   type LucideIcon,
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -3177,13 +3179,13 @@ function ItineraryPageContent() {
                     }}
                     className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
                   >
-                    <span className="text-base leading-none">🏨</span> Hotel
+                    <Hotel className="w-4 h-4 text-sky-600" /> Hotel
                   </button>
                   <button
                     onClick={() => { setShowAddFlightModal(true); setShowAddMenu(false); }}
                     className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
                   >
-                    <span className="text-base leading-none">✈️</span> Flight
+                    <Plane className="w-4 h-4 text-sky-600" /> Flight
                   </button>
                   {/* Revert to original — destructive, shown only when an AI
                       baseline snapshot exists. Separated by a divider and
@@ -5502,7 +5504,7 @@ function ItineraryPageContent() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
-                <span className="text-2xl">✈️</span> Add Flight
+                <Plane className="w-6 h-6 text-sky-600" /> Add Flight
               </h2>
               <button onClick={() => { setShowAddFlightModal(false); setBookingError(null); }} className="p-1.5 rounded-full hover:bg-zinc-100">
                 <X className="w-4 h-4 text-zinc-500" />
