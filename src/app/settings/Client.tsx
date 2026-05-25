@@ -6,8 +6,8 @@ import { Sidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAuth } from '@/context/AuthContext';
-import { PRICING } from '@/hooks/useEntitlements';
-import { TIER_LIMITS } from '@/lib/types';
+import { PRICING, getTierFeatures } from '@/hooks/useEntitlements';
+import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
 import {
   User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, Settings as SettingsIcon,
   ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap, Loader2,
@@ -73,52 +73,9 @@ const PLAN_DISPLAY: Record<string, { name: string; price: string; per: string; g
   trip_pass: { name: 'Trip Pass', price: `$${PRICING.trip_pass.base}`,   per: '/trip',  gradient: 'bg-gradient-to-br from-amber-600 to-rose-700' },
 };
 
-const PLAN_FEATURES: Record<string, string[]> = {
-  free: [
-    'Unlimited trips',
-    'Up to 4 travelers',
-    '25 AI credits / month (1 build)',
-    'Manual itinerary builder',
-    'Group chat & photo gallery',
-    'Community support',
-  ],
-  explorer: [
-    'Unlimited trips',
-    'Up to 8 travelers',
-    '100 AI credits / month (~4 builds)',
-    'AI itinerary generation',
-    'Transport confirmation parser',
-    'Trip Story & photo gallery',
-    'Packing & prep checklists',
-    'Wishlist & destination discovery',
-    'Email support',
-  ],
-  nomad: [
-    'Unlimited trips',
-    'Up to 15 travelers',
-    '250 AI credits / month (~10 builds)',
-    'AI itinerary generation',
-    'Transport confirmation parser',
-    'Split-track itineraries',
-    'Co-organizer role',
-    'Trip Story & photo gallery',
-    'AI packing list (destination-specific)',
-    'AI travel phrasebook',
-    'Packing & prep checklists',
-    'Wishlist & destination discovery',
-    'Early access to new features',
-    'Priority support',
-  ],
-  trip_pass: [
-    '1 trip, up to 6 travelers',
-    '50 AI credits (1 build + 1 regen + 5 tweaks)',
-    'AI itinerary generation',
-    'Transport confirmation parser',
-    'Trip Story & photo gallery',
-    'Packing & prep checklists',
-    'Email support',
-  ],
-};
+// Subscription feature lists are derived from TIER_LIMITS via getTierFeatures()
+// (in useEntitlements) so Settings, Pricing, and the upgrade modal all stay in
+// sync with the actual tier definitions instead of hand-maintained copy.
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -503,7 +460,7 @@ export default function SettingsPage() {
         : (currentUser.subscriptionTier ?? 'free'));
   const tier = (rawTier in PLAN_DISPLAY) ? rawTier : 'free';
   const plan = PLAN_DISPLAY[tier];
-  const planFeatures = PLAN_FEATURES[tier] ?? PLAN_FEATURES.free;
+  const planFeatures = getTierFeatures(tier as SubscriptionTier);
   // True only when we have a trusted tier source — either the live
   // authProfile or a previously-written cache. Without this flag, a
   // paid user whose profile hasn't loaded and has no cache flashes the

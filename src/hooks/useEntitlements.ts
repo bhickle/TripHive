@@ -46,6 +46,66 @@ export const PRICING = {
   },
 } as const;
 
+// ─── Tier feature list (single source of truth for subscription copy) ─────────
+
+/**
+ * Derives the human-readable feature list for a tier straight from
+ * TIER_LIMITS (+ PRICING for credits). Use this everywhere subscription
+ * features are displayed (Settings, Pricing, UpgradeModal) so a change to
+ * TIER_LIMITS propagates everywhere instead of drifting out of hand-kept
+ * copy. Returns the lines in a sensible display order.
+ */
+export function getTierFeatures(tier: SubscriptionTier): string[] {
+  const t = TIER_LIMITS[tier];
+  const features: string[] = [];
+
+  // Travelers
+  features.push(
+    tier === 'trip_pass'
+      ? `1 trip, up to ${PRICING.trip_pass.baseGroupSize} travelers`
+      : `Up to ${t.travelersPerTrip} travelers`,
+  );
+
+  // AI credits (+ rough build count; a build costs 25 credits)
+  const credits = tier === 'trip_pass'
+    ? PRICING.trip_pass.aiCredits
+    : (typeof t.aiCreditsPerMonth === 'number' ? t.aiCreditsPerMonth : 0);
+  if (credits > 0) {
+    if (tier === 'trip_pass') {
+      features.push(`${credits} AI credits (1 build + 1 regen + 5 tweaks)`);
+    } else {
+      const builds = Math.max(1, Math.round(credits / 25));
+      features.push(`${credits} AI credits / month (~${builds} build${builds === 1 ? '' : 's'})`);
+    }
+  }
+
+  // Trip length
+  features.push(`Up to ${t.maxTripDays}-day trips`);
+
+  // Capability flags → labels (only listed when the tier actually has them)
+  if (t.canUseAI) features.push('AI itinerary generation');
+  if (t.canUseSplitTracks) features.push('Split-track itineraries');
+  if (t.canAddCoOrganizer) features.push('Co-organizer role');
+  if (t.canUseTransportParser) features.push('Transport confirmation parser');
+  if (t.canUseExpenses) features.push('Group expense tracking');
+  if (t.canUseAIReceiptScan) features.push('AI receipt scanning');
+  if (t.canUseAIPacking) features.push('AI packing list (destination-specific)');
+  if (t.canUseAIPhrasebook) features.push('AI travel phrasebook');
+  if (t.canUseTripStory) features.push('Trip Story & photo gallery');
+  if (t.canUseYearInReview) features.push('Year in Review');
+  if (t.canUseWishlist) features.push('Wishlist & destination discovery');
+  if (t.earlyAccess) features.push('Early access to new features');
+
+  // Support level
+  features.push(
+    t.supportLevel === 'priority' ? 'Priority support'
+      : t.supportLevel === 'email' ? 'Email support'
+        : 'Community support',
+  );
+
+  return features;
+}
+
 // ─── Upgrade messaging ────────────────────────────────────────────────────────
 
 export type UpgradeReason =
