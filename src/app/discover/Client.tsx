@@ -9,7 +9,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
   Globe2, ArrowRight, Sparkles, Clock, Lock, TrendingUp,
-  ExternalLink, Sun, Sunset, Moon, ChevronRight, MapPin, Calendar,
+  ExternalLink, Sun, Sunset, Moon, ChevronLeft, ChevronRight, MapPin, Calendar,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { ForkTripModal } from '@/components/ForkTripModal';
@@ -499,6 +499,13 @@ export default function DiscoverPage() {
   const [loadingFeaturedDays, setLoadingFeaturedDays] = useState(false);
   const [communityTrips, setCommunityTrips] = useState<CommunityTrip[]>([]);
   const [communityLikedIds, setCommunityLikedIds] = useState<Set<string>>(new Set());
+  // Horizontal "arrow-over" carousel for the community rail (not a stacking grid).
+  const communityRailRef = useRef<HTMLDivElement>(null);
+  const scrollCommunityRail = (dir: -1 | 1) => {
+    const el = communityRailRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.9), behavior: 'smooth' });
+  };
   const [forkingId, setForkingId] = useState<string | null>(null);
   // The modal opens with a pending trip target; null means closed.
   const [pendingForkTrip, setPendingForkTrip] = useState<CommunityTrip | null>(null);
@@ -1072,13 +1079,35 @@ export default function DiscoverPage() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {communityTrips.map(trip => {
+                <div className="relative">
+                  {/* Arrow-over carousel: a few cards visible, arrow through the
+                      rest — not a stacking grid that grows downward. */}
+                  <button
+                    type="button"
+                    onClick={() => scrollCommunityRail(-1)}
+                    aria-label="Scroll left"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollCommunityRail(1)}
+                    aria-label="Scroll right"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <div
+                    ref={communityRailRef}
+                    className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    {communityTrips.map(trip => {
                     const liked = communityLikedIds.has(trip.id);
                     return (
                       <div
                         key={trip.id}
-                        className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                        className="snap-start shrink-0 w-[300px] sm:w-[330px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
                       >
                         <Link href={`/community/${trip.id}`} className="block group">
                           <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
@@ -1143,6 +1172,7 @@ export default function DiscoverPage() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               )}
             </section>

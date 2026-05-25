@@ -20,8 +20,7 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '12', 10) || 12, 30);
-    const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10) || 0, 0);
+    const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '9', 10) || 9, 30);
 
     const supabase = createAdminClient();
 
@@ -40,7 +39,7 @@ export async function GET(req: Request) {
       .select('id, title, destination, start_date, end_date, trip_length, cover_image, cover_image_meta, group_size, organizer_id, created_at')
       .eq('is_public_template', true)
       .order('created_at', { ascending: false })
-      .range(offset, offset + limit + 19); // pull a small overshoot so we can sort by likes after counting
+      .limit(60); // pull a recent pool; we randomly sample `limit` from it below
 
     if (tripsErr) {
       console.error('community list error:', tripsErr);
@@ -122,11 +121,13 @@ export async function GET(req: Request) {
       createdAt: t.created_at,
     }));
 
-    enriched.sort((a, b) => {
-      if (b.likeCount !== a.likeCount) return b.likeCount - a.likeCount;
-      if (b.planClickCount !== a.planClickCount) return b.planClickCount - a.planClickCount;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    // Random sample — the community rail should feel fresh and varied, not
+    // always the same top-liked trips, and shouldn't dump every public trip
+    // on screen. Fisher-Yates shuffle, then cap at `limit`.
+    for (let i = enriched.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [enriched[i], enriched[j]] = [enriched[j], enriched[i]];
+    }
 
     return NextResponse.json({ trips: enriched.slice(0, limit) });
   } catch (err) {
