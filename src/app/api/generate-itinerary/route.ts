@@ -1033,12 +1033,13 @@ You MUST follow ALL of these rules:
     ? { breakfast: 2, lunch: 2, dinner: 3 }
     : { breakfast: 2, lunch: 3, dinner: 4 };
 
-  // Hard ceiling on priceLevel across all restaurant activities. The
-  // AI occasionally ignored per-meal priceLevel guidance and wrote 4
-  // ($$$$) on default-budget trips. This cap is used both in the prompt
-  // (Rule 4) and in a server-side clamp after streaming. Mid-range and
-  // comfort travelers should never see $$$$ — only the LUXURY tier.
-  const maxRestaurantPriceLevel = budgetTierLevel < 85 ? 3 : 4;
+  // Hard ceiling on priceLevel across all restaurant activities, enforced
+  // both in the prompt (Rule 4) and in a server-side clamp after streaming.
+  // Tiered so $$$/$$$$ are reserved for higher budgets — previously every
+  // tier below LUXURY shared a $$$ ceiling, so mid-budget ("middle of the
+  // slider") trips still drifted into $$$ restaurants:
+  //   BUDGET / MID (<60) → $$ max · COMFORT (<85) → $$$ · LUXURY (>=85) → $$$$
+  const maxRestaurantPriceLevel = budgetTierLevel < 60 ? 2 : budgetTierLevel < 85 ? 3 : 4;
   // Michelin / tasting-menu language is allowed only at LUXURY tier;
   // at every other tier the prompt explicitly forbids it.
   const michelinAllowed = budgetTierLevel >= 85;
@@ -1396,7 +1397,7 @@ RULES:
 1. Use REAL venue names and real addresses for ${destination}
 2. Include 4-6 activities per day total (including the 3 required meals), spread naturally across the day. EVERY day's schedule MUST extend from morning through evening — never end a day's activity list at midday or early afternoon. The last activity of every day should fall in the late afternoon, evening, or night (typically the dinner restaurant or a post-dinner experience). If you find yourself running out of room while emitting a day, drop a sidebar entry (one nightlifeHighlight, one shoppingGuide entry, one photoSpot) BEFORE you cut activities short.
 3. timeSlot format must be "HH:MM–HH:MM" using an en-dash (–)
-4. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$. **HARD CEILING: for restaurant activities on this trip, priceLevel MUST be ≤ ${maxRestaurantPriceLevel}.** Do not emit priceLevel 4 unless the budget tier is LUXURY. Mid-range and comfort travellers should see a mix of $$ and $$$ — never $$$$. Michelin-starred or tasting-menu restaurants ${michelinAllowed ? 'are explicitly welcome on this trip (LUXURY tier)' : 'must NOT appear on this trip — pick neighborhood favorites, local institutions, and well-reviewed mid-tier spots instead'}.
+4. priceLevel: 0=free, 1=$, 2=$$, 3=$$$, 4=$$$$. **HARD CEILING: for restaurant activities on this trip, priceLevel MUST be ≤ ${maxRestaurantPriceLevel}.** Do not emit priceLevel 4 unless the budget tier is LUXURY. Budget and mid-range trips should center on $ and $$ (never $$$ or $$$$); comfort trips may add $$$; only LUXURY uses $$$$. Michelin-starred or tasting-menu restaurants ${michelinAllowed ? 'are explicitly welcome on this trip (LUXURY tier)' : 'must NOT appear on this trip — pick neighborhood favorites, local institutions, and well-reviewed mid-tier spots instead'}.
 5. costEstimate is per-person in USD
 6. id format: "act_d{dayNumber}_{index}" (e.g. act_d1_1, act_d1_2)
 7. Day themes should be evocative and specific: "Golden Circle & Geysers" not "Sightseeing Day"
@@ -1763,7 +1764,7 @@ export async function POST(request: NextRequest) {
   // budgetTierLevel defaults to 50 (MID-RANGE) when curiosityLevel is
   // missing — matches buildPrompt's `curiosityLevel ?? 50`.
   const streamBudgetTier = (body.curiosityLevel as number | undefined) ?? 50;
-  const maxRestaurantPriceLevel = streamBudgetTier < 85 ? 3 : 4;
+  const maxRestaurantPriceLevel = streamBudgetTier < 60 ? 2 : streamBudgetTier < 85 ? 3 : 4;
 
   // Featured Itinerary backbone: when the user comes from "Start planning
   // this trip" on /discover/[slug], Trip Builder sends featuredSlug. We
