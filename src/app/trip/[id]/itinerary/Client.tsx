@@ -7,7 +7,7 @@ import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
 import { normalizeVenueKey } from '@/lib/places/verifyVenues';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
 import { parseGoogleMapsUrl, isGoogleMapsUrl } from '@/lib/google/parseMapsUrl';
-import { hotelBookingUrl, AFFILIATE_DISCLOSURE } from '@/lib/affiliate';
+import { activityBookingUrl, hotelBookingUrl, AFFILIATE_DISCLOSURE } from '@/lib/affiliate';
 import {
   Plus,
   Cloud,
@@ -4263,6 +4263,30 @@ function ItineraryPageContent() {
                                 <Search className="w-3 h-3" />
                                 Search Google
                               </a>
+                              {/* Gated affiliate "Book this" — activities only
+                                  (restaurants excluded; book-a-table is a
+                                  different partner). Renders only when an
+                                  activities affiliate is configured; see
+                                  lib/affiliate.ts. */}
+                              {!activity.isRestaurant && (() => {
+                                const bookUrl = activityBookingUrl({
+                                  name: actName,
+                                  city: currentDayData.city ?? aiMeta?.destination ?? trip.destination,
+                                });
+                                return bookUrl ? (
+                                  <a
+                                    href={bookUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer sponsored"
+                                    className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 text-xs font-medium transition-colors"
+                                    onClick={e => e.stopPropagation()}
+                                    title={AFFILIATE_DISCLOSURE}
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Book this
+                                  </a>
+                                ) : null;
+                              })()}
                             </div>
 
                             {/* Packing tips */}

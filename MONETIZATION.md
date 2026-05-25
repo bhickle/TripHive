@@ -81,13 +81,13 @@ You need a **live site with real travel content** (we have it), NOT traffic/esta
 
 ## Phased rollout
 
-- **Phase 0 — pre-launch (in progress):** provider-agnostic affiliate layer that's OFF until env vars are set. Shipped: `src/lib/affiliate.ts` (`activityBookingUrl` / `hotelBookingUrl` / `isAffiliateEnabled` + disclosure), gated hotel CTA in the itinerary "Where to Stay" section. Pending: gated "Book this" on itinerary activity cards (mockup-first — net-new UI element).
+- **Phase 0 — pre-launch (done):** provider-agnostic affiliate layer that's OFF until env vars are set. `src/lib/affiliate.ts` (`activityBookingUrl` / `hotelBookingUrl` / `isAffiliateEnabled` + disclosure); gated hotel CTA in "Where to Stay"; gated "Book this" link in each itinerary activity card's link row (Option A — quiet footer link; restaurants excluded since book-a-table is a different partner).
 - **Phase 1 — launch day:** ship Model A repriced; apply to Travelpayouts + Stay22 + Viator.
 - **Phase 2 — week 1–2:** approvals land → set the `NEXT_PUBLIC_*` IDs in Vercel → affiliate links go live automatically. Review placement/styling before enabling.
 - **Phase 3 — as traffic grows:** add direct/higher-value programs; decide how thin to make the subscription.
 
 ### Commission surfaces in the app
-- Itinerary **activity cards** → "Book this" (Viator/GYG).
+- Itinerary **activity cards** → "Book this" (Viator/GYG). ← wired (gated, non-restaurant)
 - Itinerary **"Where to Stay"** → hotel CTA (Stay22/Booking). ← wired (gated)
 - **Prep / Day-of** → eSIM, insurance, car rental (Travelpayouts).
 - **Featured / Discover** itineraries already render affiliate links — highest-intent surface.
