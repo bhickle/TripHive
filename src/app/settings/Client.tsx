@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAuth } from '@/context/AuthContext';
+import CountryPicker from '@/components/CountryPicker';
 import { PRICING, getTierFeatures } from '@/hooks/useEntitlements';
 import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
 import {
@@ -848,14 +849,12 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-2">Home Country</label>
-                        <input
-                          type="text"
+                        <CountryPicker
                           value={profile.homeCountry}
-                          onChange={e => setProfile({ ...profile, homeCountry: e.target.value })}
+                          onChange={c => setProfile({ ...profile, homeCountry: c })}
                           placeholder="e.g. United States"
-                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
                         />
-                        <p className="text-xs text-slate-400 mt-1">Used for trip personalization. Doesn&apos;t affect the Places Visited count.</p>
+                        <p className="text-xs text-slate-400 mt-1">Personalizes visa &amp; entry tips on every itinerary. Doesn&apos;t affect the Places Visited count.</p>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-2">Default travel partner</label>

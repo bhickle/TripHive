@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { getCountries, detectLocaleCountry } from '@/lib/world/countries';
+import { detectLocaleCountry } from '@/lib/world/countries';
+import CountryPicker from '@/components/CountryPicker';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -63,51 +64,6 @@ function StepDots({ step }: { step: number }) {
   );
 }
 
-// ─── Country picker (searchable) ────────────────────────────────────────────
-
-function CountryPicker({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (country: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const countries = getCountries();
-  const q = query.trim().toLowerCase();
-  const matches = (q ? countries.filter(c => c.name.toLowerCase().includes(q)) : countries).slice(0, 8);
-  return (
-    <div className="relative">
-      <input
-        type="text"
-        value={open ? query : value}
-        placeholder="Start typing your country…"
-        onFocus={() => { setOpen(true); setQuery(''); }}
-        // Delay close so a dropdown click registers before blur fires.
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        className="input-field"
-      />
-      {open && matches.length > 0 && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
-          {matches.map((c) => (
-            <button
-              key={c.code}
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); onChange(c.name); setQuery(''); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-sky-50 transition-colors"
-            >
-              <span className="text-lg">{c.flag}</span>
-              {c.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Step 1: Profile ──────────────────────────────────────────────────────────
 
 function ProfileStep({
@@ -161,7 +117,7 @@ function ProfileStep({
       {/* Home country — personalizes visa/entry tips in Trip Essentials */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">Where do you call home?</label>
-        <CountryPicker value={state.homeCountry} onChange={(c) => onChange({ homeCountry: c })} />
+        <CountryPicker value={state.homeCountry} onChange={(c) => onChange({ homeCountry: c })} inputClassName="input-field" />
         <p className="text-xs text-slate-400 mt-1.5">We use this to tailor visa &amp; entry tips for your trips. You can change it anytime in Settings.</p>
       </div>
 
