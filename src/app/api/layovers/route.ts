@@ -22,6 +22,7 @@ function toClient(row: {
   layover_hours: number | null;
   title: string | null;
   items: Json;
+  suggestions: Json | null;
   created_at: string;
   updated_at: string;
 }) {
@@ -34,6 +35,9 @@ function toClient(row: {
     layoverHours: row.layover_hours,
     title: row.title,
     items: Array.isArray(row.items) ? row.items : [],
+    // The generated suggestions snapshot (LayoverResult) so loading a saved
+    // layover restores the options the user was choosing from — no re-gen.
+    suggestions: row.suggestions ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -83,6 +87,7 @@ export async function POST(req: Request) {
       layover_hours: layoverHours,
       title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : null,
       items: items as unknown as Json,
+      suggestions: (body.suggestions ?? null) as Json,
     })
     .select('*')
     .single();

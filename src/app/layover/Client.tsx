@@ -18,6 +18,7 @@ import {
   Star,
 } from 'lucide-react';
 import Link from 'next/link';
+import { activityBookingUrl, hotelBookingUrl, AFFILIATE_DISCLOSURE } from '@/lib/affiliate';
 
 // ─── Airport lookup data ──────────────────────────────────────────────────────
 
@@ -183,6 +184,9 @@ interface SavedLayover {
   layoverHours: number | null;
   title: string | null;
   items: LayoverSuggestion[];
+  /** Snapshot of the generated suggestions (LayoverResult) so loading a saved
+   *  layover restores the options the user was choosing from — no re-gen. */
+  suggestions: LayoverResult | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -494,15 +498,6 @@ export default function LayoverPlannerPage() {
     }
   }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
 
-  // Load the user's saved layovers for the switcher.
-  useEffect(() => {
-    if (currentUser.isLoading || currentUser.isDemo || !currentUser.id) return;
-    fetch('/api/layovers')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data?.layovers)) setSavedLayovers(data.layovers as SavedLayover[]); })
-      .catch(() => {});
-  }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
-
   const [selectedCode, setSelectedCode] = useState('');
   const [layoverHours, setLayoverHours] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -518,6 +513,39 @@ export default function LayoverPlannerPage() {
   const [accessibilityNeeds, setAccessibilityNeeds] = useState<string[]>([]);
   const [groupType, setGroupType] = useState('');
   const [pendingCode, setPendingCode] = useState('');
+
+  // Load the user's saved layovers for the switcher, and auto-restore the last
+  // one they were working on (basket AND generated suggestions) so leaving and
+  // returning to the page brings everything back.
+  useEffect(() => {
+    if (currentUser.isLoading || currentUser.isDemo || !currentUser.id) return;
+    fetch('/api/layovers')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!Array.isArray(data?.layovers)) return;
+        const list = data.layovers as SavedLayover[];
+        setSavedLayovers(list);
+        let activeId: string | null = null;
+        try { activeId = localStorage.getItem('tripcoord_active_layover'); } catch {}
+        const active = activeId ? list.find(l => l.id === activeId) : null;
+        if (active) {
+          setCurrentLayoverId(active.id);
+          setBasket(Array.isArray(active.items) ? active.items : []);
+          setSelectedCode(active.airportCode);
+          setLayoverHours(active.layoverHours ? String(active.layoverHours) : '');
+          setResult(active.suggestions ?? null);
+        }
+      })
+      .catch(() => {});
+  }, [currentUser.isLoading, currentUser.isDemo, currentUser.id]);
+
+  // Remember which saved layover is active so the mount effect can restore it.
+  useEffect(() => {
+    try {
+      if (currentLayoverId) localStorage.setItem('tripcoord_active_layover', currentLayoverId);
+      else localStorage.removeItem('tripcoord_active_layover');
+    } catch { /* ignore */ }
+  }, [currentLayoverId]);
 
   const popularAirports: AirportOption[] = [
     { code: 'LHR', city: 'London', name: 'London Heathrow' },
@@ -620,6 +648,15 @@ export default function LayoverPlannerPage() {
 
       if (data.error) throw new Error(data.message || 'Generation failed');
       setResult(data);
+      // If editing a saved layover, snapshot the fresh suggestions onto it so
+      // they're restored next time it's loaded (no re-gen needed).
+      if (currentLayoverId && !currentUser.isDemo) {
+        fetch(`/api/layovers/${currentLayoverId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ suggestions: data, layoverHours: hoursNum || undefined }),
+        }).catch(() => {});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -664,6 +701,21 @@ export default function LayoverPlannerPage() {
   };
   const clearBasket = () => { setBasket([]); persistBasket([]); };
 
+  // A hotel suggestion can be added to the basket as a "stay" item (the basket
+  // is LayoverSuggestion[]; hotels map onto it as a relax-category entry).
+  const hotelToBasketItem = (h: HotelSuggestion): LayoverSuggestion => ({
+    id: `hotel-${h.name}`,
+    title: h.name,
+    category: 'relax',
+    duration: 'Overnight / day-use',
+    location: h.distanceFromAirport,
+    description: h.why,
+    distance: h.distanceFromAirport,
+    cost: h.priceRange,
+    rating: h.stars,
+    icon: '🏨',
+  });
+
   // ── Saved layovers ───────────────────────────────────────────────────────────
   const loadLayover = (id: string) => {
     const lay = savedLayovers.find(l => l.id === id);
@@ -672,7 +724,7 @@ export default function LayoverPlannerPage() {
     setBasket(Array.isArray(lay.items) ? lay.items : []);
     setSelectedCode(lay.airportCode);
     setLayoverHours(lay.layoverHours ? String(lay.layoverHours) : '');
-    setResult(null);
+    setResult(lay.suggestions ?? null);
     setShowPreferences(false);
     setError(null);
   };
@@ -701,6 +753,7 @@ export default function LayoverPlannerPage() {
           layoverHours: hoursNum || undefined,
           title: `${selectedCode}${hoursNum ? ` · ${hoursNum} hr` : ''} layover`,
           items: basket,
+          suggestions: result ?? null,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -1062,6 +1115,23 @@ export default function LayoverPlannerPage() {
                           >
                             {isInBasket(item.id) ? '✓ Added' : '+ Add to layover'}
                           </button>
+                          {/* Gated affiliate "Book" — non-food (book-a-table is a
+                              different partner); renders only when an activities
+                              affiliate is configured. */}
+                          {item.category !== 'food' && (() => {
+                            const bookUrl = activityBookingUrl({ name: item.title, city: result.airport.city });
+                            return bookUrl ? (
+                              <a
+                                href={bookUrl}
+                                target="_blank"
+                                rel="noopener noreferrer sponsored"
+                                title={AFFILIATE_DISCLOSURE}
+                                className="px-4 py-2 rounded-lg text-sm font-medium bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors inline-flex items-center gap-1"
+                              >
+                                Book <span className="text-xs">↗</span>
+                              </a>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1130,6 +1200,37 @@ export default function LayoverPlannerPage() {
                             {hotel.checkInNote && (
                               <p className="text-xs text-violet-700 mt-1.5 font-medium">💡 {hotel.checkInNote}</p>
                             )}
+                            <div className="flex items-center gap-3 mt-2.5">
+                              <button
+                                onClick={() => {
+                                  const bi = hotelToBasketItem(hotel);
+                                  if (isInBasket(bi.id)) removeFromBasket(bi.id); else addToBasket(bi);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                  isInBasket(`hotel-${hotel.name}`)
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-sky-100 text-sky-800 hover:bg-sky-200'
+                                }`}
+                              >
+                                {isInBasket(`hotel-${hotel.name}`) ? '✓ Added' : '+ Add to layover'}
+                              </button>
+                              {/* Gated affiliate hotel "Book" — Stay22/Booking; renders
+                                  only when a hotel affiliate provider is configured. */}
+                              {(() => {
+                                const bookUrl = hotelBookingUrl({ query: `${hotel.name} ${result.airport.city}` });
+                                return bookUrl ? (
+                                  <a
+                                    href={bookUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer sponsored"
+                                    title={AFFILIATE_DISCLOSURE}
+                                    className="text-xs font-semibold text-sky-700 hover:text-sky-900 inline-flex items-center gap-1"
+                                  >
+                                    Book <span>↗</span>
+                                  </a>
+                                ) : null;
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </div>

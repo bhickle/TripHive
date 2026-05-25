@@ -19,10 +19,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* allow empty */ }
 
-  const update: { updated_at: string; items?: Json; title?: string | null; layover_hours?: number } = {
+  const update: { updated_at: string; items?: Json; suggestions?: Json; title?: string | null; layover_hours?: number } = {
     updated_at: new Date().toISOString(),
   };
   if (Array.isArray(body.items)) update.items = body.items as unknown as Json;
+  if ('suggestions' in body) update.suggestions = (body.suggestions ?? null) as Json;
   if (typeof body.title === 'string') update.title = body.title.trim() || null;
   if (typeof body.layoverHours === 'number' && body.layoverHours > 0) update.layover_hours = body.layoverHours;
 

@@ -600,6 +600,7 @@ export type Database = {
           id: string
           items: Json
           layover_hours: number | null
+          suggestions: Json | null
           title: string | null
           updated_at: string
           user_id: string
@@ -613,6 +614,7 @@ export type Database = {
           id?: string
           items?: Json
           layover_hours?: number | null
+          suggestions?: Json | null
           title?: string | null
           updated_at?: string
           user_id: string
@@ -626,6 +628,7 @@ export type Database = {
           id?: string
           items?: Json
           layover_hours?: number | null
+          suggestions?: Json | null
           title?: string | null
           updated_at?: string
           user_id?: string
