@@ -797,6 +797,9 @@ function ItineraryPageContent() {
       accessibilityNeeds: pickArr('accessibilityNeeds'),
       mustHaves: pickArr('mustHaves'),
       additionalContext: pickStr('additionalContext'),
+      // Home country of whoever is regenerating (organizer/co-org) — keeps the
+      // Trip Essentials visa note personalized on regen, same as the build.
+      homeCountry: currentUser.homeCountry ?? '',
       localMode: pickBool('localMode'),
       dateNight: pickBool('dateNight'),
       curiosityLevel: pickNum('curiosityLevel'),

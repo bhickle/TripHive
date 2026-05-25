@@ -385,6 +385,9 @@ function buildPrompt(params: {
   destinations?: string[];             // ordered city list for multi-city trips
   daysPerDestination?: Record<string, number>; // optional day allocation per city
   additionalContext?: string;          // free-text notes from the user ("anything else?")
+  /** Organizer's home country. Personalizes the Trip Essentials entry/visa
+   *  note to the traveler's passport instead of assuming a US/EU/UK one. */
+  homeCountry?: string;
   /** Optional per-day outlines from the Trip Builder's "do you generally know
    *  what you want each day?" question. Index = day number - 1; entry is a
    *  short free-text outline the user wrote for that specific day. Empty
@@ -448,6 +451,11 @@ function buildPrompt(params: {
   const destinations = params.destinations ?? [];
   const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
+  // Entry/visa guidance is personalized to the organizer's passport when we
+  // know their home country, instead of the legacy US/EU/UK assumption — the
+  // groundwork for serving non-US travelers.
+  const homeCountry = (params.homeCountry ?? '').trim();
+  const passportClause = homeCountry ? `a ${homeCountry} passport holder` : 'US, EU, and UK passport holders';
   // Per-day outlines from the "do you know what you want each day?" wizard branch.
   // Trimmed + filtered to non-empty entries. We keep the indexing (day N → outlines[N-1])
   // so empty days don't shift the rest.
@@ -1239,7 +1247,7 @@ ${hasShoppingPriority ? `
       "currency": "Local currency name, symbol, approximate USD exchange rate, and whether cards are widely accepted or cash is preferred",
       "tipping": "Local tipping customs and typical amounts or percentages by context (restaurant, taxi, hotel)",
       "customs": "2-3 key cultural customs, dress codes (e.g. covering shoulders at religious sites), or etiquette points travelers should know",
-      "entryRequirements": "Visa requirements for US/EU/UK passport holders, and any biometric/registration requirements. For Schengen Area destinations: note the EU Entry/Exit System (EES) — first-time visitors must register fingerprints and a facial photo at the border; allow extra time at entry points.",
+      "entryRequirements": "Visa/entry requirements for ${passportClause} traveling to this destination (if it's a domestic trip within their own country, say plainly that no visa or passport is needed), plus any biometric/registration requirements. For Schengen Area destinations: note the EU Entry/Exit System (EES) — first-time visitors must register fingerprints and a facial photo at the border; allow extra time at entry points.",
       "safetyTips": "Top 2-3 practical safety or health tips specific to this destination (e.g. tap water safety, common scams, areas to avoid at night)",
       "usefulPhrases": ["Local phrase = English meaning", "Local phrase = English meaning", "Local phrase = English meaning"]
     }
@@ -1865,6 +1873,7 @@ export async function POST(request: NextRequest) {
     organizerPace: (body.organizerPace as 'relaxed' | 'balanced' | 'packed' | null | undefined) ?? null,
     memberPersonas,
     groupSize: Number(body.groupSize) || 2,
+    homeCountry: body.homeCountry as string | undefined,
     featuredSeed,
   });
 

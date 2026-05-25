@@ -843,6 +843,9 @@ function TripBuilderPage() {
       accessibilityNeeds: state.accessibilityNeeds,
       mustHaves: state.mustHaves,
       additionalContext: state.additionalContext,
+      // Organizer's home country (from their profile) — personalizes the Trip
+      // Essentials visa/entry note to their passport. Empty if unset in Settings.
+      homeCountry: currentUser.homeCountry ?? '',
       // Only forward dailyOutlines when the user said yes to the per-day-plan
       // question. Slice/pad to exactly tripLength so trailing/leading indices
       // line up with day numbers on the server. Empty strings are kept; the
