@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { ForkTripModal } from '@/components/ForkTripModal';
+import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 
 // ─── Event logging ─────────────────────────────────────────────────────────
 
@@ -119,9 +120,17 @@ interface FeaturedItineraryCardProps {
   wishlisted: boolean;
   canWishlist: boolean;
   onWishlist: () => void;
+  /** Explorer/Nomad can build a fresh AI variation; others see a lock. */
+  canPersonalizeAI: boolean;
+  /** Free copy of the cached itinerary into a new trip (all tiers). */
+  onUseAsStartingPoint: () => void;
+  /** Tapped the gated AI button without access — opens the upgrade modal. */
+  onLockedAI: () => void;
+  /** True while this card's free copy is in flight. */
+  forking: boolean;
 }
 
-function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlist, onWishlist }: FeaturedItineraryCardProps) {
+function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlist, onWishlist, canPersonalizeAI, onUseAsStartingPoint, onLockedAI, forking }: FeaturedItineraryCardProps) {
   const previewDays = days.slice(0, 4);
 
   return (
@@ -227,22 +236,40 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
           </div>
         ) : null}
 
-        {/* Footer CTAs */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-100">
+        {/* Footer CTAs — free "Use as starting point" (all tiers) + gated
+            "Personalize with AI" (Explorer/Nomad). */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-100 gap-2">
           <Link
             href={`/discover/${item.slug}`}
-            className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1 transition-colors"
+            className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1 transition-colors whitespace-nowrap"
           >
             See full itinerary <ChevronRight className="w-3.5 h-3.5" />
           </Link>
-          <Link
-            href={`/trip/new?destination=${encodeURIComponent(item.destination)}&days=${item.durationDays}&featured=${item.slug}`}
-            className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-700 text-white text-xs font-bold px-4 py-2 rounded-full transition-colors"
-            onClick={() => logDestinationEvent(item.destination, 'plan_click')}
-          >
-            <Sparkles className="w-3 h-3" />
-            Start planning this trip
-          </Link>
+          <div className="flex items-center gap-2">
+            {canPersonalizeAI ? (
+              <Link
+                href={`/trip/new?destination=${encodeURIComponent(item.destination)}&days=${item.durationDays}&featured=${item.slug}`}
+                onClick={() => logDestinationEvent(item.destination, 'plan_click')}
+                className="flex items-center gap-1.5 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs font-semibold px-3 py-2 rounded-full transition-colors"
+              >
+                <Sparkles className="w-3 h-3" /> Personalize with AI
+              </Link>
+            ) : (
+              <button
+                onClick={onLockedAI}
+                className="flex items-center gap-1.5 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs font-semibold px-3 py-2 rounded-full transition-colors"
+              >
+                <Sparkles className="w-3 h-3" /> Personalize with AI <LockBadge />
+              </button>
+            )}
+            <button
+              onClick={onUseAsStartingPoint}
+              disabled={forking}
+              className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-700 disabled:bg-zinc-300 text-white text-xs font-bold px-4 py-2 rounded-full transition-colors"
+            >
+              {forking ? 'Copying…' : 'Use as starting point'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -410,16 +437,24 @@ function DestinationCard({
 
 function TopSearchCard({
   name, rank, onSearch, featuredSlug, wishlisted, canWishlist, onWishlist,
+  onUseAsStartingPoint, personalizeHref, canPersonalizeAI, onLockedAI, forking,
 }: {
   name: string;
   rank: number;
   onSearch: (name: string) => void;
-  /** If a featured itinerary exists for this destination, the card opens
-   *  the full preview instead of dropping into the trip builder blind. */
+  /** If a featured itinerary exists for this destination, the card offers a
+   *  free "Use as starting point" copy + a gated AI personalize path. */
   featuredSlug: string | null;
   wishlisted: boolean;
   canWishlist: boolean;
   onWishlist: () => void;
+  /** Free copy of the matched featured itinerary (only when featuredSlug). */
+  onUseAsStartingPoint?: () => void;
+  /** Trip Builder URL with the featured backbone (only when featuredSlug). */
+  personalizeHref?: string | null;
+  canPersonalizeAI: boolean;
+  onLockedAI: () => void;
+  forking: boolean;
 }) {
   return (
     <div
@@ -453,19 +488,48 @@ function TopSearchCard({
           <h3 className="font-script italic text-2xl font-bold text-white leading-tight">{name}</h3>
         </div>
 
-        {/* CTA — prefer opening a built itinerary preview when one exists for
-            this destination, so users don't have to save blind. */}
-        <div className="flex items-center justify-between mt-3">
-          {featuredSlug ? (
-            <Link
-              href={`/discover/${featuredSlug}`}
-              onClick={e => e.stopPropagation()}
-              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-colors"
+        {/* CTA — a matched destination has a cached itinerary, so offer the
+            free "Use as starting point" copy + a (gated) AI personalize path.
+            Unmatched destinations have nothing cached, so they keep the plain
+            Trip Builder entry. */}
+        {featuredSlug ? (
+          <div className="mt-3 flex flex-col gap-1.5">
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUseAsStartingPoint?.(); }}
+              disabled={forking}
+              className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-sky-800 bg-white hover:bg-white/90 disabled:opacity-60 px-3 py-1.5 rounded-full transition-colors"
             >
-              <Sparkles className="w-3 h-3" />
-              See 7-day itinerary
-            </Link>
-          ) : (
+              {forking ? 'Copying…' : 'Use as starting point'}
+            </button>
+            <div className="flex items-center justify-center gap-2 text-[11px] text-white/60">
+              {canPersonalizeAI ? (
+                <Link
+                  href={personalizeHref ?? `/trip/new?destination=${encodeURIComponent(name)}`}
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 hover:text-white/90 transition-colors"
+                >
+                  <Sparkles className="w-2.5 h-2.5" /> Personalize with AI
+                </Link>
+              ) : (
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLockedAI(); }}
+                  className="inline-flex items-center gap-1 hover:text-white/90 transition-colors"
+                >
+                  <Lock className="w-2.5 h-2.5" /> Personalize with AI
+                </button>
+              )}
+              <span className="text-white/30">·</span>
+              <Link
+                href={`/discover/${featuredSlug}`}
+                onClick={e => e.stopPropagation()}
+                className="hover:text-white/90 transition-colors"
+              >
+                See itinerary
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between mt-3">
             <Link
               href={`/trip/new?destination=${encodeURIComponent(name)}`}
               onClick={e => e.stopPropagation()}
@@ -474,11 +538,11 @@ function TopSearchCard({
               <Sparkles className="w-3 h-3" />
               Plan this trip
             </Link>
-          )}
-          <span className="text-white/40 text-xs group-hover:text-white/60 transition-colors">
-            Search →
-          </span>
-        </div>
+            <span className="text-white/40 text-xs group-hover:text-white/60 transition-colors">
+              Search →
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -567,7 +631,13 @@ function CommunityTripCard({ trip, liked, forking, onLike, onFork }: CommunityTr
 
 export default function DiscoverPage() {
   const currentUser = useCurrentUser();
-  const { hasWishlist } = useEntitlements();
+  const { hasWishlist, tier, tierResolved, getUpgradePrompt } = useEntitlements();
+
+  // "Personalize with AI" (fresh AI build from a featured itinerary) is an
+  // Explorer/Nomad feature; Free + Trip Pass get the free "Use as starting
+  // point" copy instead. Stay permissive while the tier is still resolving so
+  // paid users don't see a lock flash on first paint.
+  const canPersonalizeAI = !tierResolved || tier === 'explorer' || tier === 'nomad';
 
   // ── State ──────────────────────────────────────────────────────────────
   const [destinations, setDestinations] = useState<DiscoverDestination[]>(mockDiscoverDestinations);
@@ -595,6 +665,13 @@ export default function DiscoverPage() {
   const [forkingId, setForkingId] = useState<string | null>(null);
   // The modal opens with a pending trip target; null means closed.
   const [pendingForkTrip, setPendingForkTrip] = useState<CommunityTrip | null>(null);
+  // Featured-itinerary "Use as starting point" (free copy of cached days into a
+  // new trip). Separate from community fork so the two modals don't collide.
+  const [pendingFeaturedFork, setPendingFeaturedFork] = useState<{ slug: string; destination: string; tripLength: number } | null>(null);
+  const [forkingFeaturedSlug, setForkingFeaturedSlug] = useState<string | null>(null);
+  // Upgrade modal shown when a Free/Trip Pass user taps a gated "Personalize
+  // with AI" action.
+  const [showAiUpgrade, setShowAiUpgrade] = useState(false);
 
   const [query, setQuery] = useState('');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
@@ -884,6 +961,46 @@ export default function DiscoverPage() {
       setForkingId(null);
       setPendingForkTrip(null);
       setActionError("Couldn't copy that trip. Please try again.");
+      setTimeout(() => setActionError(null), 4000);
+    }
+  };
+
+  // ── Featured itinerary "Use as starting point" (free copy, no AI) ───────────
+  const handleFeaturedFork = (slug: string, destination: string, tripLength: number) => {
+    if (currentUser.isLoading) return;
+    if (!currentUser.id) {
+      window.location.href = `/auth/login?redirect=${encodeURIComponent('/discover')}`;
+      return;
+    }
+    if (forkingFeaturedSlug) return;
+    setPendingFeaturedFork({ slug, destination, tripLength });
+  };
+
+  const handleFeaturedForkSubmit = async (
+    dates: { startDate: string | null; endDate: string | null }
+  ) => {
+    const target = pendingFeaturedFork;
+    if (!target) return;
+    setForkingFeaturedSlug(target.slug);
+    try {
+      const res = await fetch(`/api/featured-itineraries/${target.slug}/fork`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dates),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.tripId) {
+        window.location.href = `/trip/${data.tripId}/itinerary`;
+      } else {
+        setForkingFeaturedSlug(null);
+        setPendingFeaturedFork(null);
+        setActionError(data?.error ?? "Couldn't copy that itinerary. Please try again.");
+        setTimeout(() => setActionError(null), 4000);
+      }
+    } catch {
+      setForkingFeaturedSlug(null);
+      setPendingFeaturedFork(null);
+      setActionError("Couldn't copy that itinerary. Please try again.");
       setTimeout(() => setActionError(null), 4000);
     }
   };
@@ -1185,6 +1302,11 @@ export default function DiscoverPage() {
                         coverImage: matched?.heroImage ?? null,
                         tags: matched?.vibes ?? [],
                       })}
+                      canPersonalizeAI={canPersonalizeAI}
+                      forking={!!matched && forkingFeaturedSlug === matched.slug}
+                      onLockedAI={() => setShowAiUpgrade(true)}
+                      onUseAsStartingPoint={matched ? () => handleFeaturedFork(matched.slug, matched.destination, matched.durationDays) : undefined}
+                      personalizeHref={matched ? `/trip/new?destination=${encodeURIComponent(matched.destination)}&days=${matched.durationDays}&featured=${matched.slug}` : null}
                     />
                   );
                 })}
@@ -1356,6 +1478,10 @@ export default function DiscoverPage() {
                         estimatedCost: item.avgCostPerDay ? item.avgCostPerDay * item.durationDays : null,
                         tags: item.vibes,
                       })}
+                      canPersonalizeAI={canPersonalizeAI}
+                      forking={forkingFeaturedSlug === item.slug}
+                      onUseAsStartingPoint={() => handleFeaturedFork(item.slug, item.destination, item.durationDays)}
+                      onLockedAI={() => setShowAiUpgrade(true)}
                     />
                   ))}
                 </div>
@@ -1463,6 +1589,24 @@ export default function DiscoverPage() {
         onClose={() => { if (!forkingId) setPendingForkTrip(null); }}
         onSubmit={handleCommunityForkSubmit}
       />
+
+      {/* Featured "Use as starting point" — free copy of a cached itinerary */}
+      <ForkTripModal
+        open={!!pendingFeaturedFork}
+        destination={pendingFeaturedFork?.destination ?? ''}
+        tripLength={pendingFeaturedFork?.tripLength ?? 0}
+        forking={!!forkingFeaturedSlug && pendingFeaturedFork?.slug === forkingFeaturedSlug}
+        onClose={() => { if (!forkingFeaturedSlug) setPendingFeaturedFork(null); }}
+        onSubmit={handleFeaturedForkSubmit}
+      />
+
+      {/* AI personalize gate — Free/Trip Pass tapping "Personalize with AI" */}
+      {showAiUpgrade && (
+        <UpgradeModal
+          prompt={getUpgradePrompt('no_ai')}
+          onClose={() => setShowAiUpgrade(false)}
+        />
+      )}
     </div>
   );
 }
