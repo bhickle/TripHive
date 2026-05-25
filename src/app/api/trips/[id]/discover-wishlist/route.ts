@@ -93,15 +93,8 @@ export async function POST(
 
   const table = supabase.from('discover_wishlist');
 
-  // Delete row only when both vote is null AND saved is false
-  if (vote === null && saved === false) {
-    const { error: delErr } = await table.delete()
-      .eq('trip_id', params.id)
-      .eq('user_id', userId)
-      .eq('item_id', itemId);
-    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
-  } else if (vote !== undefined || saved !== undefined) {
-    // Fetch existing row to preserve fields not being updated
+  if (vote !== undefined || saved !== undefined) {
+    // Fetch existing row so we can preserve any field the caller didn't send.
     const { data: existing } = await table
       .select('vote, saved, item_data')
       .eq('trip_id', params.id)
@@ -109,29 +102,39 @@ export async function POST(
       .eq('item_id', itemId)
       .maybeSingle();
 
-    // The `vote` column is non-nullable string in the schema. The body's
-    // `null` case is handled above (delete branch); here we coerce a
-    // missing-or-null vote to an empty string so the DB stays consistent.
-    // Without this, the previous (supabase as any) cast was masking a
-    // possible runtime constraint violation when (vote: null, saved: true)
-    // hit this branch with no existing row.
-    const newVote: string = vote ?? existing?.vote ?? '';
-    const newSaved: boolean = saved !== undefined ? saved : (existing?.saved ?? false);
-    const mergedItemData = (itemData ?? existing?.item_data ?? {}) as import('@/lib/supabase/database.types').Json;
+    // Distinguish "field omitted" (undefined → keep existing) from an explicit
+    // clear (vote: null → no vote). The previous `vote ?? existing?.vote`
+    // collapsed the two, so deselecting a thumbs-down fell back to the existing
+    // 'down' and the vote never actually cleared — the item kept showing in
+    // Nay Watch / wishlist surfaces. (`vote` is a non-nullable string column;
+    // '' is the "no vote" sentinel the GET reader already treats as null.)
+    const newVote: string = vote === undefined ? (existing?.vote ?? '') : (vote ?? '');
+    const newSaved: boolean = saved === undefined ? (existing?.saved ?? false) : saved;
 
-    const { error } = await table.upsert(
-      {
-        trip_id: params.id,
-        user_id: userId,
-        item_id: itemId,
-        item_data: mergedItemData,
-        vote: newVote,
-        saved: newSaved,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'trip_id,user_id,item_id' }
-    );
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!newVote && !newSaved) {
+      // No vote and not saved → the row carries no information. Delete it
+      // instead of persisting a dangling empty row.
+      const { error: delErr } = await table.delete()
+        .eq('trip_id', params.id)
+        .eq('user_id', userId)
+        .eq('item_id', itemId);
+      if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+    } else {
+      const mergedItemData = (itemData ?? existing?.item_data ?? {}) as import('@/lib/supabase/database.types').Json;
+      const { error } = await table.upsert(
+        {
+          trip_id: params.id,
+          user_id: userId,
+          item_id: itemId,
+          item_data: mergedItemData,
+          vote: newVote,
+          saved: newSaved,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'trip_id,user_id,item_id' }
+      );
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   // Return fresh counts for this item
