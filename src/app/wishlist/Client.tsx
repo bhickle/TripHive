@@ -630,11 +630,16 @@ export default function WishlistPage() {
       isRemoving ? next.delete(id) : next.add(id);
       return next;
     });
+    // Un-hearting on On My Radar means "take this off my radar" — drop the
+    // card from the list immediately (optimistic), not just un-fill the heart.
+    const removedItem = isRemoving ? (allItems.find(i => i.id === id) ?? null) : null;
+    if (isRemoving) setAllItems(prev => prev.filter(i => i.id !== id));
     if (currentUser.isDemo) return;
     if (isRemoving) {
       fetch(`/api/wishlist?id=${id}`, { method: 'DELETE' }).catch(() => {
-        // Revert on failure
+        // Revert on failure — restore both the saved state and the card.
         setSavedIds(prev => new Set([...Array.from(prev), id]));
+        if (removedItem) setAllItems(prev => [removedItem, ...prev]);
       });
     } else {
       // Re-save path — previously local-only, so un-saving then

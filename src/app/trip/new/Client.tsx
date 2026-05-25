@@ -396,6 +396,14 @@ function TripBuilderPage() {
   const searchParams = useSearchParams();
   const isFirstTrip = searchParams.get('firsttrip') === 'true';
   const [currentStep, setCurrentStep] = useState(1);
+  // Scroll the wizard panel back to the top whenever the step changes —
+  // otherwise the new step inherits the prior step's scroll position and can
+  // open part-way down (the transport step in particular opened scrolled to
+  // the bottom).
+  const mainRef = React.useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [currentStep]);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'ai_credits_empty' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
@@ -1070,7 +1078,7 @@ function TripBuilderPage() {
         }}
       />
 
-      <main className="flex-1 overflow-auto">
+      <main ref={mainRef} className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
           {/* Header */}
           <div className="mb-8">
