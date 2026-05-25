@@ -521,6 +521,67 @@ export default function WishlistPage() {
   const [showModal, setShowModal] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
 
+  // ─── Remove-from-radar 5-second undo ─────────────────────────────────────────
+  // Un-hearting drops the card immediately but holds the server DELETE for 5s,
+  // showing an Undo toast (matches the itinerary's delete-activity pattern) so a
+  // stray click isn't an instant, unrecoverable deletion.
+  const [undoItem, setUndoItem] = useState<WishlistItem | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The id whose DELETE is still pending (held in the 5s window). Kept in a ref
+  // so we can flush it on unmount — leaving the page mid-window commits the
+  // delete rather than silently resurrecting the item on the next visit.
+  const pendingDeleteRef = useRef<string | null>(null);
+
+  const commitRadarDelete = useCallback((id: string) => {
+    pendingDeleteRef.current = null;
+    if (currentUser.isDemo) return;
+    // Best-effort: the card is already gone and the toast dismissed. If this
+    // fails server-side the item simply reappears on the next load.
+    fetch(`/api/wishlist?id=${id}`, { method: 'DELETE' }).catch(() => {});
+  }, [currentUser.isDemo]);
+
+  const removeFromRadar = useCallback((id: string) => {
+    const removedItem = allItems.find(i => i.id === id) ?? null;
+    // Optimistic: un-fill the heart and drop the card.
+    setSavedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    setAllItems(prev => prev.filter(i => i.id !== id));
+
+    // If a previous removal is still pending (rapid successive un-hearts),
+    // commit it now before starting the new window.
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    if (pendingDeleteRef.current && pendingDeleteRef.current !== id) {
+      commitRadarDelete(pendingDeleteRef.current);
+    }
+    pendingDeleteRef.current = id;
+    setUndoItem(removedItem);
+
+    undoTimerRef.current = setTimeout(() => {
+      commitRadarDelete(id);
+      setUndoItem(null);
+      undoTimerRef.current = null;
+    }, 5000);
+  }, [allItems, commitRadarDelete]);
+
+  const undoRemoveFromRadar = useCallback(() => {
+    if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
+    pendingDeleteRef.current = null;
+    const item = undoItem;
+    setUndoItem(null);
+    if (!item) return;
+    setAllItems(prev => prev.some(i => i.id === item.id) ? prev : [item, ...prev]);
+    setSavedIds(prev => new Set([...Array.from(prev), item.id]));
+  }, [undoItem]);
+
+  // Flush any pending delete on unmount so navigating away mid-window still
+  // commits the removal (commitRadarDelete is stable, so this only fires on
+  // real unmount).
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      if (pendingDeleteRef.current) commitRadarDelete(pendingDeleteRef.current);
+    };
+  }, [commitRadarDelete]);
+
   // Load real wishlist from API for authenticated (non-demo) users
   useEffect(() => {
     if (currentUser.isLoading || currentUser.isDemo) return;
@@ -628,23 +689,17 @@ export default function WishlistPage() {
 
   const toggleWishlist = (id: string) => {
     const isRemoving = savedIds.has(id);
-    setSavedIds(prev => {
-      const next = new Set(prev);
-      isRemoving ? next.delete(id) : next.add(id);
-      return next;
-    });
-    // Un-hearting on On My Radar means "take this off my radar" — drop the
-    // card from the list immediately (optimistic), not just un-fill the heart.
-    const removedItem = isRemoving ? (allItems.find(i => i.id === id) ?? null) : null;
-    if (isRemoving) setAllItems(prev => prev.filter(i => i.id !== id));
-    if (currentUser.isDemo) return;
     if (isRemoving) {
-      fetch(`/api/wishlist?id=${id}`, { method: 'DELETE' }).catch(() => {
-        // Revert on failure — restore both the saved state and the card.
-        setSavedIds(prev => new Set([...Array.from(prev), id]));
-        if (removedItem) setAllItems(prev => [removedItem, ...prev]);
-      });
-    } else {
+      // Un-hearting on On My Radar means "take this off my radar". Route through
+      // the deferred removal so it gets a 5-second undo window; the server
+      // DELETE is held until the window closes (see removeFromRadar).
+      removeFromRadar(id);
+      return;
+    }
+    // Re-save path (heart toggled back on).
+    setSavedIds(prev => new Set([...Array.from(prev), id]));
+    if (currentUser.isDemo) return;
+    {
       // Re-save path — previously local-only, so un-saving then
       // re-saving would persist the un-save but not the re-save, and
       // the heart vanished on refresh. Now we POST the same payload
@@ -937,6 +992,22 @@ export default function WishlistPage() {
 
         </div>
       </main>
+
+      {/* Remove-from-radar undo toast — shown for 5s after un-hearting */}
+      {undoItem && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3 rounded-full shadow-xl">
+          <Heart className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+          <span className="text-sm font-medium">
+            <span className="text-zinc-300">{undoItem.destination}</span> removed from On My Radar
+          </span>
+          <button
+            onClick={undoRemoveFromRadar}
+            className="ml-1 text-sm font-bold text-sky-400 hover:text-sky-300 transition-colors underline underline-offset-2"
+          >
+            Undo
+          </button>
+        </div>
+      )}
     </div>
   );
 }

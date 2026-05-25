@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { CheckCircle2, AlertCircle, FileText, Backpack, Briefcase, ExternalLink, ChevronDown, Plus, Globe, Loader2, Volume2, RefreshCw, Sparkles, Lock, Crown, Info, Gift, Trash2, Users, Pencil, Plane, X } from 'lucide-react';
 import { prepTasks as mockPrepTasks, packingItems as mockPackingItems, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { useEffect } from 'react';
@@ -454,35 +454,76 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     cancelEditTask();
   };
 
+  // ─── Deferred remove with 5-second undo ──────────────────────────────────────
+  // Shared by the Prep Hub's trash-icon deletes (tasks, group pack, my pack,
+  // souvenirs). A delete removes the row optimistically but holds the server
+  // DELETE for 5s, showing an Undo toast — matching the wishlist + itinerary
+  // pattern so an accidental click is recoverable. `restore` re-inserts the row
+  // in the UI; `commit` fires the actual DELETE.
+  const [pendingRemoval, setPendingRemoval] = useState<{ label: string; restore: () => void } | null>(null);
+  const removalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const removalCommitRef = useRef<(() => void) | null>(null);
+
+  const scheduleRemoval = (label: string, restore: () => void, commit: () => void) => {
+    // If a prior removal is still in its window, commit it now before starting
+    // a new one (only the most recent removal stays undoable).
+    if (removalTimerRef.current) clearTimeout(removalTimerRef.current);
+    if (removalCommitRef.current) removalCommitRef.current();
+    removalCommitRef.current = commit;
+    setPendingRemoval({ label, restore });
+    removalTimerRef.current = setTimeout(() => {
+      commit();
+      removalCommitRef.current = null;
+      removalTimerRef.current = null;
+      setPendingRemoval(null);
+    }, 5000);
+  };
+
+  const undoRemoval = () => {
+    if (removalTimerRef.current) { clearTimeout(removalTimerRef.current); removalTimerRef.current = null; }
+    removalCommitRef.current = null;
+    if (pendingRemoval) pendingRemoval.restore();
+    setPendingRemoval(null);
+  };
+
+  // Flush a pending delete on unmount so leaving the page mid-window still
+  // commits it (rather than silently resurrecting the row on the next visit).
+  useEffect(() => {
+    return () => {
+      if (removalTimerRef.current) clearTimeout(removalTimerRef.current);
+      if (removalCommitRef.current) removalCommitRef.current();
+    };
+  }, []);
+
   const deletePrepTask = (taskId: string) => {
     if (editingTaskId === taskId) cancelEditTask();
     if (isMockTrip) {
       setPrepTasks(prev => prev.filter(t => t.id !== taskId));
       setCustomDocTasks(prev => prev.filter(t => t.id !== taskId));
       setCustomLogTasks(prev => prev.filter(t => t.id !== taskId));
-    } else {
-      const prevTasks = prepTasks;
-      const prevCompleted = completedTasks;
-      setPrepTasks(prev => prev.filter(t => t.id !== taskId));
-      if (completedTasks.has(taskId)) {
-        const next = new Set(completedTasks);
-        next.delete(taskId);
-        setCompletedTasks(next);
-      }
-      fetch(`/api/trips/${params.id}/prep`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId }),
-      }).then(r => {
-        if (!r.ok) {
-          setPrepTasks(prevTasks);
-          setCompletedTasks(prevCompleted);
-        }
-      }).catch(() => {
-        setPrepTasks(prevTasks);
-        setCompletedTasks(prevCompleted);
-      });
+      return;
     }
+    const prevTasks = prepTasks;
+    const prevCompleted = completedTasks;
+    const removed = prepTasks.find(t => t.id === taskId);
+    setPrepTasks(prev => prev.filter(t => t.id !== taskId));
+    if (completedTasks.has(taskId)) {
+      const next = new Set(completedTasks);
+      next.delete(taskId);
+      setCompletedTasks(next);
+    }
+    const restore = () => { setPrepTasks(prevTasks); setCompletedTasks(prevCompleted); };
+    scheduleRemoval(
+      removed?.title ?? 'Task',
+      restore,
+      () => {
+        fetch(`/api/trips/${params.id}/prep`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId }),
+        }).then(r => { if (!r.ok) restore(); }).catch(restore);
+      },
+    );
   };
 
   // ─── Group Pack handlers ───────────────────────────────────────────────────
@@ -515,13 +556,18 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const deleteGroupPackItem = (itemId: string) => {
     const removed = groupPackItems.find(i => i.id === itemId);
     setGroupPackItems(prev => prev.filter(i => i.id !== itemId));
-    fetch(`/api/trips/${params.id}/packing`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId }),
-    }).catch(() => {
-      if (removed) setGroupPackItems(prev => [...prev, removed]);
-    });
+    const restore = () => { if (removed) setGroupPackItems(prev => prev.some(i => i.id === removed.id) ? prev : [...prev, removed]); };
+    scheduleRemoval(
+      removed?.name ?? 'Item',
+      restore,
+      () => {
+        fetch(`/api/trips/${params.id}/packing`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId }),
+        }).catch(restore);
+      },
+    );
   };
 
   const generateGroupPackingList = async () => {
@@ -579,13 +625,18 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const deleteMyPackItem = (itemId: string) => {
     const removed = myPackItems.find(i => i.id === itemId);
     setMyPackItems(prev => prev.filter(i => i.id !== itemId));
-    fetch(`/api/trips/${params.id}/packing`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId }),
-    }).catch(() => {
-      if (removed) setMyPackItems(prev => [...prev, removed]);
-    });
+    const restore = () => { if (removed) setMyPackItems(prev => prev.some(i => i.id === removed.id) ? prev : [...prev, removed]); };
+    scheduleRemoval(
+      removed?.name ?? 'Item',
+      restore,
+      () => {
+        fetch(`/api/trips/${params.id}/packing`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId }),
+        }).catch(restore);
+      },
+    );
   };
 
   const generateMyPackingList = async () => {
@@ -662,19 +713,23 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   };
 
   const deleteSouvenirItem = (itemId: string) => {
-    // Snapshot before optimistic removal so we can restore on failure —
-    // previously the .catch did nothing, leaving the item visibly gone
-    // locally but still present on the server. It would reappear on
-    // refresh, looking like a sync bug.
-    const prev = souvenirItems;
+    // Snapshot before optimistic removal so undo (and a failed DELETE) can
+    // restore the list exactly as it was.
+    const prevItems = souvenirItems;
+    const removed = souvenirItems.find(i => i.id === itemId);
     setSouvenirItems(curr => curr.filter(i => i.id !== itemId));
-    fetch(`/api/trips/${params.id}/souvenirs`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId }),
-    }).then(res => {
-      if (!res.ok) setSouvenirItems(prev);
-    }).catch(() => setSouvenirItems(prev));
+    const restore = () => setSouvenirItems(prevItems);
+    scheduleRemoval(
+      removed?.idea ?? removed?.person ?? 'Gift idea',
+      restore,
+      () => {
+        fetch(`/api/trips/${params.id}/souvenirs`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId }),
+        }).then(res => { if (!res.ok) restore(); }).catch(restore);
+      },
+    );
   };
 
   const toggleCategory = (category: string) => {
@@ -2146,6 +2201,22 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Remove undo toast — shown for 5s after a trash-icon delete */}
+      {pendingRemoval && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3 rounded-full shadow-xl">
+          <Trash2 className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+          <span className="text-sm font-medium">
+            <span className="text-zinc-300">{pendingRemoval.label}</span> removed
+          </span>
+          <button
+            onClick={undoRemoval}
+            className="ml-1 text-sm font-bold text-sky-400 hover:text-sky-300 transition-colors underline underline-offset-2"
+          >
+            Undo
+          </button>
         </div>
       )}
     </main>
