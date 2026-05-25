@@ -257,12 +257,22 @@ export default function OnboardingPage() {
       const supabase = createSupabaseBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // Preserve any priorities the user already set in Settings. Onboarding
+        // doesn't collect priorities, but the travel_persona PATCH replaces the
+        // whole object — a hardcoded [] here wiped existing priorities on a
+        // re-run. Read the current value and carry it through.
+        let existingPriorities: string[] = [];
+        try {
+          const { data: prof } = await supabase.from('profiles').select('travel_persona').eq('id', user.id).maybeSingle();
+          const tp = prof?.travel_persona as { priorities?: unknown } | null;
+          if (Array.isArray(tp?.priorities)) existingPriorities = tp.priorities as string[];
+        } catch { /* default to [] */ }
         const body = JSON.stringify({
           name: state.yourName,
           travel_persona: {
             vibes: state.vibes,
             groupType: state.groupType,
-            priorities: [], // priorities are set in Settings after onboarding
+            priorities: existingPriorities,
           },
         });
         const doSave = () =>

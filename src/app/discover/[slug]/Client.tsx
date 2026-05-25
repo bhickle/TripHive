@@ -89,10 +89,11 @@ export default function DiscoverItineraryPage() {
   useEffect(() => {
     if (!slug) return;
     fetch(`/api/featured-itineraries/${slug}`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`featured-itinerary ${r.status}`)))
       .then(data => {
         if (data.itinerary) setItinerary(data.itinerary);
       })
+      // A 500 now logs distinctly instead of being silently parsed as "not found".
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [slug]);

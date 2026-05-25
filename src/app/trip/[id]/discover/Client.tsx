@@ -670,8 +670,11 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
         mealType: item.category === 'dining' ? 'dinner' : null,
         track: 'shared',
         priceLevel: 2,
-        description: item.description,
-        costEstimate: null,
+        // Match the Activity type's required fields (description: string,
+        // costEstimate: number) so the card never renders an empty/"$null"
+        // value on the itinerary.
+        description: item.description ?? '',
+        costEstimate: 0,
         confidence: 0.8,
         verified: false,
         packingTips: [],

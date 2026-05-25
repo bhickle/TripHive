@@ -448,19 +448,29 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const { memberId, role } = await req.json();
-    if (!memberId || !['member', 'co_organizer'].includes(role)) {
-      return NextResponse.json({ error: 'memberId and role (member | co_organizer) required' }, { status: 400 });
+    if (!memberId || typeof memberId !== 'string' || !/^[0-9a-f-]{36}$/i.test(memberId) || !['member', 'co_organizer'].includes(role)) {
+      return NextResponse.json({ error: 'memberId (uuid) and role (member | co_organizer) required' }, { status: 400 });
     }
 
-    const { error } = await supabase
+    // The members GET returns `user_id ?? id` as each member's identifier, so a
+    // guest member (no account → user_id is null) surfaces with their
+    // trip_members ROW id. Matching only on user_id made the promotion a silent
+    // no-op for guests (0 rows updated but ok:true → the badge flipped then
+    // reverted on refresh). Match on either column. memberId is uuid-validated
+    // above, so it's safe to interpolate into the .or() filter string.
+    const { data: updated, error } = await supabase
       .from('trip_members')
       .update({ role })
       .eq('trip_id', params.id)
-      .eq('user_id', memberId);
+      .or(`user_id.eq.${memberId},id.eq.${memberId}`)
+      .select('id');
 
     if (error) {
       console.error('role update error:', error);
       return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
+    }
+    if (!updated || updated.length === 0) {
+      return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true, memberId, role });

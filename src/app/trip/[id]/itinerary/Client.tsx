@@ -2228,6 +2228,10 @@ function ItineraryPageContent() {
 
   // ─── Open modal pre-filled for editing ───────────────────────────────────────
   const handleEditActivity = useCallback((activity: Activity) => {
+    // The synthesized "virtual dinner" card isn't a real tracked activity, so
+    // editing it found no match and silently dropped the card. It's not
+    // editable — bail. (Its edit/delete buttons are also hidden in render.)
+    if (activity.id?.startsWith('virtual-dinner')) return;
     setEditingActivity(activity);
     setNewActivityName(activity.name || activity.title || '');
     setNewActivityAddress(activity.address || '');
@@ -2283,9 +2287,12 @@ function ItineraryPageContent() {
     // Cancel any existing undo timer
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
 
-    // Persist to Supabase + localStorage after 5s (if not undone)
+    // Persist to Supabase + localStorage after 5s (if not undone). Save the
+    // LIVE days at fire time (aiDaysRef — deletion already applied via
+    // syncAiDays) rather than the stale `updatedDays` snapshot, so any edits
+    // made during the 5s undo window aren't clobbered in Supabase.
     undoTimerRef.current = setTimeout(() => {
-      persistDays(updatedDays as ItineraryDay[]);
+      persistDays((aiDaysRef.current ?? updatedDays) as ItineraryDay[]);
       setUndoSnapshot(null);
       undoTimerRef.current = null;
     }, 5000);
@@ -4052,7 +4059,7 @@ function ItineraryPageContent() {
                           {activity.isPrivate && (
                             <span title="Private — only visible to you" className="text-xs flex-shrink-0">🔒</span>
                           )}
-                          {canEditItinerary && (
+                          {canEditItinerary && !activity.id?.startsWith('virtual-dinner') && (
                             <div className="opacity-0 group-hover/compact:opacity-100 flex items-center gap-0.5 transition-opacity flex-shrink-0">
                               <button
                                 onClick={() => handleEditActivity(activity)}
@@ -4153,7 +4160,7 @@ function ItineraryPageContent() {
                                   </button>
                                 )}
                                 {/* Edit + Delete — gated to organizer / co-organizer on 3+ trips */}
-                                {canEditItinerary && (
+                                {canEditItinerary && !activity.id?.startsWith('virtual-dinner') && (
                                   <>
                                     <button
                                       onClick={() => handleEditActivity(activity)}

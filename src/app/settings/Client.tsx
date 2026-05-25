@@ -508,6 +508,7 @@ export default function SettingsPage() {
   };
   const [notifications, setNotifications] = useState<NotificationSettings>(DEFAULT_NOTIFICATIONS);
   const [notifSaved, setNotifSaved] = useState(false);
+  const [notifError, setNotifError] = useState(false);
   const [notifSaving, setNotifSaving] = useState(false);
 
   // Load notification prefs from Supabase profile once auth is ready.
@@ -536,21 +537,30 @@ export default function SettingsPage() {
 
   const saveNotifications = async () => {
     setNotifSaving(true);
+    setNotifError(false);
+    let ok = true;
     if (user) {
       try {
-        await fetch('/api/auth/me', {
+        const res = await fetch('/api/auth/me', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notification_preferences: notifications }),
         });
-      } catch { /* ignore network errors */ }
+        if (!res.ok) ok = false;
+      } catch { ok = false; }
     } else {
       // Guest — persist to localStorage
-      try { localStorage.setItem('tripcoord_notifications', JSON.stringify(notifications)); } catch { /* ignore */ }
+      try { localStorage.setItem('tripcoord_notifications', JSON.stringify(notifications)); } catch { ok = false; }
     }
     setNotifSaving(false);
-    setNotifSaved(true);
-    setTimeout(() => setNotifSaved(false), 2000);
+    if (ok) {
+      setNotifSaved(true);
+      setTimeout(() => setNotifSaved(false), 2000);
+    } else {
+      // Don't flash a false "Saved!" when the PATCH actually failed.
+      setNotifError(true);
+      setTimeout(() => setNotifError(false), 3000);
+    }
   };
 
   // ── Integration voting ─────────────────────────────────────────────────────
@@ -1233,9 +1243,9 @@ export default function SettingsPage() {
                   <button
                     onClick={saveNotifications}
                     disabled={notifSaving}
-                    className={`mt-6 px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                    className={`mt-6 px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${notifError ? 'bg-rose-600 text-white' : notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                   >
-                    {notifSaved ? '✓ Saved!' : notifSaving ? 'Saving…' : 'Save Changes'}
+                    {notifError ? 'Couldn’t save — try again' : notifSaved ? '✓ Saved!' : notifSaving ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
               )}

@@ -644,13 +644,17 @@ export default function DashboardPage() {
                     </h2>
                     <p className="text-white/80 text-xs md:text-sm flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                      {new Date(nextTrip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(nextTrip.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {nextTrip.startDate && nextTrip.endDate
+                        ? `${new Date(nextTrip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(nextTrip.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                        : 'Dates to be decided'}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2 md:gap-3 flex-shrink-0">
-                    <div className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full text-zinc-900 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
-                      {calculateDaysUntil(nextTrip.startDate)} days away
-                    </div>
+                    {nextTrip.startDate && (
+                      <div className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full text-zinc-900 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
+                        {calculateDaysUntil(nextTrip.startDate)} days away
+                      </div>
+                    )}
                     <Link
                       href={`/trip/${nextTrip.id}/itinerary`}
                       className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-xs md:text-sm rounded-full transition-all shadow-sm whitespace-nowrap"

@@ -56,12 +56,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const tierLimit = TIER_LIMITS[auth.ctx.tier].maxTripDays;
   try {
     const admin = createAdminClient();
-    const { data: tripRow } = await admin
-      .from('trips')
-      .select('trip_length')
-      .eq('id', params.id)
+    // Count the ACTUAL itinerary days, not trips.trip_length — the latter is
+    // never bumped when a day is added, so reading it let repeated add-day
+    // calls bypass the cap. The live day count reflects every prior add.
+    const { data: itinRow } = await admin
+      .from('itineraries')
+      .select('days')
+      .eq('trip_id', params.id)
       .maybeSingle();
-    const currentLen = tripRow?.trip_length ?? 0;
+    const days = itinRow?.days;
+    const currentLen = Array.isArray(days) ? days.length : 0;
     if (currentLen >= tierLimit) {
       return NextResponse.json(
         {

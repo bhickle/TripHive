@@ -173,16 +173,23 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
 
           const data = await tripRes.json();
 
-          const startDate = new Date(data.startDate);
-          const endDate = new Date(data.endDate);
-          const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          // Public/forked trips can have null dates (organizer hasn't picked
+          // them yet). Guard so we don't render epoch dates ("Jan 1 · 1 days").
+          const hasDates = !!(data.startDate && data.endDate);
+          const startDate = hasDates ? new Date(data.startDate) : null;
+          const endDate = hasDates ? new Date(data.endDate) : null;
+          const dayCount = (startDate && endDate)
+            ? Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+            : 0;
 
-          const itineraryPreview = Array.from({ length: dayCount }, (_, i) => ({
-            day: i + 1,
-            date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            theme: `Day ${i + 1}`,
-            activities: ['Itinerary coming soon'],
-          }));
+          const itineraryPreview = startDate
+            ? Array.from({ length: dayCount }, (_, i) => ({
+                day: i + 1,
+                date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                theme: `Day ${i + 1}`,
+                activities: ['Itinerary coming soon'],
+              }))
+            : [];
 
           setTripData({
             title: data.title,
@@ -428,7 +435,9 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                     <div className="flex items-center space-x-2 text-zinc-600">
                       <Calendar className="w-4 h-4 text-sky-700" />
-                      <span className="text-sm">{new Date(tripData.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}-{new Date(tripData.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span className="text-sm">{tripData.startDate && tripData.endDate
+                        ? `${new Date(tripData.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}-${new Date(tripData.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        : 'Dates to be decided'}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-zinc-600">
                       <Users className="w-4 h-4 text-sky-700" />
@@ -436,7 +445,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                     </div>
                     <div className="flex items-center space-x-2 text-zinc-600">
                       <MapPin className="w-4 h-4 text-sky-700" />
-                      <span className="text-sm">{tripData.itineraryPreview.length} days</span>
+                      <span className="text-sm">{tripData.itineraryPreview.length > 0 ? `${tripData.itineraryPreview.length} days` : 'Length TBD'}</span>
                     </div>
                   </div>
                 </div>
@@ -729,11 +738,16 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
               )}
 
               {/* CTA - View Trip */}
+              {/* Guests (no account) can't load /trip/[id]/itinerary — it 401s.
+                  Route them to signup with a redirect back to the trip so the
+                  button actually works for everyone who finished the join. */}
               <a
-                href={`/trip/${tripId}/itinerary`}
+                href={isAuthenticated
+                  ? `/trip/${tripId}/itinerary`
+                  : `/auth/signup?redirect=${encodeURIComponent(`/trip/${tripId}/itinerary`)}`}
                 className="block w-full px-6 py-3 border border-sky-300 hover:bg-sky-50 text-sky-700 rounded-lg font-semibold transition-all mb-4 text-center"
               >
-                View Full Trip
+                {isAuthenticated ? 'View Full Trip' : 'Sign Up to View Full Trip'}
               </a>
 
               {/* Footer Signup/Login CTA */}
