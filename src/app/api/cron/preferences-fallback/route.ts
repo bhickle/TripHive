@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
         trip_name: trip.title ?? null,
         type: 'pass_pending_prefs',
         message: bodyMessage,
-        inviter_name: 'TripCoord',
+        inviter_name: 'tripcoord',
       });
 
       if (insertErr) {

@@ -1,6 +1,6 @@
-# TripCoord — Claude Code Context
+# tripcoord — Claude Code Context
 
-> **App name:** TripCoord (brand) / **Repo:** TripHive / **Domain:** tripcoord.ai  
+> **App name:** tripcoord (brand, always lowercase) / **Repo:** tripcoord / **Domain:** tripcoord.ai  
 > **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · Supabase · Anthropic Claude API · Stripe  
 > **Last updated:** 2026-05-09
 
@@ -8,19 +8,19 @@
 
 ## What This App Does
 
-TripCoord is an AI-powered travel planning app. Users describe a trip (destination, dates, group, budget, priorities) and Claude generates a complete day-by-day itinerary with activity tracks, food spots, photo spots, and practical notes. The app also handles group collaboration (invite members, vote on activities, split expenses), packing lists, prep checklists, and a "Discover" feed of curated experiences.
+tripcoord is an AI-powered travel planning app. Users describe a trip (destination, dates, group, budget, priorities) and Claude generates a complete day-by-day itinerary with activity tracks, food spots, photo spots, and practical notes. The app also handles group collaboration (invite members, vote on activities, split expenses), packing lists, prep checklists, and a "Discover" feed of curated experiences.
 
 ---
 
 ## Repository & Deploy Workflow
 
-**Repo:** `https://github.com/bhickle/TripHive.git`  
+**Repo:** `https://github.com/bhickle/tripcoord.git` (renamed from `TripHive` — GitHub redirects the old URL)  
 **Branch:** `master` (auto-deploys to Vercel on every push)  
 **Vercel project ID:** `prj_CXOmPJ4ffTCbxR4lurg3jho7pEsW`  
 **Team ID:** `team_aXNtbEj1uZq70pRXyemRnhx5`
 
 ### Dev Environment
-Working directly on the Windows-native filesystem (`C:\Users\brand\OneDrive\Documents\Claude\Projects\Travel App\wayfare`) via Claude Code. Default shell is **PowerShell**; Bash is also available via the Bash tool. Git operations run directly against the local repo — no temp clone needed.
+Working directly on the Windows-native filesystem (`C:\Users\abby0\Documents\Claude\TripHive`) via Claude Code. (Local folder kept as `TripHive` — it's wired into the Claude project path; renaming it gains nothing and breaks local config.) Default shell is **PowerShell**; Bash is also available via the Bash tool. Git operations run directly against the local repo — no temp clone needed.
 
 ### ⚠️ Stale Git Lock Files (OneDrive issue)
 OneDrive sync occasionally leaves stale `.git/index.lock`, `.git/HEAD.lock`, or `.git/index2.lock` files when a git process is interrupted. Symptom: `fatal: Unable to create '.../.git/index.lock': File exists`.
@@ -186,7 +186,7 @@ Key tables: `profiles`, `trips`, `itineraries`, `trip_members`, `trip_invites`, 
 
 ## Environment Variables (Vercel)
 
-All set in Vercel → TripHive → Settings → Environment Variables.  
+All set in Vercel → tripcoord → Settings → Environment Variables.  
 Claude cannot set these — Brandon must add them manually.
 
 | Variable | Status | Notes |

@@ -1,4 +1,4 @@
-# TripCoord — Monetization Plan
+# tripcoord — Monetization Plan
 
 > Working strategy doc (2026-05-25). Captures the competitive reality, the two
 > viable monetization models, and the phased path to get from a launchable

@@ -1,4 +1,4 @@
-# Pre-Launch QA — TripCoord
+# Pre-Launch QA — tripcoord
 
 > Generated 2026-05-11 by automated audit (build + API routes + security/RLS + accessibility + performance + DB integrity).
 > Out of scope: real browser click-through, payment-flow testing with live cards, multi-user realtime smoke, mobile/iOS Safari quirks, email/SMS delivery verification.

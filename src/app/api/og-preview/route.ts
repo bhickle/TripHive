@@ -19,7 +19,7 @@ import { requireAuth } from '@/lib/supabase/requireAuth';
  *   - Block private IP ranges + localhost
  *   - 5s timeout
  *   - Cap response body at 512KB before parsing
- *   - Set a TripCoord User-Agent so site owners can identify our bot
+ *   - Set a tripcoord User-Agent so site owners can identify our bot
  *
  * Caching: Next.js fetch cache holds each URL response for 24h, so a
  * popular link only round-trips to the source site once per day across
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       const res = await fetch(url, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; TripCoordBot/1.0; +https://tripcoord.ai)',
+          'User-Agent': 'Mozilla/5.0 (compatible; tripcoordBot/1.0; +https://tripcoord.ai)',
           Accept: 'text/html,application/xhtml+xml',
         },
         next: { revalidate: 60 * 60 * 24 },

@@ -66,7 +66,7 @@ export interface AiCredits {
 
 /** Cost of each AI action in credits.
  *
- * Pricing model: 1 credit ≈ $0.04 TripCoord cost. Costs revised 2026-05-16
+ * Pricing model: 1 credit ≈ $0.04 tripcoord cost. Costs revised 2026-05-16
  * to match real spend after the post-gen venue verification feature shipped.
  * The cost driver is the build: ~$0.40 Anthropic + ~$0.20 Places-list fetch
  * + ~$1.40 venue verification = ~$2.00 per build. At $0.04/credit that's

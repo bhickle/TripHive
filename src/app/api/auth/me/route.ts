@@ -111,7 +111,7 @@ export async function PATCH(request: Request) {
           .ilike('email', email)
           .maybeSingle();
         if (!partner) {
-          return NextResponse.json({ error: "We couldn't find a TripCoord account with that email." }, { status: 404 });
+          return NextResponse.json({ error: "We couldn't find a tripcoord account with that email." }, { status: 404 });
         }
         updates.default_partner_id = partner.id;
         resolvedPartnerName = partner.name ?? partner.email ?? null;

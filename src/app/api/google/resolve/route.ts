@@ -61,7 +61,7 @@ export async function POST(request: Request) {
         method: 'GET',
         redirect: 'manual',
         signal: controller.signal,
-        headers: { 'User-Agent': 'TripCoord-LinkResolver/1.0' },
+        headers: { 'User-Agent': 'tripcoord-LinkResolver/1.0' },
       });
 
       // Drop the response body promptly — we only read status + Location.

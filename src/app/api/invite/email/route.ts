@@ -6,7 +6,7 @@ import { getTripRole } from '@/lib/supabase/tripAccess';
 /**
  * POST /api/invite/email
  * Sends a trip invite email via SendGrid, OR creates an in-app notification
- * if the invitee already has a TripCoord account.
+ * if the invitee already has a tripcoord account.
  *
  * Required env vars (when email delivery is needed):
  *   SENDGRID_API_KEY       — from app.sendgrid.com → Settings → API Keys
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     console.warn('[invite/email] trip_invites insert threw:', err);
   }
 
-  // ── Check if invitee already has a TripCoord account ─────────────────────
+  // ── Check if invitee already has a tripcoord account ─────────────────────
   // If yes, create an in-app notification instead of (or in addition to) email.
   //
   // Look the email up via the profiles table (single indexed query on email)
@@ -103,11 +103,11 @@ export async function POST(request: NextRequest) {
   const joinUrl = inviteToken
     ? `${appUrl}/join/${tripId}?invite=${inviteToken}`
     : `${appUrl}/join/${tripId}`;
-  const subject = `${inviterName || 'Someone'} invited you to join ${tripName || 'a trip'} on TripCoord`;
+  const subject = `${inviterName || 'Someone'} invited you to join ${tripName || 'a trip'} on tripcoord`;
   const bodyHtml = message
     ? message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    : `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on TripCoord — AI-powered group travel planning.`;
-  const bodyText = message || `${inviterName || 'A friend'} has invited you to join ${tripName || 'a trip'} on TripCoord.\n\nJoin here: ${joinUrl}`;
+    : `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on tripcoord — AI-powered group travel planning.`;
+  const bodyText = message || `${inviterName || 'A friend'} has invited you to join ${tripName || 'a trip'} on tripcoord.\n\nJoin here: ${joinUrl}`;
 
   try {
     const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -118,14 +118,14 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email }] }],
-        from: { email: fromEmail, name: 'TripCoord' },
-        reply_to: { email: fromEmail, name: 'TripCoord' },
+        from: { email: fromEmail, name: 'tripcoord' },
+        reply_to: { email: fromEmail, name: 'tripcoord' },
         subject,
         // Plain text version helps avoid spam filters
         content: [
           {
             type: 'text/plain',
-            value: `${bodyText}\n\nJoin the trip: ${joinUrl}\n\n---\nTripCoord · group travel made easy\n${appUrl}`,
+            value: `${bodyText}\n\nJoin the trip: ${joinUrl}\n\n---\ntripcoord · group travel made easy\n${appUrl}`,
           },
           {
             type: 'text/html',
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         <tr><td style="background:#0c4a6e;padding:32px 32px 24px;text-align:center;">
           <p style="font-size:36px;margin:0 0 8px;">✈️</p>
           <h1 style="color:#ffffff;font-size:24px;margin:0 0 4px;font-weight:700;">You're invited!</h1>
-          <p style="color:#7dd3fc;font-size:13px;margin:0;">TripCoord · group travel made easy</p>
+          <p style="color:#7dd3fc;font-size:13px;margin:0;">tripcoord · group travel made easy</p>
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px;">
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         <!-- Footer -->
         <tr><td style="background:#f9fafb;padding:20px 32px;border-top:1px solid #e4e4e7;text-align:center;">
           <p style="color:#a1a1aa;font-size:11px;margin:0;">
-            You received this because someone invited you to a TripCoord trip.<br>
+            You received this because someone invited you to a tripcoord trip.<br>
             <a href="${appUrl}" style="color:#0c4a6e;">tripcoord.ai</a>
           </p>
         </td></tr>

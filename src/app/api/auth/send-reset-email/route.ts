@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 /**
  * POST /api/auth/send-reset-email
  * Generates a Supabase password-recovery link via the admin API, then sends
- * it via SendGrid with TripCoord branding (no "3rd party" warning).
+ * it via SendGrid with tripcoord branding (no "3rd party" warning).
  *
  * Body: { email }
  * Public route — no auth required (user doesn't have a session yet).
@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: email.trim() }] }],
-        from: { email: fromEmail, name: 'TripCoord' },
-        subject: 'Reset your TripCoord password',
+        from: { email: fromEmail, name: 'tripcoord' },
+        subject: 'Reset your tripcoord password',
         content: [
           {
             type: 'text/html',
@@ -71,11 +71,11 @@ export async function POST(request: NextRequest) {
                 <div style="text-align:center;margin-bottom:28px;">
                   <span style="font-size:32px;">🔐</span>
                   <h1 style="color:#0c4a6e;font-size:26px;margin:12px 0 4px;">Reset your password</h1>
-                  <p style="color:#71717a;font-size:14px;margin:0;">TripCoord · group travel made easy</p>
+                  <p style="color:#71717a;font-size:14px;margin:0;">tripcoord · group travel made easy</p>
                 </div>
                 <div style="background:white;border-radius:12px;padding:24px;border:1px solid #e4e4e7;margin-bottom:24px;">
                   <p style="color:#3f3f46;font-size:16px;line-height:1.6;margin:0 0 20px;">
-                    We received a request to reset your TripCoord password. Click the button below to choose a new one.
+                    We received a request to reset your tripcoord password. Click the button below to choose a new one.
                     This link expires in <strong>1 hour</strong>.
                   </p>
                   <a href="${resetLink}"

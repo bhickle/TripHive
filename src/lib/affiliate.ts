@@ -33,7 +33,7 @@ const BOOKING_AID = process.env.NEXT_PUBLIC_BOOKING_AID ?? '';
 
 /** Shown next to every affiliate link (FTC disclosure). */
 export const AFFILIATE_DISCLOSURE =
-  'Affiliate link — opens an external booking site. TripCoord may earn a commission.';
+  'Affiliate link — opens an external booking site. tripcoord may earn a commission.';
 
 /** True when at least one activities provider is configured. */
 export function hasActivityAffiliate(): boolean {

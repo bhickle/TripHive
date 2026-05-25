@@ -40,12 +40,12 @@ export async function sendPartnerAddedEmail(args: {
   const safeOrganizer = escapeHtml(organizerName);
   const safeTrip = escapeHtml(tripName);
 
-  const subject = `${organizerName} added you to ${tripName} on TripCoord`;
+  const subject = `${organizerName} added you to ${tripName} on tripcoord`;
   const bodyText =
     `${toName ? `Hi ${toName},\n\n` : 'Hi there,\n\n'}` +
-    `${organizerName} added you to "${tripName}" on TripCoord.\n\n` +
+    `${organizerName} added you to "${tripName}" on tripcoord.\n\n` +
     `To make sure the AI itinerary fits both of you, share your travel preferences — it's a 1-minute mini-wizard:\n\n` +
-    `${prefsUrl}\n\n---\nTripCoord · group travel made easy\n${appUrl}\n`;
+    `${prefsUrl}\n\n---\ntripcoord · group travel made easy\n${appUrl}\n`;
 
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
@@ -55,8 +55,8 @@ export async function sendPartnerAddedEmail(args: {
     },
     body: JSON.stringify({
       personalizations: [{ to: [{ email: toEmail }] }],
-      from: { email: fromEmail, name: 'TripCoord' },
-      reply_to: { email: fromEmail, name: 'TripCoord' },
+      from: { email: fromEmail, name: 'tripcoord' },
+      reply_to: { email: fromEmail, name: 'tripcoord' },
       subject,
       content: [
         { type: 'text/plain', value: bodyText },
@@ -72,12 +72,12 @@ export async function sendPartnerAddedEmail(args: {
         <tr><td style="background:#0c4a6e;padding:32px 32px 24px;text-align:center;">
           <p style="font-size:36px;margin:0 0 8px;">✈️</p>
           <h1 style="color:#ffffff;font-size:24px;margin:0 0 4px;font-weight:700;">You're on the trip</h1>
-          <p style="color:#7dd3fc;font-size:13px;margin:0;">TripCoord · group travel made easy</p>
+          <p style="color:#7dd3fc;font-size:13px;margin:0;">tripcoord · group travel made easy</p>
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="color:#3f3f46;font-size:16px;line-height:1.7;margin:0 0 16px;">${greeting}</p>
           <p style="color:#3f3f46;font-size:16px;line-height:1.7;margin:0 0 16px;">
-            <strong>${safeOrganizer}</strong> added you to <strong>${safeTrip}</strong> on TripCoord as their travel companion.
+            <strong>${safeOrganizer}</strong> added you to <strong>${safeTrip}</strong> on tripcoord as their travel companion.
           </p>
           <p style="color:#3f3f46;font-size:16px;line-height:1.7;margin:0 0 28px;">
             Take a minute to share your travel preferences so the AI itinerary fits both of you:
@@ -92,7 +92,7 @@ export async function sendPartnerAddedEmail(args: {
         </td></tr>
         <tr><td style="background:#f9fafb;padding:20px 32px;border-top:1px solid #e4e4e7;text-align:center;">
           <p style="color:#a1a1aa;font-size:11px;margin:0;">
-            You received this because ${safeOrganizer} has you set as their default travel partner on TripCoord.<br>
+            You received this because ${safeOrganizer} has you set as their default travel partner on tripcoord.<br>
             <a href="${appUrl}" style="color:#0c4a6e;">tripcoord.ai</a>
           </p>
         </td></tr>

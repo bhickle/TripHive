@@ -1,4 +1,4 @@
-# TripCoord — Go-Live Checklist
+# tripcoord — Go-Live Checklist
 
 Items that need to happen before public launch. Status:
 🟥 Not started · 🟧 In progress · 🟩 Done
@@ -57,8 +57,8 @@ Update the status emoji as you complete each item. CLAUDE.md links here for the 
 
 **Steps:**
 1. Supabase Dashboard → Authentication → Email Templates
-2. Paste `email-templates/confirm-signup.html` into the **Confirm signup** template (subject: "Confirm your TripCoord account")
-3. Paste `email-templates/reset-password.html` into the **Reset Password** template (subject: "Reset your TripCoord password")
+2. Paste `email-templates/confirm-signup.html` into the **Confirm signup** template (subject: "Confirm your tripcoord account")
+3. Paste `email-templates/reset-password.html` into the **Reset Password** template (subject: "Reset your tripcoord password")
 4. Save both, send a test trigger from `/auth/signup` and the password reset flow
 
 ### 🟥 Sentry — create project and set DSN env vars (optional but recommended)
@@ -67,7 +67,7 @@ Update the status emoji as you complete each item. CLAUDE.md links here for the 
 **Steps:**
 1. Create a free account + project at https://sentry.io
 2. Copy the DSN
-3. Vercel → TripHive → Settings → Environment Variables → add:
+3. Vercel → tripcoord → Settings → Environment Variables → add:
    - `NEXT_PUBLIC_SENTRY_DSN` (client-side errors) — same DSN value
    - `SENTRY_DSN` (server-side errors) — same DSN value
 4. Redeploy
@@ -77,7 +77,7 @@ Update the status emoji as you complete each item. CLAUDE.md links here for the 
 **Why:** Tier 1 build durability shipped 2026-05-09 (server-owned abort + per-day persist + resume detection). Tier 2 moves orchestration to an Inngest worker so builds complete even when the browser is fully closed. Not strictly launch-blocking, but recommended within the first 1-2 weeks of real traffic.
 
 **Steps:**
-1. Sign up at https://inngest.com, create a TripCoord environment
+1. Sign up at https://inngest.com, create a tripcoord environment
 2. Vercel env vars: add `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (Production + Preview)
 3. Verify `itineraries` is in the Supabase `supabase_realtime` publication (Database → Replication)
 4. Tell Claude when you're ready and the worker migration ships next
@@ -131,7 +131,7 @@ Do this **the day of launch**, after final testing, before announcing.
 
 **Steps:**
 1. Generate a random string (e.g. `openssl rand -hex 32`)
-2. Vercel → TripHive → Settings → Environment Variables → add `CRON_SECRET` with the random value
+2. Vercel → tripcoord → Settings → Environment Variables → add `CRON_SECRET` with the random value
 3. Redeploy
 
 ### 🟥 Drop `/public/og-image.png` (1200×630) for social previews

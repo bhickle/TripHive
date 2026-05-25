@@ -107,12 +107,12 @@ function countryCode(country: string | null): string {
   return COUNTRY_ISO3[country] ?? country.replace(/\s+/g, '').slice(0, 3).toUpperCase();
 }
 
-// Stamp watermark — repeating "TRIPCOORD ✦" diagonal text, very faint
+// Stamp watermark — repeating "tripcoord ✦" diagonal text, very faint
 // against the cream parchment so it reads as security texture rather
 // than as content. Inlined as a data URL so no separate asset is needed.
 const STAMP_WATERMARK_BG =
   // eslint-disable-next-line @next/next/no-img-element
-  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80' viewBox='0 0 200 80'><text x='10' y='50' font-family='Georgia, serif' font-size='14' fill='%237c6e3a' fill-opacity='0.07' transform='rotate(-18 100 40)'>TRIPCOORD ✦ TRIPCOORD ✦</text></svg>\"), " +
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80' viewBox='0 0 200 80'><text x='10' y='50' font-family='Georgia, serif' font-size='14' fill='%237c6e3a' fill-opacity='0.07' transform='rotate(-18 100 40)'>tripcoord ✦ tripcoord ✦</text></svg>\"), " +
   'linear-gradient(135deg, #fdf6e3 0%, #f9efd2 100%)';
 
 // Alternating tilt for the hand-stamped feel. Cycle through 4 angles
@@ -654,7 +654,7 @@ export default function WorldClient() {
                         >
                           {/* Page header — brand + country code chip */}
                           <div className="flex items-center justify-between font-mono text-[8px] font-bold tracking-[0.2em] uppercase border-b border-dashed pb-1.5" style={{ color: '#7c6e3a', borderColor: 'rgba(124, 110, 58, 0.4)' }}>
-                            <span className="truncate">TRIPCOORD ✦</span>
+                            <span className="truncate">tripcoord ✦</span>
                             <span className="ml-1 px-1.5 py-px rounded-sm border" style={{ background: '#fff8e6', borderColor: 'rgba(124,110,58,0.35)', color: '#5b5028' }}>
                               {code}
                             </span>

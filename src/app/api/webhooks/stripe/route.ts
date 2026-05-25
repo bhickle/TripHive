@@ -295,7 +295,7 @@ export async function POST(req: NextRequest) {
               type: 'payment_failed',
               trip_id: null,
               trip_name: null,
-              inviter_name: 'TripCoord',
+              inviter_name: 'tripcoord',
               message: 'We couldn’t charge your card. Update your payment method in Settings before your subscription lapses.',
             });
           }

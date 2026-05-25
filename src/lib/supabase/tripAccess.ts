@@ -20,7 +20,7 @@ export async function getAuthedUserId(): Promise<string | null> {
  * Look up the authed user's email + claim any orphaned trip_members rows.
  *
  * Background: the /join/[id] flow lets people join a trip BEFORE they have
- * a TripCoord account — they fill out their email + name and the resulting
+ * a tripcoord account — they fill out their email + name and the resulting
  * trip_members row has email set but user_id = null. When that same person
  * later signs up (or signs in), their auth.uid is a fresh value that
  * doesn't match the existing row, so every member-scoped check (vote save,

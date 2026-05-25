@@ -15,8 +15,8 @@ already branded.
 
 | File | Supabase template | Subject |
 |---|---|---|
-| `confirm-signup.html` | Confirm signup | Confirm your TripCoord account |
-| `reset-password.html` | Reset Password | Reset your TripCoord password |
+| `confirm-signup.html` | Confirm signup | Confirm your tripcoord account |
+| `reset-password.html` | Reset Password | Reset your tripcoord password |
 
 ## Brand colors used
 

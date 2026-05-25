@@ -168,7 +168,7 @@ export async function GET(_req: Request, { params }: { params: { userId: string 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontFamily: '"Courier New", monospace', fontWeight: 700, fontSize: 22, letterSpacing: '0.18em', color: '#7c6e3a' }}>
-                TRIPCOORD ✦ PASSPORT
+                tripcoord ✦ PASSPORT
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

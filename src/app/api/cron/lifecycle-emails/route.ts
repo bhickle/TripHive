@@ -75,20 +75,20 @@ function buildEmail(job: EmailJob): { subject: string; html: string; text: strin
     case 'stalled':
       subject = `Finish planning your ${dest} trip`;
       preheader = `You started planning ${dest} a week ago — pick up where you left off.`;
-      bodyText = `Hi ${name},\n\nYou started planning your trip to ${dest} a week ago, but the itinerary isn't finished yet. Your group's waiting!\n\nIt takes about two minutes to wrap up — TripCoord remembers everything you've entered.`;
+      bodyText = `Hi ${name},\n\nYou started planning your trip to ${dest} a week ago, but the itinerary isn't finished yet. Your group's waiting!\n\nIt takes about two minutes to wrap up — tripcoord remembers everything you've entered.`;
       primaryCta = { label: 'Continue planning', url: itineraryUrl };
       break;
     case 'upcoming_14d':
       subject = `${dest} in 2 weeks — let's get ready`;
       preheader = `Two weeks out. Here's what's worth doing now.`;
-      bodyText = `Hi ${name},\n\n${dest} is two weeks away. A few things worth knocking out this week:\n\n• Double-check passport & visa requirements\n• Confirm hotel check-ins and flight times\n• Skim the prep checklist inside TripCoord\n• Share the itinerary with anyone back home who needs it`;
+      bodyText = `Hi ${name},\n\n${dest} is two weeks away. A few things worth knocking out this week:\n\n• Double-check passport & visa requirements\n• Confirm hotel check-ins and flight times\n• Skim the prep checklist inside tripcoord\n• Share the itinerary with anyone back home who needs it`;
       primaryCta = { label: 'Open prep checklist', url: prepUrl };
       secondaryCta = { label: 'View itinerary', url: itineraryUrl };
       break;
     case 'upcoming_7d':
       subject = `${dest} in 7 days — packing list ready`;
       preheader = `One week out. Pack smart based on the actual weather forecast.`;
-      bodyText = `Hi ${name},\n\nSeven days until ${dest}. TripCoord can build you a smart packing list using the actual weather forecast for your dates plus the activities you've planned.\n\nMake sure your prep tasks are wrapped and dive in.`;
+      bodyText = `Hi ${name},\n\nSeven days until ${dest}. tripcoord can build you a smart packing list using the actual weather forecast for your dates plus the activities you've planned.\n\nMake sure your prep tasks are wrapped and dive in.`;
       primaryCta = { label: 'Open prep & packing', url: prepUrl };
       secondaryCta = { label: 'View itinerary', url: itineraryUrl };
       break;
@@ -124,7 +124,7 @@ function buildEmail(job: EmailJob): { subject: string; html: string; text: strin
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;max-width:600px;width:100%;">
         <tr><td style="background:#0c4a6e;padding:28px 32px 20px;text-align:center;">
           <p style="font-size:32px;margin:0 0 6px;">✈️</p>
-          <p style="color:#7dd3fc;font-size:13px;margin:0;">TripCoord · group travel made easy</p>
+          <p style="color:#7dd3fc;font-size:13px;margin:0;">tripcoord · group travel made easy</p>
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="color:#3f3f46;font-size:16px;line-height:1.7;margin:0 0 24px;white-space:pre-line;">${bodyText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
@@ -137,7 +137,7 @@ function buildEmail(job: EmailJob): { subject: string; html: string; text: strin
         </td></tr>
         <tr><td style="background:#f9fafb;padding:18px 32px;border-top:1px solid #e4e4e7;text-align:center;">
           <p style="color:#a1a1aa;font-size:11px;margin:0 0 4px;">
-            You're getting this because you've got an active trip on TripCoord.
+            You're getting this because you've got an active trip on tripcoord.
           </p>
           <p style="color:#a1a1aa;font-size:11px;margin:0;">
             <a href="${APP_URL}/settings" style="color:#0c4a6e;">Manage notifications</a> · <a href="${APP_URL}" style="color:#0c4a6e;">tripcoord.ai</a>
@@ -149,7 +149,7 @@ function buildEmail(job: EmailJob): { subject: string; html: string; text: strin
 </body>
 </html>`;
 
-  const text = `${bodyText}\n\n${primaryCta.label}: ${primaryCta.url}${secondaryText}\n\n---\nTripCoord · group travel made easy\nManage notifications: ${APP_URL}/settings`;
+  const text = `${bodyText}\n\n${primaryCta.label}: ${primaryCta.url}${secondaryText}\n\n---\ntripcoord · group travel made easy\nManage notifications: ${APP_URL}/settings`;
 
   return { subject, html, text };
 }
@@ -168,8 +168,8 @@ async function sendOne(apiKey: string, job: EmailJob): Promise<{ ok: boolean; re
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: job.email }] }],
-        from: { email: FROM_EMAIL, name: 'TripCoord' },
-        reply_to: { email: FROM_EMAIL, name: 'TripCoord' },
+        from: { email: FROM_EMAIL, name: 'tripcoord' },
+        reply_to: { email: FROM_EMAIL, name: 'tripcoord' },
         subject,
         content: [
           { type: 'text/plain', value: text },

@@ -29,8 +29,8 @@ export function ShareTripModal({ tripId, tripName, destination, onClose }: Share
   // Short, friendly message that works for SMS/WhatsApp/Twitter all the same.
   // Quote-friendly: no curly apostrophes that some SMS clients mangle.
   const messageText = destination
-    ? `I'm planning a trip to ${destination} on TripCoord — want to join?`
-    : `I'm planning a trip on TripCoord — want to join?`;
+    ? `I'm planning a trip to ${destination} on tripcoord — want to join?`
+    : `I'm planning a trip on tripcoord — want to join?`;
 
   const handleCopy = async () => {
     try {

@@ -866,7 +866,7 @@ export default function SettingsPage() {
                           className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
                         />
                         <p className="text-xs text-slate-400 mt-1">
-                          New trips will auto-share with this person. They need a TripCoord account; leave blank to clear.
+                          New trips will auto-share with this person. They need a tripcoord account; leave blank to clear.
                         </p>
                         {partnerError && (
                           <p className="text-xs text-rose-600 mt-1">{partnerError}</p>

@@ -3284,7 +3284,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             {inviteSent ? (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center mb-4">
                 <p className="text-sm font-semibold text-emerald-700">
-                  {inviteMethod === 'email' ? '✓ Invite sent! They\'ll see it in their email or TripCoord dashboard.' : `✓ Invite sent via ${inviteMethod}!`}
+                  {inviteMethod === 'email' ? '✓ Invite sent! They\'ll see it in their email or tripcoord dashboard.' : `✓ Invite sent via ${inviteMethod}!`}
                 </p>
               </div>
             ) : null}

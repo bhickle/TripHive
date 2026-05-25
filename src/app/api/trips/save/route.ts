@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
               }
 
               // Email the partner too. The in-app notification alone is
-              // brittle — if they don't open TripCoord soon, the trip is
+              // brittle — if they don't open tripcoord soon, the trip is
               // invisible to them and the organizer assumes the auto-add
               // didn't work.
               //

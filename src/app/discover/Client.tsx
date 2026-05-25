@@ -1235,7 +1235,7 @@ export default function DiscoverPage() {
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Founder Itineraries</h2>
-                  <p className="text-sm text-zinc-500 mt-0.5">Real trips hand-picked by the TripCoord founders — like &apos;em, save &apos;em, or use one as your starting point</p>
+                  <p className="text-sm text-zinc-500 mt-0.5">Real trips hand-picked by the tripcoord founders — like &apos;em, save &apos;em, or use one as your starting point</p>
                 </div>
               </div>
               <div className="relative">
@@ -1332,7 +1332,7 @@ export default function DiscoverPage() {
                     What the community is building
                   </h2>
                   <p className="text-sm text-zinc-500 mt-0.5">
-                    Real itineraries from TripCoord travelers — like &apos;em, save &apos;em, or use one as your starting point
+                    Real itineraries from tripcoord travelers — like &apos;em, save &apos;em, or use one as your starting point
                   </p>
                 </div>
               </div>

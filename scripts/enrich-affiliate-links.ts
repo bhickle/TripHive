@@ -163,7 +163,7 @@ async function searchOpenTable(name: string, city: string): Promise<OpenTableRes
             resolve({
               rid: restaurant.rid,
               name: restaurant.name,
-              bookingUrl: `https://www.opentable.com/restref/client/?rid=${restaurant.rid}&ref=triphive&utm_source=triphive&utm_medium=referral`,
+              bookingUrl: `https://www.opentable.com/restref/client/?rid=${restaurant.rid}&ref=tripcoord&utm_source=tripcoord&utm_medium=referral`,
             });
           } catch {
             resolve(null);
@@ -219,7 +219,7 @@ async function searchTicketmaster(name: string, city: string, eventDate?: string
             resolve({
               id: event.id,
               name: event.name,
-              bookingUrl: `${event.url}?utm_source=triphive&utm_medium=referral&utm_campaign=discover`,
+              bookingUrl: `${event.url}?utm_source=tripcoord&utm_medium=referral&utm_campaign=discover`,
             });
           } catch {
             resolve(null);
@@ -235,7 +235,7 @@ async function searchTicketmaster(name: string, city: string, eventDate?: string
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('triphive affiliate enrichment script\n');
+  console.log('tripcoord affiliate enrichment script\n');
 
   const results: Array<{ id: string; affiliateProductId: string; affiliateDeepUrl: string }> = [];
 

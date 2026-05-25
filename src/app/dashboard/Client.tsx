@@ -1020,8 +1020,8 @@ export default function DashboardPage() {
                     <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1">Preview</p>
                     <p className="text-sm text-zinc-700">
                       {inviteMethod === 'email'
-                        ? `Hey! You're invited to join our trip on TripCoord. Click the link to join the group and start planning together!`
-                        : `You're invited to join a trip on TripCoord! Join here: ${typeof window !== 'undefined' ? window.location.origin : 'https://www.tripcoord.ai'}/join/${inviteTripId ?? ''}`}
+                        ? `Hey! You're invited to join our trip on tripcoord. Click the link to join the group and start planning together!`
+                        : `You're invited to join a trip on tripcoord! Join here: ${typeof window !== 'undefined' ? window.location.origin : 'https://www.tripcoord.ai'}/join/${inviteTripId ?? ''}`}
                     </p>
                   </div>
                 )}
@@ -1029,7 +1029,7 @@ export default function DashboardPage() {
                 {inviteSent && (
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center mb-4">
                     <p className="text-sm font-semibold text-emerald-700">
-                      {inviteMethod === 'email' ? '✓ Invite sent! They\'ll see it in their email or TripCoord dashboard.' : `✓ Invite sent via ${inviteMethod}!`}
+                      {inviteMethod === 'email' ? '✓ Invite sent! They\'ll see it in their email or tripcoord dashboard.' : `✓ Invite sent via ${inviteMethod}!`}
                     </p>
                   </div>
                 )}

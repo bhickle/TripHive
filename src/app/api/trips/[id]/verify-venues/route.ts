@@ -23,7 +23,7 @@
  *
  * Cost: ~1 Google Places `searchText` call per named venue. A typical
  * 7-day trip generates ~40-60 named venues. At Google's $32/1k pricing
- * for Text Search, that's ~$1.50 per trip. Caller (TripCoord) absorbs.
+ * for Text Search, that's ~$1.50 per trip. Caller (tripcoord) absorbs.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
