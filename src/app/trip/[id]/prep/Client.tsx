@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { WeatherWidget } from '@/components/WeatherWidget';
+import { isUSDestination, homeCountryIsUS, isHomeCountryTrip as isHomeCountryTripHelper } from '@/lib/world/domestic';
 
 // ─── Schengen Detection ───────────────────────────────────────────────────────
 const SCHENGEN_KEYWORDS = [
@@ -335,42 +336,20 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     tripDestination.toLowerCase().includes(kw)
   );
 
-  // Domestic US detection — suppress international travel tips (SIM, currency, Embassy)
-  // and hide the Phrases tab (English-only destination)
-  const US_STATE_ABBREVIATIONS = [
-    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-    'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-    'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-    'VA','WA','WV','WI','WY','DC',
-  ];
-  const destLower = tripDestination.toLowerCase();
-  const isDomesticUS = (
-    destLower.includes('united states') ||
-    destLower.includes(' usa') || destLower.endsWith('usa') ||
-    destLower.includes('u.s.a') ||
-    // Match "City, ST" pattern — e.g. "Pittsburgh, PA" or "New York, NY"
-    US_STATE_ABBREVIATIONS.some(abbr =>
-      new RegExp(`,\\s*${abbr}\\b`, 'i').test(tripDestination)
-    )
-  );
+  // Domestic US detection — suppress international travel tips (SIM, currency,
+  // Embassy) and hide the Phrases tab (English-only destination). Destination-
+  // only; see lib/world/domestic.ts.
+  const isDomesticUS = isUSDestination(tripDestination);
 
   // ─── Home-country trip detection (drives the Visa & Entry card) ───────────────
   // profiles.home_country is a country *name* ("United States", "France"), or
-  // null for users who predate the onboarding picker. The legacy visa card
-  // always assumed a US passport, so when home is unknown we keep assuming the
-  // US — no regression for existing US users, and non-US users who set their
-  // home get correct guidance.
+  // null for users who predate the onboarding picker.
   const homeCountry = (profile?.home_country ?? '').trim();
-  const homeIsUS = !homeCountry || homeCountry.toLowerCase().includes('united states');
+  const homeIsUS = homeCountryIsUS(homeCountry);
   const homeCountryLabel = homeCountry || 'the United States';
   // "Domestic" here means the destination is in the traveler's OWN country —
-  // distinct from isDomesticUS (destination-only; drives English/USD/no-
-  // phrasebook assumptions regardless of who's traveling). US home reuses the
-  // robust isDomesticUS detection; other homes match the destination string
-  // naming their country.
-  const isHomeCountryTrip = homeIsUS
-    ? isDomesticUS
-    : (!!homeCountry && destLower.includes(homeCountry.toLowerCase()));
+  // distinct from isDomesticUS (which ignores who's traveling).
+  const isHomeCountryTrip = isHomeCountryTripHelper(tripDestination, homeCountry);
 
   // For multi-country trips (cruises, road trips), extract individual port/country names
   // so we can generate a phrasebook per distinct language region

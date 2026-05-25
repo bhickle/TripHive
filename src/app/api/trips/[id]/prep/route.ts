@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { isHomeCountryTrip, homeCountryIsUS } from '@/lib/world/domestic';
 
-const GENERIC_PREP_TASKS = [
+// Defaults seeded on a trip's first visit to the Prep tab. International trips
+// get the passport/visa/SIM-heavy list; trips within the traveler's own
+// country get a leaner list (no passport, visa, or roaming) — see
+// domesticPrepTasks below.
+const INTERNATIONAL_PREP_TASKS = [
   { category: 'document', title: 'Check passport validity (6+ months required for most destinations)', display_order: 0 },
   { category: 'document', title: 'Confirm visa or entry authorization for your destination', display_order: 1 },
   { category: 'document', title: 'Purchase travel insurance', display_order: 2 },
@@ -17,6 +22,26 @@ const GENERIC_PREP_TASKS = [
   { category: 'logistics', title: 'Arrange pet, plant, or mail care', display_order: 12 },
   { category: 'logistics', title: 'Refill prescriptions', display_order: 13 },
 ];
+
+// Domestic trips (destination in the traveler's own country). No passport,
+// visa, or roaming/SIM items. The ID line is REAL-ID-specific for US travelers
+// (homeIsUS) and a plain photo-ID reminder otherwise.
+function domesticPrepTasks(homeIsUS: boolean) {
+  const idTask = homeIsUS
+    ? 'Bring a government photo ID — U.S. flights now require a REAL ID'
+    : 'Bring a government-issued photo ID';
+  return [
+    { category: 'document', title: idTask, display_order: 0 },
+    { category: 'document', title: 'Save flight confirmations / boarding passes', display_order: 1 },
+    { category: 'document', title: 'Save hotel & lodging confirmations', display_order: 2 },
+    { category: 'document', title: 'Consider travel insurance (optional for domestic trips)', display_order: 3 },
+    { category: 'logistics', title: 'Download offline maps for your destination', display_order: 4 },
+    { category: 'logistics', title: 'Confirm accommodation check-in details', display_order: 5 },
+    { category: 'logistics', title: 'Set up out-of-office email / work coverage', display_order: 6 },
+    { category: 'logistics', title: 'Arrange pet, plant, or mail care', display_order: 7 },
+    { category: 'logistics', title: 'Refill prescriptions', display_order: 8 },
+  ];
+}
 
 /**
  * GET /api/trips/[id]/prep
@@ -49,7 +74,35 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     // Supabase didn't return rows (it should always return them on insert
     // success); a real failure surfaces an error.
     if (!existing || existing.length === 0) {
-      const seeds = GENERIC_PREP_TASKS.map(t => ({ ...t, trip_id: params.id, completed: false }));
+      // Pick the seed list by trip type. Domestic = destination is in the
+      // organizer's home country (profiles.home_country). Detection failure is
+      // non-fatal: we fall back to the international list, which is the safer
+      // default (better to over-list documents than to omit a needed visa).
+      let seedTasks = INTERNATIONAL_PREP_TASKS;
+      try {
+        const { data: trip } = await supabase
+          .from('trips')
+          .select('destination, organizer_id')
+          .eq('id', params.id)
+          .maybeSingle();
+        if (trip?.destination) {
+          let homeCountry: string | null = null;
+          if (trip.organizer_id) {
+            const { data: org } = await supabase
+              .from('profiles')
+              .select('home_country')
+              .eq('id', trip.organizer_id)
+              .maybeSingle();
+            homeCountry = org?.home_country ?? null;
+          }
+          if (isHomeCountryTrip(trip.destination, homeCountry)) {
+            seedTasks = domesticPrepTasks(homeCountryIsUS(homeCountry));
+          }
+        }
+      } catch (e) {
+        console.error('prep seed domestic-detection failed; using international list:', e);
+      }
+      const seeds = seedTasks.map(t => ({ ...t, trip_id: params.id, completed: false }));
       const { data: seeded, error: seedErr } = await supabase
         .from('prep_tasks')
         .insert(seeds)
