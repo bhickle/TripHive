@@ -16,9 +16,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
  *   - Carries over the itinerary days + meta (so user can immediately
  *     start editing), destination, trip_length, group_size, and the
  *     cover photo + attribution metadata.
- *   - Title gets " (Copy)" appended so the fork is distinguishable
- *     from the original on the user's dashboard, especially when
- *     someone forks their own trip.
+ *   - Title carries over from the source as-is (no "(Copy)" suffix); the
+ *     user can rename the trip from the itinerary header.
  *   - Dates default to null (user picks their own travel dates), but
  *     can be supplied in the request body so the new trip sorts into
  *     the right chronological spot on Home Base immediately.
@@ -57,11 +56,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Trip is not a public template' }, { status: 403 });
     }
 
-    // Append (Copy) so forks are distinguishable from the original on Home
-    // Base. Skip if the source already ends in (Copy) — multiple forks of a
-    // fork shouldn't pile up "(Copy) (Copy) (Copy)".
-    const baseTitle = source.title || `${source.destination} trip`;
-    const newTitle = /\(Copy\)\s*$/i.test(baseTitle) ? baseTitle : `${baseTitle} (Copy)`;
+    // Carry the source title across as-is — no "(Copy)" suffix (per Brandon:
+    // it cluttered the name and couldn't be cleaned up). Strip any trailing
+    // "(Copy)" the source itself may already carry so forks-of-forks stay
+    // clean. The user can rename the trip from the itinerary header.
+    const newTitle = (source.title || `${source.destination} Trip`).replace(/\s*\(Copy\)\s*$/i, '').trim();
 
     // Create the new trip row (organizer_id = caller, fork_source_id = source)
     const { data: newTrip, error: insertErr } = await supabase

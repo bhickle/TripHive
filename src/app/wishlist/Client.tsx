@@ -832,13 +832,18 @@ export default function WishlistPage() {
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />
+                  {/* z-10 keeps the heart above the gradient overlay below —
+                      without it the inset-0 overlay (later in the DOM) paints
+                      on top and swallows the click, so the heart couldn't be
+                      un-clicked to remove the item. */}
                   <button
                     onClick={() => toggleWishlist(item.id)}
-                    className="absolute top-3 right-3 p-2 rounded-full bg-white/95 hover:bg-white shadow-md transition-all"
+                    aria-label={savedIds.has(item.id) ? 'Remove from On My Radar' : 'Save to On My Radar'}
+                    className="absolute top-3 right-3 z-10 p-2 rounded-full bg-white/95 hover:bg-white shadow-md transition-all"
                   >
                     <Heart className={`w-5 h-5 transition-all ${savedIds.has(item.id) ? 'fill-sky-700 text-sky-700' : 'text-zinc-400 hover:text-sky-700'}`} />
                   </button>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <p className="font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">{item.destination}, {item.country}</p>
                   </div>

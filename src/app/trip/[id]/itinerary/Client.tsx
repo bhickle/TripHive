@@ -368,6 +368,7 @@ function ItineraryPageContent() {
 
   // Edit destination / dates modal
   const [showEditTripModal, setShowEditTripModal] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
   const [editDest, setEditDest] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   // Escape-key dismiss for the two most-trafficked itinerary modals.
@@ -662,6 +663,7 @@ function ItineraryPageContent() {
   // the sidebar, "Tonight's Stay" card, and other UI components read from aiMeta,
   // not directly from tripRow. Forgetting this causes stale UI until page reload.
   const [aiMeta, setAiMeta] = useState<{
+    title?: string;
     destination?: string; startDate?: string; endDate?: string;
     budget?: number; budgetBreakdown?: Record<string, number>;
     groupType?: string;
@@ -2384,6 +2386,7 @@ function ItineraryPageContent() {
 
   // ─── Edit trip destination / dates ───────────────────────────────────────────
   const handleOpenEditTrip = useCallback(() => {
+    setEditTitle((tripRow?.title as string) ?? '');
     setEditDest(aiMeta?.destination ?? trip.destination);
     // For forked-without-dates trips, aiMeta.startDate is empty but the
     // days array still carries the source's dates. Pre-fill the modal's
@@ -2393,7 +2396,7 @@ function ItineraryPageContent() {
     setEditEndDate(aiMeta?.endDate ?? '');
     setEditTripError(null);
     setShowEditTripModal(true);
-  }, [aiMeta, trip.destination]);
+  }, [aiMeta, trip.destination, tripRow]);
 
   const handleSaveTripEdit = useCallback(async () => {
     if (!editDest.trim()) return;
@@ -2401,7 +2404,11 @@ function ItineraryPageContent() {
     setEditTripError(null);
     try {
       const city = editDest.split(',')[0].trim();
-      const newTitle = `${city} Adventure`;
+      // Use the name the user typed; fall back to a city-derived default only
+      // when they've cleared it. (Previously the title was always force-set to
+      // "{city} Adventure", so renames never stuck — e.g. a forked trip kept
+      // its long auto-name and couldn't be changed.)
+      const newTitle = editTitle.trim() || `${city} Adventure`;
 
       // Shift day dates if the start date changed.
       // Anchor:
@@ -2448,6 +2455,10 @@ function ItineraryPageContent() {
               ...(editEndDate   ? { end_date:   editEndDate   } : {}),
             },
             metaPatch: {
+              // Keep meta.title in sync with trips.title — export + Trip Story
+              // read the title from meta first, so without this a rename would
+              // show everywhere except those two surfaces.
+              title: newTitle,
               destination: editDest.trim(),
               ...(editStartDate ? { startDate: editStartDate } : {}),
               ...(editEndDate   ? { endDate:   editEndDate   } : {}),
@@ -2466,10 +2477,12 @@ function ItineraryPageContent() {
       // but not for the destination").
       setAiMeta(prev => prev ? {
         ...prev,
+        title: newTitle,
         destination: editDest.trim(),
         ...(editStartDate ? { startDate: editStartDate } : {}),
         ...(editEndDate   ? { endDate:   editEndDate   } : {}),
       } : {
+        title: newTitle,
         destination: editDest.trim(),
         startDate: editStartDate || undefined,
         endDate: editEndDate || undefined,
@@ -2495,7 +2508,7 @@ function ItineraryPageContent() {
     } finally {
       setSavingTripEdit(false);
     }
-  }, [editDest, editStartDate, editEndDate, aiMeta, activeDays, params.id, persistDays]);
+  }, [editTitle, editDest, editStartDate, editEndDate, aiMeta, activeDays, params.id, persistDays]);
 
   // activeDays / trip / currentDayData declared earlier (above persistDays) so callbacks can use them
 
@@ -2924,8 +2937,8 @@ function ItineraryPageContent() {
                 // viewers on 3+ trips per the edit-permission gate.
                 <button
                   onClick={handleOpenEditTrip}
-                  title="Edit destination & dates"
-                  aria-label="Edit destination and dates"
+                  title="Edit trip name, destination & dates"
+                  aria-label="Edit trip name, destination, and dates"
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-400 hover:text-zinc-700 hover:border-zinc-300 transition-colors"
                 >
                   <Pencil className="w-3 h-3" />
@@ -5563,7 +5576,7 @@ function ItineraryPageContent() {
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="Edit destination and dates"
+          aria-label="Edit trip details"
           onClick={() => setShowEditTripModal(false)}
         >
           <div
@@ -5584,7 +5597,7 @@ function ItineraryPageContent() {
             <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex items-center justify-between">
               <div>
                 <h2 className="font-script italic text-lg font-semibold text-zinc-900">Edit Trip Details</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Update destination or travel dates</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Update the name, destination, or travel dates</p>
               </div>
               <button
                 onClick={() => setShowEditTripModal(false)}
@@ -5595,6 +5608,22 @@ function ItineraryPageContent() {
             </div>
 
             <div className="px-6 py-5 space-y-4">
+              {/* Trip Name — editable so forked trips (which inherit a long
+                  auto-generated name) can be renamed. Blank falls back to a
+                  "{city} Adventure" default on save. */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
+                  Trip Name
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  placeholder="e.g., Our Rome Getaway"
+                  className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent"
+                />
+              </div>
+
               {/* Destination */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 uppercase tracking-wide mb-2">
