@@ -137,6 +137,7 @@ export async function PATCH(
         title?: string;
         start_date?: string;
         end_date?: string;
+        trip_length?: number;
         itinerary_generated_at?: string;
         booked_hotels?: Json[];
         booked_flight?: Json;

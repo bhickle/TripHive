@@ -304,10 +304,20 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
     try {
       const body = buildParseBody();
 
+      // When parsing INTO an existing trip, send tripId so the route (1)
+      // charges the parse credit against that trip's Trip Pass pool instead
+      // of the user's personal monthly credits, and (2) runs the org/co-org
+      // role gate (requireTripAiRole). New-trip uploads omit tripId — the
+      // user is the future organizer, so there's nothing to gate against yet.
+      const parseBody =
+        tripChoice === 'existing' && selectedTripId
+          ? { ...body, tripId: selectedTripId }
+          : body;
+
       const res = await fetch('/api/parse-itinerary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(parseBody),
       });
 
       clearInterval(interval);
@@ -428,10 +438,27 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
         localStorage.setItem('currentTripId', selectedTripId);
         setSavedTripId(selectedTripId);
 
+        // Persist any edits the user made in the preview to the trip row.
+        // Without this tripPatch, edited destination/dates were silently
+        // dropped, and trip_length kept its stale value after the day list
+        // was replaced (so a parsed 7-day trip could still claim "3 days").
+        // Only non-empty preview values are sent so we never clobber the
+        // existing trip's destination/dates with blanks.
+        const tripPatch: {
+          destination?: string;
+          start_date?: string;
+          end_date?: string;
+          trip_length?: number;
+        } = {};
+        if (previewDestination.trim()) tripPatch.destination = previewDestination.trim();
+        if (startDate) tripPatch.start_date = startDate;
+        if (endDate) tripPatch.end_date = endDate;
+        if (Array.isArray(parsedItinerary)) tripPatch.trip_length = parsedItinerary.length;
+
         const patchRes = await fetch(`/api/trips/${selectedTripId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ days: parsedItinerary }),
+          body: JSON.stringify({ days: parsedItinerary, tripPatch }),
         });
         if (!patchRes.ok) {
           const errBody = await patchRes.json().catch(() => ({}));
