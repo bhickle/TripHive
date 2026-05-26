@@ -107,6 +107,11 @@ interface TripWizardState {
   daysPerDestination: Record<string, number>;
   /** Free-text notes for the AI — "anything else we should know?" */
   additionalContext: string;
+  /** Extracted text from reference links the user saved on an "On My Radar"
+   *  item (Reddit threads, blogs, etc.), fetched when arriving from
+   *  "Plan this trip". Fed to the AI as inspiration, separate from the
+   *  high-priority additionalContext notes. */
+  referenceContent: string;
   /** "Do you generally know what you want to do each day?" Toggle on Step 5.
    *  When true, the wizard reveals one textarea per trip day. The contents
    *  flow through to the AI as a day-by-day skeleton it builds around.
@@ -476,6 +481,7 @@ function TripBuilderPage() {
     destinations: [],
     daysPerDestination: {},
     additionalContext: '',
+    referenceContent: '',
     knowsDailyPlans: false,
     dailyOutlines: [],
   });
@@ -483,6 +489,11 @@ function TripBuilderPage() {
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
     useState(false);
   const [budgetAutoFilled, setBudgetAutoFilled] = useState(false);
+  // Status of the reference-link fetch kicked off when arriving from a
+  // wishlist "Plan this trip" with saved links. Drives the small confirmation
+  // chip near the free-text notes step.
+  const [referenceStatus, setReferenceStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
+  const [referenceLinkCount, setReferenceLinkCount] = useState(0);
   const [mustHaveInput, setMustHaveInput] = useState('');
   const [destinationCityInput, setDestinationCityInput] = useState('');
   const [showAccessibilityOptions, setShowAccessibilityOptions] = useState(
@@ -635,15 +646,28 @@ function TripBuilderPage() {
     const days = searchParams.get('days');
     const featured = searchParams.get('featured');
     const season = searchParams.get('season');
+    const prioritiesParam = searchParams.get('priorities');
+    const refLinks = searchParams.getAll('ref');
     if (!destination) return;
+
+    const validPriorityIds = new Set(priorityOptions.map(p => p.id));
+
     // When the user builds from a Seasonal Collection, pre-seed the When step
     // to the right time of year (flexible-dates mode, month range from the
     // collection's season). Unknown/empty seasons leave dates untouched.
     const seasonRange = season ? seasonToMonthRange(season) : null;
+    // Priorities carried from an "On My Radar" item's tags — validated against
+    // the Trip Builder taxonomy so a stray tag can't inject an unknown id.
+    const wishlistPriorities = (prioritiesParam ? prioritiesParam.split(',') : [])
+      .map(p => p.trim().toLowerCase())
+      .filter(p => validPriorityIds.has(p));
     setState(prev => ({
       ...prev,
       destination,
       ...(days ? { tripLength: parseInt(days, 10) } : {}),
+      ...(wishlistPriorities.length
+        ? { priorities: Array.from(new Set([...prev.priorities, ...wishlistPriorities])) }
+        : {}),
       ...(seasonRange
         ? { flexibleDates: true, startDate: seasonRange.startDate, endDate: seasonRange.endDate }
         : {}),
@@ -652,17 +676,13 @@ function TripBuilderPage() {
     // If the user came from a Featured Itinerary CTA ("Start planning
     // this trip" on /discover/[slug]), pull that itinerary's vibes and
     // pre-fill matching priorities so the AI build is shaped by the same
-    // themes as the editorial trip the user picked. Match is by lowercased
-    // vibe → priority-id (the Discover vibe taxonomy is a superset of the
-    // Trip Builder priority taxonomy). Failures are silent — the user
-    // can still proceed and pick priorities themselves.
+    // themes as the editorial trip the user picked.
     if (featured) {
       fetch(`/api/featured-itineraries/${featured}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           const vibes: string[] | undefined = data?.itinerary?.vibes;
           if (!Array.isArray(vibes) || vibes.length === 0) return;
-          const validPriorityIds = new Set(priorityOptions.map(p => p.id));
           const mapped = vibes
             .map(v => v.toLowerCase().replace(/\s+/g, ''))
             .filter(v => validPriorityIds.has(v));
@@ -671,6 +691,32 @@ function TripBuilderPage() {
           }
         })
         .catch(() => { /* silent — user picks priorities themselves */ });
+    }
+
+    // If the user came from an "On My Radar" item with saved reference links,
+    // fetch their contents so the AI can draw on the specific places/tips in
+    // those links. Best-effort — any failure leaves referenceContent empty and
+    // the build proceeds normally.
+    if (refLinks.length > 0) {
+      setReferenceStatus('loading');
+      setReferenceLinkCount(refLinks.length);
+      fetch('/api/fetch-reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: refLinks }),
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          const content = typeof data?.content === 'string' ? data.content.trim() : '';
+          if (content) {
+            setState(prev => ({ ...prev, referenceContent: content }));
+            setReferenceStatus('ready');
+          } else {
+            setReferenceStatus('idle');
+            setReferenceLinkCount(0);
+          }
+        })
+        .catch(() => { setReferenceStatus('idle'); setReferenceLinkCount(0); });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -843,6 +889,10 @@ function TripBuilderPage() {
       accessibilityNeeds: state.accessibilityNeeds,
       mustHaves: state.mustHaves,
       additionalContext: state.additionalContext,
+      // Reference material extracted from links saved on a wishlist item
+      // (Reddit threads, blogs). Fed to the AI as inspiration — kept separate
+      // from the high-priority additionalContext notes.
+      referenceContent: state.referenceContent,
       // Organizer's home country (from their profile) — personalizes the Trip
       // Essentials visa/entry note to their passport. Empty if unset in Settings.
       homeCountry: currentUser.homeCountry ?? '',
@@ -914,6 +964,7 @@ function TripBuilderPage() {
         dateNight: state.dateNight,
         mustHaves: state.mustHaves,
         additionalContext: state.additionalContext,
+        referenceContent: state.referenceContent,
         knowsDailyPlans: state.knowsDailyPlans,
         dailyOutlines: state.dailyOutlines,
         destinations: state.destinations,
@@ -2744,6 +2795,18 @@ function TripBuilderPage() {
                     rows={3}
                     className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 resize-none"
                   />
+                  {referenceStatus === 'loading' && (
+                    <p className="mt-2 text-xs text-sky-700 flex items-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Reading the {referenceLinkCount === 1 ? 'link' : `${referenceLinkCount} links`} you saved…
+                    </p>
+                  )}
+                  {referenceStatus === 'ready' && (
+                    <p className="mt-2 text-xs text-emerald-700 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" />
+                      Pulled ideas from your saved {referenceLinkCount === 1 ? 'link' : 'links'} — we&apos;ll factor them into your itinerary.
+                    </p>
+                  )}
                 </div>
 
                 {/* Do you know what you want each day? */}

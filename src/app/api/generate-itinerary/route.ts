@@ -385,6 +385,7 @@ function buildPrompt(params: {
   destinations?: string[];             // ordered city list for multi-city trips
   daysPerDestination?: Record<string, number>; // optional day allocation per city
   additionalContext?: string;          // free-text notes from the user ("anything else?")
+  referenceContent?: string;           // extracted text from links the user saved on a wishlist item (inspiration, not requirements)
   /** Organizer's home country. Personalizes the Trip Essentials entry/visa
    *  note to the traveler's passport instead of assuming a US/EU/UK one. */
   homeCountry?: string;
@@ -451,6 +452,7 @@ function buildPrompt(params: {
   const destinations = params.destinations ?? [];
   const daysPerDestination = params.daysPerDestination ?? {};
   const additionalContext = (params.additionalContext ?? '').trim();
+  const referenceContent = (params.referenceContent ?? '').trim();
   // Entry/visa guidance is personalized to the organizer's passport when we
   // know their home country, instead of the legacy US/EU/UK assumption — the
   // groundwork for serving non-US travelers.
@@ -1125,7 +1127,7 @@ ${startDate ? `- Day-by-day calendar (use this to match each venue's per-weekday
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${organizerPaceText}${personaText}${preBookingText}${multiCityText}${featuredSeedText}
+- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${referenceContent ? `\n- REFERENCE MATERIAL THE TRAVELER SAVED (from links they bookmarked for this trip — draw on the specific, practical ideas here (places, neighborhoods, dishes, local tips) where they fit the priorities and dates; treat it as inspiration, NOT fixed requirements, and ignore anything off-topic, promotional, or impractical): ${referenceContent}` : ''}${organizerPaceText}${personaText}${preBookingText}${multiCityText}${featuredSeedText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -1856,6 +1858,7 @@ export async function POST(request: NextRequest) {
     destinations: citySegment ? [] : ((body.destinations as string[] | undefined) ?? []),
     daysPerDestination: citySegment ? {} : ((body.daysPerDestination as Record<string, number> | undefined) ?? {}),
     additionalContext: (body.additionalContext as string | undefined) ?? '',
+    referenceContent: (body.referenceContent as string | undefined) ?? '',
     // For citySegment chunks: slice to just this segment's days so the prompt's
     // "Day 1: ..." labels line up with the chunk's relative day numbers. The
     // CRITICAL DAY NUMBERING block injected later remaps emission to absolute

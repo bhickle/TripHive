@@ -885,7 +885,7 @@ export default function DashboardPage() {
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/60 via-zinc-900/10 to-transparent" />
                     <p className="absolute bottom-0 left-0 right-0 p-4 font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">
-                      {item.destination}, {item.country}
+                      {[item.destination, item.country].filter(Boolean).join(', ')}
                     </p>
                   </div>
 
@@ -904,7 +904,16 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <Link
-                      href={`/trip/new?destination=${encodeURIComponent(`${item.destination}, ${item.country}`)}`}
+                      href={(() => {
+                        const destination = [item.destination, item.country].filter(Boolean).join(', ');
+                        const params = new URLSearchParams({ destination });
+                        if (item.tripDays) params.set('days', String(item.tripDays));
+                        const priorities = (item.tags ?? []).map((t: string) => t.toLowerCase().replace(/\s+/g, '')).filter(Boolean);
+                        if (priorities.length) params.set('priorities', priorities.join(','));
+                        if (item.bestSeason) params.set('season', item.bestSeason);
+                        (item.links ?? []).slice(0, 3).forEach((l: { url?: string }) => { if (l?.url) params.append('ref', l.url); });
+                        return `/trip/new?${params.toString()}`;
+                      })()}
                       className="w-full flex items-center justify-center gap-2 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-all"
                     >
                       <Plane className="w-3.5 h-3.5" />

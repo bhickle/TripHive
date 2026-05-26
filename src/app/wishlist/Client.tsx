@@ -499,6 +499,26 @@ function getTagColor(tag: string) {
   return colors[tag] || 'bg-zinc-100 text-zinc-800';
 }
 
+// Build the "Plan this trip" link for a wishlist item. Carries everything the
+// Trip Builder can pre-fill from the saved item: destination (country joined
+// only when present — avoids the "Costa Rica," trailing comma), trip length,
+// the saved priorities (tags), the best season, and any saved reference link
+// URLs (which the builder fetches and feeds to the AI as inspiration).
+function buildPlanTripHref(item: WishlistItem): string {
+  const destination = [item.destination, item.country].filter(Boolean).join(', ');
+  const params = new URLSearchParams({ destination });
+  if (item.tripDays) params.set('days', String(item.tripDays));
+  const priorities = (item.tags ?? [])
+    .map((t) => t.toLowerCase().replace(/\s+/g, ''))
+    .filter(Boolean);
+  if (priorities.length) params.set('priorities', priorities.join(','));
+  if (item.bestSeason) params.set('season', item.bestSeason);
+  (item.links ?? []).slice(0, 3).forEach((l) => {
+    if (l.url) params.append('ref', l.url);
+  });
+  return `/trip/new?${params.toString()}`;
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function WishlistPage() {
@@ -904,7 +924,7 @@ export default function WishlistPage() {
                   </button>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
                   <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <p className="font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">{item.destination}, {item.country}</p>
+                    <p className="font-script italic text-xl text-white/90 leading-tight drop-shadow-sm">{[item.destination, item.country].filter(Boolean).join(', ')}</p>
                   </div>
                 </div>
 
@@ -968,17 +988,11 @@ export default function WishlistPage() {
                     role="button"
                     tabIndex={0}
                     aria-label={`Plan a trip to ${item.destination}`}
-                    onClick={() => {
-                      const params = new URLSearchParams({ destination: `${item.destination}, ${item.country}` });
-                      if (item.tripDays) params.set('days', String(item.tripDays));
-                      window.location.href = `/trip/new?${params.toString()}`;
-                    }}
+                    onClick={() => { window.location.href = buildPlanTripHref(item); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        const params = new URLSearchParams({ destination: `${item.destination}, ${item.country}` });
-                        if (item.tripDays) params.set('days', String(item.tripDays));
-                        window.location.href = `/trip/new?${params.toString()}`;
+                        window.location.href = buildPlanTripHref(item);
                       }
                     }}
                   >
