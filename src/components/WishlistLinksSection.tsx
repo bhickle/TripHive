@@ -162,7 +162,7 @@ export function WishlistLinksSection({ itemId, links, onLinksChange, canEdit = t
           <div className="flex gap-1.5">
             <input
               type="url"
-              placeholder="Paste a TripAdvisor / blog / Reddit link…"
+              placeholder="Paste a blog or article link…"
               value={inputUrl}
               onChange={e => { setInputUrl(e.target.value); if (error) setError(null); }}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
@@ -179,6 +179,9 @@ export function WishlistLinksSection({ itemId, links, onLinksChange, canEdit = t
               {fetching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             </button>
           </div>
+          <p className="text-[10px] text-zinc-400 mt-1 leading-snug">
+            Tip: blog &amp; article links read best when we build your trip. Reddit, Instagram &amp; TripAdvisor links still save here, but often can&apos;t be read.
+          </p>
           {error && <p className="text-[10px] text-rose-600">{error}</p>}
         </>
       )}
