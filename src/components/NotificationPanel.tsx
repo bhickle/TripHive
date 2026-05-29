@@ -45,6 +45,7 @@ function dbTypeToUi(t: string): NotifType {
     case 'pass_pending_prefs':  return 'reminder';
     case 'badge_earned':        return 'ai';
     case 'payment_failed':      return 'billing';
+    case 'support_ticket':      return 'reminder';
     default:                    return 'reminder';
   }
 }
@@ -61,6 +62,7 @@ function buildTitle(row: ApiNotificationRow): string {
     case 'pass_pending_prefs': return `${trip}: heads up before generating`;
     case 'badge_earned':       return row.message ?? 'You earned a badge';
     case 'payment_failed':     return 'Payment issue — update your card';
+    case 'support_ticket':     return row.message ?? `${who} submitted a support ticket`;
     default:                   return who;
   }
 }
@@ -109,6 +111,8 @@ function destinationUrl(notif: Notification): string | null {
       // Land the user on Settings where the Stripe customer-portal
       // button lives, so they can update their card in one click.
       case 'payment_failed':  return '/settings';
+      // Land the admin on the support inbox where they can read + act.
+      case 'support_ticket':  return '/admin/support';
       default:                return null;
     }
   }

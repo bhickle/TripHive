@@ -10,12 +10,12 @@ import CountryPicker from '@/components/CountryPicker';
 import { PRICING, getTierFeatures } from '@/hooks/useEntitlements';
 import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
 import {
-  User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, Settings as SettingsIcon,
+  User, Bell, Lock, Download, Trash2, CreditCard, Wifi, Upload, Check, Settings as SettingsIcon, HelpCircle,
   ThumbsUp, MessageSquare, ChevronUp, Send, Sparkles, Zap, Loader2,
 } from 'lucide-react';
 import Image from 'next/image';
 
-type ActiveSection = 'profile' | 'persona' | 'subscription' | 'notifications' | 'apps' | 'privacy';
+type ActiveSection = 'profile' | 'persona' | 'subscription' | 'notifications' | 'apps' | 'privacy' | 'support';
 
 interface NotificationSettings {
   email: boolean;
@@ -97,6 +97,15 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
+  // Help & Support tab state — minimal form (subject, category, body).
+  // Submission posts to /api/support/tickets which auto-tags Nomad priority
+  // and fan-outs an in-app notification to every admin.
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportCategory, setSupportCategory] = useState<'general' | 'bug' | 'billing' | 'feature' | 'account'>('general');
+  const [supportBody, setSupportBody] = useState('');
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
+  const [supportSubmitted, setSupportSubmitted] = useState(false);
+  const [supportError, setSupportError] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState(false);
   const [pwResetSending, setPwResetSending] = useState(false);
@@ -725,6 +734,37 @@ export default function SettingsPage() {
     setExportingData(false);
   };
 
+  const handleSubmitSupportTicket = async () => {
+    setSupportError('');
+    const subject = supportSubject.trim();
+    const body = supportBody.trim();
+    if (!subject || !body) {
+      setSupportError('Please add a subject and a description before submitting.');
+      return;
+    }
+    setSupportSubmitting(true);
+    try {
+      const res = await fetch('/api/support/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, body, category: supportCategory }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to submit your ticket');
+      }
+      setSupportSubmitted(true);
+      setSupportSubject('');
+      setSupportBody('');
+      setSupportCategory('general');
+      setTimeout(() => setSupportSubmitted(false), 6000);
+    } catch (err) {
+      setSupportError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setSupportSubmitting(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'DELETE') return;
     setDeleting(true);
@@ -776,6 +816,7 @@ export default function SettingsPage() {
                 <SectionButton section="notifications" label="Notifications"   icon={Bell} />
                 <SectionButton section="apps"         label="Connected Apps"   icon={Wifi} />
                 <SectionButton section="privacy"      label="Privacy & Data"   icon={Lock} />
+                <SectionButton section="support"      label="Help & Support"   icon={HelpCircle} />
               </div>
             </div>
 
@@ -1442,6 +1483,86 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {/* ── HELP & SUPPORT ── */}
+              {activeSection === 'support' && (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+                  <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-2">Help & Support</h2>
+                  <p className="text-sm text-slate-600 mb-6">
+                    Stuck on something, found a bug, or need a hand? Send us a message — we typically reply within a couple of days.
+                    {tier === 'nomad' && (
+                      <span className="block mt-1 text-amber-700 font-medium">As a Nomad subscriber, your ticket is flagged priority.</span>
+                    )}
+                  </p>
+
+                  {supportSubmitted ? (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-3">
+                      <Check className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-emerald-900">Thanks — we got your message.</p>
+                        <p className="text-sm text-emerald-800 mt-1">We&apos;ll reply to <span className="font-medium">{authProfile?.email || currentUser.email}</span>. You can submit another at any time.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Category</label>
+                        <select
+                          value={supportCategory}
+                          onChange={e => setSupportCategory(e.target.value as typeof supportCategory)}
+                          disabled={supportSubmitting}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60"
+                        >
+                          <option value="general">General question</option>
+                          <option value="bug">Something is broken (bug)</option>
+                          <option value="billing">Billing or subscription</option>
+                          <option value="feature">Feature request</option>
+                          <option value="account">Account or login</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Subject</label>
+                        <input
+                          type="text"
+                          value={supportSubject}
+                          onChange={e => setSupportSubject(e.target.value)}
+                          disabled={supportSubmitting}
+                          maxLength={200}
+                          placeholder="One-line summary"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Details</label>
+                        <textarea
+                          value={supportBody}
+                          onChange={e => setSupportBody(e.target.value)}
+                          disabled={supportSubmitting}
+                          maxLength={5000}
+                          rows={6}
+                          placeholder="What happened, what you expected, and any steps to reproduce."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 resize-y"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">{supportBody.length}/5000</p>
+                      </div>
+
+                      {supportError && (
+                        <p className="text-sm text-red-600">{supportError}</p>
+                      )}
+
+                      <button
+                        onClick={handleSubmitSupportTicket}
+                        disabled={supportSubmitting || !supportSubject.trim() || !supportBody.trim()}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-full text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send className="w-4 h-4" />
+                        {supportSubmitting ? 'Sending…' : 'Send message'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
             </div>
           </div>

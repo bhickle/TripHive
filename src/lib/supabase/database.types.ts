@@ -919,6 +919,7 @@ export type Database = {
           email: string | null
           home_country: string | null
           id: string
+          is_admin: boolean
           name: string | null
           notification_preferences: Json | null
           stripe_customer_id: string | null
@@ -938,6 +939,7 @@ export type Database = {
           email?: string | null
           home_country?: string | null
           id: string
+          is_admin?: boolean
           name?: string | null
           notification_preferences?: Json | null
           stripe_customer_id?: string | null
@@ -957,6 +959,7 @@ export type Database = {
           email?: string | null
           home_country?: string | null
           id?: string
+          is_admin?: boolean
           name?: string | null
           notification_preferences?: Json | null
           stripe_customer_id?: string | null
@@ -1073,6 +1076,75 @@ export type Database = {
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          admin_notes: string | null
+          body: string
+          category: string
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          priority: string
+          resolved_at: string | null
+          status: string
+          subject: string
+          trip_id: string | null
+          updated_at: string
+          user_id: string | null
+          user_tier: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          body: string
+          category?: string
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          priority?: string
+          resolved_at?: string | null
+          status?: string
+          subject: string
+          trip_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_tier?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          body?: string
+          category?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          priority?: string
+          resolved_at?: string | null
+          status?: string
+          subject?: string
+          trip_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_tier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
