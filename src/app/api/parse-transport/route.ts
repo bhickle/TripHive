@@ -101,6 +101,17 @@ export async function POST(request: NextRequest) {
       ],
     });
 
+    // Charge the credit as soon as the Anthropic call resolves \u2014 the
+    // Anthropic spend is the real cost we're trying to recover, and from
+    // this point onwards any failure mode is "we got the AI's answer but
+    // couldn't make it into a clean TransportLeg" (i.e. INCOMPLETE_PARSE
+    // 422). Charging only on the happy path let a user paste garbage text
+    // repeatedly to get free Sonnet calls \u2014 the 422 path bypassed the
+    // increment entirely. Anthropic errors (overloaded, network, key
+    // missing) still skip the charge: those throw before we reach this
+    // line and land in the outer catch.
+    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
+
     if (!message.content[0] || message.content[0].type !== 'text') {
       throw new Error('Unexpected response type from AI');
     }
@@ -144,9 +155,6 @@ export async function POST(request: NextRequest) {
 
     // Generate a unique id for the new leg
     parsed.id = `trn_parsed_${Date.now()}`;
-
-    // Charge after success; failed parses (caught below) don't consume credits.
-    await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json({ transportLeg: parsed });
 
