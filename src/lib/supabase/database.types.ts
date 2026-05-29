@@ -1590,6 +1590,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cast_single_pick_vote: {
+        Args: {
+          p_option_id: string
+          p_user_id: string
+          p_vote_id: string
+          p_voter_name: string
+        }
+        Returns: undefined
+      }
       consume_rate_limit: {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
         Returns: boolean

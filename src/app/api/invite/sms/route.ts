@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getTripRole } from '@/lib/supabase/tripAccess';
+import { getTripRole, getTripTravelerCap } from '@/lib/supabase/tripAccess';
 
 /**
  * POST /api/invite/sms
@@ -24,37 +24,56 @@ export async function POST(request: NextRequest) {
 
   const { phone, tripId, tripName, inviterName } = await request.json();
 
-  // Verify the caller is the organizer or a co-organizer of this trip
-  let inviteToken: string | null = null;
-  if (tripId) {
-    const supabase = createAdminClient();
-    const role = await getTripRole(supabase, tripId, userId);
-    if (!role || (role !== 'organizer' && role !== 'co_organizer')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+  // Validate inputs BEFORE touching the database. Previously trip_invites
+  // got an orphan row with an empty phone when this check fell at the end,
+  // because the insert above ran first and the 400 below returned afterward.
+  if (!phone || typeof phone !== 'string' || !phone.trim() || !tripId) {
+    return NextResponse.json({ error: 'phone and tripId required' }, { status: 400 });
+  }
+  const phoneTrimmed = phone.trim();
 
-    // Issue an invite token (Phase 1 of the invite-token system — token is
-    // optional on join today, but this populates trip_invites for audit
-    // and lays groundwork for the privacy gate). DB column defaults
-    // generate the token + 7-day expires_at.
-    try {
-      const { data: invite, error } = await supabase
-        .from('trip_invites')
-        .insert({ trip_id: tripId, invited_by: userId, phone: (phone || '').trim() })
-        .select('token')
-        .single();
-      if (error) {
-        console.warn('[invite/sms] trip_invites insert failed:', error.message);
-      } else {
-        inviteToken = invite?.token ?? null;
-      }
-    } catch (err) {
-      console.warn('[invite/sms] trip_invites insert threw:', err);
-    }
+  const supabase = createAdminClient();
+
+  // Verify the caller is the organizer or a co-organizer of this trip.
+  const role = await getTripRole(supabase, tripId, userId);
+  if (!role || (role !== 'organizer' && role !== 'co_organizer')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  if (!phone || !tripId) {
-    return NextResponse.json({ error: 'phone and tripId required' }, { status: 400 });
+  // Traveler-cap pre-check: refuse to send an invite that the recipient
+  // wouldn't be able to accept anyway (members POST would 403 with
+  // TRAVELER_LIMIT). Without this the user pays for an SMS + the recipient
+  // hits a dead-end on join. Counts current members + still-pending invites
+  // so a flurry of invites can't all overshoot the cap.
+  const capInfo = await getTripTravelerCap(supabase, tripId);
+  if (capInfo.currentTotal + capInfo.pendingInvites >= capInfo.cap) {
+    return NextResponse.json(
+      {
+        error: 'TRAVELER_LIMIT',
+        message: `This trip is at its ${capInfo.cap}-traveler limit (counting pending invites). Upgrade or buy a Trip Pass with more seats to invite more people.`,
+      },
+      { status: 403 },
+    );
+  }
+
+  // Issue an invite token (Phase 1 of the invite-token system — token is
+  // optional on join today, but this populates trip_invites for audit
+  // and lays groundwork for the privacy gate). DB column defaults
+  // generate the token + 7-day expires_at.
+  let inviteToken: string | null = null;
+  try {
+    const { data: invite, error } = await supabase
+      .from('trip_invites')
+      .insert({ trip_id: tripId, invited_by: userId, phone: phoneTrimmed })
+      .select('token')
+      .single();
+    if (error) {
+      console.warn('[invite/sms] trip_invites insert failed:', error.message);
+    } else {
+      inviteToken = invite?.token ?? null;
+    }
+  } catch (err) {
+    console.warn('[invite/sms] trip_invites insert threw:', err);
   }
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;

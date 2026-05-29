@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getTripRole } from '@/lib/supabase/tripAccess';
+import { getTripRole, getTripTravelerCap } from '@/lib/supabase/tripAccess';
 
 /**
  * POST /api/invite/email
@@ -32,6 +32,22 @@ export async function POST(request: NextRequest) {
   const role = await getTripRole(supabase, tripId, userId);
   if (!role || (role !== 'organizer' && role !== 'co_organizer')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Traveler-cap pre-check: refuse to send an invite that the recipient
+  // wouldn't be able to accept anyway (members POST would 403 with
+  // TRAVELER_LIMIT). Without this the organizer burns a SendGrid send and
+  // the recipient hits a dead-end on join. Counts current members + still-
+  // pending invites so a burst of invites can't overshoot the cap together.
+  const capInfo = await getTripTravelerCap(supabase, tripId);
+  if (capInfo.currentTotal + capInfo.pendingInvites >= capInfo.cap) {
+    return NextResponse.json(
+      {
+        error: 'TRAVELER_LIMIT',
+        message: `This trip is at its ${capInfo.cap}-traveler limit (counting pending invites). Upgrade or buy a Trip Pass with more seats to invite more people.`,
+      },
+      { status: 403 },
+    );
   }
 
   // ── Issue an invite token ─────────────────────────────────────────────────

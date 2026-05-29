@@ -257,3 +257,70 @@ export async function hasTripFeatureAccess(
 
   return { allowed: false, reason: 'tier' };
 }
+
+/**
+ * Resolves the traveler cap + current headcount + pending invites for a trip
+ * so that invite-sending routes can refuse to send invites that would push
+ * the trip over its cap on accept (dead-end UX, plus SendGrid/Twilio cost
+ * for a message the recipient can't act on).
+ *
+ * Cap rules:
+ *   trip_pass → 6 base + extras purchased
+ *   anything else → TIER_LIMITS[organizer_tier].travelersPerTrip
+ *
+ * `currentTotal` counts the organizer (always 1) + trip_members rows.
+ * `pendingInvites` counts trip_invites rows with status='pending'.
+ *
+ * The caller decides what "over cap" means — typically
+ * (currentTotal + pendingInvites) >= cap blocks a NEW invite, while
+ * currentTotal >= cap blocks an actual JOIN.
+ */
+export async function getTripTravelerCap(
+  supabase: ReturnType<typeof createAdminClient>,
+  tripId: string,
+): Promise<{ cap: number; currentTotal: number; pendingInvites: number }> {
+  const { data: trip } = await supabase
+    .from('trips')
+    .select('organizer_id')
+    .eq('id', tripId)
+    .maybeSingle();
+
+  const organizerId = trip?.organizer_id ?? '';
+
+  const { data: orgProfile } = await supabase
+    .from('profiles')
+    .select('subscription_tier')
+    .eq('id', organizerId)
+    .maybeSingle();
+  const orgTier = (orgProfile?.subscription_tier as keyof typeof TIER_LIMITS | undefined) ?? 'free';
+
+  let cap: number;
+  if (orgTier === 'trip_pass') {
+    const { data: pass } = await supabase
+      .from('trip_passes')
+      .select('extra_people')
+      .eq('trip_id', tripId)
+      .gt('expires_at', new Date().toISOString())
+      .order('purchased_at', { ascending: false })
+      .maybeSingle();
+    cap = 6 + (pass?.extra_people ?? 0);
+  } else {
+    const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
+    cap = typeof tierCap === 'number' ? tierCap : 4;
+  }
+
+  const { count: memberCount } = await supabase
+    .from('trip_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('trip_id', tripId);
+  const currentTotal = (memberCount ?? 0) + 1; // +1 for organizer
+
+  const { count: pendingCount } = await supabase
+    .from('trip_invites')
+    .select('id', { count: 'exact', head: true })
+    .eq('trip_id', tripId)
+    .eq('status', 'pending');
+  const pendingInvites = pendingCount ?? 0;
+
+  return { cap, currentTotal, pendingInvites };
+}

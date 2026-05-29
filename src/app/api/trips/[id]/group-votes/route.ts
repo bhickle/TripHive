@@ -308,26 +308,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             { status: 400 },
           );
         }
-        // Existing behavior: replace any previous response.
-        const { error: delErr } = await supabase.from('vote_responses').delete()
-          .eq('vote_id', voteId).eq('user_id', userId);
-        if (delErr) {
-          console.error('vote_responses delete failed:', delErr);
-          return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
-        }
-        const { error: insErr } = await supabase.from('vote_responses').insert({
-          vote_id: voteId,
-          option_id: optionId,
-          voter_name: voterName,
-          user_id: userId,
+        // Atomic delete-then-insert via RPC: locks the parent group_votes
+        // row with FOR UPDATE so concurrent single-pick PATCHes from the
+        // same user (e.g. rapid switching between options) serialize.
+        // Without the lock, two requests could interleave their DELETEs
+        // and INSERTs and leave two rows for the same user on a single-
+        // pick poll.
+        const { error: rpcErr } = await supabase.rpc('cast_single_pick_vote', {
+          p_vote_id: voteId,
+          p_user_id: userId,
+          p_voter_name: voterName,
+          p_option_id: optionId,
         });
-        // 23505 = unique_violation. With UNIQUE (vote_id, user_id, option_id)
-        // a benign race (same user re-submits the same option) lands here;
-        // treat as success. A two-clicks-different-options race can still
-        // leave two rows for the same user — that's the P1 separately tracked
-        // as the single-pick delete-then-insert race fix in Group C.
-        if (insErr && insErr.code !== '23505') {
-          console.error('vote_responses insert failed:', insErr);
+        if (rpcErr) {
+          console.error('cast_single_pick_vote RPC failed:', rpcErr);
           return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
         }
       }
