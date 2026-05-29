@@ -282,26 +282,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
               }, { status: 400 });
             }
           }
-          // Idempotent insert — if the row already exists, no-op via the
-          // (vote_id, user_id, option_id) duplicate-check first. There's
-          // no unique constraint on the triple yet, so an unconditional
-          // insert would happily duplicate rows on rapid double-clicks.
-          const { data: dupCheck } = await supabase
-            .from('vote_responses')
-            .select('id')
-            .eq('vote_id', voteId).eq('user_id', userId).eq('option_id', optionId)
-            .maybeSingle();
-          if (!dupCheck) {
-            const { error: insErr } = await supabase.from('vote_responses').insert({
-              vote_id: voteId,
-              option_id: optionId,
-              voter_name: voterName,
-              user_id: userId,
-            });
-            if (insErr) {
-              console.error('vote_responses insert failed (multi):', insErr);
-              return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
-            }
+          // UNIQUE (vote_id, user_id, option_id) on the table catches dups
+          // atomically; treat 23505 as a no-op since the same vote was already
+          // recorded (rapid double-click, retry, or read-after-write race).
+          const { error: insErr } = await supabase.from('vote_responses').insert({
+            vote_id: voteId,
+            option_id: optionId,
+            voter_name: voterName,
+            user_id: userId,
+          });
+          if (insErr && insErr.code !== '23505') {
+            console.error('vote_responses insert failed (multi):', insErr);
+            return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
           }
         }
       } else {
@@ -329,7 +321,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           voter_name: voterName,
           user_id: userId,
         });
-        if (insErr) {
+        // 23505 = unique_violation. With UNIQUE (vote_id, user_id, option_id)
+        // a benign race (same user re-submits the same option) lands here;
+        // treat as success. A two-clicks-different-options race can still
+        // leave two rows for the same user — that's the P1 separately tracked
+        // as the single-pick delete-then-insert race fix in Group C.
+        if (insErr && insErr.code !== '23505') {
           console.error('vote_responses insert failed:', insErr);
           return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
         }

@@ -1069,6 +1069,12 @@ function ItineraryPageContent() {
       // build. Without this bypass, the persisted N days from the prior build
       // would make resumeStartFromDay > totalDays and exit immediately.
       const isFreshRebuild = searchParams.get('fresh') === '1';
+      // One-shot flag: on a regenerate (?fresh=1), the very first chunk we
+      // POST gets freshRebuild: true so the server clears the prior build-
+      // credits claim and charges this regen fresh. Subsequent chunks of
+      // the same regen skip the flag — the server treats them as normal
+      // continuation chunks against the freshly-set claim.
+      let sentFreshRebuild = false;
       let resumeStartFromDay = 1;
       if (!isFreshRebuild && tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
         try {
@@ -1215,6 +1221,12 @@ function ItineraryPageContent() {
         prevContext: string | null,
       ): Promise<{ days: unknown[]; meta: Record<string, unknown> | null }> => {
         const body: Record<string, unknown> = { ...payload };
+        if (isFreshRebuild && !sentFreshRebuild) {
+          // First chunk of a regenerate — server clears any prior build-
+          // credits claim on this trip before re-claiming.
+          body.freshRebuild = true;
+          sentFreshRebuild = true;
+        }
         if (seg) {
           // Build the cross-chunk "already used" list from every day already
           // in aiDaysRef — venues from chunks 1..(N-1) plus any gap-fill

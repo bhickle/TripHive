@@ -178,7 +178,7 @@ Gates live in `useEntitlements` hook → checked against `profile.subscription_t
 - **URL:** `https://pqizuvmtertpxhhxyemj.supabase.co`
 - Admin client bypasses RLS — use for server-side operations that need to see all rows
 - Browser client respects RLS — use in API routes that should scope to the authenticated user
-- **After any schema migration:** run `generate_typescript_types` MCP tool and write `src/lib/database.types.ts` in the same commit. Missing this breaks Vercel builds.
+- **After any schema migration:** run `generate_typescript_types` MCP tool and write `src/lib/supabase/database.types.ts` in the same commit. Missing this breaks Vercel builds.
 
 Key tables: `profiles`, `trips`, `itineraries`, `trip_members`, `trip_invites`, `trip_photos`, `group_messages`, `group_votes`, `vote_options`, `vote_responses`, `expenses`, `packing_items`, `souvenir_items`, `prep_tasks`, `wishlist_items`, `discover_destinations`, `featured_itineraries`, `seasonal_collections`, `waitlist`
 
@@ -225,7 +225,7 @@ These are the active items to build/fix, in rough priority order. Note: this lis
 ### 🟠 Feature Work (Active)
 - [ ] **Build durability Tier 2 (Inngest)** — Tier 1 shipped 2026-05-09 (server-owned abort + per-day persistence + resume detection). Tier 2 moves orchestration to an Inngest worker so builds complete even when the browser is fully closed. Blocked on Brandon's prep checklist (Inngest account + `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` in Vercel). See `memory/project_tier2_prep.md`.
 - [ ] **Enable Google OAuth** (`#183`) — Google sign-in buttons exist but OAuth is not configured. Steps: Google Cloud Console → create OAuth Client ID → redirect URI: `https://pqizuvmtertpxhhxyemj.supabase.co/auth/v1/callback` → Supabase dashboard → Authentication → Providers → Google → enable + paste keys.
-- [ ] **Yay/Nay dead-space layout decision** (PDF #3 deferred) — Brandon flagged a green-bordered empty area in the votes section's right column. Two options: (a) move Wishlist + Nay Watch into the right column of the votes grid so they fill space, (b) collapse to single-column on lg+ entirely. Needs Brandon's design call before implementing.
+- ~~Yay/Nay dead-space layout decision~~ — **Shipped 2026-05-25, commit `a28d0f5`.** Replaced the fixed 2-column grid with a CSS masonry flow so Group Votes, Activity Pulse, Wishlist, and Nay Watch auto-balance across two columns. No more dead space. Empty Group Votes state now shows an inviting card with starter prompts.
 - [ ] **Monetization — affiliate go-live + repricing (post-launch)** — full plan in `MONETIZATION.md`. Phase 0 shipped (provider-agnostic affiliate layer in `src/lib/affiliate.ts`; gated "Book this" on activity cards + "Find this hotel" in Where to Stay — all dark until an env var is set). Remaining:
   - [ ] Once the domain is live, apply to affiliate programs: Travelpayouts (~24h auto-approve; also the path to GetYourGuide), Stay22 (~instant, hotels), Viator (direct, ~a few days, no traffic minimum).
   - [ ] Before enabling, confirm each partner's exact deep-link param format against their dashboard (Viator `pid/mcid`, Stay22 `allez`, Booking `aid`) — flagged in `src/lib/affiliate.ts`.
@@ -295,7 +295,7 @@ Always check `src/lib/types.ts` before accessing a property on a typed object. C
 ### Supabase Types After Migrations
 After any `CREATE TABLE` or `ALTER TABLE` migration:
 1. Run `generate_typescript_types` MCP tool
-2. Write output to `src/lib/database.types.ts`
+2. Write output to `src/lib/supabase/database.types.ts`
 3. Include this in the same commit as the migration
 Skipping this step causes Vercel build failures.
 
@@ -408,6 +408,6 @@ Pre-May-9 session notes (May 8, May 7, Earlier sessions) moved to `CHANGELOG.md`
 | Tier definitions + limits | `src/lib/types.ts` (TIER_LIMITS) |
 | Stripe price IDs | `src/lib/stripe-prices.ts` |
 | Shared TypeScript types | `src/lib/types.ts` |
-| Supabase schema types | `src/lib/database.types.ts` |
+| Supabase schema types | `src/lib/supabase/database.types.ts` |
 | Auth user hook | `src/hooks/useCurrentUser.ts` |
 | Go-live checklist | `GOLIVE_CHECKLIST.md` (workspace root) |

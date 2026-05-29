@@ -1616,26 +1616,79 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ── Credit gate ──────────────────────────────────────────────────────────
-  // Charge 25 credits per generate-itinerary call (the AI_CREDIT_COSTS
-  // entry, repriced 2026-05-16 to match real cost incl. post-gen Places
-  // verification). Free tier (25 credits/mo) gets exactly one generation
-  // per month. The increment happens just before the SSE 'done' event —
-  // if the stream errors out mid-way, no charge.
+  // ── Build-level credit claim ─────────────────────────────────────────────
+  // Chunked builds call this route once per 3-day chunk (and once per city
+  // for multi-city). To match the user-facing "1 build = 1 charge" promise,
+  // only the FIRST chunk of a build is charged; continuation chunks see
+  // build_credits_charged_at already set and skip the gate entirely.
   //
-  // When tripId is supplied AND the trip has an active Trip Pass, the gate
-  // charges the pass's 50-cr pool instead of the user's personal credits.
-  // See lib/supabase/aiCredits.ts for the pass-pool branch.
+  // Race-safety: the atomic UPDATE ... WHERE build_credits_charged_at IS
+  // NULL ... RETURNING is the serialization primitive. Two simultaneous
+  // chunk requests racing for the same trip: exactly one wins the claim
+  // and charges; the other sees a 0-row result and treats itself as a
+  // continuation.
   //
-  // KNOWN LIMITATION: client-side chunking for long trips and multi-city
-  // calls this route once per chunk, so a 3-city trip = 3 separate
-  // generate-itinerary calls = 75 credits total. Free users with multi-
-  // city would 402 on the second chunk. Multi-city is a paid feature
-  // anyway (canSplitTracks gate runs upstream), so this is mostly
-  // theoretical for free tier — but explorer (100/mo) and nomad (250/mo)
-  // can absorb the per-chunk charge fine.
-  const credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate', requestBodyTripId);
-  if (!credits.ok) return credits.response;
+  // Regenerate (?fresh=1) sends freshRebuild=true on its first chunk so
+  // we clear the prior claim and charge fresh. Subsequent chunks of the
+  // same regen don't send the flag — they see the (just-set) claim and
+  // skip charging like any other continuation.
+  //
+  // Failure cases (claim winner only):
+  //   • checkAiCredits 402s → revert the claim so the user can retry.
+  //   • AI produced no days (dayIndex === 0) → revert at the increment site.
+  //
+  // Trip Pass pooling still works: checkAiCredits routes to the pass pool
+  // when tripId has an active pass; the claim just gates WHETHER we charge,
+  // not WHERE the charge lands.
+  const freshRebuild = body?.freshRebuild === true;
+  let claimedThisRequest = false;
+  if (requestBodyTripId) {
+    const adminClient = createAdminClient();
+    if (freshRebuild) {
+      await adminClient
+        .from('trips')
+        .update({ build_credits_charged_at: null })
+        .eq('id', requestBodyTripId);
+    }
+    const { data: claimed, error: claimErr } = await adminClient
+      .from('trips')
+      .update({ build_credits_charged_at: new Date().toISOString() })
+      .eq('id', requestBodyTripId)
+      .is('build_credits_charged_at', null)
+      .select('id')
+      .maybeSingle();
+    if (claimErr) {
+      console.warn('[generate-itinerary] build claim failed (treating as first chunk):', claimErr);
+    }
+    claimedThisRequest = !!claimed;
+  }
+
+  // ── Credit gate (skipped on continuation chunks) ─────────────────────────
+  // When tripId is present AND we did NOT win the claim, this is a
+  // continuation chunk — already paid for by an earlier chunk of the same
+  // build. Mark exempt so neither checkAiCredits nor incrementAiCreditsUsed
+  // touch the user's counter.
+  //
+  // When tripId is absent (legacy no-skeleton path) we fall through to the
+  // normal per-call charge — there's no trip row to track the claim against.
+  let credits: Awaited<ReturnType<typeof checkAiCredits>>;
+  if (requestBodyTripId && !claimedThisRequest) {
+    credits = { ok: true, ctx: { used: 0, limit: 0, cost: 0, source: 'exempt' } };
+  } else {
+    credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate', requestBodyTripId);
+    if (!credits.ok) {
+      // We set the claim but the gate denied us — revert so the user can
+      // retry (e.g. after topping up credits or starting a Trip Pass).
+      if (claimedThisRequest && requestBodyTripId) {
+        const adminClient = createAdminClient();
+        await adminClient
+          .from('trips')
+          .update({ build_credits_charged_at: null })
+          .eq('id', requestBodyTripId);
+      }
+      return credits.response;
+    }
+  }
 
   // ── City segment mode — generate one city's days at a time ─────────────────
   // When citySegment is provided, we focus this call on one chunk of the trip:
@@ -2544,6 +2597,10 @@ export async function POST(request: NextRequest) {
         // judgment-call territory; we charge in that case since the user
         // did get usable output and can resume from add-day.
         //
+        // The increment is a no-op on continuation chunks (source='exempt'
+        // — see the build-claim block above). Only the chunk that won the
+        // claim charges anything.
+        //
         // Wrap in its own try/catch: a Supabase outage at charge time
         // should NOT prevent us from telling the client the stream is
         // complete. Better to under-charge once and reconcile from logs
@@ -2560,6 +2617,19 @@ export async function POST(request: NextRequest) {
               credits.ctx,
               chargeErr,
             );
+          }
+        } else if (claimedThisRequest && requestBodyTripId) {
+          // We won the claim but the AI produced no days — revert so the
+          // user can retry without being permanently marked "already paid"
+          // on a build they never actually got.
+          try {
+            const adminClient = createAdminClient();
+            await adminClient
+              .from('trips')
+              .update({ build_credits_charged_at: null })
+              .eq('id', requestBodyTripId);
+          } catch (revertErr) {
+            console.warn('[generate-itinerary] claim revert (no days) failed:', revertErr);
           }
         }
 

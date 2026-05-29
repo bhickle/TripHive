@@ -440,6 +440,7 @@ function TripBuilderPage() {
     mainRef.current?.scrollTo({ top: 0 });
   }, [currentStep]);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [isBuilding, setIsBuilding] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'ai_credits_empty' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
   const { canAffordAction, getUpgradePrompt, maxTripDays, tier, tierResolved, entitlementsReady, maxTravelersForTrip } = useEntitlements();
@@ -840,6 +841,12 @@ function TripBuilderPage() {
   }
 
   const handleGenerateItinerary = async () => {
+    // Re-entrancy guard: the skeleton-trip POST + router.push window is async,
+    // and double-clicks here would each fire their own POST /api/trips/save
+    // and create an orphan skeleton trip before the first navigation lands.
+    if (isBuilding) return;
+    setIsBuilding(true);
+
     // Build the canonical destination string for multi-city trips
     const canonicalDestination = canonicalDestinationFor(state);
 
@@ -1007,6 +1014,7 @@ function TripBuilderPage() {
     } catch {
       // sessionStorage unavailable (e.g. private browsing with strict settings)
       console.warn('[trip/new] sessionStorage unavailable — cannot use generating page');
+      setIsBuilding(false);
       return;
     }
 
@@ -3371,10 +3379,15 @@ function TripBuilderPage() {
                         }
                         handleGenerateItinerary();
                       }}
-                      disabled={!state.destination.trim()}
+                      disabled={!state.destination.trim() || isBuilding}
                       className="w-full flex items-center justify-center gap-2 py-4 text-base font-semibold rounded-full transition-all bg-sky-800 hover:bg-sky-900 text-white disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed shadow-sm"
                     >
-                      {!canAffordAction('itinerary_generate') ? (
+                      {isBuilding ? (
+                        <>
+                          <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          <span>Starting your build…</span>
+                        </>
+                      ) : !canAffordAction('itinerary_generate') ? (
                         <>
                           <Zap className="w-5 h-5" />
                           <span>Build My Trip</span>

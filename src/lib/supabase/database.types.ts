@@ -1266,6 +1266,7 @@ export type Database = {
           booked_hotels: Json
           budget_breakdown: Json
           budget_total: number
+          build_credits_charged_at: string | null
           cover_image: string | null
           cover_image_meta: Json | null
           created_at: string
@@ -1293,6 +1294,7 @@ export type Database = {
           booked_hotels?: Json
           budget_breakdown?: Json
           budget_total?: number
+          build_credits_charged_at?: string | null
           cover_image?: string | null
           cover_image_meta?: Json | null
           created_at?: string
@@ -1320,6 +1322,7 @@ export type Database = {
           booked_hotels?: Json
           budget_breakdown?: Json
           budget_total?: number
+          build_credits_charged_at?: string | null
           cover_image?: string | null
           cover_image_meta?: Json | null
           created_at?: string
