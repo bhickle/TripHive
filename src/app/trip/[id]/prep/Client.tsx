@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { WeatherWidget } from '@/components/WeatherWidget';
+import { EmptyState } from '@/components/EmptyState';
 import { isUSDestination, homeCountryIsUS, isHomeCountryTrip as isHomeCountryTripHelper } from '@/lib/world/domestic';
 
 // ─── Schengen Detection ───────────────────────────────────────────────────────
@@ -1576,7 +1577,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 {renderRegenBtn(myPackItems, myPackGenerating, generateMyPackingList)}
                 {renderPackList(myPackItems, myPackedItems, toggleMyPackedItem, deleteMyPackItem)}
                 {myPackLoaded && myPackItems.length === 0 && !myPackGenerating && (
-                  <div className="text-center py-8 text-zinc-400 text-sm">No personal items yet.</div>
+                  <EmptyState
+                    icon={Backpack}
+                    title="No personal items yet"
+                    description="Add what you need above, or use AI to seed a starter list for your destination."
+                    compact
+                  />
                 )}
               </>
             ) : (

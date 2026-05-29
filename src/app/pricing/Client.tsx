@@ -381,8 +381,11 @@ function PricingPageInner() {
 
           {/* Trip Pass */}
           {billing === 'monthly' && (
-          <div id="trip-pass" className="bg-amber-50 border border-amber-200 rounded-3xl p-7 flex flex-col scroll-mt-24">
-            <div className="mb-5">
+          <div id="trip-pass" className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-7 flex flex-col relative shadow-md scroll-mt-24">
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-white px-3 py-1 rounded-full whitespace-nowrap">
+              Most popular
+            </span>
+            <div className="mb-5 mt-2">
               <p className="text-amber-700 text-xs font-bold uppercase tracking-widest mb-1.5">Trip Pass</p>
               <p className="text-amber-800 text-sm leading-snug">One trip, fully unlocked. No subscription needed.</p>
             </div>
@@ -422,11 +425,11 @@ function PricingPageInner() {
           </div>
           )}
 
-          {/* Explorer — Most Popular */}
+          {/* Explorer — Best value */}
           <div id="explorer" className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20 scroll-mt-24">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-sky-500 to-green-500 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md">
-              Most Popular
-            </div>
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wide bg-emerald-600 text-white px-3 py-1 rounded-full whitespace-nowrap">
+              Best value
+            </span>
             <div className="mb-5 mt-2">
               <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mb-1.5">Explorer</p>
               <p className="text-sky-100/70 text-sm leading-snug">Your whole travel year, covered.</p>

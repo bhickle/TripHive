@@ -68,6 +68,7 @@ import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
+import { EmptyState } from '@/components/EmptyState';
 import type { ItineraryDay, Activity } from '@/lib/types';
 
 type TabType = 'overview' | 'expenses' | 'chat' | 'votes';
@@ -1905,17 +1906,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             {hasExpenses && <div className="space-y-3">
               <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-400">All Expenses</h3>
               {allExpenses.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-10 text-center">
-                  <Receipt className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
-                  <p className="text-zinc-500 font-medium">No expenses yet</p>
-                  <p className="text-sm text-zinc-400 mt-1">Add one to start tracking who paid what</p>
-                  <button
-                    onClick={() => setShowAddExpenseModal(true)}
-                    className="mt-4 px-5 py-2 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors"
-                  >
-                    + Add First Expense
-                  </button>
-                </div>
+                <EmptyState
+                  icon={Receipt}
+                  title="No expenses yet"
+                  description="Add one to start tracking who paid what."
+                  action={{ label: '+ Add first expense', onClick: () => setShowAddExpenseModal(true) }}
+                />
               ) : (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
                   {allExpenses.map((rawExp, idx) => {
@@ -3062,15 +3058,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           <div ref={chatPanelRef} className="flex flex-col bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden" style={{ height: 'calc(100dvh - 240px)' }}>
             <div className="flex-1 overflow-y-auto px-4 py-4 bg-white" onClick={() => setShowReactionPicker(null)}>
               {chatMessages.length === 0 && (
-                // Empty state: without this, the white area + below-fold input
-                // looks broken to first-time visitors who don't realize they
-                // can scroll. Centered vertically within the scroll area.
-                <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center px-6">
-                  <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
-                    <MessageCircle className="w-6 h-6 text-zinc-400" />
-                  </div>
-                  <p className="text-sm font-medium text-zinc-700">No messages yet</p>
-                  <p className="text-xs text-zinc-500 mt-1">Say hi to the crew below.</p>
+                // Without this, the white area + below-fold input looks
+                // broken to first-time visitors who don't realize they
+                // can scroll. Compact variant centered in the scroll area.
+                <div className="h-full min-h-[300px] flex items-center justify-center px-6">
+                  <EmptyState
+                    icon={MessageCircle}
+                    title="No messages yet"
+                    description="Say hi to the crew below."
+                    compact
+                  />
                 </div>
               )}
               {chatMessages.map((message) => {
