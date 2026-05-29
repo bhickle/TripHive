@@ -24,26 +24,13 @@ import {
   MapPin,
   Camera,
   ChevronRight,
-  Bell,
   UserPlus,
-  X,
   MessageSquare,
   Users,
   Sparkles,
   Copy,
 } from 'lucide-react';
-
-interface Notification {
-  id: string;
-  type: 'activity' | 'chat' | 'expense' | 'vote' | 'member' | 'ai' | 'prep' | 'trip_invite';
-  title: string;
-  message: string;
-  trip: string;
-  trip_id?: string;
-  time: string;
-  read: boolean;
-  icon: string;
-}
+import { NotificationBell } from '@/components/NotificationPanel';
 
 
 export default function DashboardPage() {
@@ -179,43 +166,18 @@ export default function DashboardPage() {
       .catch(() => {});
   }, [currentUser.isLoading, currentUser.isDemo]);
 
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  // Load notifications from DB for authenticated users
-  useEffect(() => {
-    if (currentUser.isLoading || currentUser.isDemo) return;
-    // Real user — fetch from DB
-    fetch('/api/notifications')
-      .then(r => r.ok ? r.json() : { notifications: [] })
-      .then(({ notifications: rows }) => {
-        if (!Array.isArray(rows)) return;
-        const mapped: Notification[] = rows.map((n: {
-          id: string; type: string; trip_id?: string; trip_name?: string;
-          inviter_name?: string; message?: string; read: boolean; created_at: string;
-        }) => ({
-          id: n.id,
-          type: (n.type as Notification['type']) || 'trip_invite',
-          title: n.type === 'trip_invite'
-            ? `${n.inviter_name || 'Someone'} invited you to a trip`
-            : 'Notification',
-          message: n.message || (n.trip_name ? `You've been invited to join ${n.trip_name}.` : 'You have a new notification.'),
-          trip: n.trip_name || '',
-          trip_id: n.trip_id,
-          time: new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          read: n.read,
-          icon: n.type === 'trip_invite' ? '✈️' : '🔔',
-        }));
-        setNotifications(mapped);
-      })
-      .catch(() => {});
-  }, [currentUser.isLoading, currentUser.isDemo]);
+  // Notifications are owned by <NotificationBell /> (in the header below) —
+  // it fetches /api/notifications on mount, subscribes to Realtime INSERTs,
+  // and renders the dropdown. Dashboard used to keep its own parallel state
+  // here; consolidated 2026-05-29 so the look + behavior matches the
+  // itinerary TopBar.
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [inviteTripId, setInviteTripId] = useState<string | null>(null);
 
-  // Bind Escape on the two dashboard dialogs so keyboard-only users
-  // can dismiss without a mouse.
-  useEscapeKey(() => setShowNotifications(false), showNotifications);
+  // Bind Escape on the dashboard's invite dialog so keyboard-only users
+  // can dismiss without a mouse. Notifications dialog is owned by
+  // <NotificationBell /> which handles its own Escape.
   useEscapeKey(() => { setShowInviteModal(false); setInviteSent(false); setInviteError(null); setInviteContact(''); }, showInviteModal);
   const [inviteMethod, setInviteMethod] = useState<'email' | 'text' | 'link'>('email');
   const [inviteContact, setInviteContact] = useState('');
@@ -227,76 +189,8 @@ export default function DashboardPage() {
   const [showYearInReviewUpgrade, setShowYearInReviewUpgrade] = useState(false);
   const { hasYearInReview, getUpgradePrompt } = useEntitlements();
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    if (!currentUser.isDemo) {
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAllRead: true }),
-      }).catch(() => {});
-    }
-  };
-
-  const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    if (!currentUser.isDemo) {
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      }).catch(() => {});
-    }
-  };
-
-  const notifTypeColors: Record<string, string> = {
-    activity: 'bg-blue-100 text-blue-700',
-    chat: 'bg-violet-100 text-violet-700',
-    expense: 'bg-emerald-100 text-emerald-700',
-    vote: 'bg-sky-100 text-sky-900',
-    member: 'bg-sky-100 text-sky-700',
-    ai: 'bg-pink-100 text-pink-700',
-    prep: 'bg-rose-100 text-rose-700',
-    trip_invite: 'bg-amber-100 text-amber-700',
-  };
-  const notifTypeLabel: Record<string, string> = {
-    trip_invite: 'invite',
-    NEW_MESSAGE: 'new message',
-    new_message: 'new message',
-    new_vote: 'new vote',
-    member_joined: 'new member',
-    badge_earned: 'badge earned',
-    chat: 'chat',
-    vote: 'vote',
-    activity: 'activity',
-    expense: 'expense',
-    prep: 'prep',
-    member: 'member',
-    ai: 'AI',
-  };
-
-  // Map each notification to a deep link so the row is clickable straight to
-  // the message / vote / trip page it refers to. Home Base QA: "Wish the
-  // notifications were clickable and would take you to where the messages or
-  // whatever are." Falls back to the trip's itinerary when the type isn't
-  // recognised; returns null when there's no trip_id at all (in which case
-  // we leave the row click → markRead-only behaviour intact).
-  const notifTarget = (notif: { type?: string; trip_id?: string | null }): string | null => {
-    const t = (notif.type ?? '').toLowerCase();
-    // badge_earned has no trip_id — always routes to /world
-    if (t === 'badge_earned') return '/world';
-    if (!notif.trip_id) return null;
-    const tripId = notif.trip_id;
-    if (t === 'new_message' || t === 'chat' || t === 'message') return `/trip/${tripId}/group?tab=chat`;
-    if (t === 'vote' || t === 'vote_result') return `/trip/${tripId}/group?tab=yayNay`;
-    if (t === 'expense') return `/trip/${tripId}/group?tab=expenses`;
-    if (t === 'member' || t === 'crew') return `/trip/${tripId}/group?tab=crew`;
-    if (t === 'prep') return `/trip/${tripId}/prep`;
-    if (t === 'trip_invite' || t === 'ai' || t === 'activity' || t === 'trip_update' || t === '') return `/trip/${tripId}/itinerary`;
-    return `/trip/${tripId}/itinerary`;
-  };
+  // Notification mark-read + deep-link logic now lives inside
+  // <NotificationBell /> (src/components/NotificationPanel.tsx).
 
   // Destination photo library - curated high-quality images per destination
   const destinationPhotos: Record<string, string[]> = {
@@ -496,7 +390,13 @@ export default function DashboardPage() {
                   <>Hey, {currentUser.name} 👋</>
                 )}
               </h1>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {/* Bell sits LEFT of Add Someone to match the itinerary
+                    TopBar ordering (the rest of the app puts the bell on
+                    the left of the primary action). NotificationBell is
+                    self-contained: it fetches, subscribes to Realtime,
+                    and renders its own dropdown panel. */}
+                <NotificationBell />
                 {/* Add Someone Button — disabled until the user has at
                     least one trip. Without a trip, the invite modal would
                     open with inviteTripId=null and the SMS/email/copy-link
@@ -510,127 +410,9 @@ export default function DashboardPage() {
                   <UserPlus className="w-4 h-4" />
                   Add Someone
                 </button>
-                {/* Notification Bell */}
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-2.5 rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-all"
-                >
-                  <Bell className="w-5 h-5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
               </div>
             </div>
           </div>
-
-          {/* Notification Panel */}
-          {showNotifications && (
-            <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowNotifications(false)}>
-              <div
-                className="absolute top-20 right-2 md:right-8 w-[calc(100vw-16px)] md:w-[420px] max-h-[560px] bg-white rounded-2xl shadow-2xl border border-zinc-100 overflow-hidden flex flex-col"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Panel Header */}
-                <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-script italic text-lg font-semibold text-zinc-900">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">
-                        {unreadCount} new
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={markAllRead}
-                        className="text-xs text-sky-700 hover:text-sky-900 font-medium"
-                      >
-                        Mark all read
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setShowNotifications(false)}
-                      aria-label="Close notifications"
-                      className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                    >
-                      <X className="w-4 h-4 text-zinc-500" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Notification List */}
-                <div className="flex-1 overflow-y-auto divide-y divide-zinc-100">
-                  {notifications.length === 0 && (
-                    <div className="px-5 py-10 text-center">
-                      <p className="text-sm text-zinc-500">No notifications yet</p>
-                    </div>
-                  )}
-                  {notifications.map((notif) => {
-                    const target = notifTarget(notif);
-                    const handleClick = () => {
-                      markRead(notif.id);
-                      setShowNotifications(false);
-                    };
-                    const body = (
-                      <div className="flex items-start gap-3">
-                        <span className="text-xl flex-shrink-0 mt-0.5">{notif.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${notifTypeColors[notif.type] ?? 'bg-zinc-100 text-zinc-600'}`}>
-                              {notifTypeLabel[notif.type] ?? notif.type}
-                            </span>
-                            {!notif.read && (
-                              <span className="w-2 h-2 bg-sky-800 rounded-full flex-shrink-0" />
-                            )}
-                          </div>
-                          <p className={`text-sm ${!notif.read ? 'font-semibold text-zinc-900' : 'font-medium text-zinc-700'}`}>
-                            {notif.title}
-                          </p>
-                          <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2">{notif.message}</p>
-                          <p className="text-[11px] text-zinc-500 mt-1">{notif.trip}{notif.trip ? ' · ' : ''}{notif.time}</p>
-                        </div>
-                      </div>
-                    );
-                    const baseClass = `w-full text-left px-5 py-4 hover:bg-parchment-dark transition-colors cursor-pointer block ${!notif.read ? 'bg-sky-50/30' : ''}`;
-                    // Notifications with a target deep-link to the relevant
-                    // page (chat tab, vote, expense, itinerary…). Notifications
-                    // without a trip_id stay click-to-mark-read only.
-                    return target ? (
-                      <Link key={notif.id} href={target} onClick={handleClick} className={baseClass}>
-                        {body}
-                      </Link>
-                    ) : (
-                      <div
-                        key={notif.id}
-                        onClick={() => markRead(notif.id)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markRead(notif.id); } }}
-                        className={baseClass}
-                      >
-                        {body}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Panel Footer */}
-                <div className="px-5 py-3 border-t border-zinc-100">
-                  <Link
-                    href="/notifications"
-                    onClick={() => setShowNotifications(false)}
-                    className="block w-full text-center text-sm font-medium text-sky-700 hover:text-sky-900 transition-colors"
-                  >
-                    View All Notifications
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Hero Banner - Next Trip */}
           {nextTrip && (
