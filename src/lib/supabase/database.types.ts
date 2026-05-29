@@ -1083,11 +1083,13 @@ export type Database = {
       support_tickets: {
         Row: {
           admin_notes: string | null
+          assigned_to: string | null
           body: string
           category: string
           created_at: string
           email: string
           id: string
+          last_updated_by: string | null
           name: string | null
           priority: string
           resolved_at: string | null
@@ -1100,11 +1102,13 @@ export type Database = {
         }
         Insert: {
           admin_notes?: string | null
+          assigned_to?: string | null
           body: string
           category?: string
           created_at?: string
           email: string
           id?: string
+          last_updated_by?: string | null
           name?: string | null
           priority?: string
           resolved_at?: string | null
@@ -1117,11 +1121,13 @@ export type Database = {
         }
         Update: {
           admin_notes?: string | null
+          assigned_to?: string | null
           body?: string
           category?: string
           created_at?: string
           email?: string
           id?: string
+          last_updated_by?: string | null
           name?: string | null
           priority?: string
           resolved_at?: string | null
@@ -1133,6 +1139,20 @@ export type Database = {
           user_tier?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "support_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_last_updated_by_fkey"
+            columns: ["last_updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "support_tickets_trip_id_fkey"
             columns: ["trip_id"]

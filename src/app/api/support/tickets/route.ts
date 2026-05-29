@@ -5,7 +5,9 @@
  *   notifies every admin via the existing in-app notifications system.
  *
  * GET /api/support/tickets[?status=open|in_progress|resolved|closed]
- *   Admin-only: list tickets, newest first. Status filter optional.
+ *   Admin-only: list tickets, sorted unassigned-first then priority desc then
+ *   created_at desc. Returns { tickets, admins } so the client can render
+ *   assignee + last-updated-by names without N+1 lookups.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
 
   // Fan-out notification to every admin so the bell icon ticks. Fire-and-
   // forget — a notification-insert failure shouldn't 500 the user-facing
-  // submit. There's typically one admin (Brandon) so this is 1 row.
+  // submit.
   try {
     const { data: admins } = await admin
       .from('profiles')
@@ -125,11 +127,16 @@ export async function GET(req: NextRequest) {
     ? statusFilter
     : null;
 
+  // Sort: unassigned (assigned_to IS NULL) first, then priority desc
+  // ('high' before 'normal'), then created_at desc. Postgres treats NULL
+  // as larger than non-null by default, so we ask explicitly for
+  // NULLS FIRST on the assignment ordering.
   let query = admin
     .from('support_tickets')
     .select('*')
-    .order('priority', { ascending: false })   // 'high' before 'normal'
-    .order('created_at', { ascending: false }) // then newest first
+    .order('assigned_to', { ascending: true, nullsFirst: true })
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(200);
 
   if (validStatus) query = query.eq('status', validStatus);
@@ -140,5 +147,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to load tickets' }, { status: 500 });
   }
 
-  return NextResponse.json({ tickets: tickets ?? [] });
+  // Surface all admins so the client can render assignee + last-updated-by
+  // names without N+1 lookups. Small list (typically <10), one query.
+  const { data: admins } = await admin
+    .from('profiles')
+    .select('id, name, email')
+    .eq('is_admin', true)
+    .order('name', { ascending: true });
+
+  return NextResponse.json({
+    tickets: tickets ?? [],
+    admins: admins ?? [],
+    callerId: userId,
+  });
 }

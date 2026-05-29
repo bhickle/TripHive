@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Mail, Clock, Tag, AlertTriangle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Mail, Clock, Tag, AlertTriangle, ExternalLink, UserCheck, UserX } from 'lucide-react';
 
 interface Ticket {
   id: string;
@@ -17,9 +17,17 @@ interface Ticket {
   user_tier: string | null;
   trip_id: string | null;
   admin_notes: string | null;
+  assigned_to: string | null;
+  last_updated_by: string | null;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
+}
+
+interface AdminProfile {
+  id: string;
+  name: string | null;
+  email: string | null;
 }
 
 const STATUS_LABELS: Record<Ticket['status'], string> = {
@@ -36,13 +44,43 @@ const STATUS_COLORS: Record<Ticket['status'], string> = {
   closed: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 
+function firstName(p: AdminProfile | undefined): string {
+  if (!p) return 'Unknown';
+  if (p.name && p.name.trim()) return p.name.split(' ')[0];
+  if (p.email) return p.email.split('@')[0];
+  return 'Unknown';
+}
+
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const diffMs = Date.now() - then;
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export function AdminSupportClient() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [admins, setAdmins] = useState<AdminProfile[]>([]);
+  const [callerId, setCallerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<Ticket['status'] | 'all'>('open');
+  const [mineOnly, setMineOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+
+  const adminById = useMemo(() => {
+    const map = new Map<string, AdminProfile>();
+    for (const a of admins) map.set(a.id, a);
+    return map;
+  }, [admins]);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -54,6 +92,8 @@ export function AdminSupportClient() {
       if (res.ok) {
         const data = await res.json();
         setTickets(data.tickets ?? []);
+        setAdmins(data.admins ?? []);
+        setCallerId(data.callerId ?? null);
       }
     } finally {
       setLoading(false);
@@ -64,7 +104,7 @@ export function AdminSupportClient() {
 
   const updateTicket = async (
     id: string,
-    patch: Partial<Pick<Ticket, 'status' | 'priority' | 'admin_notes'>>,
+    patch: Partial<Pick<Ticket, 'status' | 'priority' | 'admin_notes' | 'assigned_to'>>,
   ) => {
     setSaving(id);
     try {
@@ -79,7 +119,13 @@ export function AdminSupportClient() {
     }
   };
 
-  const counts = tickets.reduce(
+  const visibleTickets = useMemo(() => (
+    mineOnly && callerId
+      ? tickets.filter(t => t.assigned_to === callerId)
+      : tickets
+  ), [tickets, mineOnly, callerId]);
+
+  const counts = visibleTickets.reduce(
     (acc, t) => ({ ...acc, [t.status]: (acc[t.status] ?? 0) + 1 }),
     {} as Record<string, number>,
   );
@@ -100,7 +146,7 @@ export function AdminSupportClient() {
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-3">
           {(['open', 'in_progress', 'resolved', 'closed', 'all'] as const).map(s => (
             <button
               key={s}
@@ -121,25 +167,48 @@ export function AdminSupportClient() {
           ))}
         </div>
 
+        <div className="mb-6">
+          <button
+            onClick={() => setMineOnly(m => !m)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all inline-flex items-center gap-1.5 ${
+              mineOnly
+                ? 'bg-amber-500 border-amber-500 text-white'
+                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" /> Assigned to me
+          </button>
+        </div>
+
         {loading ? (
           <p className="text-slate-500">Loading…</p>
-        ) : tickets.length === 0 ? (
+        ) : visibleTickets.length === 0 ? (
           <div className="bg-white rounded-2xl border border-zinc-100 p-12 text-center">
-            <p className="text-slate-500">No tickets match this filter. Quiet for now.</p>
+            <p className="text-slate-500">
+              {mineOnly
+                ? "Nothing's assigned to you in this filter. Try the team queue."
+                : "No tickets match this filter. Quiet for now."}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {tickets.map(t => {
+            {visibleTickets.map(t => {
               const isExpanded = expandedId === t.id;
               const created = new Date(t.created_at);
               const notesValue = editNotes[t.id] ?? t.admin_notes ?? '';
+              const assignee = t.assigned_to ? adminById.get(t.assigned_to) : null;
+              const updater = t.last_updated_by ? adminById.get(t.last_updated_by) : null;
+              const assignedToMe = callerId !== null && t.assigned_to === callerId;
+              const unassigned = t.assigned_to === null;
               return (
                 <div
                   key={t.id}
                   className={`bg-white rounded-2xl border shadow-sm transition-all ${
                     t.priority === 'high' && t.status === 'open'
                       ? 'border-amber-300 shadow-amber-100'
-                      : 'border-zinc-100'
+                      : assignedToMe
+                        ? 'border-sky-200'
+                        : 'border-zinc-100'
                   }`}
                 >
                   <button
@@ -163,6 +232,21 @@ export function AdminSupportClient() {
                           {t.user_tier && (
                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                               {t.user_tier}
+                            </span>
+                          )}
+                          {/* Assignment badge */}
+                          {unassigned ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-50 border border-dashed border-slate-300 px-2 py-0.5 rounded-full">
+                              Unclaimed
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                              assignedToMe
+                                ? 'text-sky-700 bg-sky-50 border-sky-200'
+                                : 'text-violet-700 bg-violet-50 border-violet-200'
+                            }`}>
+                              <UserCheck className="w-3 h-3" />
+                              {assignedToMe ? 'You' : firstName(assignee ?? undefined)}
                             </span>
                           )}
                         </div>
@@ -195,7 +279,9 @@ export function AdminSupportClient() {
                       )}
 
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Admin notes</p>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                          Admin notes <span className="font-normal normal-case text-slate-400">(only admins see this)</span>
+                        </p>
                         <textarea
                           value={notesValue}
                           onChange={e => setEditNotes(prev => ({ ...prev, [t.id]: e.target.value }))}
@@ -205,9 +291,69 @@ export function AdminSupportClient() {
                             }
                           }}
                           rows={3}
-                          placeholder="Notes only you can see"
+                          placeholder="Internal notes other admins can see"
                           className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
                         />
+                      </div>
+
+                      {/* Assignment row */}
+                      <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Owner:</span>
+                        {assignee ? (
+                          <span className="text-sm font-medium text-slate-700">
+                            {firstName(assignee)}{assignedToMe ? ' (you)' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-sm italic text-slate-400">Unclaimed</span>
+                        )}
+                        <div className="ml-auto flex flex-wrap gap-2">
+                          {unassigned && callerId && (
+                            <button
+                              onClick={() => updateTicket(t.id, { assigned_to: callerId })}
+                              disabled={saving === t.id}
+                              className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-sky-800 border-sky-800 text-white hover:bg-sky-900 disabled:opacity-50"
+                            >
+                              <UserCheck className="w-3.5 h-3.5 inline mr-1" /> Claim
+                            </button>
+                          )}
+                          {!unassigned && !assignedToMe && callerId && (
+                            <button
+                              onClick={() => updateTicket(t.id, { assigned_to: callerId })}
+                              disabled={saving === t.id}
+                              className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-white border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                            >
+                              Reassign to me
+                            </button>
+                          )}
+                          {!unassigned && (
+                            <button
+                              onClick={() => updateTicket(t.id, { assigned_to: null })}
+                              disabled={saving === t.id}
+                              className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-white border-slate-200 text-slate-600 hover:border-slate-400 disabled:opacity-50"
+                            >
+                              <UserX className="w-3.5 h-3.5 inline mr-1" /> Unassign
+                            </button>
+                          )}
+                          {/* Assign to a specific other admin via select */}
+                          {admins.length > 1 && (
+                            <select
+                              value={t.assigned_to ?? ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                updateTicket(t.id, { assigned_to: val === '' ? null : val });
+                              }}
+                              disabled={saving === t.id}
+                              className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-white border-slate-200 text-slate-700 hover:border-slate-400 disabled:opacity-50"
+                            >
+                              <option value="">Assign to…</option>
+                              {admins.map(a => (
+                                <option key={a.id} value={a.id}>
+                                  {firstName(a)}{a.id === callerId ? ' (you)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap gap-2 items-center justify-between">
@@ -241,6 +387,16 @@ export function AdminSupportClient() {
                           <Mail className="w-4 h-4" /> Reply by email
                         </a>
                       </div>
+
+                      {/* Last touched footer */}
+                      {updater && (
+                        <p className="text-xs text-slate-400 italic">
+                          Last touched by {firstName(updater)}
+                          {t.last_updated_by === callerId ? ' (you)' : ''}
+                          {' · '}
+                          {relativeTime(t.updated_at)}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
