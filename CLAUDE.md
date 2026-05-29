@@ -312,6 +312,36 @@ Before every `git push`:
 ### Mock Data Scope
 `src/data/mock.ts` is **only** for the demo/preview experience (unauthenticated users). All authenticated user flows must use real Supabase data. Never fall back to mock data for logged-in users.
 
+### Brand color discipline
+The product runs on a tight palette — don't introduce new accent families ad-hoc.
+
+- **Primary action color: sky-800 / sky-900.** Used for `.btn-primary`, every Settings save button, every itinerary action, every Group hub CTA. The `.btn-primary` global was amber until 2026-05-29; flipping it to sky was a one-line cascade across auth.
+- **Amber-500 / amber-600**: reserved for **Trip Pass marketing** (Trip Pass tier card, the "Most popular" badge on landing+pricing) AND the landing-page hero CTA. Anywhere else, amber reads as "Trip Pass / paid hero." Do NOT use amber for generic primary actions.
+- **Emerald-600**: the "Best value" badge (Explorer). Reserved for that single role.
+- **Track A = sky-500, Track B = amber-500**. Was violet/rose pre-2026-05-29; both colors are now reused for other purposes ("AI Pick" badge = violet pill; error states = rose) so don't reintroduce violet/rose for tier or track identification.
+- **Neutrals: text-zinc-900 for headings, text-zinc-500-700 for body, text-slate-500-700 for form labels.** Mix them carefully — pages that mix zinc + slate without intent feel inconsistent. The Day-Of page used to live in a parallel slate palette; reconciling it to zinc fixed the "different product" feel.
+- **Borders + chrome:** `border-zinc-100` for content cards (white-on-parchment cards), `border-slate-200` or `border-slate-300` for interactive form controls. Mixing slate and zinc on borders is OK if they're in different contexts.
+
+If you find yourself reaching for purple/indigo/rose/pink/teal as a "fresh accent," stop. The palette was deliberately narrowed in the 2026-05-29 design sweep — re-introducing colors widens the maintenance surface and dilutes the brand.
+
+### Empty state pattern
+Use `<EmptyState>` from `src/components/EmptyState.tsx` for any list/grid/tab that needs to render a "nothing to show here" state. Don't hand-code a new icon-title-cta cluster.
+
+```tsx
+<EmptyState
+  icon={MessageCircle}
+  title="No messages yet"
+  description="Say hi to the crew below."
+  compact      // optional — less vertical padding for in-tab use
+  cta={{ label: 'Browse Discover', href: '/discover' }}       // OR
+  action={{ label: '+ Add first expense', onClick: handler }} // OR neither
+/>
+```
+
+The component renders: white `rounded-2xl border-zinc-100` card, centered icon in a `zinc-100` chip, semibold `zinc-700` title, `zinc-500` description, optional `bg-sky-800 rounded-full` CTA. Hand-coding the same shape per surface was how we ended up with 6 different empty-state patterns across the app pre-2026-05-29. Three are now using the component (chat / expenses / packing); other surfaces can migrate incrementally.
+
+The Group Votes "starter prompts" empty state (with clickable question chips) is a deliberate richer variant — leave it alone. `<EmptyState>` is for the simple icon-title-description-CTA case.
+
 ### Build credit claim semantics
 Chunked builds (long single-city, multi-city) call `/api/generate-itinerary` once per 3-day chunk, but billing is per-build, not per-chunk. The race-safe primitive is an atomic claim on `trips.build_credits_charged_at`:
 
@@ -334,79 +364,67 @@ Multiple instances fight over the same auth Web Lock and silently drop the auth 
 
 ---
 
-## Recently Shipped (May 29 — product polish + landing port)
+## Recently Shipped (May 29 evening — multi-admin + design consistency sweep + naming)
 
-Second wave after the May 29 QA pass (which is in `CHANGELOG.md`). Brandon's site-review punch list: tier numbers shrunk, Help & Support flow built end-to-end, mobile audit + 6 high-confidence fixes, and the approved landing-page mockup ported to live. **4 commits.**
+Third wave of the May 29 marathon. Brandon submitted a test support ticket and asked how multi-admin coordination would work — that question kicked off the rest of the session: 4 admins granted, ticket assignment + audit trail shipped, a full design-consistency audit + 3 rounds of fixes, and three naming/voice decisions. **9 commits.**
 
-**Tier numbers + pricing copy alignment**
-- Nomad travelers: 15 → 12 ("extended family/friends" range, not artificially small). Explorer travelers: 8 → 6 (most casual group trips ≤6). Nomad AI credits: 250 → 200 (8 builds; tighter margin, still very generous, ~2× Explorer for less than 2× the price).
-- Single source of truth holds: `TIER_LIMITS` (src/lib/types.ts), `PRICING` (src/hooks/useEntitlements.ts), webhook `tierCredits()` helper all sync to the new caps automatically.
-- Landing + pricing pages reconciled with each other and with reality:
-  - Removed "Community support" from Free (not built; no community channel exists).
-  - Removed "Flight price alerts" from Explorer + "Unlimited flight alerts" from Nomad (not built, not on near-term roadmap).
-  - Surfaced Nomad's AI features (receipt scan, AI packing, AI phrasebook) on the landing card — they were already on /pricing but the landing card was a stripped older version.
-  - Day-limit lines added to Explorer (10) + Nomad (14).
-- `getTierFeatures()` (the single-source-of-truth that drives Settings + UpgradeModal) now skips the support line entirely when `supportLevel === 'community'` so the absence is consistent across surfaces.
-- Upgrade prompt copy ("Nomad for 10 builds") updated to 8.
-- Comparison row + FAQ on /pricing updated to "200/8 builds" math.
+**Multi-admin support coordination**
+- **3 new admins granted via SQL**: Abby Stark, Mallory Hixon, Luke. All four (incl. Brandon) are `is_admin = true` — `/admin/support` is reachable and ticket fan-outs hit everyone.
+- **Schema:** `support_tickets.assigned_to` + `support_tickets.last_updated_by` (both uuid FK → profiles ON DELETE SET NULL). Indexed on `assigned_to`.
+- **API:** GET returns `{ tickets, admins, callerId }` for N+1-free name rendering. PATCH accepts `assigned_to`, validates admin, stamps `last_updated_by = caller`, fires in-app notification to a new assignee when it's someone OTHER than the caller.
+- **UI:** assignment badge per ticket ("Unclaimed" / "You" sky / first-name violet), "Assigned to me" filter chip, Claim/Reassign/Unassign buttons + an "Assign to…" select, "Last touched by X · Yh ago" footer, sky-tinted card border when assigned to caller. Sort: unassigned-first → priority → newest.
+- **Bug caught during the multi-admin test (commit `ffb2db4`):** `ORDER BY priority DESC` was putting 'normal' BEFORE 'high' because Postgres sorts text columns lexicographically (`'h' < 'n'`). Flipped to ASC, captured in memory `text-enum-sort-gotcha` so it's not repeated for 3+-value text enums.
 
-**"Days Abroad" → "Travel Days"** — Brandon's call: keep the total-days math (don't filter home-country trips), rename the label so it's not misleading when home-country trips are counted. Updated across `/world` stats card, share-card OG image, `/share/world` summary line, and the TripStoryModal stats slide. Internal `daysAbroad` variable kept (too many ripple sites; the user-facing string was the actual bug).
+**Dashboard notification bell unified with itinerary (commit `577c008`)**
+- Dashboard had its own 250-line custom Bell + dropdown that wasn't opening, positioned RIGHT of "Add Someone" while the itinerary TopBar put it LEFT. Brandon flagged the look mismatch + non-functionality.
+- Fix: ripped out the dashboard's custom bell + state + panel JSX (254 lines deleted, 18 added) and used the shared `<NotificationBell />` from `src/components/NotificationPanel` — same component the itinerary's TopBar mounts. Self-contained: fetches /api/notifications, subscribes to Realtime, renders its own dropdown with deep-link routing.
+- Moved LEFT of "Add Someone" to match TopBar order.
 
-**Dashboard hero photo for trips outside the static map** — `destinationPhotos` only knows iceland/tokyo/barcelona/default. Strasbourg fell through to default = beach photo. Fix: prefer `nextTrip.coverImage` (already populated by TripCard's Unsplash flow + persisted in `trip_photos`) before the static map. Static map stays as fallback for trips whose cover hasn't loaded.
+**Design consistency audit + sweep — 3 rounds, ~20 items.** A multi-agent design audit caught visible drift across landing/pricing, auth/settings, dashboard/world, itinerary, group/prep/discover/layover. Highlights:
 
-**Help & Support flow (medium-weight, full end-to-end)**
-- **Schema:** new `profiles.is_admin` boolean (default false; Brandon's account flipped true in the migration). New `public.support_tickets` table — id, user_id, email, name, subject, body, category (general|bug|billing|feature|account), status (open|in_progress|resolved|closed), priority (normal|high), user_tier, trip_id (FK trips), admin_notes, created_at/updated_at/resolved_at. CHECK constraints on enum columns. RLS: users SELECT/INSERT own; admins SELECT + UPDATE all via sub-select on `profiles.is_admin`. Indexes on `(status, created_at DESC)` and `(user_id, created_at DESC)`.
-- **API:**
-  - `POST /api/support/tickets` — user-facing. Auto-tags Nomad users `priority='high'` (the pricing-page promise). Fan-outs an in-app notification to every admin via the existing `notifications` table (fire-and-forget; notification failure doesn't 500 the submit).
-  - `GET /api/support/tickets[?status=…]` — admin-only, sorted priority desc then created_at desc, capped at 200.
-  - `PATCH /api/support/tickets/[id]` — admin-only, status/priority/admin_notes. Stamps `resolved_at` on transition to 'resolved'; clears on re-open.
-- **UI:**
-  - Settings → new **Help & Support** tab (HelpCircle icon, sits next to Privacy & Data in the section nav). Category select + 200-char subject + 5K-char body (with counter), Nomad users see a "your ticket is flagged priority" hint. Success card surfaces the reply-to email.
-  - `/admin/support` — server-side gated on `profiles.is_admin` (redirects non-admins to `/dashboard`, so the route doesn't surface its existence). Status-filter chips with counts. Tickets expand inline to show body + admin notes (debounced save on blur) + status/priority toggle buttons + a `mailto:` reply-by-email link with subject pre-filled. Priority-high open tickets get an amber border + badge.
-  - `NotificationPanel` wired to the new `support_ticket` notification type (renders as `reminder` icon; clicks route to `/admin/support`).
-- **Pattern to reuse:** future admin routes follow the same gate (`server-side getUser → SELECT is_admin → redirect non-admins`). Add new admins via `UPDATE profiles SET is_admin = true WHERE email = '…'`.
+- **Brand color discipline enforced** — the systemic change was flipping `.btn-primary` and `.input-field` (in `globals.css`) from amber → sky. Auth pages all used these so their submit buttons + input focus rings were AMBER while everything else was sky. Track A/B colors also moved from violet/rose → sky/amber. Detailed rule in [Brand color discipline](#brand-color-discipline) under Code Conventions.
+- **Cross-surface rhythm** — itinerary activity card `rounded-xl` → `rounded-2xl`; dashboard hero `text-5xl` → `text-4xl`; eyebrow color standardized to `text-zinc-500` across landing surfaces; TripCard padding `p-4` → `p-5`; Day-Of palette reconciled (slate-50 → parchment, rounded-xl → rounded-2xl, slate borders → zinc).
+- **Auth polish (round 2)** — Eye/EyeOff toggles on login + signup, "Sign in" → "Log in" everywhere, sentence-case CTAs ("Log in" / "Create account" / proper `…`), Settings input recipe standardized.
+- **Layover CTAs** `rounded-lg` → `rounded-full` (4 buttons). Layover stopped reading as a different app.
+- **Trip Builder Step 1** selected-card border green-700 → sky-700 (green-700 was also the "completed step" indicator — the overlap was confusing).
+- **Pricing tier badges aligned to Landing** — both pages now flag Trip Pass = "Most popular" (amber pill) and Explorer = "Best value" (emerald pill).
+- **New shared `<EmptyState>` component** at `src/components/EmptyState.tsx`. See [Empty state pattern](#empty-state-pattern) under Code Conventions. Adopted in Group chat / Group expenses / Prep My Pack.
+- Smaller wins: Activity Pulse header restyled (sky-800 band → white + uppercase), undo-delete toast `rounded-full` → `rounded-2xl` (matches the other 5 toasts).
 
-**Mobile responsiveness — 6 high-confidence fixes**
-- Discover horizontal-rail scroll arrows (`-translate-x-1/2` pushed them off-screen on mobile) → `hidden md:flex`. Founder + Community rails both affected.
-- Hotel + Flight modal grids in the itinerary: `grid-cols-2 gap-4` (6 instances) → `grid-cols-1 sm:grid-cols-2 gap-4`. iOS date pickers stop overlapping their labels.
-- Activity Pulse (Yay/Nay table) tightened on phone: `gap-3 px-4` → `gap-2 sm:gap-3 px-3 sm:px-4`. Header + rows kept in sync.
-- Chat bubbles `max-w-xs` → `max-w-[75%] sm:max-w-xs`. Long messages scale with viewport on phone, lock to 320px on tablet+.
-- Sidebar mobile hamburger `top-4 left-4` → `top-4 right-4` so it stops overlapping universally-left-aligned `<h1>`s on every page. Sidebar still slides from left. Added `aria-label` for screen readers. Trade-off accepted: unconventional placement but avoids touching every page's heading padding.
-- Discover 4-day preview cards `grid-cols-2 md:grid-cols-4` → `grid-cols-1 sm:grid-cols-2 md:grid-cols-4`. Cards stop cramming on iPhone SE (320px).
+**Naming + voice decisions (commit `37893ae`)**
+- **"Trips" wins over "Adventures"** as the canonical noun. Dashboard stat "Adventures Planned" → "Trips Planned"; metadata "My Adventures" → "My Trips"; sidebar nav "Adventures" → "Trips". TripStoryModal slide kept "Adventures" as flavor copy.
+- **Trip Builder wizard step labels** normalized to short noun phrases: Who's In / Where To / When / Head Start / **Vibe** / **Pace** / **Budget** / **Build Trip**.
+- **Prep hub tabs pushed voicey** to match Group hub: "Important Stuff" → "Heads Up", "Phrases" → "Speak Local". Group hub stays as-is.
+- **Settled and NOT changing**: "On My Radar" stays on dashboard + /wishlist; "Wishlist" stays in the Group hub — these are intentionally different concepts (personal save list vs trip-scoped wishlist of community items).
 
-**Landing page port (mockups/landing-page.html → src/app/page.tsx)**
-- The live `src/app/page.tsx` was a stripped-down older version that had drifted from the mockup. Ported the richer approved design faithfully, preserving Next.js patterns (`next/link`, `next/image`, `useCallback` scrollTo) and the `PRICING` constants so price edits flow through automatically.
-- **New sections live:** Problem statement → "All-in-one toolkit" (8 emoji-tagged tools + trip-type chip row) → 3-step How It Works → 4 feature pillars (distance / solo-or-group / split tracks / first draft, each with an inline illustrative card) → simplified pricing strip → Objection handler ("Can't I just ask a chatbot?") → 5-row FAQ (native `<details>`) → Final amber CTA → simplified footer.
-- **Pricing strip is intentionally minimal** — 4 short-blurb cards funneling to /pricing for the detailed comparison. **DO NOT** add detailed feature lists back to the landing card; that's what /pricing is for, and the minimal-funnel pattern is the design intent.
-- All paid CTAs route to `/pricing` (where Stripe checkout lives); free CTAs route to `/auth/signup`. No Stripe wiring changed.
-- ~430 line component, replacing ~450 line prior version (slightly leaner despite gaining 5 new sections — removed bulk by dropping the duplicated detailed tier feature lists).
+**Mobile (1 fix this evening)**
+Trip Builder Step 1 group-type cards `grid-cols-1 md:grid-cols-2` → `grid-cols-2 md:grid-cols-4`; inner padding `p-6` → `p-4 sm:p-6`; icon `w-8 h-8` → `w-7 h-7 sm:w-8 sm:h-8`. The four cards used to eat ~480px stacked on iPhone SE.
 
-**Schema this session (all via MCP, types regenerated)**
-- `profiles.is_admin boolean NOT NULL DEFAULT false`. Brandon's account flipped true in the same migration.
-- `public.support_tickets` table with full enum CHECK + RLS + indexes.
+**Schema this session (via MCP, types regenerated)**
+- `support_tickets.assigned_to` (uuid FK profiles ON DELETE SET NULL).
+- `support_tickets.last_updated_by` (uuid FK profiles ON DELETE SET NULL).
+- Index `idx_support_tickets_assigned_to`.
+- `profiles.is_admin = true` for Abby, Mallory, Luke (Brandon was already admin).
 
-**Commits**
-- `57665ae` Tier numbers + landing+pricing copy + Strasbourg photo + Days Abroad→Travel Days rename
-- `e37c705` Support flow (schema + API + Settings form + admin inbox + notifications wiring)
-- `411c865` 6 mobile high-confidence fixes
-- `f8ab215` Landing page port
+**New code artifacts**
+- `src/components/EmptyState.tsx` — canonical empty-state shell (see Code Conventions).
+- `TRANSPORT_PARSER_TEST_PROMPTS.md` (repo root) — 8 paste-and-go scenarios for the transport parser, from the earlier code review. Use when sitting down to live-test.
 
-**Code-level reviews from this session (no code change — Brandon's testing)**
-- **Transport parser** — biggest live-test risk is **multi-leg confirmations silently dropping the return** (Sonnet returns ONE leg from an Amtrak outbound+return). Other concerns: Confirm-button has no double-click guard, `meetTime` default isn't enforced server-side, 12h↔24h normalization is prompt-only. 8 paste-and-go test scenarios prepared for Brandon to try (Flixbus / Hertz / Amtrak multi-leg / Viator / 12h time / vague / garbage / under-20-char).
-- **Mobile Section B** — 6 "likely problems" need device testing before deciding what to fix (multi-line day-header on phone landscape, iPad-portrait sidebar cramping, dynamic chat-panel height calc, Trip Builder group-type card stack vertical scroll, world-map projection at narrow widths, pricing comparison cards on iPad).
+Commits this session: `85d1179` → `37893ae` (9 in order; see `git log --grep="Polish round\|Support inbox\|Dashboard.*bell\|Trip Builder mobile\|Design consistency\|Naming"` for the set).
 
-**Verify next on live (post-deploy)**
-- Tier display: Settings → Subscription should show new caps (6 travelers Explorer / 12 Nomad / 200 credits Nomad). Pricing comparison row + FAQ math should match.
-- `/admin/support`: log in as Brandon → submit a test ticket from Settings → bell icon should tick → click it → land on `/admin/support` → ticket renders with priority badge if Nomad-tier. Log in as non-admin → `/admin/support` should redirect to `/dashboard`.
-- Strasbourg trip on dashboard: hero photo should match the actual Strasbourg cover (or the cover that was persisted via TripCard's Unsplash flow), not the default beach.
-- Landing page: section anchors (Everything inside / How It Works) scroll smoothly, FAQ details expand, final CTA goes to signup, all paid CTAs go to /pricing.
-- Mobile: hamburger top-right doesn't overlap `<h1>`; Discover rail arrows gone on phone; modal date fields full-width on phone; chat bubbles fill more bubble width.
+**Verify next on live**
+- Dashboard bell matches the itinerary TopBar visually + opens its dropdown; Realtime ticks on new notifications.
+- `/admin/support`: all 4 admins reachable; Claim/Reassign/Unassign work; priority sort puts 'high' first.
+- Trip Builder Step 1 cards 2×2 on phone; selected state sky-700 not green-700.
+- Day-Of reads as a continuation of the itinerary (parchment, zinc borders, rounded-2xl).
+- Auth submit buttons sky-800 not amber; password Eye/EyeOff toggle on login + signup.
+- Prep tabs: "Heads Up / My Flights / Admin / Pack This / Speak Local". Sidebar: "Trips" not "Adventures".
 
 ---
 
 ## Older sessions
 
-Pre-today session notes (May 29 QA pass, May 9, May 8, May 7, and earlier) live in `CHANGELOG.md`. Same folder; open it directly or ask Claude to read it.
+Pre-today session notes (May 29 product-polish + landing port, May 29 QA pass, May 9, May 8, May 7, and earlier) all live in `CHANGELOG.md`. Three rotations on 2026-05-29 — heavy day. Open it or ask Claude.
 
 ---
 

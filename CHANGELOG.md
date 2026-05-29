@@ -4,6 +4,65 @@
 > Most recent session stays in `CLAUDE.md`. Anything older lives here.
 > May 9 session moved here on 2026-05-29 when the May 29 QA-pass session took its slot.
 > May 29 QA-pass session moved here on 2026-05-29 later the same day when the product-polish + landing-port session took the slot.
+> May 29 product-polish + landing-port session moved here later the same day when the multi-admin + design-consistency-sweep session took the slot (third rotation in 24h — heavy day).
+
+---
+
+## Recently Shipped (May 29 — product polish + landing port)
+
+Second wave after the May 29 QA pass. Brandon's site-review punch list: tier numbers shrunk, Help & Support flow built end-to-end, mobile audit + 6 high-confidence fixes, and the approved landing-page mockup ported to live. **4 commits.**
+
+**Tier numbers + pricing copy alignment**
+- Nomad travelers: 15 → 12 ("extended family/friends" range, not artificially small). Explorer travelers: 8 → 6 (most casual group trips ≤6). Nomad AI credits: 250 → 200 (8 builds; tighter margin, still very generous, ~2× Explorer for less than 2× the price).
+- Single source of truth holds: `TIER_LIMITS` (src/lib/types.ts), `PRICING` (src/hooks/useEntitlements.ts), webhook `tierCredits()` helper all sync to the new caps automatically.
+- Landing + pricing pages reconciled with each other and with reality:
+  - Removed "Community support" from Free (not built; no community channel exists).
+  - Removed "Flight price alerts" from Explorer + "Unlimited flight alerts" from Nomad (not built, not on near-term roadmap).
+  - Surfaced Nomad's AI features (receipt scan, AI packing, AI phrasebook) on the landing card — they were already on /pricing but the landing card was a stripped older version.
+  - Day-limit lines added to Explorer (10) + Nomad (14).
+- `getTierFeatures()` (the single-source-of-truth that drives Settings + UpgradeModal) now skips the support line entirely when `supportLevel === 'community'` so the absence is consistent across surfaces.
+- Upgrade prompt copy ("Nomad for 10 builds") updated to 8.
+- Comparison row + FAQ on /pricing updated to "200/8 builds" math.
+
+**"Days Abroad" → "Travel Days"** — Brandon's call: keep the total-days math (don't filter home-country trips), rename the label so it's not misleading when home-country trips are counted. Updated across `/world` stats card, share-card OG image, `/share/world` summary line, and the TripStoryModal stats slide. Internal `daysAbroad` variable kept (too many ripple sites; the user-facing string was the actual bug).
+
+**Dashboard hero photo for trips outside the static map** — `destinationPhotos` only knows iceland/tokyo/barcelona/default. Strasbourg fell through to default = beach photo. Fix: prefer `nextTrip.coverImage` (already populated by TripCard's Unsplash flow + persisted in `trip_photos`) before the static map. Static map stays as fallback for trips whose cover hasn't loaded.
+
+**Help & Support flow (medium-weight, full end-to-end)** — Single-admin (Brandon) initial version. Multi-admin coordination was added later the same day (see the May 29 evening session in CLAUDE.md).
+- **Schema:** new `profiles.is_admin` boolean (default false; Brandon's account flipped true in the migration). New `public.support_tickets` table — id, user_id, email, name, subject, body, category (general|bug|billing|feature|account), status (open|in_progress|resolved|closed), priority (normal|high), user_tier, trip_id (FK trips), admin_notes, created_at/updated_at/resolved_at. CHECK constraints on enum columns. RLS: users SELECT/INSERT own; admins SELECT + UPDATE all via sub-select on `profiles.is_admin`. Indexes on `(status, created_at DESC)` and `(user_id, created_at DESC)`.
+- **API:**
+  - `POST /api/support/tickets` — user-facing. Auto-tags Nomad users `priority='high'` (the pricing-page promise). Fan-outs an in-app notification to every admin via the existing `notifications` table.
+  - `GET /api/support/tickets[?status=…]` — admin-only, sorted priority desc then created_at desc, capped at 200.
+  - `PATCH /api/support/tickets/[id]` — admin-only, status/priority/admin_notes. Stamps `resolved_at` on transition to 'resolved'; clears on re-open.
+- **UI:**
+  - Settings → new **Help & Support** tab (HelpCircle icon). Category select + 200-char subject + 5K-char body (with counter), Nomad users see a "your ticket is flagged priority" hint.
+  - `/admin/support` — server-side gated on `profiles.is_admin` (redirects non-admins to `/dashboard`). Status-filter chips with counts. Tickets expand inline.
+  - `NotificationPanel` wired to the new `support_ticket` notification type → routes to `/admin/support`.
+- **Pattern to reuse:** future admin routes follow the same gate (`server-side getUser → SELECT is_admin → redirect non-admins`). Add new admins via `UPDATE profiles SET is_admin = true WHERE email = '…'`.
+
+**Mobile responsiveness — 6 high-confidence fixes**
+- Discover horizontal-rail scroll arrows (`-translate-x-1/2` pushed them off-screen on mobile) → `hidden md:flex`. Founder + Community rails both affected.
+- Hotel + Flight modal grids in the itinerary: `grid-cols-2 gap-4` (6 instances) → `grid-cols-1 sm:grid-cols-2 gap-4`. iOS date pickers stop overlapping their labels.
+- Activity Pulse (Yay/Nay table) tightened on phone: `gap-3 px-4` → `gap-2 sm:gap-3 px-3 sm:px-4`.
+- Chat bubbles `max-w-xs` → `max-w-[75%] sm:max-w-xs`. Long messages scale with viewport on phone, lock to 320px on tablet+.
+- Sidebar mobile hamburger `top-4 left-4` → `top-4 right-4` so it stops overlapping universally-left-aligned `<h1>`s.
+- Discover 4-day preview cards `grid-cols-2 md:grid-cols-4` → `grid-cols-1 sm:grid-cols-2 md:grid-cols-4`.
+
+**Landing page port (mockups/landing-page.html → src/app/page.tsx)**
+- The live `src/app/page.tsx` was a stripped-down older version that had drifted from the mockup. Ported the richer approved design faithfully, preserving Next.js patterns (`next/link`, `next/image`, `useCallback` scrollTo) and the `PRICING` constants so price edits flow through automatically.
+- **New sections live:** Problem statement → "All-in-one toolkit" (8 emoji-tagged tools + trip-type chip row) → 3-step How It Works → 4 feature pillars → simplified pricing strip → Objection handler → 5-row FAQ → Final amber CTA → simplified footer.
+- **Pricing strip is intentionally minimal** — 4 short-blurb cards funneling to /pricing for the detailed comparison. **DO NOT** add detailed feature lists back to the landing card.
+- All paid CTAs route to `/pricing` (where Stripe checkout lives); free CTAs route to `/auth/signup`. No Stripe wiring changed.
+
+**Schema this session**
+- `profiles.is_admin boolean NOT NULL DEFAULT false`. Brandon's account flipped true in the same migration.
+- `public.support_tickets` table with full enum CHECK + RLS + indexes.
+
+**Commits**
+- `57665ae` Tier numbers + landing+pricing copy + Strasbourg photo + Days Abroad→Travel Days rename
+- `e37c705` Support flow (schema + API + Settings form + admin inbox + notifications wiring)
+- `411c865` 6 mobile high-confidence fixes
+- `f8ab215` Landing page port
 
 ---
 
