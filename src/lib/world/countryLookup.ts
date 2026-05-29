@@ -16,7 +16,7 @@
  */
 
 /** Aliases for common variants — case-insensitive lookup against the keys. */
-const COUNTRY_ALIASES: Record<string, string> = {
+export const COUNTRY_ALIASES: Record<string, string> = {
   'usa': 'United States',
   'u.s.a.': 'United States',
   'u.s.': 'United States',
@@ -234,4 +234,35 @@ export function countryToId(country: string): string | null {
 
 export function countryToContinent(country: string): string | null {
   return COUNTRY_TO_CONTINENT[country] ?? null;
+}
+
+/**
+ * Canonical country name for a raw home_country input. Accepts the variants
+ * the Settings picker can produce ("UK", "United Kingdom", "england") and
+ * returns the form used in COUNTRY_TO_ID — or null if the input doesn't
+ * match anything we know.
+ */
+export function canonicalizeCountry(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const lower = raw.trim().toLowerCase();
+  if (!lower) return null;
+  const aliased = COUNTRY_ALIASES[lower] ?? raw.trim();
+  if (COUNTRY_TO_ID[aliased]) return aliased;
+  const titled = aliased.replace(/\b\w/g, c => c.toUpperCase());
+  if (COUNTRY_TO_ID[titled]) return titled;
+  return null;
+}
+
+/**
+ * All short forms / aliases for a canonical country name. Used for substring
+ * matching against destination strings that aren't comma-separated (e.g.
+ * "Tokyo" instead of "Tokyo, Japan"). Includes the canonical name itself
+ * plus every COUNTRY_ALIASES key that points to it. Lowercased.
+ */
+export function aliasesForCountry(canonicalName: string): string[] {
+  const out = new Set<string>([canonicalName.toLowerCase()]);
+  for (const [alias, target] of Object.entries(COUNTRY_ALIASES)) {
+    if (target === canonicalName) out.add(alias);
+  }
+  return Array.from(out);
 }

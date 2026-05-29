@@ -5,6 +5,8 @@
  * can't drift on what counts as a domestic trip.
  */
 
+import { aliasesForCountry, canonicalizeCountry, destinationToCountry } from './countryLookup';
+
 // US state + DC abbreviations, for matching a "City, ST" destination string
 // (e.g. "Tampa, FL" or "New York, NY").
 export const US_STATE_ABBREVIATIONS = [
@@ -46,14 +48,34 @@ export function homeCountryIsUS(homeCountry: string | null | undefined): boolean
 /**
  * True when the destination is within the traveler's OWN country — distinct
  * from isUSDestination. US home reuses the robust isUSDestination match; other
- * homes match the destination string naming their country. Unknown home falls
- * back to the US assumption (see homeCountryIsUS).
+ * homes resolve the destination's country via destinationToCountry (which
+ * handles "London, UK" / "Prague, Czechia" / "Tokyo, Japan" naturally), then
+ * fall back to alias substring match for bare-city destinations like just
+ * "London" — "uk", "england", "scotland" etc. all map to United Kingdom.
+ *
+ * Previously this did `destination.includes(homeCountry)`, which silently
+ * never matched because home_country is stored as the canonical name
+ * ("United Kingdom") while destinations are short forms ("London") — every
+ * non-US user got an international "Don't Forget" seed and a visa card for
+ * their own country.
  */
 export function isHomeCountryTrip(
   destination: string,
   homeCountry: string | null | undefined,
 ): boolean {
   if (homeCountryIsUS(homeCountry)) return isUSDestination(destination);
-  const home = (homeCountry ?? '').trim().toLowerCase();
-  return !!home && destination.toLowerCase().includes(home);
+
+  const canonicalHome = canonicalizeCountry(homeCountry);
+  if (!canonicalHome) return false;
+
+  // First try: pull the country out of the destination string ("Prague,
+  // Czechia" → "Czech Republic"). Comma-separated destinations land here.
+  const destCountry = destinationToCountry(destination);
+  if (destCountry) return destCountry === canonicalHome;
+
+  // Bare-city fallback: check the destination string against every alias of
+  // the home country. Catches "London" for a UK user via the 'england' /
+  // 'scotland' / 'uk' / 'great britain' aliases. Case-insensitive.
+  const destLower = destination.toLowerCase();
+  return aliasesForCountry(canonicalHome).some(alias => destLower.includes(alias));
 }
