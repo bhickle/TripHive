@@ -499,7 +499,7 @@ export default function DashboardPage() {
               <p className="text-2xl md:text-4xl font-script italic font-semibold text-zinc-900">
                 {totalTrips}
               </p>
-              <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Adventures Planned</p>
+              <p className="text-xs md:text-sm text-zinc-500 mt-1 leading-tight">Trips Planned</p>
             </Link>
 
             <Link

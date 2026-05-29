@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Client from './Client';
 
-export const metadata: Metadata = { title: 'My Adventures' };
+export const metadata: Metadata = { title: 'My Trips' };
 
 // useSearchParams() in the client component requires a Suspense boundary
 // at the page level for static prerendering to work. Without this, Next.js

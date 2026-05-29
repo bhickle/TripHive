@@ -1229,10 +1229,10 @@ function TripBuilderPage() {
               { n: 2, label: 'Where To', full: 'Where To?' },
               { n: 3, label: 'When', full: 'When?' },
               { n: 4, label: 'Head Start', full: 'Head Start' },
-              { n: 5, label: 'Your Vibe', full: 'Your Vibe' },
-              { n: 6, label: 'How You Roll', full: 'How You Roll' },
-              { n: 7, label: 'The Budget', full: 'The Budget' },
-              { n: 8, label: "Let's Go", full: "Let's Go 🚀" },
+              { n: 5, label: 'Vibe', full: 'Vibe' },
+              { n: 6, label: 'Pace', full: 'Pace' },
+              { n: 7, label: 'Budget', full: 'Budget' },
+              { n: 8, label: 'Build Trip', full: 'Build Trip 🚀' },
             ];
             return (
               <div className="mb-8">

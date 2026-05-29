@@ -1159,7 +1159,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               <FileText className="w-6 h-6 text-sky-700" />
             </div>
             <div className="flex-1">
-              <h3 className="font-script italic text-lg font-semibold text-zinc-900">Important Stuff</h3>
+              <h3 className="font-script italic text-lg font-semibold text-zinc-900">Heads Up</h3>
               <p className="text-sm text-zinc-600 mt-0.5">Passport, visas, travel papers — don't leave without these</p>
             </div>
           </div>
@@ -2121,12 +2121,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         {/* Tab Navigation */}
         <div className="mb-8 bg-white rounded-2xl border border-zinc-100 shadow-sm p-1 inline-flex gap-1 flex-wrap">
           {[
-            { id: 'documents', label: 'Important Stuff', icon: FileText },
+            { id: 'documents', label: 'Heads Up', icon: FileText },
             { id: 'flights', label: 'My Flights', icon: Plane },
             { id: 'logistics', label: 'Admin', icon: Briefcase },
             { id: 'packing', label: 'Pack This', icon: Backpack },
             // Hide Phrases tab for domestic US trips — no foreign language needed
-            ...(!isDomesticUS ? [{ id: 'phrases', label: 'Phrases', icon: Globe }] : []),
+            ...(!isDomesticUS ? [{ id: 'phrases', label: 'Speak Local', icon: Globe }] : []),
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

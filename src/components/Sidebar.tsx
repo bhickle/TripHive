@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
 
   const navItems = [
     { label: 'Home Base',   href: '/dashboard', icon: Compass, id: 'dashboard' },
-    { label: 'Adventures',  href: '/trips',     icon: Map,     id: 'trips'     },
+    { label: 'Trips',       href: '/trips',     icon: Map,     id: 'trips'     },
     { label: 'My World',    href: '/world',     icon: Globe,   id: 'world'     },
     { label: 'On My Radar', href: '/wishlist',  icon: Radar,   id: 'wishlist'  },
     { label: 'Discover',    href: '/discover',  icon: Globe2,  id: 'discover'  },
