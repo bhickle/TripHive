@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { User, Mail, Lock } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Suspense, useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -24,6 +24,7 @@ function SignupPageInner() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -139,7 +140,7 @@ function SignupPageInner() {
                 href="/auth/login"
                 className="inline-block text-sm font-semibold text-sky-700 hover:text-sky-900 underline-offset-2 hover:underline"
               >
-                Already confirmed? Sign in →
+                Already confirmed? Log in →
               </a>
             </div>
           ) : (
@@ -206,15 +207,23 @@ function SignupPageInner() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input-field pl-10"
+                  className="input-field pl-10 pr-10"
                   required
                   minLength={8}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
               {/* Live strength meter — three buckets keyed off length and
                   character variety. Cheap to compute, far better feedback
@@ -272,13 +281,13 @@ function SignupPageInner() {
               disabled={isLoading || !agreedToTerms}
               className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Creating account...' : 'Create Account'}
+              {isLoading ? 'Creating account…' : 'Create account'}
             </button>
           </form>
 
           {/* OAuth (Google/Apple) hidden until providers are configured in Supabase. */}
 
-          {/* Sign In Link */}
+          {/* Log In Link */}
           <p className="text-center text-zinc-600">
             Already have an account?{' '}
             <Link href="/auth/login" className="font-semibold text-sky-700 hover:text-sky-800">

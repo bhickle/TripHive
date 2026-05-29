@@ -86,7 +86,7 @@ export default function ResetPasswordPage() {
                 href="/auth/login"
                 className="btn-primary w-full inline-flex items-center justify-center"
               >
-                Back to sign in
+                Back to log in
               </Link>
             </div>
           ) : (

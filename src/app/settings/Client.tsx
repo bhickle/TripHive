@@ -875,7 +875,7 @@ export default function SettingsPage() {
                           type="text"
                           value={profile.name}
                           onChange={e => setProfile({ ...profile, name: e.target.value })}
-                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
                       </div>
                       <div>
@@ -884,7 +884,7 @@ export default function SettingsPage() {
                           type="email"
                           value={profile.email}
                           readOnly
-                          className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 cursor-not-allowed"
                         />
                         <p className="text-xs text-slate-400 mt-1">Email is your login credential and can't be changed here.</p>
                       </div>
@@ -904,7 +904,7 @@ export default function SettingsPage() {
                           value={defaultPartnerEmail}
                           onChange={e => { setDefaultPartnerEmail(e.target.value); setPartnerError(null); }}
                           placeholder="partner@example.com"
-                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
                         <p className="text-xs text-slate-400 mt-1">
                           New trips will auto-share with this person. They need a tripcoord account; leave blank to clear.
@@ -1345,7 +1345,7 @@ export default function SettingsPage() {
                                   value={comments[integration.id] || ''}
                                   onChange={e => setComments(prev => ({ ...prev, [integration.id]: e.target.value }))}
                                   onKeyDown={e => { if (e.key === 'Enter') handleSubmitComment(integration.id, integration.name); }}
-                                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-700 bg-white"
+                                  className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
                                   autoFocus
                                 />
                                 <button

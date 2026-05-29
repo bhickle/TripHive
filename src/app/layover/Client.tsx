@@ -356,7 +356,7 @@ function MyLayoverPanel({
             <button
               onClick={onSave}
               disabled={saving}
-              className="w-full mt-2 px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-lg text-sm font-semibold transition-colors"
+              className="w-full mt-2 px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-full text-sm font-semibold transition-colors"
             >
               Save this layover
             </button>
@@ -881,7 +881,7 @@ export default function LayoverPlannerPage() {
               <button
                 onClick={() => handleSearch()}
                 disabled={!selectedCode || !hoursNum || isSearching}
-                className="px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+                className="px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-full font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
               >
                 {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                 {isSearching ? 'Generating…' : 'Find Activities'}
@@ -995,7 +995,7 @@ export default function LayoverPlannerPage() {
 
               <button
                 onClick={handleGenerateResults}
-                className="w-full px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                className="w-full px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-full font-semibold transition-colors flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-5 h-5" />
                 Generate Personalized Activities
@@ -1020,7 +1020,7 @@ export default function LayoverPlannerPage() {
               <p className="text-sm text-zinc-600 mt-1">{error}</p>
               <button
                 onClick={() => handleSearch()}
-                className="mt-4 px-5 py-2.5 bg-sky-800 text-white rounded-lg text-sm font-medium hover:bg-sky-900 transition-colors"
+                className="mt-4 px-5 py-2.5 bg-sky-800 text-white rounded-full text-sm font-semibold hover:bg-sky-900 transition-colors"
               >
                 Try Again
               </button>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -25,6 +25,7 @@ export default function LoginPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   // Default off — opting in should be intentional. Returning users who
   // already ticked it once still get prefill from localStorage; this only
   // affects first-time visitors so a shared device doesn't silently leak
@@ -106,7 +107,7 @@ export default function LoginPage() {
           <h1 className="text-3xl font-script italic font-semibold text-zinc-900 mb-2">
             Welcome back
           </h1>
-          <p className="text-zinc-600 mb-8">Sign in to your account to continue planning</p>
+          <p className="text-zinc-600 mb-8">Log in to your account to continue planning</p>
 
           {/* Error message */}
           {error && (
@@ -146,14 +147,22 @@ export default function LoginPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input-field pl-10"
+                  className="input-field pl-10 pr-10"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
@@ -179,7 +188,7 @@ export default function LoginPage() {
               disabled={isLoading}
               className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Signing in...' : 'Log In'}
+              {isLoading ? 'Logging in…' : 'Log in'}
             </button>
           </form>
 

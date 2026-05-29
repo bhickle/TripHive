@@ -2619,7 +2619,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
                   {/* Table header */}
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 bg-sky-800 text-white text-xs font-bold uppercase tracking-wide">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 bg-white border-b border-zinc-100 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
                     <span>Activity</span>
                     <span className="text-center">👍</span>
                     <span className="text-center">👎</span>

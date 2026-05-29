@@ -3018,7 +3018,7 @@ function ItineraryPageContent() {
 
         {/* Undo delete toast — shown for 5s after an activity is deleted */}
         {undoSnapshot && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3 rounded-full shadow-xl">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-zinc-900 text-white px-5 py-3 rounded-2xl shadow-xl">
             <Trash2 className="w-4 h-4 text-zinc-400 flex-shrink-0" />
             <span className="text-sm font-medium">
               <span className="text-zinc-300">{undoSnapshot.label}</span> removed
