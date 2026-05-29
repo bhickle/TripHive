@@ -127,15 +127,17 @@ export async function GET(req: NextRequest) {
     ? statusFilter
     : null;
 
-  // Sort: unassigned (assigned_to IS NULL) first, then priority desc
-  // ('high' before 'normal'), then created_at desc. Postgres treats NULL
-  // as larger than non-null by default, so we ask explicitly for
-  // NULLS FIRST on the assignment ordering.
+  // Sort: unassigned (assigned_to IS NULL) first, then priority ('high'
+  // before 'normal'), then created_at desc. The priority column is text;
+  // 'high' < 'normal' alphabetically (h<n), so ASCENDING gives the order
+  // we want — counterintuitively. If a third priority value ever gets
+  // added (e.g. 'critical', 'urgent') this will break; switch to a CASE
+  // expression at that point.
   let query = admin
     .from('support_tickets')
     .select('*')
     .order('assigned_to', { ascending: true, nullsFirst: true })
-    .order('priority', { ascending: false })
+    .order('priority', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(200);
 
