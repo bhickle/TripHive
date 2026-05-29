@@ -1298,7 +1298,11 @@ function TripBuilderPage() {
                 <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   Who's coming? 👋
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 2x2 on phone instead of 1-per-row — the 4 stacked cards
+                    were pushing the Next button well below the iPhone-SE fold
+                    (~480px just for these). 2 cols at phone width is tight
+                    but legible because the cards are icon-above-label. */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                   {[
                     {
                       id: 'solo',
@@ -1343,13 +1347,13 @@ function TripBuilderPage() {
                             return { ...prev, groupType: option.id, groupSize: minSize };
                           })
                         }
-                        className={`p-6 rounded-lg border-2 transition-all duration-200 text-center ${
+                        className={`p-4 sm:p-6 rounded-lg border-2 transition-all duration-200 text-center ${
                           isSelected
                             ? 'border-green-700 bg-green-50'
                             : 'border-slate-200 hover:border-sky-300'
                         }`}
                       >
-                        <IconComponent className="w-8 h-8 mx-auto mb-3 text-green-800" />
+                        <IconComponent className="w-7 h-7 sm:w-8 sm:h-8 mx-auto mb-2 sm:mb-3 text-green-800" />
                         <p className="font-semibold text-zinc-900">
                           {option.label}
                         </p>
