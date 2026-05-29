@@ -562,9 +562,20 @@ export default function WishlistPage() {
 
   const removeFromRadar = useCallback((id: string) => {
     const removedItem = allItems.find(i => i.id === id) ?? null;
-    // Optimistic: un-fill the heart and drop the card.
+    // Optimistic: un-fill the heart and drop the card. The displayed grid
+    // is filtered by savedIds, so removing from savedIds alone hides the
+    // card visually.
+    //
+    // In demo mode we deliberately keep the row in allItems: commitRadar-
+    // Delete is a no-op for demo (no DB write), so once the 5s window ends
+    // the item exists in memory only as long as we don't drop it. Keeping
+    // it in allItems means re-hearting from /discover later in the same
+    // session can repopulate the card here. Non-demo still filters the
+    // allItems row so a successful server DELETE doesn't leave a ghost.
     setSavedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
-    setAllItems(prev => prev.filter(i => i.id !== id));
+    if (!currentUser.isDemo) {
+      setAllItems(prev => prev.filter(i => i.id !== id));
+    }
 
     // If a previous removal is still pending (rapid successive un-hearts),
     // commit it now before starting the new window.
@@ -580,7 +591,7 @@ export default function WishlistPage() {
       setUndoItem(null);
       undoTimerRef.current = null;
     }, 5000);
-  }, [allItems, commitRadarDelete]);
+  }, [allItems, commitRadarDelete, currentUser.isDemo]);
 
   const undoRemoveFromRadar = useCallback(() => {
     if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }

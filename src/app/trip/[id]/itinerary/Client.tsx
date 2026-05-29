@@ -52,7 +52,6 @@ import {
   Ship,
   Navigation,
   FileDown,
-  Map,
   AlignJustify,
   UserPlus,
   Calendar,
@@ -72,7 +71,6 @@ import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { ShareTripModal } from '@/components/ShareTripModal';
-import { MapView } from '@/components/MapView';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
@@ -358,7 +356,6 @@ function ItineraryPageContent() {
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [showParseModal, setShowParseModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showMapView, setShowMapView] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const dayTabScrollRef = useRef<HTMLDivElement>(null);
@@ -503,14 +500,17 @@ function ItineraryPageContent() {
   // so useModalUX can reference it without a forward-reference TS error.
 
   const handleVote = useCallback((activityId: string, direction: 'up' | 'down') => {
-    // Compute new vote counts using the current votes state via functional updater
-    // (captures prev synchronously so next is available immediately after)
-    let next: { up: number; down: number; myVote: 'up' | 'down' | null } = { up: 0, down: 0, myVote: null };
-    let prevVoteState: { up: number; down: number; myVote: 'up' | 'down' | null } = { up: 0, down: 0, myVote: null };
+    type VoteState = { up: number; down: number; myVote: 'up' | 'down' | null };
+    // Per-invocation captured baseline + delta. Hoisted out of the setVotes
+    // updater so the async .catch handlers below can close over them without
+    // re-reading state. Each handleVote call owns its own pair — no cross-
+    // click contamination.
+    let priorState: VoteState = { up: 0, down: 0, myVote: null };
+    let next: VoteState = { up: 0, down: 0, myVote: null };
 
     setVotes(prev => {
       const current = prev[activityId] ?? { up: 0, down: 0, myVote: null };
-      prevVoteState = current; // capture before update for rollback
+      priorState = current;
       if (current.myVote === direction) {
         // Toggle off
         next = {
@@ -548,6 +548,34 @@ function ItineraryPageContent() {
       },
     }));
     syncAiDays(updated);
+
+    // Targeted aiDays rollback used by both .catch handlers below. The
+    // previous implementation called syncAiDays(days) on failure, which was
+    // a BLANKET replacement with the day-state captured at click time — if
+    // another vote landed between click and failure, the blanket rollback
+    // wiped that out too. This rebuilds aiDays from the CURRENT ref and only
+    // reverts THIS activity's counts to priorState, leaving everything else
+    // intact.
+    const rollbackAiDaysForThisActivity = () => {
+      const cur = aiDaysRef.current;
+      if (!cur) return;
+      const rolled = cur.map(day => ({
+        ...day,
+        tracks: {
+          shared:  (day.tracks.shared as Activity[]).map(a =>
+            a.id === activityId ? { ...a, upVotes: priorState.up, downVotes: priorState.down } : a
+          ),
+          track_a: (day.tracks.track_a as Activity[]).map(a =>
+            a.id === activityId ? { ...a, upVotes: priorState.up, downVotes: priorState.down } : a
+          ),
+          track_b: (day.tracks.track_b as Activity[]).map(a =>
+            a.id === activityId ? { ...a, upVotes: priorState.up, downVotes: priorState.down } : a
+          ),
+        },
+      }));
+      syncAiDays(rolled);
+    };
+
     const tripId = params.id;
     if (tripId && /^[0-9a-f-]{36}$/i.test(tripId)) {
       fetch(`/api/trips/${tripId}`, {
@@ -559,8 +587,7 @@ function ItineraryPageContent() {
           if (!res.ok) throw new Error(`save failed: ${res.status}`);
         })
         .catch(() => {
-          // Rollback aiDays to pre-vote state on failure + surface the error
-          syncAiDays(days);
+          rollbackAiDaysForThisActivity();
           setActionError('Couldn’t save your vote. Try again in a moment.');
           setTimeout(() => setActionError(null), 4000);
         });
@@ -579,8 +606,10 @@ function ItineraryPageContent() {
         const { up, down } = await res.json();
         setVotes(prev => ({ ...prev, [activityId]: { ...prev[activityId], up, down } }));
       }).catch(() => {
-        // Rollback vote indicator to pre-vote state on failure
-        setVotes(prev => ({ ...prev, [activityId]: prevVoteState }));
+        // Targeted rollback to THIS call's priorState — other in-flight votes
+        // on other activities (or a later switch on this same activity) keep
+        // their own updates.
+        setVotes(prev => ({ ...prev, [activityId]: priorState }));
         setActionError("Couldn't save your vote. Please try again.");
         setTimeout(() => setActionError(null), 4000);
       });
@@ -3256,17 +3285,14 @@ function ItineraryPageContent() {
               <span className="hidden sm:inline">Compact</span>
             </button>
 
-            <button
-              onClick={() => setShowMapView(!showMapView)}
-              className={`flex items-center gap-1.5 px-3 py-2 md:px-4 border text-xs md:text-sm font-semibold rounded-full shadow-sm transition-all ${
-                showMapView
-                  ? 'bg-sky-700 border-sky-700 text-white'
-                  : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700'
-              }`}
-            >
-              <Map className="w-4 h-4" />
-              Map
-            </button>
+            {/* In-app MapView toggle removed (2026-05-29): the pins were
+                positioned by grid index, not real geocoded coordinates, so
+                with a real Maps key set users were seeing a mock layout
+                that LOOKED accurate. The "Route" button below already opens
+                a real Google Maps multi-stop route using the actual day's
+                addresses — strictly better than the mock map. Re-introduce
+                MapView only when activity locations are geocoded server-
+                side. */}
 
             {/* Open day route in Google Maps */}
             {sortedActivities.length > 0 && (
@@ -3722,18 +3748,6 @@ function ItineraryPageContent() {
         </div>
           );
         })()}
-
-        {/* Map View */}
-        {showMapView && (
-          <div className="mb-6">
-            <MapView
-              activities={sortedActivities}
-              transportLegs={currentDayData.transportLegs ?? []}
-              hotels={(aiMeta?.bookedHotels ?? []).map(h => ({ name: h.name, address: h.address ?? undefined }))}
-              destination={currentDayData?.city ?? trip.destination}
-            />
-          </div>
-        )}
 
         {/* Main Content */}
         <div className="flex flex-col lg:flex-row gap-6">
