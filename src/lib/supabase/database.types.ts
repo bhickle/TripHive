@@ -923,6 +923,7 @@ export type Database = {
           notification_preferences: Json | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          subscription_cancel_at: string | null
           subscription_tier: string
           travel_persona: Json | null
           updated_at: string
@@ -941,6 +942,7 @@ export type Database = {
           notification_preferences?: Json | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          subscription_cancel_at?: string | null
           subscription_tier?: string
           travel_persona?: Json | null
           updated_at?: string
@@ -959,6 +961,7 @@ export type Database = {
           notification_preferences?: Json | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          subscription_cancel_at?: string | null
           subscription_tier?: string
           travel_persona?: Json | null
           updated_at?: string
@@ -1569,6 +1572,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      increment_trip_pass_credits: {
+        Args: { p_amount: number; p_pass_id: string }
+        Returns: number
+      }
+      increment_user_ai_credits: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: number
+      }
       trip_cities: {
         Args: { trip_ids: string[] }
         Returns: {

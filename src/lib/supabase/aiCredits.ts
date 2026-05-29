@@ -179,11 +179,17 @@ export async function checkAiCredits(
  * Two-phase credit gate, phase 2: charge the user (or the pass) after the AI
  * work succeeded.
  *
- * Race condition: two simultaneous calls both pass the check (read same
- * baseline) then both increment, allowing one over-charge. Acceptable on
- * the small numeric caps we enforce (50 per pass, 25-250 per profile).
- * For atomic increments use a Postgres RPC; supabase-js doesn't expose
- * `+= 1` directly.
+ * Atomic increment via Postgres RPC: previously this read ctx.used (the
+ * baseline from phase 1) and wrote ctx.used + ctx.cost back, which races
+ * on parallel calls — both reads see the same baseline, both writes
+ * clobber each other, net +cost instead of +2*cost. The RPC does
+ * `ai_credits_used = ai_credits_used + p_amount` in a single locked
+ * UPDATE, so concurrent calls serialize and accumulate correctly.
+ *
+ * Check-time race remains (two calls both pass checkAiCredits at the same
+ * baseline before either increments), but is now bounded — a user can
+ * over-spend by at most (N parallel calls - 1) * cost credits before the
+ * gate catches up, instead of running away unboundedly.
  */
 export async function incrementAiCreditsUsed(
   userId: string,
@@ -193,10 +199,10 @@ export async function incrementAiCreditsUsed(
   const admin = createAdminClient();
 
   if (ctx.source === 'trip_pass' && ctx.passId) {
-    const { error } = await admin
-      .from('trip_passes')
-      .update({ ai_credits_used: ctx.used + ctx.cost })
-      .eq('id', ctx.passId);
+    const { error } = await admin.rpc('increment_trip_pass_credits', {
+      p_pass_id: ctx.passId,
+      p_amount: ctx.cost,
+    });
     if (error) {
       console.error('[aiCredits] trip_pass increment failed:', error);
     }
@@ -204,10 +210,10 @@ export async function incrementAiCreditsUsed(
   }
 
   // source === 'profile'
-  const { error } = await admin
-    .from('profiles')
-    .update({ ai_credits_used: ctx.used + ctx.cost })
-    .eq('id', userId);
+  const { error } = await admin.rpc('increment_user_ai_credits', {
+    p_user_id: userId,
+    p_amount: ctx.cost,
+  });
   if (error) {
     // Charge failure is non-blocking — the AI work already completed and
     // the user has their result. Worst case: they get a free credit. Logged

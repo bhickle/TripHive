@@ -20,17 +20,21 @@ import Stripe from 'stripe';
 import { stripe, PRICE_TO_TIER } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PRICING } from '@/hooks/useEntitlements';
+import { TIER_LIMITS } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 // Stripe SDK uses Node-specific APIs (Buffer, crypto); pin to Node runtime.
 export const runtime = 'nodejs';
 
 // ─── AI credit allocations per tier ──────────────────────────────────────────
-const TIER_CREDITS: Record<string, number> = {
-  explorer: 100,
-  nomad:    300,
-  free:     10,
-};
+// Sourced from TIER_LIMITS to keep webhook math in sync with the runtime gate
+// (lib/supabase/aiCredits.ts reads TIER_LIMITS for affordability checks). The
+// prior local constant drifted (Nomad=300 vs limits=250, Free=10 vs 25) which
+// made downgrade-cap math wrong and over-credited Nomad cycles.
+function tierCredits(tier: 'free' | 'explorer' | 'nomad'): number {
+  const raw = TIER_LIMITS[tier].aiCreditsPerMonth;
+  return typeof raw === 'number' ? raw : 0;
+}
 
 // Tiers (ordered low → high) used to detect downgrade attempts when buying Trip Pass.
 const SUBSCRIPTION_TIER_RANK: Record<string, number> = {
@@ -47,7 +51,7 @@ async function setTier(
   subscriptionId?: string,
 ) {
   const supabaseAdmin = createAdminClient();
-  const credits = TIER_CREDITS[tier] ?? 10;
+  const credits = tierCredits(tier);
 
   // Read existing profile up front. We need it for both the idempotency
   // skip AND the downgrade-credit-preservation logic below.
@@ -99,6 +103,11 @@ async function setTier(
       ai_credits_total: credits,
       ai_credits_used: nextUsed,
       ai_credits_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      // Any tier transition (paid->paid, paid->free, free->paid) clears the
+      // scheduled-cancel intent — it only makes sense while a paid sub is
+      // pending cancellation. Reactivating to a paid tier wipes the prior
+      // schedule; downgrading to free means cancel has effectively happened.
+      subscription_cancel_at: null,
       ...(subscriptionId ? { stripe_subscription_id: subscriptionId } : {}),
     })
     .eq('id', userId);
@@ -202,7 +211,7 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      // ── Subscription updated (plan change, renewal, trial end) ────────────
+      // ── Subscription updated (plan change, renewal, cancel-scheduling) ────
       case 'customer.subscription.updated': {
         const sub = event.data.object as Stripe.Subscription;
         const userId = await userIdFromCustomer(sub.customer as string);
@@ -211,11 +220,47 @@ export async function POST(req: NextRequest) {
         const priceId = sub.items.data[0]?.price.id;
         const tier = PRICE_TO_TIER[priceId];
 
+        // Persist cancel-at-period-end intent so the UI can show "set to
+        // cancel on X" and a future cron can downgrade defensively if the
+        // subscription.deleted event ever fails to fire. Cleared when the
+        // user reactivates (cancel_at_period_end goes back to false).
+        //
+        // We do this BEFORE the active/canceled branch because Stripe fires
+        // this with status='active' + cancel_at_period_end=true the moment
+        // the user clicks Cancel in the Billing Portal — the active branch
+        // would otherwise no-op (idempotency catches it) and we'd lose the
+        // signal.
+        const supabaseAdmin = createAdminClient();
+        // Stripe moved current_period_end onto the subscription items in the
+        // 2024+ API; read it off the first item rather than the subscription
+        // directly. Our subscriptions are always single-item (one tier price)
+        // so data[0] is canonical.
+        const periodEnd = sub.items.data[0]?.current_period_end;
+        const cancelAt = sub.cancel_at_period_end && periodEnd
+          ? new Date(periodEnd * 1000).toISOString()
+          : null;
+        await supabaseAdmin
+          .from('profiles')
+          .update({ subscription_cancel_at: cancelAt })
+          .eq('id', userId);
+        if (cancelAt) {
+          console.log(`[stripe/webhook] cancel scheduled for ${userId} at ${cancelAt}`);
+        }
+
         if (sub.status === 'active' && tier) {
           await setTier(userId, tier, sub.id);
-        } else if (sub.status === 'canceled' || sub.status === 'unpaid') {
+        } else if (sub.status === 'canceled') {
+          // Hard-canceled (not just scheduled) — flip to free immediately.
+          // Stripe also fires subscription.deleted in this case; setTier
+          // idempotency makes the double-fire safe.
           await setTier(userId, 'free');
         }
+        // NOTE: do NOT downgrade on status='unpaid'. Stripe's smart-retry
+        // can still recover the payment; downgrading mid-dunning zeroes out
+        // the user's paid ai_credits_used (via setTier's downgrade-cap math)
+        // and a subsequent recovery + flip-back-to-paid hands them a full
+        // fresh credit pool to spend twice. If the retry truly fails Stripe
+        // will fire subscription.deleted — that's our downgrade trigger.
         break;
       }
 
@@ -225,6 +270,14 @@ export async function POST(req: NextRequest) {
         const userId = await userIdFromCustomer(sub.customer as string);
         if (!userId) break;
         await setTier(userId, 'free');
+        // Clear the scheduled-cancel timestamp now that the cancel has
+        // actually completed. Leaves a clean profile state for the next
+        // checkout cycle.
+        const supabaseAdmin = createAdminClient();
+        await supabaseAdmin
+          .from('profiles')
+          .update({ subscription_cancel_at: null })
+          .eq('id', userId);
         break;
       }
 
@@ -257,7 +310,11 @@ export async function POST(req: NextRequest) {
             break;
           }
 
-          const credits = TIER_CREDITS[profile.subscription_tier] ?? 10;
+          // subscription_tier is a string column; narrow before lookup so
+          // tierCredits stays type-safe. Unknown tier strings (legacy/manual
+          // rows) fall through with 0 credits — operator action required.
+          const t = profile.subscription_tier as 'free' | 'explorer' | 'nomad';
+          const credits = tierCredits(t);
           await supabaseAdmin.from('profiles').update({
             ai_credits_used: 0,
             ai_credits_total: credits,
