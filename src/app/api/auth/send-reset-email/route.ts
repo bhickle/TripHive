@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { consumeRateLimit, clientIpFromRequest } from '@/lib/supabase/rateLimit';
 
 /**
  * POST /api/auth/send-reset-email
@@ -8,12 +9,47 @@ import { createAdminClient } from '@/lib/supabase/admin';
  *
  * Body: { email }
  * Public route — no auth required (user doesn't have a session yet).
+ *
+ * Abuse mitigation: dual rate limit (per-IP + per-recipient) bounds both
+ * spam-bombing of a single inbox and SendGrid-quota burn from a single
+ * attacker. Limits chosen low enough to deter abuse, high enough to
+ * accommodate a legitimate user who fat-fingers their email a few times.
  */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function POST(request: NextRequest) {
   const { email } = await request.json().catch(() => ({}));
 
   if (!email || typeof email !== 'string') {
     return NextResponse.json({ error: 'email is required' }, { status: 400 });
+  }
+
+  // Reject obvious junk before we touch Supabase or SendGrid. Generic regex
+  // here, not full RFC validation — the goal is to filter out attacks that
+  // try to feed garbage into the link generator.
+  const trimmed = email.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(trimmed)) {
+    return NextResponse.json({ error: 'invalid email' }, { status: 400 });
+  }
+
+  // Per-IP gate: a single attacker shouldn't be able to burn through the
+  // SendGrid quota or harvest signup timing. 5 sends per hour leaves room
+  // for a legitimate user who's confused but stops a script cold.
+  const ip = clientIpFromRequest(request);
+  const ipAllowed = await consumeRateLimit(`reset_email:ip:${ip}`, 5, 60 * 60);
+  if (!ipAllowed) {
+    console.warn(`[send-reset-email] IP rate limit hit: ${ip}`);
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
+  // Per-recipient gate: stops spam-bombing a single victim even from a
+  // botnet of IPs. 3 emails per hour to one inbox is plenty for a real
+  // user clicking Reset twice.
+  const recipientAllowed = await consumeRateLimit(`reset_email:to:${trimmed}`, 3, 60 * 60);
+  if (!recipientAllowed) {
+    // Return success anyway — same as we do for unknown emails, so
+    // attackers can't probe whether they're being throttled per-inbox.
+    console.warn(`[send-reset-email] recipient rate limit hit: ${trimmed}`);
+    return NextResponse.json({ success: true });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tripcoord.ai';
@@ -23,7 +59,7 @@ export async function POST(request: NextRequest) {
   // redirects to our /auth/update-password page after verifying the token.
   const { data, error: linkError } = await supabase.auth.admin.generateLink({
     type: 'recovery',
-    email: email.trim().toLowerCase(),
+    email: trimmed,
     options: {
       redirectTo: `${appUrl}/auth/update-password`,
     },
@@ -60,7 +96,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: email.trim() }] }],
+        personalizations: [{ to: [{ email: trimmed }] }],
         from: { email: fromEmail, name: 'tripcoord' },
         subject: 'Reset your tripcoord password',
         content: [

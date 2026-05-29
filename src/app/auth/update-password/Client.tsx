@@ -20,14 +20,19 @@ export default function UpdatePasswordPage() {
     const supabase = createClient();
     // Supabase picks up the #access_token from the URL hash and fires
     // PASSWORD_RECOVERY once the session is established.
+    //
+    // ONLY trust PASSWORD_RECOVERY here — DO NOT fall back to a generic
+    // getSession() check. If the user is logged into account B in another
+    // tab and clicks a reset link emailed to account A, getSession() would
+    // return B's session, flip ready=true, and supabase.auth.updateUser
+    // would change B's password using A's reset link. Trusting only the
+    // recovery event means a refresh on this page without the URL hash
+    // shows the "request a new link" copy — which is the correct UX, not
+    // a bug.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setReady(true);
       }
-    });
-    // Also check if we already have a session (e.g. page was refreshed)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setReady(true);
     });
     return () => subscription.unsubscribe();
   }, []);
