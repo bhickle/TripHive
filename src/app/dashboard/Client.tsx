@@ -453,7 +453,14 @@ export default function DashboardPage() {
     }
     return Math.abs(hash);
   };
-  const heroPhoto = photos[hashCode(dailySeed) % photos.length];
+  // Prefer the trip's own coverImage when present (TripCard's Unsplash flow
+  // already resolved + persisted it for the trip card grid below). The
+  // static destinationPhotos map only knows iceland/tokyo/barcelona — any
+  // other destination (Strasbourg, Lisbon, Mexico City, …) would fall to
+  // 'default' which is a beach + canyon + flag mix, contradicting the
+  // city the header is naming. The fallback chain stays in place for trips
+  // whose cover hasn't loaded yet OR for the unauth/demo path.
+  const heroPhoto = nextTrip?.coverImage || photos[hashCode(dailySeed) % photos.length];
 
   const calculateDaysUntil = (startDate: string) => {
     // Noon-pad to avoid the UTC-midnight off-by-one in west-of-UTC zones.

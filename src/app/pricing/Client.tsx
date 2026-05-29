@@ -27,7 +27,7 @@ const featureRows: {
 }[] = [
   // Planning
   { label: 'Active trips', icon: <Map className="w-4 h-4" />, free: 'Unlimited', trip_pass: '1 trip (pass)', explorer: 'Unlimited', nomad: 'Unlimited' },
-  { label: 'Travelers per trip', icon: <Users className="w-4 h-4" />, free: 'Up to 4', trip_pass: 'Up to 6 (+add-ons)', explorer: 'Up to 8', nomad: 'Up to 15' },
+  { label: 'Travelers per trip', icon: <Users className="w-4 h-4" />, free: 'Up to 4', trip_pass: 'Up to 6 (+add-ons)', explorer: 'Up to 6', nomad: 'Up to 12' },
   { label: 'Manual itinerary builder', icon: <CalendarDays className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   { label: 'Packing & prep checklists', icon: <CheckCircle className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   { label: 'Activity voting', icon: <Star className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
@@ -35,7 +35,7 @@ const featureRows: {
   { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
   // AI
   { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
-  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '25 / month (~1 build)', trip_pass: '50 per pass (1 build + 1 regen + tweaks)', explorer: '100 / month (~4 builds)', nomad: '250 / month (~10 builds)', nomadHighlight: true },
+  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '25 / month (~1 build)', trip_pass: '50 per pass (1 build + 1 regen + tweaks)', explorer: '100 / month (~4 builds)', nomad: '200 / month (~8 builds)', nomadHighlight: true },
   { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
   { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
   { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
@@ -66,11 +66,11 @@ const faqs = [
   },
   {
     q: 'What are AI credits and what do they cost?',
-    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 25 credits. Regenerating an existing trip costs 10 (cheaper because we reuse the venue verification cache). Adding a single day costs 3. Lightweight actions like browsing Discover, generating hotel ideas, or parsing a transport confirmation cost 1 credit each. Free tier (25 credits/mo) covers 1 build. Trip Pass (50 per pass) covers 1 build + 1 regen + tweaks. Explorer (100/mo) covers about 4 builds. Nomad (250/mo) covers about 10 builds. Only the trip organizer or co-organizer can trigger AI changes — other members can still vote, chat, and submit preferences. Credits refresh on the first of each month.",
+    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 25 credits. Regenerating an existing trip costs 10 (cheaper because we reuse the venue verification cache). Adding a single day costs 3. Lightweight actions like browsing Discover, generating hotel ideas, or parsing a transport confirmation cost 1 credit each. Free tier (25 credits/mo) covers 1 build. Trip Pass (50 per pass) covers 1 build + 1 regen + tweaks. Explorer (100/mo) covers about 4 builds. Nomad (200/mo) covers about 8 builds. Only the trip organizer or co-organizer can trigger AI changes — other members can still vote, chat, and submit preferences. Credits refresh on the first of each month.",
   },
   {
     q: 'What happens if I use all my AI credits?',
-    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you enough credits for about 10 full builds a month — plenty for even the most enthusiastic planner.",
+    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you enough credits for about 8 full builds a month — plenty for even the most enthusiastic planner.",
   },
   {
     q: 'Can I switch plans?',
@@ -369,7 +369,6 @@ function PricingPageInner() {
                 'Destination wishlist (save & organize)',
                 'Join trips via invite link',
                 'Activity voting',
-                'Community support',
               ].map(f => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-zinc-600">
                   <CheckCircle className="w-4 h-4 text-zinc-300 flex-shrink-0 mt-0.5" />
@@ -456,7 +455,7 @@ function PricingPageInner() {
             <ul className="space-y-3 flex-1">
               {[
                 'Plan trips all year long',
-                'Up to 8 travelers per trip',
+                'Up to 6 travelers per trip',
                 '100 AI credits / month (~4 full builds)',
                 'AI itinerary generation — up to 10 days',
                 'Transport confirmation parser',
@@ -510,9 +509,9 @@ function PricingPageInner() {
             <ul className="space-y-3 flex-1">
               {[
                 { text: 'Everything in Explorer', highlight: false },
-                { text: 'Up to 15 travelers per trip', highlight: false },
+                { text: 'Up to 12 travelers per trip', highlight: false },
                 { text: 'AI itineraries up to 14 days', highlight: true },
-                { text: '250 AI credits / month (~10 full builds)', highlight: true },
+                { text: '200 AI credits / month (~8 full builds)', highlight: true },
                 { text: 'AI receipt scanning (scan to split)', highlight: true },
                 { text: 'AI packing list (destination-specific)', highlight: true },
                 { text: 'AI travel phrasebook', highlight: true },

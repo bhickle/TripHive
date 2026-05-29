@@ -198,7 +198,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   },
   explorer: {
     activeTrips: 999,          // unlimited in practice — AI credits are the constraint
-    travelersPerTrip: 8,
+    travelersPerTrip: 6,       // dropped from 8 → 6 on 2026-05-29; group trips are almost always ≤6.
     aiCreditsPerMonth: 100,
     maxTripDays: 10,
     maxBookedHotels: 3,
@@ -218,8 +218,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   },
   nomad: {
     activeTrips: 999,          // unlimited in practice — AI credits are the constraint
-    travelersPerTrip: 15,
-    aiCreditsPerMonth: 250,
+    travelersPerTrip: 12,      // dropped from 15 → 12 on 2026-05-29; "extended family/friends" range
+    aiCreditsPerMonth: 200,    // dropped from 250 → 200 on 2026-05-29; 8 builds is still very generous
     maxTripDays: 14,
     maxBookedHotels: 7,
     canUseAI: true,

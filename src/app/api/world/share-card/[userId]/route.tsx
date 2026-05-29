@@ -207,7 +207,7 @@ export async function GET(_req: Request, { params }: { params: { userId: string 
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: 26 }}>·</span>
-              {daysAbroad} DAYS ABROAD
+              {daysAbroad} TRAVEL DAYS
             </span>
           </div>
 

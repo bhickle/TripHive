@@ -270,10 +270,10 @@ export default function HomePage() {
                   'Unlimited active trips',
                   'Up to 4 travelers',
                   '25 AI credits / month (1 build)',
+                  'Up to 7-day trips',
                   'Manual itinerary builder',
                   'Group chat & photo gallery',
                   'Activity voting',
-                  'Community support',
                 ].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
                     <CheckCircle className="w-4 h-4 text-zinc-300 flex-shrink-0 mt-0.5" />{f}
@@ -330,13 +330,15 @@ export default function HomePage() {
               <ul className="space-y-3 flex-1">
                 {[
                   'Plan trips all year long',
-                  'Up to 8 travelers per trip',
+                  'Up to 6 travelers per trip',
                   '100 AI credits / month (~4 full builds)',
-                  'AI itinerary generation',
+                  'AI itineraries up to 10 days',
                   'Transport confirmation parser',
+                  'Group expense tracking (manual splits)',
+                  'Split-track itineraries (Track A/B)',
+                  'Co-organizer role',
                   'Trip Story for every trip',
                   'Wishlist & destination discovery',
-                  'Flight price alerts (up to 3)',
                   'Email support',
                 ].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-sky-100">
@@ -364,12 +366,13 @@ export default function HomePage() {
               <ul className="space-y-3 flex-1">
                 {[
                   { text: 'Everything in Explorer', highlight: false },
-                  { text: 'Up to 15 travelers per trip', highlight: false },
-                  { text: '250 AI credits / month (~10 full builds)', highlight: true },
-                  { text: 'Split-track itineraries', highlight: true },
-                  { text: 'Co-organizer role', highlight: true },
+                  { text: 'Up to 12 travelers per trip', highlight: false },
+                  { text: 'AI itineraries up to 14 days', highlight: true },
+                  { text: '200 AI credits / month (~8 full builds)', highlight: true },
+                  { text: 'AI receipt scanning (scan to split)', highlight: true },
+                  { text: 'AI packing list (destination-specific)', highlight: true },
+                  { text: 'AI travel phrasebook', highlight: true },
                   { text: 'Year in Review', highlight: true },
-                  { text: 'Unlimited flight alerts', highlight: false },
                   { text: 'Early access to new features', highlight: true },
                   { text: 'Priority support', highlight: false },
                 ].map(f => (

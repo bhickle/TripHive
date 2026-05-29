@@ -42,7 +42,7 @@ export const PRICING = {
   nomad: {
     monthly: 14.99,
     annual: 143.99,         // ~$12/mo, 20% off
-    aiCreditsPerMonth: 250,
+    aiCreditsPerMonth: 200, // synced with TIER_LIMITS.nomad on 2026-05-29 (was 250).
   },
 } as const;
 
@@ -96,12 +96,12 @@ export function getTierFeatures(tier: SubscriptionTier): string[] {
   if (t.canUseWishlist) features.push('Wishlist & destination discovery');
   if (t.earlyAccess) features.push('Early access to new features');
 
-  // Support level
-  features.push(
-    t.supportLevel === 'priority' ? 'Priority support'
-      : t.supportLevel === 'email' ? 'Email support'
-        : 'Community support',
-  );
+  // Support level — only listed when there's an actual promise. "Community
+  // support" was on the Free tier list previously, but no community support
+  // channel exists. Don't promise what isn't built; free users still get
+  // password reset + the support form when that ships.
+  if (t.supportLevel === 'priority') features.push('Priority support');
+  else if (t.supportLevel === 'email') features.push('Email support');
 
   return features;
 }
@@ -140,13 +140,13 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
     // Body is overridden per-tier in getUpgradePrompt — this is the free-tier
     // fallback if the override isn't reached.
     headline: "You're out of AI credits for this month",
-    body: "Your credits refresh at the start of next month. Upgrade to Explorer for 4 builds a month, or Nomad for 10.",
+    body: "Your credits refresh at the start of next month. Upgrade to Explorer for 4 builds a month, or Nomad for 8.",
     ctaLabel: 'See plans',
   },
   ai_credits_low: {
     reason: 'ai_credits_low',
     headline: 'Running low on AI credits',
-    body: "You're getting close to your monthly limit. Nomad gives you enough credits for 10 builds a month — plenty for even the busiest planner.",
+    body: "You're getting close to your monthly limit. Nomad gives you enough credits for 8 builds a month — plenty for even the busiest planner.",
     ctaLabel: 'See Nomad',
   },
   trip_limit: {

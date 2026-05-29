@@ -349,7 +349,7 @@ export default function WorldClient() {
                 </div>
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                   <p className="text-3xl md:text-4xl font-script italic font-semibold text-zinc-900">{data.stats.daysAbroad}</p>
-                  <p className="text-xs text-zinc-500 mt-1">Days Abroad</p>
+                  <p className="text-xs text-zinc-500 mt-1">Travel Days</p>
                   {data.stats.daysAbroad > 0 && (
                     <p className="text-[10px] text-zinc-400 mt-0.5">≈ {(data.stats.daysAbroad * 24).toLocaleString()} hours</p>
                   )}

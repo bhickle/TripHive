@@ -56,7 +56,7 @@ export default function ShareWorldClient({ userId, summary }: ClientProps) {
         </h1>
         {summary && summary.countryCount > 0 && (
           <p className="text-center text-zinc-500 text-sm sm:text-base mb-8">
-            {summary.countryCount} {summary.countryCount === 1 ? 'country' : 'countries'} · {summary.cityCount} {summary.cityCount === 1 ? 'city' : 'cities'} · {summary.continentCount} {summary.continentCount === 1 ? 'continent' : 'continents'} · {summary.daysAbroad} days abroad
+            {summary.countryCount} {summary.countryCount === 1 ? 'country' : 'countries'} · {summary.cityCount} {summary.cityCount === 1 ? 'city' : 'cities'} · {summary.continentCount} {summary.continentCount === 1 ? 'continent' : 'continents'} · {summary.daysAbroad} travel days
           </p>
         )}
 

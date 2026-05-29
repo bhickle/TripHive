@@ -810,7 +810,7 @@ function YearlyStatsSlide({ year, bgPhoto }: { year: number; bgPhoto?: string })
   const stats = [
     { value: allTrips.length, label: 'Trips',           sub: 'and counting',         color: 'text-sky-300' },
     { value: countries,       label: 'Countries',        sub: 'in your passport',     color: 'text-violet-300' },
-    { value: totalDays,       label: 'Days Abroad',      sub: 'living your best life',color: 'text-emerald-300' },
+    { value: totalDays,       label: 'Travel Days',      sub: 'living your best life',color: 'text-emerald-300' },
     { value: `$${Math.round(totalSpent / 1000)}k`, label: 'Invested in memories', sub: 'worth every cent', color: 'text-rose-300' },
   ];
   return (
