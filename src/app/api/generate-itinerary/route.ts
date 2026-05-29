@@ -1596,6 +1596,19 @@ export async function POST(request: NextRequest) {
     }, { status: 403 });
   }
 
+  // Multi-city gate — free tier is single-city only. The Trip Builder hides
+  // the "add another destination" button on free, but a DevTools-edited
+  // payload would otherwise sneak through. Keep the check loose: any
+  // destinations array with >1 entries counts as multi-city.
+  const destinationsArr = Array.isArray(body.destinations) ? body.destinations as unknown[] : [];
+  const isMultiCityRequest = destinationsArr.filter(d => typeof d === 'string' && d.trim()).length > 1;
+  if (isMultiCityRequest && userTier === 'free') {
+    return NextResponse.json({
+      error: 'MULTI_CITY_LOCKED',
+      message: 'Multi-city trips are available on Trip Pass and up. Upgrade or stick to one destination.',
+    }, { status: 403 });
+  }
+
   // ── Role gate (when tripId present) ──────────────────────────────────────
   // AI builds are organizer/co-organizer only — Brandon's product call
   // (2026-05-16): we don't want plain members on a Trip Pass trip to be

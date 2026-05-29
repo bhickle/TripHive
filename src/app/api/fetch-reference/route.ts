@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import dns from 'node:dns/promises';
 
 /**
  * POST /api/fetch-reference
@@ -14,8 +15,14 @@ import { requireAuth } from '@/lib/supabase/requireAuth';
  * non-HTML, anti-scraping) resolves to empty content rather than an error, so
  * the Trip Builder always proceeds. No AI call here — no credit charge.
  *
- * SSRF guard + bot User-Agent mirror /api/og-preview.
+ * SSRF guard runs in two stages: (1) literal denylist on the URL hostname
+ * (catches `localhost`, `127.0.0.1`, AWS/GCP metadata service names);
+ * (2) DNS resolution + denylist on every resolved A/AAAA so an attacker-
+ * controlled hostname that LOOKS public but resolves to RFC1918 / link-local
+ * is caught before the fetch fires. Node runtime is required (dns/promises).
  */
+
+export const runtime = 'nodejs';
 
 const FETCH_TIMEOUT_MS = 6000;
 const PER_LINK_CHARS = 2000;
@@ -23,21 +30,63 @@ const TOTAL_CHARS = 4000;
 const MAX_LINKS = 3;
 const UA = 'Mozilla/5.0 (compatible; tripcoordBot/1.0; +https://tripcoord.ai)';
 
+// Hostnames known to expose cloud-provider metadata. The IP variants (e.g.
+// 169.254.169.254) are caught by the IP-range checks below, but the named
+// variants need explicit blocking — DNS-over-the-public-internet can resolve
+// some of these on certain networks.
+const METADATA_HOSTNAMES = new Set([
+  'metadata.google.internal',
+  'metadata.goog',
+  'instance-data',
+  'instance-data.ec2.internal',
+]);
+
+function isUnsafeIp(ipRaw: string): boolean {
+  const host = ipRaw.toLowerCase();
+  return (
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host === '::' ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
+    /^169\.254\./.test(host) ||      // link-local, incl. AWS/GCP metadata IP
+    /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./.test(host) || // CGNAT
+    /^fc00:/.test(host) ||
+    /^fd[0-9a-f]{2}:/.test(host) ||  // unique local addrs
+    /^fe80:/.test(host) ||           // IPv6 link-local
+    /^::ffff:/.test(host)            // IPv4-mapped IPv6 (don't trust)
+  );
+}
+
 function isUnsafeHost(hostRaw: string): boolean {
   const host = hostRaw.toLowerCase();
   return (
     host === 'localhost' ||
     host.endsWith('.localhost') ||
-    host === '0.0.0.0' ||
-    host === '::1' ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^fc00:/.test(host) ||
-    /^fd00:/.test(host)
+    METADATA_HOSTNAMES.has(host) ||
+    isUnsafeIp(host)
   );
+}
+
+/**
+ * Resolve a hostname to its A/AAAA addresses and verify NONE are in a
+ * private/loopback/link-local range. If resolution fails, treat as unsafe
+ * (we don't fetch hosts we couldn't verify). When the original literal IS
+ * already an IP, dns.lookup returns it as-is — keeps a single code path.
+ */
+async function resolvedHostIsSafe(hostname: string): Promise<boolean> {
+  try {
+    const addresses = await dns.lookup(hostname, { all: true });
+    if (addresses.length === 0) return false;
+    for (const a of addresses) {
+      if (isUnsafeIp(a.address)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function htmlToText(html: string): string {
@@ -87,6 +136,9 @@ async function fetchOne(rawUrl: string): Promise<string> {
   }
   if (!['http:', 'https:'].includes(parsed.protocol)) return '';
   if (isUnsafeHost(parsed.hostname)) return '';
+  // DNS-resolved guard: catches "public-looking" hostnames that an attacker
+  // controls and points at internal IPs.
+  if (!(await resolvedHostIsSafe(parsed.hostname))) return '';
 
   const isReddit = /(^|\.)reddit\.com$/.test(parsed.hostname.toLowerCase());
   const controller = new AbortController();

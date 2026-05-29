@@ -1519,10 +1519,23 @@ function TripBuilderPage() {
                   </div>
 
                   {/* ── Multi-destination toggle (Item 9) ── */}
+                  {/* Free tier is gated to single-city. Multi-city trips run
+                      ≥2 chunks under the hood, which we want to keep behind
+                      the paid wall — both because it's a meaningful product
+                      signal (paid users plan longer/richer trips) and because
+                      it's a heavier AI cost (one full prompt build per city).
+                      The build-credit refactor (commit 43ae9b3) made multi-city
+                      free-tier survivable accounting-wise — this gate makes it
+                      a proper product boundary instead. */}
                   {!showMultiCity ? (
                     <button
                       type="button"
                       onClick={() => {
+                        if (tierResolved && tier === 'free') {
+                          setUpgradeReason('feature_locked');
+                          setShowUpgradeModal(true);
+                          return;
+                        }
                         setShowMultiCity(true);
                         setState(prev => {
                           if (prev.destination.trim() && prev.destinations.length === 0) {
@@ -1535,6 +1548,7 @@ function TripBuilderPage() {
                     >
                       <Plus className="w-4 h-4" />
                       Add another destination (multi-city trip)
+                      {tierResolved && tier === 'free' && <LockBadge />}
                     </button>
                   ) : (
                     <div className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
