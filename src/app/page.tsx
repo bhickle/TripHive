@@ -3,449 +3,542 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCallback } from 'react';
-import {
-  Sparkles,
-  Users,
-  MapPin,
-  Zap,
-  CheckCircle,
-  Star,
-  ArrowRight,
-  Globe,
-  Shield,
-  BarChart3,
-  Crown,
-  X,
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
 
+/**
+ * Marketing landing page.
+ *
+ * Ported from /mockups/landing-page.html (the approved design) on 2026-05-29.
+ * Detailed plan comparison lives on /pricing — this page's pricing strip is
+ * intentionally minimal (4 short-blurb cards funneling to /pricing). All
+ * sign-up CTAs route to /auth/signup; Stripe checkout fires from /pricing
+ * after auth.
+ */
 export default function HomePage() {
   const scrollTo = useCallback((id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
   return (
-    <div className="min-h-screen bg-parchment">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <Link href="/">
-              <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
+    <div className="min-h-screen bg-parchment font-sans text-zinc-800 antialiased">
+      {/* ─── Nav ─── */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-200">
+        <nav className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center">
+            <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
+          </Link>
+          <div className="hidden md:flex items-center gap-7 text-sm font-semibold text-zinc-600">
+            <button type="button" onClick={() => scrollTo('all-in-one')} className="hover:text-zinc-900 transition">
+              Everything inside
+            </button>
+            <button type="button" onClick={() => scrollTo('how')} className="hover:text-zinc-900 transition">
+              How It Works
+            </button>
+            <Link href="/pricing" className="hover:text-zinc-900 transition">
+              Pricing
             </Link>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden md:flex items-center gap-5 mr-2">
-              <button
-                type="button"
-                onClick={() => scrollTo('features')}
-                className="text-sm font-medium text-slate-600 hover:text-slate-900 transition"
-              >
-                Features
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollTo('how-it-works')}
-                className="text-sm font-medium text-slate-600 hover:text-slate-900 transition"
-              >
-                How It Works
-              </button>
-              <Link href="/pricing" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition">
-                Pricing
-              </Link>
-            </div>
-            <Link href="/auth/login" className="btn-ghost">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/auth/login"
+              className="text-sm font-semibold text-zinc-500 hover:text-zinc-800 px-3 py-2 rounded-lg hover:bg-zinc-100 transition"
+            >
               Log In
             </Link>
-            <Link href="/auth/signup" className="btn-primary">
+            <Link
+              href="/auth/signup"
+              className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm hover:shadow-md transition"
+            >
               Get Started
             </Link>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </header>
 
-      {/* Hero Section */}
-      <section className="gradient-hero text-white py-20 sm:py-32 relative overflow-hidden">
+      {/* ─── Hero ─── */}
+      <section className="gradient-hero text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full blur-3xl bg-white"></div>
         </div>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+        <div className="relative max-w-4xl mx-auto px-5 py-24 sm:py-32 text-center">
           <div className="inline-block mb-6 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-            <p className="text-sm font-semibold">Welcome to the future of group travel</p>
+            <p className="text-sm font-semibold">✦ group planning made easy — solo trips, too</p>
           </div>
           <h1 className="font-script italic text-5xl sm:text-6xl lg:text-7xl font-semibold leading-tight mb-6">
-            Plan trips your whole group will love
+            Every trip you take, in one place
           </h1>
           <p className="text-xl sm:text-2xl text-blue-50 mb-10 max-w-3xl mx-auto leading-relaxed">
-            AI-powered itineraries that keep everyone happy. Vote on activities, build split tracks, and explore together—all in one beautiful platform.
+            Weekend escapes, long-haul adventures, layovers, cruises — all planned and organized from one
+            home base. On your own, or with the whole crew. tripcoord gets you started in minutes.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/auth/signup"
-              className="inline-flex items-center justify-center px-8 py-4 bg-white text-sky-700 font-display font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 shadow-lg hover:shadow-xl text-lg"
+              className="bg-amber-500 hover:bg-amber-600 inline-flex items-center justify-center gap-2 px-8 py-4 text-white font-bold rounded-full text-lg shadow-lg hover:shadow-xl transition"
             >
-              Get Started Free
-              <ArrowRight className="ml-2 w-5 h-5" />
+              Start planning — free <ArrowRight className="w-5 h-5" />
             </Link>
             <button
               type="button"
-              onClick={() => scrollTo('how-it-works')}
-              className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-display font-bold rounded-xl hover:bg-white/10 transition-all duration-200 text-lg"
+              onClick={() => scrollTo('how')}
+              className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-bold rounded-full text-lg hover:bg-white/10 transition"
             >
               See How It Works
             </button>
           </div>
-          <p className="text-blue-100 text-sm mt-8">No credit card required • Start planning in 2 minutes</p>
+          <p className="text-blue-100 text-sm mt-8">No credit card to start • Solo or group</p>
         </div>
       </section>
 
-      {/* Feature Cards Section */}
-      <section id="features" className="py-20 sm:py-28 bg-gradient-subtle">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="section-title mb-4">Everything you need for group travel</h2>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              From planning to memories, tripcoord keeps your group aligned and excited
+      {/* ─── Problem ─── */}
+      <section className="bg-parchment">
+        <div className="max-w-3xl mx-auto px-5 py-20 text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">The problem</p>
+          <h2 className="font-script italic text-4xl md:text-5xl font-semibold text-zinc-900 mb-5 leading-tight">
+            Your trip lives in twelve tabs, a few apps, and a group chat.
+          </h2>
+          <p className="text-zinc-600 text-lg leading-relaxed mb-4">
+            The itinerary&apos;s in a doc. Confirmations buried in your inbox. The who-owes-who in a spreadsheet.
+            And the big decisions? Lost in a group chat at message #243. Whether you&apos;re planning solo or for
+            ten, it&apos;s the same scattered mess every single time.
+          </p>
+          <p className="text-xl font-bold text-zinc-900">
+            What if the whole trip just lived in one place?
+          </p>
+        </div>
+      </section>
+
+      {/* ─── All in one place ─── */}
+      <section id="all-in-one" className="bg-white">
+        <div className="max-w-6xl mx-auto px-5 py-20">
+          <div className="text-center mb-12">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">All in one place</p>
+            <h2 className="font-script italic text-4xl md:text-5xl font-semibold text-zinc-900 mb-4">
+              Everything for the trip — start to finish.
+            </h2>
+            <p className="text-zinc-600 text-lg max-w-2xl mx-auto">
+              One home base for the plan, the people, and the day-of. No more app-juggling.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* AI Itinerary Engine */}
-            <div className="card p-8 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mb-6">
-                <Sparkles className="w-6 h-6 text-sky-700" />
-              </div>
-              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
-                AI Itinerary Engine
-              </h3>
-              <p className="text-slate-600 mb-6 leading-relaxed">
-                Our AI analyzes your group's interests and creates personalized itineraries with multiple activity tracks so everyone enjoys their trip.
-              </p>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Smart activity recommendations</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Multiple tracks for different interests</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Real-time price & availability updates</span>
-                </li>
-              </ul>
-            </div>
 
-            {/* Group Planning */}
-            <div className="card p-8 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mb-6">
-                <Users className="w-6 h-6 text-sky-700" />
+          {/* Toolkit grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+            {[
+              { emoji: '🗺️', title: 'Itinerary builder', sub: 'Day-by-day, multi-city' },
+              { emoji: '✨', title: 'Discover', sub: 'Curated trips & ideas' },
+              { emoji: '✅', title: 'Prep checklist', sub: "Don't-forget, sorted" },
+              { emoji: '💸', title: 'Expense split', sub: 'Who owes who' },
+              { emoji: '🧭', title: 'Day-of guide', sub: 'Where to be, when' },
+              { emoji: '🛬', title: 'Layover planner', sub: 'Make the most of it' },
+              { emoji: '🚢', title: 'Cruise mode', sub: 'Port-stop planning' },
+              { emoji: '🌎', title: 'Travel map', sub: "Everywhere you've been" },
+            ].map(({ emoji, title, sub }) => (
+              <div key={title} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 text-center">
+                <div className="text-2xl mb-2">{emoji}</div>
+                <p className="font-bold text-sm text-zinc-800">{title}</p>
+                <p className="text-xs text-zinc-500 mt-1">{sub}</p>
               </div>
-              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
-                Group Planning Tools
-              </h3>
-              <p className="text-slate-600 mb-6 leading-relaxed">
-                Vote on activities, manage decisions, and keep your whole group aligned—without the endless back-and-forth.
-              </p>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Activity voting & Yay/Nay polls</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Invite your crew & manage the group</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Packing checklists & prep hub</span>
-                </li>
-              </ul>
-            </div>
+            ))}
+          </div>
 
-            {/* Full Trip Lifecycle */}
-            <div className="card p-8 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center mb-6">
-                <MapPin className="w-6 h-6 text-sky-700" />
-              </div>
-              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
-                Full Trip Lifecycle
-              </h3>
-              <p className="text-slate-600 mb-6 leading-relaxed">
-                From dreaming and planning through to packing checklists, travel guides, and shared photo memories—we've got you covered.
-              </p>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Pre-trip preparation tracking</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Shared photo gallery</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">Travel guides & tips</span>
-                </li>
-              </ul>
+          {/* Trip types */}
+          <div className="text-center">
+            <p className="text-sm font-semibold text-zinc-500 mb-4">Built for every kind of trip:</p>
+            <div className="flex flex-wrap justify-center gap-2.5">
+              {[
+                '🏖️ Weekend escapes',
+                '✈️ Long-haul adventures',
+                '🛬 Layovers',
+                '🚢 Cruises',
+                '🏙️ Multi-city',
+                '👥 Group getaways',
+              ].map(label => (
+                <span
+                  key={label}
+                  className="px-4 py-2 rounded-full bg-parchment border border-zinc-200 text-sm font-medium text-zinc-700"
+                >
+                  {label}
+                </span>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 sm:py-28 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="section-title mb-4">How it works</h2>
-            <p className="text-lg text-slate-600">Three simple steps to your perfect group trip</p>
+      {/* ─── How it works ─── */}
+      <section id="how" className="bg-parchment">
+        <div className="max-w-6xl mx-auto px-5 py-20">
+          <div className="text-center mb-14">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">How it works</p>
+            <h2 className="font-script italic text-4xl md:text-5xl font-semibold text-zinc-900">
+              From idea to itinerary in minutes.
+            </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {/* Step 1 */}
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
-                <Globe className="w-7 h-7 text-sky-700" />
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                n: 1,
+                title: 'Describe the trip.',
+                body: 'Where, when, what you’re into. tripcoord drafts a full day-by-day itinerary in minutes — any length, any number of cities.',
+              },
+              {
+                n: 2,
+                title: 'Make it yours.',
+                body: 'Edit, reorder, regenerate, add your own stops and prep tasks. Going with people? Invite them on one link to vote and chip in.',
+              },
+              {
+                n: 3,
+                title: 'Go.',
+                body: 'Everything’s in your pocket — the plan, the day-of guide, the splits. And it all gets saved to your travel map when you’re home.',
+              },
+            ].map(({ n, title, body }) => (
+              <div key={n} className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-md transition p-7">
+                <div className="w-10 h-10 rounded-full bg-amber-500 text-white font-bold flex items-center justify-center mb-4">{n}</div>
+                <h3 className="font-script italic text-xl font-semibold text-zinc-900 mb-2">{title}</h3>
+                <p className="text-zinc-600 text-sm leading-relaxed">{body}</p>
               </div>
-              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
-                Create Your Trip
-              </h3>
-              <p className="text-slate-600">
-                Tell us where you're going, when, and who's invited. Add your group's interests and travel style.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
-                <Zap className="w-7 h-7 text-sky-700" />
-              </div>
-              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
-                Get AI Itineraries
-              </h3>
-              <p className="text-slate-600">
-                Our AI generates personalized itineraries with activity options. Your group votes and customizes each day.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center mx-auto mb-6">
-                <Star className="w-7 h-7 text-sky-700" />
-              </div>
-              <h3 className="font-script italic text-xl font-semibold text-slate-900 mb-3">
-                Plan & Enjoy
-              </h3>
-              <p className="text-slate-600">
-                Manage logistics, stay synced with your group, and enjoy your trip knowing everything is organized.
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
+      {/* ─── Features (4 pillars) ─── */}
+      <section id="features" className="bg-white">
+        <div className="max-w-5xl mx-auto px-5 py-20 space-y-16">
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 sm:py-28 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="section-title mb-4">Simple, transparent pricing</h2>
-            <p className="text-lg text-slate-600">Start free. Buy a pass for one trip. Or subscribe and never think about it again.</p>
+          {/* Pillar 1: it goes the distance */}
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <span className="text-3xl">🧭</span>
+              <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
+                It doesn&apos;t stop at the itinerary.
+              </h3>
+              <p className="text-zinc-600 leading-relaxed">
+                A chatbot hands you a plan and walks away. tripcoord goes the distance — a &ldquo;don&apos;t forget&rdquo; prep checklist,
+                a day-of guide that tells everyone where to be and when, and a travel map that fills in as you go.
+                Your trips live here, not in a tab you&apos;ll lose by Tuesday.
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-sm text-zinc-600">
+              <p className="font-bold text-zinc-800 mb-3">✅ Before you go</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Passport &amp; visa check</div>
+                <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Confirm hotel check-ins</div>
+                <div className="flex items-center gap-2 text-zinc-400"><span>○</span> Download offline maps</div>
+                <div className="flex items-center gap-2 text-zinc-400"><span>○</span> Share itinerary with home</div>
+              </div>
+              <p className="text-xs text-zinc-400 mt-3">+ day-of guide · travel map</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 max-w-6xl mx-auto">
+          {/* Pillar 2: solo or group */}
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div className="order-2 md:order-1 bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-sm text-zinc-500">
+              <div className="flex -space-x-2 mb-4">
+                <div className="w-9 h-9 rounded-full bg-sky-200 border-2 border-white flex items-center justify-center text-sky-800 font-bold text-xs">SA</div>
+                <div className="w-9 h-9 rounded-full bg-emerald-200 border-2 border-white flex items-center justify-center text-emerald-800 font-bold text-xs">JD</div>
+                <div className="w-9 h-9 rounded-full bg-amber-200 border-2 border-white flex items-center justify-center text-amber-800 font-bold text-xs">MK</div>
+                <div className="w-9 h-9 rounded-full bg-zinc-200 border-2 border-white flex items-center justify-center text-zinc-700 font-bold text-xs">+3</div>
+              </div>
+              <div className="bg-amber-50 rounded-xl px-3 py-2 mb-2 flex justify-between">
+                <span className="text-zinc-700 font-medium">🍷 Winery tour</span>
+                <span className="font-bold text-emerald-700">5 👍</span>
+              </div>
+              <div className="bg-zinc-50 rounded-xl px-3 py-2 flex justify-between">
+                <span className="text-zinc-700 font-medium">🧗 Via ferrata</span>
+                <span className="font-bold text-zinc-500">3 👍</span>
+              </div>
+              <div className="mt-3 bg-emerald-50 rounded-xl px-3 py-2 flex justify-between">
+                <span className="font-semibold text-emerald-800">Dinner, split 5 ways</span>
+                <span className="font-bold text-emerald-700">€18 ea</span>
+              </div>
+            </div>
+            <div className="order-1 md:order-2">
+              <span className="text-3xl">👥</span>
+              <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
+                Solo today, the whole crew tomorrow.
+              </h3>
+              <p className="text-zinc-600 leading-relaxed">
+                Plan a solo weekend in peace — or invite your people on one link and let them vote on activities,
+                chat, and split the costs with you. For the friend who always ends up planning the group trip,
+                the herding finally has a home.
+              </p>
+            </div>
+          </div>
 
+          {/* Pillar 3: split tracks */}
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <span className="text-3xl">🔀</span>
+              <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
+                Split up without falling apart.
+              </h3>
+              <p className="text-zinc-600 leading-relaxed">
+                The foodies want the market. The hikers want the trail. With <strong>split tracks</strong>,
+                tripcoord runs two plans for the same day — then brings everyone back together for dinner,
+                with the meetup time and spot already set. Nobody misses out, nobody fights about it.
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-sky-50 rounded-xl p-3">
+                  <p className="font-bold text-sky-800 mb-2">Track A · Foodies</p>
+                  <p className="text-zinc-600">🥘 Market crawl</p>
+                  <p className="text-zinc-600">☕ Coffee roastery</p>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-3">
+                  <p className="font-bold text-amber-800 mb-2">Track B · Hikers</p>
+                  <p className="text-zinc-600">⛰️ Ridge trail</p>
+                  <p className="text-zinc-600">🏞️ Waterfall</p>
+                </div>
+              </div>
+              <div className="text-center mt-3 text-xs font-semibold text-zinc-500">
+                ↓ meet for dinner · 7:30 · Casa Nova
+              </div>
+            </div>
+          </div>
+
+          {/* Pillar 4: first draft */}
+          <div className="text-center max-w-2xl mx-auto pt-4">
+            <span className="text-3xl">✦</span>
+            <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
+              A first draft in minutes. You make it yours.
+            </h3>
+            <p className="text-zinc-600 leading-relaxed">
+              tripcoord builds the first draft with real activity ideas, food spots, photo spots, and timing —
+              multi-city trips included. A starting point you shape, not a wall of text you have to untangle.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      {/* ─── Pricing (both/and) ─── */}
+      <section id="pricing" className="bg-parchment">
+        <div className="max-w-6xl mx-auto px-5 py-20">
+
+          {/* What's free vs. what's paid */}
+          <div className="text-center mb-10">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">What&apos;s free, what&apos;s paid</p>
+            <h2 className="font-script italic text-4xl md:text-5xl font-semibold text-zinc-900">
+              Start free. Upgrade when it&apos;s worth it.
+            </h2>
+          </div>
+          <div className="grid md:grid-cols-2 gap-5 max-w-4xl mx-auto mb-16">
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-7">
+              <p className="font-bold text-zinc-900 mb-1">Free — for your whole group</p>
+              <p className="text-xs text-zinc-500 mb-4">No one you invite ever has to pay.</p>
+              <ul className="space-y-2.5 text-sm text-zinc-700">
+                {[
+                  'Build an itinerary with tripcoord',
+                  'Invite everyone on one link',
+                  'Vote on activities & group chat',
+                  'Browse Discover & save a wishlist',
+                  'Your travel map',
+                ].map(f => (
+                  <li key={f} className="flex gap-2">
+                    <span className="text-emerald-600 font-bold">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-7">
+              <p className="font-bold text-zinc-900 mb-1">Paid — Trip Pass or subscription</p>
+              <p className="text-xs text-zinc-500 mb-4">
+                A Trip Pass unlocks these for everyone on one trip. Explorer &amp; Nomad keep them on for you all year.
+              </p>
+              <ul className="space-y-2.5 text-sm text-zinc-700">
+                {[
+                  'Split expenses as a group',
+                  'Split-track days — split up, regroup',
+                  'Add a co-organizer',
+                  'More AI builds, longer trips, bigger groups',
+                ].map(f => (
+                  <li key={f} className="flex gap-2">
+                    <span className="text-amber-500 font-bold">★</span> {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Plans */}
+          <div className="text-center mb-12">
+            <h3 className="font-script italic text-3xl md:text-4xl font-semibold text-zinc-900 mb-3">
+              However you travel, there&apos;s a fit.
+            </h3>
+            <p className="text-zinc-600 text-lg max-w-2xl mx-auto">
+              One big trip this year? Grab a Trip Pass — pay once, your whole group included.
+              Always planning the next one? Explorer and Nomad keep every tool unlocked, all year.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
             {/* Free */}
-            <div className="card p-7 flex flex-col hover:shadow-lg transition-all duration-300">
-              <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Free</p>
-              <p className="text-slate-500 text-sm leading-snug mb-5">Try tripcoord. See what the fuss is about.</p>
-              <div className="mb-6">
-                <span className="text-4xl font-script italic font-semibold text-slate-900">$0</span>
-                <span className="text-slate-500 text-sm ml-1">/ month</span>
-              </div>
-              <Link href="/auth/signup" className="w-full text-center py-3 border border-zinc-200 hover:border-zinc-400 text-zinc-700 font-semibold rounded-full text-sm transition-all mb-7">
-                Get started
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col">
+              <p className="font-bold text-zinc-900 text-lg">Free</p>
+              <p className="text-sm text-zinc-500 mt-1 mb-4">Dip a toe in.</p>
+              <p className="text-sm text-zinc-600 leading-relaxed flex-1">
+                Plan a trip, build an itinerary, and invite your group to collaborate. See how it feels.
+              </p>
+              <Link
+                href="/auth/signup"
+                className="mt-5 text-center bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold py-2.5 rounded-full text-sm transition"
+              >
+                Start free
               </Link>
-              <ul className="space-y-3 flex-1">
-                {[
-                  'Unlimited active trips',
-                  'Up to 4 travelers',
-                  '25 AI credits / month (1 build)',
-                  'Up to 7-day trips',
-                  'Manual itinerary builder',
-                  'Group chat & photo gallery',
-                  'Activity voting',
-                ].map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
-                    <CheckCircle className="w-4 h-4 text-zinc-300 flex-shrink-0 mt-0.5" />{f}
-                  </li>
-                ))}
-              </ul>
             </div>
 
-            {/* Trip Pass */}
-            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-7 flex flex-col">
-              <p className="text-amber-700 text-xs font-bold uppercase tracking-widest mb-1.5">Trip Pass</p>
-              <p className="text-amber-800 text-sm leading-snug mb-5">One trip, fully unlocked. No subscription needed.</p>
-              <div className="mb-1">
-                <span className="text-4xl font-script italic font-semibold text-slate-900">${PRICING.trip_pass.base}</span>
-                <span className="text-slate-500 text-sm ml-1">/ trip</span>
-              </div>
-              <p className="text-xs text-amber-700 font-medium mb-6">+$4/person beyond 6 · up to 12</p>
-              <Link href="/auth/signup" className="w-full text-center py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
-                Buy a Pass
+            {/* Trip Pass (highlighted · Most popular) */}
+            <div className="bg-white rounded-2xl border-2 border-amber-400 shadow-md p-6 flex flex-col relative">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-white px-3 py-1 rounded-full whitespace-nowrap">
+                Most popular
+              </span>
+              <p className="font-bold text-zinc-900 text-lg">Trip Pass</p>
+              <p className="text-sm text-zinc-500 mt-1 mb-1">For the one big trip.</p>
+              <p className="text-xs text-amber-700 font-semibold mb-4">${PRICING.trip_pass.base} · pay once</p>
+              <p className="text-sm text-zinc-600 leading-relaxed flex-1">
+                Pay once for a single trip — your whole crew included. The full toolkit, no subscription needed.
+              </p>
+              <Link
+                href="/pricing"
+                className="mt-5 text-center bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-full text-sm transition"
+              >
+                Get a pass
               </Link>
-              <ul className="space-y-3 flex-1">
-                {[
-                  'Up to 6 travelers (+ add-ons)',
-                  '50 AI credits for this trip (1 build + 1 regen + tweaks)',
-                  'AI itinerary generation',
-                  'Transport confirmation parser',
-                  'Trip Story (shareable)',
-                  'Group chat & expense splitting',
-                  'Packing & prep checklists',
-                  'Email support',
-                ].map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-amber-900">
-                    <CheckCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />{f}
-                  </li>
-                ))}
-              </ul>
             </div>
 
-            {/* Explorer — Most Popular */}
-            <div className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-sky-500 to-green-500 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md">
-                Most Popular
-              </div>
-              <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mb-1.5 mt-2">Explorer</p>
-              <p className="text-sky-100/70 text-sm leading-snug mb-5">Your whole travel year, covered.</p>
-              <div className="mb-1">
-                <span className="text-4xl font-script italic font-semibold text-white">${PRICING.explorer.monthly}</span>
-                <span className="text-sky-300 text-sm ml-1">/ month</span>
-              </div>
-              <p className="text-xs text-sky-400 mb-6">Billed monthly · cancel anytime</p>
-              <Link href="/auth/signup" className="w-full text-center py-3 bg-white hover:bg-sky-50 text-sky-900 font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
-                Start free trial
+            {/* Explorer (Best value) */}
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col relative">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wide bg-emerald-600 text-white px-3 py-1 rounded-full whitespace-nowrap">
+                Best value
+              </span>
+              <p className="font-bold text-zinc-900 text-lg">Explorer</p>
+              <p className="text-sm text-zinc-500 mt-1 mb-1">For regular travelers.</p>
+              <p className="text-xs text-emerald-700 font-semibold mb-4">${PRICING.explorer.monthly} / month</p>
+              <p className="text-sm text-zinc-600 leading-relaxed flex-1">
+                More trips, longer trips, split tracks, and a co-organizer — for people who take a few getaways a year and love planning them.
+              </p>
+              <Link
+                href="/pricing"
+                className="mt-5 text-center bg-white border border-amber-400 text-amber-700 hover:bg-amber-50 font-semibold py-2.5 rounded-full text-sm transition"
+              >
+                Go Explorer
               </Link>
-              <ul className="space-y-3 flex-1">
-                {[
-                  'Plan trips all year long',
-                  'Up to 6 travelers per trip',
-                  '100 AI credits / month (~4 full builds)',
-                  'AI itineraries up to 10 days',
-                  'Transport confirmation parser',
-                  'Group expense tracking (manual splits)',
-                  'Split-track itineraries (Track A/B)',
-                  'Co-organizer role',
-                  'Trip Story for every trip',
-                  'Wishlist & destination discovery',
-                  'Email support',
-                ].map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-sky-100">
-                    <CheckCircle className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />{f}
-                  </li>
-                ))}
-              </ul>
             </div>
 
             {/* Nomad */}
-            <div className="card p-7 flex flex-col relative hover:shadow-lg transition-all duration-300">
-              <div className="absolute top-6 right-6">
-                <Crown className="w-5 h-5 text-amber-400" />
-              </div>
-              <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Nomad</p>
-              <p className="text-slate-500 text-sm leading-snug mb-5">For the organizer everyone counts on.</p>
-              <div className="mb-1">
-                <span className="text-4xl font-script italic font-semibold text-slate-900">${PRICING.nomad.monthly}</span>
-                <span className="text-slate-500 text-sm ml-1">/ month</span>
-              </div>
-              <p className="text-xs text-slate-400 mb-6">Billed monthly · cancel anytime</p>
-              <Link href="/auth/signup" className="w-full text-center py-3 bg-zinc-900 hover:bg-zinc-700 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm">
-                Start free trial
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col">
+              <p className="font-bold text-zinc-900 text-lg">Nomad</p>
+              <p className="text-sm text-zinc-500 mt-1 mb-1">For the always-planning.</p>
+              <p className="text-xs text-zinc-700 font-semibold mb-4">${PRICING.nomad.monthly} / month</p>
+              <p className="text-sm text-zinc-600 leading-relaxed flex-1">
+                The most trips, the longest itineraries, the biggest groups, and every tool tripcoord makes.
+                For people who are always plotting the next one.
+              </p>
+              <Link
+                href="/pricing"
+                className="mt-5 text-center bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold py-2.5 rounded-full text-sm transition"
+              >
+                Go Nomad
               </Link>
-              <ul className="space-y-3 flex-1">
-                {[
-                  { text: 'Everything in Explorer', highlight: false },
-                  { text: 'Up to 12 travelers per trip', highlight: false },
-                  { text: 'AI itineraries up to 14 days', highlight: true },
-                  { text: '200 AI credits / month (~8 full builds)', highlight: true },
-                  { text: 'AI receipt scanning (scan to split)', highlight: true },
-                  { text: 'AI packing list (destination-specific)', highlight: true },
-                  { text: 'AI travel phrasebook', highlight: true },
-                  { text: 'Year in Review', highlight: true },
-                  { text: 'Early access to new features', highlight: true },
-                  { text: 'Priority support', highlight: false },
-                ].map(f => (
-                  <li key={f.text} className="flex items-start gap-2.5 text-sm">
-                    <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${f.highlight ? 'text-amber-400' : 'text-zinc-300'}`} />
-                    <span className={f.highlight ? 'text-slate-900 font-semibold' : 'text-slate-600'}>{f.text}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
-
-          <p className="text-center text-xs text-slate-400 mt-6">
-            Trip Pass add-ons: +$4/person beyond 6 travelers · max 12 per trip · pass valid for trip duration + 30 days
-          </p>
-          <div className="text-center mt-6">
-            <Link href="/pricing" className="text-sm text-sky-700 hover:text-sky-900 font-semibold underline underline-offset-2">
-              See full plan comparison →
+          <p className="text-center text-sm text-zinc-500 mt-8">
+            Not sure?{' '}
+            <Link href="/pricing" className="text-amber-700 font-semibold hover:underline">
+              Compare all plans →
             </Link>
+          </p>
+        </div>
+      </section>
+
+      {/* ─── Objection handler ─── */}
+      <section className="bg-white">
+        <div className="max-w-3xl mx-auto px-5 py-20 text-center">
+          <h2 className="font-script italic text-3xl md:text-4xl font-semibold text-zinc-900 mb-4">
+            &ldquo;Can&apos;t I just ask a chatbot?&rdquo;
+          </h2>
+          <p className="text-zinc-600 text-lg leading-relaxed">
+            A chatbot gives you a one-off itinerary in a window you&apos;ll lose by Tuesday. tripcoord is where
+            your trips actually live — planned, coordinated, split, and saved. From a weekend away
+            to a month abroad, on your own or with everyone.{' '}
+            <span className="font-bold text-zinc-900">It&apos;s the part that happens after the itinerary.</span>
+          </p>
+        </div>
+      </section>
+
+      {/* ─── FAQ ─── */}
+      <section className="bg-parchment">
+        <div className="max-w-3xl mx-auto px-5 py-16">
+          <h2 className="font-script italic text-4xl font-semibold text-center text-zinc-900 mb-10">
+            Good questions.
+          </h2>
+          <div className="space-y-3">
+            {[
+              {
+                q: 'Is it just for groups?',
+                a: 'Not at all. tripcoord works great solo — itineraries, prep, layovers, and your travel map are all yours alone. The group tools are right there for when you want them.',
+              },
+              {
+                q: 'Is it free?',
+                a: 'Yes, to start. Plan a trip and invite your group on the free plan. A Trip Pass covers one big trip; Explorer and Nomad are subscriptions for people who travel more often.',
+              },
+              {
+                q: 'Trip Pass or a subscription — which do I want?',
+                a: 'Taking one big trip this year? A Trip Pass is perfect — pay once, whole group included. Planning several trips a year? Explorer or Nomad keep everything unlocked all year and work out cheaper per trip.',
+              },
+              {
+                q: 'Do my friends need to pay?',
+                a: 'No. Everyone you invite can vote on activities and chat free — on any trip. To split expenses and run split-track days as a group, the trip just needs a Trip Pass: one purchase opens those tools to your whole crew, and no one else pays a thing.',
+              },
+              {
+                q: 'What if I already booked something?',
+                a: 'Drop in your travel-agent PDF or confirmation email and tripcoord turns it into an editable trip you (and your group) can build on.',
+              },
+            ].map(({ q, a }) => (
+              <details key={q} className="bg-white rounded-2xl border border-zinc-100 p-5 group">
+                <summary className="font-semibold cursor-pointer flex justify-between items-center text-zinc-800">
+                  {q}
+                  <span className="text-amber-600 group-open:rotate-45 transition text-lg">+</span>
+                </summary>
+                <p className="text-zinc-600 text-sm mt-3 leading-relaxed">{a}</p>
+              </details>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 sm:py-28 bg-gradient-to-r from-sky-800 to-green-800 text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-5xl font-script italic font-semibold mb-6">
-            Ready to plan your next adventure?
+      {/* ─── Final CTA ─── */}
+      <section className="gradient-hero relative overflow-hidden">
+        <div className="relative max-w-3xl mx-auto px-5 py-20 text-center text-white">
+          <h2 className="font-script italic text-4xl md:text-5xl font-semibold mb-4 leading-tight">
+            Your next trip is waiting.
+            <br />
+            Let&apos;s get it organized.
           </h2>
-          <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-            Join thousands of travelers who are using tripcoord to make group trips amazing.
-          </p>
           <Link
             href="/auth/signup"
-            className="inline-flex items-center justify-center px-8 py-4 bg-white text-sky-700 font-display font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 shadow-lg hover:shadow-xl text-lg"
+            className="bg-amber-500 hover:bg-amber-600 inline-flex items-center justify-center gap-2 text-white font-bold px-8 py-4 rounded-full mt-3 shadow-lg hover:shadow-xl transition"
           >
-            Get Started Free Today
-            <ArrowRight className="ml-2 w-5 h-5" />
+            Start planning — free <ArrowRight className="w-5 h-5" />
           </Link>
+          <p className="text-blue-100 text-sm mt-4">No credit card to start • Solo or group</p>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-            <div>
-              <h4 className="font-script italic text-white font-semibold mb-4">Product</h4>
-              <ul className="space-y-2">
-                <li><button type="button" onClick={() => scrollTo('features')} className="hover:text-white transition text-left">Features</button></li>
-                <li><Link href="/pricing" className="hover:text-white transition">Pricing</Link></li>
-                <li><button type="button" onClick={() => scrollTo('how-it-works')} className="hover:text-white transition text-left">How It Works</button></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-script italic text-white font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2">
-                <li><Link href="/legal/privacy" className="hover:text-white transition">Privacy</Link></li>
-                <li><Link href="/legal/terms" className="hover:text-white transition">Terms</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-script italic text-white font-semibold mb-4">Connect</h4>
-              <ul className="space-y-2">
-                <li><a href="mailto:hello@tripcoord.ai" className="hover:text-white transition">Email us</a></li>
-              </ul>
-            </div>
+      {/* ─── Footer ─── */}
+      <footer className="bg-zinc-900 text-zinc-400">
+        <div className="max-w-6xl mx-auto px-5 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-script italic text-2xl font-semibold text-white">tripcoord</span>
+            <span className="text-zinc-500 text-sm ml-1">· group travel made easy — solo trips, too</span>
           </div>
-          <div className="border-t border-slate-800 pt-8 flex flex-col sm:flex-row items-center justify-between">
-            <Link href="/" className="mb-4 sm:mb-0 hover:opacity-80 transition">
-              <Image src="/tripcoord_logo.png" alt="tripcoord" width={120} height={38} className="h-7 w-auto brightness-0 invert opacity-60" />
-            </Link>
-            <p className="text-sm">© 2026 tripcoord, Inc. All rights reserved.</p>
+          <div className="flex gap-6 text-sm">
+            <Link href="/pricing" className="hover:text-white transition">Pricing</Link>
+            <Link href="/discover" className="hover:text-white transition">Discover</Link>
+            <Link href="/legal/privacy" className="hover:text-white transition">Privacy</Link>
+            <Link href="/legal/terms" className="hover:text-white transition">Terms</Link>
           </div>
         </div>
       </footer>
