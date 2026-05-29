@@ -2305,8 +2305,13 @@ function ItineraryPageContent() {
       };
     });
 
-    // Optimistically update display immediately (no Supabase yet)
+    // Optimistically update display + persist to Supabase IMMEDIATELY. The
+    // earlier "defer the PATCH 5s" pattern lost deletions when the tab was
+    // closed during the undo window — the timer died with the tab, so the
+    // activity resurrected on reload. Now: deletion is durable from the
+    // moment the user clicks; the undo path re-inserts and re-persists.
     syncAiDays(updatedDays as ItineraryDay[]);
+    persistDays(updatedDays as ItineraryDay[]);
 
     // Store only the deleted activity so undo re-inserts into the live state
     // (avoids clobbering any edits made during the 5-second undo window)
@@ -2314,15 +2319,11 @@ function ItineraryPageContent() {
       setUndoSnapshot({ activity: deletedAct, dayNumber: selectedDay, track: deletedTrack, label: deletedAct.name ?? deletedAct.title ?? 'Activity' });
     }
 
-    // Cancel any existing undo timer
+    // The 5s timer now only governs how long the Undo button is visible —
+    // the deletion itself is already on the server. After 5s we just drop
+    // the snapshot so the Undo button disappears.
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-
-    // Persist to Supabase + localStorage after 5s (if not undone). Save the
-    // LIVE days at fire time (aiDaysRef — deletion already applied via
-    // syncAiDays) rather than the stale `updatedDays` snapshot, so any edits
-    // made during the 5s undo window aren't clobbered in Supabase.
     undoTimerRef.current = setTimeout(() => {
-      persistDays((aiDaysRef.current ?? updatedDays) as ItineraryDay[]);
       setUndoSnapshot(null);
       undoTimerRef.current = null;
     }, 5000);
@@ -2331,7 +2332,10 @@ function ItineraryPageContent() {
   const handleUndoDelete = useCallback(() => {
     if (!undoSnapshot) return;
     if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
-    // Re-insert the deleted activity into the current live state
+    // Re-insert the deleted activity into the current live state. The delete
+    // already wrote the (without-activity) days to Supabase, so we have to
+    // re-PATCH the restored state — otherwise a reload would still see the
+    // deletion as the canonical truth.
     const restoredDays = (activeDays as ItineraryDay[]).map(day => {
       if (day.day !== undoSnapshot.dayNumber) return day;
       return {
@@ -2343,8 +2347,9 @@ function ItineraryPageContent() {
       };
     });
     syncAiDays(restoredDays as ItineraryDay[]);
+    persistDays(restoredDays as ItineraryDay[]);
     setUndoSnapshot(null);
-  }, [undoSnapshot, activeDays]);
+  }, [undoSnapshot, activeDays, persistDays]);
 
   // ─── AI: suggest a replacement activity ──────────────────────────────────────
   const handleSuggestAnother = useCallback(async (activity: Activity) => {

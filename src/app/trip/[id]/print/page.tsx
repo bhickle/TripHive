@@ -45,8 +45,9 @@ export default function PrintItineraryPage() {
 
   useEffect(() => {
     const load = async () => {
-      // Try Supabase first
-      if (/^[0-9a-f-]{36}$/i.test(tripId)) {
+      const isUuid = /^[0-9a-f-]{36}$/i.test(tripId);
+      // Try Supabase first for real trips.
+      if (isUuid) {
         try {
           const res = await fetch(`/api/trips/${tripId}`);
           if (res.ok) {
@@ -59,8 +60,14 @@ export default function PrintItineraryPage() {
             }
           }
         } catch {}
+        // Real trip but Supabase returned empty — DON'T fall back to the
+        // global localStorage 'generatedItinerary' key. That key isn't
+        // tripId-scoped, so a user with multiple trips would see Trip B's
+        // days inside Trip A's print view. Better to show an empty state.
+        setLoading(false);
+        return;
       }
-      // Fallback to localStorage
+      // Non-UUID id (demo path): localStorage IS the source of truth.
       try {
         const stored = localStorage.getItem('generatedItinerary');
         if (stored) setDays(JSON.parse(stored));

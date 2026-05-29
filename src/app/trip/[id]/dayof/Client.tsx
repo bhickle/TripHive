@@ -320,7 +320,12 @@ export default function DayOfPage() {
     if (!isRealTrip) return;
 
     const load = async () => {
-      // ── Supabase first (UUID trips) ────────────────────────────────────────
+      // Supabase is the only source of truth here — this effect short-
+      // circuits unless isRealTrip is true (UUID + not in the mock set), so
+      // anything reaching this point is a real Supabase-backed trip.
+      // DON'T fall back to the global 'generatedItinerary' localStorage key
+      // on empty/error: that key isn't tripId-scoped, so a user with
+      // multiple trips would see Trip B's days inside Trip A's day-of view.
       try {
         const res = await fetch(`/api/trips/${tripId}`);
         if (res.ok) {
@@ -335,27 +340,11 @@ export default function DayOfPage() {
             return;
           }
         }
-      } catch { /* fall through to localStorage */ }
-
-      // ── localStorage fallback ──────────────────────────────────────────────
-      try {
-        const itineraryJson = localStorage.getItem('generatedItinerary');
-        const metaJson = localStorage.getItem('generatedTripMeta');
-        if (itineraryJson && metaJson) {
-          const itinerary = JSON.parse(itineraryJson);
-          const meta = JSON.parse(metaJson);
-          if (meta?.destination) setDestination(meta.destination);
-          if (meta?.organizerName) setCurrentUserName(meta.organizerName);
-          if (itinerary?.length > 0) {
-            const today = new Date().toISOString().split('T')[0];
-            const idx = itinerary.findIndex((d: { date?: string }) => d.date === today);
-            setCurrentDay(itinerary[idx >= 0 ? idx : 0]);
-          }
-          setIsMockTrip(false);
-        }
       } catch (err) {
         console.error('Error loading trip for day-of view:', err);
       }
+      // Empty / errored real trip — leave currentDay null so the loading
+      // spinner stays; user can refresh or backfill from the main itinerary.
     };
 
     load();
