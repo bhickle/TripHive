@@ -197,7 +197,7 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
             ))}
           </div>
         ) : previewDays.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
             {previewDays.map(day => (
               <div key={day.day} className="bg-stone-50 rounded-xl p-3 border border-zinc-100">
                 <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Day {day.day}</div>
@@ -1373,7 +1373,7 @@ export default function DiscoverPage() {
                     type="button"
                     onClick={() => scrollCommunityRail(-1)}
                     aria-label="Scroll left"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 hidden md:flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -1381,7 +1381,7 @@ export default function DiscoverPage() {
                     type="button"
                     onClick={() => scrollCommunityRail(1)}
                     aria-label="Scroll right"
-                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 hidden md:flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>

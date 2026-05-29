@@ -2619,7 +2619,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
 
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
                   {/* Table header */}
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-2.5 bg-sky-800 text-white text-xs font-bold uppercase tracking-wide">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 bg-sky-800 text-white text-xs font-bold uppercase tracking-wide">
                     <span>Activity</span>
                     <span className="text-center">👍</span>
                     <span className="text-center">👎</span>
@@ -2635,7 +2635,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         <a
                           key={act.id}
                           href={`/trip/${params.id}/itinerary?day=${act.dayNumber}`}
-                          className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors items-center group"
+                          className="grid grid-cols-[1fr_auto_auto] gap-2 sm:gap-3 px-3 sm:px-4 py-3 hover:bg-zinc-50 transition-colors items-center group"
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-zinc-900 truncate group-hover:text-sky-800 transition-colors">
@@ -3078,7 +3078,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 const activeReactions = Object.entries(msgReactions).filter(([, users]) => users.length > 0);
                 return (
                   <div key={message.id} className={`mb-5 flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-xs ${message.isOwn ? 'order-2' : 'order-1'} relative group/msg`}>
+                    <div className={`max-w-[75%] sm:max-w-xs ${message.isOwn ? 'order-2' : 'order-1'} relative group/msg`}>
                       {!message.isOwn && (
                         <p className="text-sm font-semibold text-zinc-600 mb-1">{message.senderName}</p>
                       )}

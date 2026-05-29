@@ -236,10 +236,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
 
   return (
     <>
+      {/* Hamburger moved to top-RIGHT on 2026-05-29: the prior top-4 left-4
+          position overlapped page headings (which are universally left-
+          aligned). Pages would need pl-14 padding on every <h1> to clear
+          it, which is too invasive. Top-right keeps the button discoverable
+          and out of the way; the sidebar still slides in from the left. */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl text-white shadow-lg"
+        className="md:hidden fixed top-4 right-4 z-50 p-2.5 rounded-xl text-white shadow-lg"
         style={{ background: '#2c2826' }}
+        aria-label={isOpen ? 'Close menu' : 'Open menu'}
       >
         {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>

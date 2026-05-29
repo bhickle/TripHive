@@ -5379,7 +5379,7 @@ function ItineraryPageContent() {
                   onChange={e => setHotelFormName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-600 mb-1.5">City</label>
                   <input type="text" placeholder="e.g. Vienna" value={hotelFormCity}
@@ -5393,7 +5393,7 @@ function ItineraryPageContent() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Check-in</label>
                   <input type="date" value={hotelFormCheckIn}
@@ -5598,7 +5598,7 @@ function ItineraryPageContent() {
               </button>
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Airline</label>
                   <input type="text" placeholder="e.g. Delta, United" value={flightFormAirline}
@@ -5612,7 +5612,7 @@ function ItineraryPageContent() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-600 mb-1.5">From Airport</label>
                   <input type="text" placeholder="e.g. JFK" value={flightFormDep}
@@ -5626,7 +5626,7 @@ function ItineraryPageContent() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Outbound Departure</label>
                   <input type="datetime-local" value={flightFormDepTime}
@@ -5640,7 +5640,7 @@ function ItineraryPageContent() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departure</label>
                   <input type="datetime-local" value={flightFormRetDepTime}
