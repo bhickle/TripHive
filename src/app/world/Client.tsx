@@ -292,7 +292,7 @@ export default function WorldClient() {
 
           {/* Page header */}
           <header className="mb-8">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">Your Travel Story</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">Your Travel Story</p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <h1 className="text-4xl font-script italic font-semibold tracking-tight text-zinc-900">My World</h1>
               {/* Share my map — Nomad-only. The share URL points at a

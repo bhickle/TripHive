@@ -1349,11 +1349,11 @@ function TripBuilderPage() {
                         }
                         className={`p-4 sm:p-6 rounded-lg border-2 transition-all duration-200 text-center ${
                           isSelected
-                            ? 'border-green-700 bg-green-50'
+                            ? 'border-sky-700 bg-sky-50'
                             : 'border-slate-200 hover:border-sky-300'
                         }`}
                       >
-                        <IconComponent className="w-7 h-7 sm:w-8 sm:h-8 mx-auto mb-2 sm:mb-3 text-green-800" />
+                        <IconComponent className="w-7 h-7 sm:w-8 sm:h-8 mx-auto mb-2 sm:mb-3 text-sky-800" />
                         <p className="font-semibold text-zinc-900">
                           {option.label}
                         </p>

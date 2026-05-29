@@ -316,7 +316,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-5">
         <h3 className="font-script italic text-lg text-zinc-900 leading-snug mb-3 group-hover:text-sky-700 transition-colors">
           {trip.title}
         </h3>

@@ -383,7 +383,7 @@ export default function DashboardPage() {
               {dateString}
             </p>
             <div className="flex items-center justify-between">
-              <h1 className="text-5xl font-script italic font-semibold text-zinc-900">
+              <h1 className="text-4xl font-script italic font-semibold text-zinc-900">
                 {currentUser.isLoading ? (
                   <span className="inline-block h-10 w-48 rounded-lg bg-zinc-100 animate-pulse align-middle" />
                 ) : (

@@ -2890,8 +2890,8 @@ function ItineraryPageContent() {
 
   const trackConfig = {
     shared: { badgeColor: 'bg-sky-500 text-white', label: 'Shared' },
-    track_a: { badgeColor: 'bg-violet-500 text-white', label: currentDayData.trackALabel || 'Track A' },
-    track_b: { badgeColor: 'bg-rose-500 text-white', label: currentDayData.trackBLabel || 'Track B' },
+    track_a: { badgeColor: 'bg-sky-500 text-white', label: currentDayData.trackALabel || 'Track A' },
+    track_b: { badgeColor: 'bg-amber-500 text-white', label: currentDayData.trackBLabel || 'Track B' },
   };
 
   // ─── Empty-state gate ────────────────────────────────────────────────────────
@@ -3781,8 +3781,8 @@ function ItineraryPageContent() {
                         <div className="flex flex-wrap gap-3">
                           {[
                             { color: 'bg-sky-500', label: 'Shared', show: !isSmallGroupTrip },
-                            { color: 'bg-violet-500', label: currentDayData.trackALabel || 'Track A', show: hasTrackA },
-                            { color: 'bg-rose-500', label: currentDayData.trackBLabel || 'Track B', show: hasTrackB },
+                            { color: 'bg-sky-500', label: currentDayData.trackALabel || 'Track A', show: hasTrackA },
+                            { color: 'bg-amber-500', label: currentDayData.trackBLabel || 'Track B', show: hasTrackB },
                           ].filter(t => t.show).map(t => (
                             <div key={t.label} className="flex items-center gap-2">
                               <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${t.color}`} />
@@ -4083,8 +4083,8 @@ function ItineraryPageContent() {
                     // ── Compact View — slim agenda row ──────────────────────────
                     if (isCompactView) {
                       const trackDot =
-                        activity.track === 'track_a' ? 'bg-violet-400' :
-                        activity.track === 'track_b' ? 'bg-rose-400' :
+                        activity.track === 'track_a' ? 'bg-sky-400' :
+                        activity.track === 'track_b' ? 'bg-amber-400' :
                         (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-400';
                       return (
                         <div
@@ -4149,8 +4149,8 @@ function ItineraryPageContent() {
                         {/* Center Line */}
                         <div className="relative flex flex-col items-center pt-4">
                           <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                            activity.track === 'track_a' ? 'bg-violet-400' :
-                            activity.track === 'track_b' ? 'bg-rose-400' :
+                            activity.track === 'track_a' ? 'bg-sky-400' :
+                            activity.track === 'track_b' ? 'bg-amber-400' :
                             // Solo/couple trips: neutral dot — "Shared" concept doesn't apply
                             (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-400'
                           }`} />
@@ -4161,7 +4161,7 @@ function ItineraryPageContent() {
 
                         {/* Activity Card */}
                         <div className="flex-1 pb-2">
-                          <div className={`bg-white rounded-xl border shadow-sm p-3.5 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card ${activity.isPrivate ? 'border-amber-200 bg-amber-50/40' : 'border-zinc-100'}`}>
+                          <div className={`bg-white rounded-2xl border shadow-sm p-3.5 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/card ${activity.isPrivate ? 'border-amber-200 bg-amber-50/40' : 'border-zinc-100'}`}>
                             <div className="flex items-start justify-between mb-2 gap-2">
                               <h3 className="font-script italic font-semibold text-zinc-900 text-base leading-snug flex-1 flex items-center gap-1.5">
                                 <a

@@ -110,10 +110,10 @@ function TransportCardDayOf({ leg, status }: { leg: TransportLeg; status: 'done'
     : null;
 
   return (
-    <div className={`rounded-xl border-2 overflow-hidden transition-all duration-200 ${
+    <div className={`rounded-2xl border-2 overflow-hidden transition-all duration-200 ${
       status === 'now' ? `${cfg.borderColor} ${cfg.bgColor} shadow-md` :
-      status === 'done' ? 'border-slate-100 bg-slate-50 opacity-60' :
-      'border-slate-200 bg-white'
+      status === 'done' ? 'border-zinc-100 bg-zinc-50 opacity-60' :
+      'border-zinc-100 bg-white'
     }`}>
       <button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setExpanded(!expanded)}>
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -203,10 +203,10 @@ function ActivityCardDayOf({ activity, status, trackLabel }: { activity: Activit
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 
   return (
-    <div className={`rounded-xl border-2 overflow-hidden transition-all duration-200 ${
+    <div className={`rounded-2xl border-2 overflow-hidden transition-all duration-200 ${
       status === 'now' ? 'border-sky-300 bg-white shadow-lg shadow-sky-100' :
-      status === 'done' ? 'border-slate-100 bg-slate-50 opacity-60' :
-      'border-slate-200 bg-white'
+      status === 'done' ? 'border-zinc-100 bg-zinc-50 opacity-60' :
+      'border-zinc-100 bg-white'
     }`}>
       <div className="p-4">
         <div className="flex items-start gap-3">
@@ -235,7 +235,7 @@ function ActivityCardDayOf({ activity, status, trackLabel }: { activity: Activit
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">NEXT</span>
               )}
               {trackLabel && (
-                <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-semibold">
+                <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-semibold">
                   {trackLabel}
                 </span>
               )}
@@ -430,9 +430,9 @@ export default function DayOfPage() {
         : [];
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-parchment">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-40">
+      <div className="bg-white border-b border-zinc-100 sticky top-0 z-40">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link href={`/trip/${tripId}/itinerary`}
             className="w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">

@@ -14,15 +14,19 @@
 }
 
 @layer components {
-  /* Buttons — pill-shaped, brand amber */
+  /* Buttons — pill-shaped. Primary = sky (brand primary throughout the app).
+     Amber is reserved for Trip Pass marketing CTAs + the landing page hero.
+     Prior .btn-primary used amber and was visible on the auth pages while
+     every Settings/Itinerary/Group save button was already sky — flipping
+     the global definition here syncs the auth pages with the rest. */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-full shadow-sm hover:shadow-md transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold rounded-full shadow-sm hover:shadow-md transition-all duration-200;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold rounded-full hover:bg-zinc-50 transition-all duration-200 shadow-sm;
   }
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 border-2 border-amber-500 text-amber-600 font-semibold rounded-full hover:bg-amber-50 transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 border-2 border-sky-800 text-sky-800 font-semibold rounded-full hover:bg-sky-50 transition-all duration-200;
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 px-3 py-2 text-zinc-500 font-medium rounded-lg hover:bg-zinc-100 hover:text-zinc-800 transition-all duration-200;
@@ -42,12 +46,15 @@
     @apply bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200;
   }
 
-  /* Inputs */
+  /* Inputs — focus ring syncs with the brand primary (sky). Settings
+     hand-codes focus:ring-sky-500 everywhere; making these globals match
+     means auth inputs (which use .input-field) finally share the focus
+     treatment with everything else. */
   .input-field {
-    @apply w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200;
+    @apply w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200;
   }
   .input-sm {
-    @apply w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200;
+    @apply w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200;
   }
 
   /* Badges */
