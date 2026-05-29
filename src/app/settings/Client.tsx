@@ -882,13 +882,16 @@ export default function SettingsPage() {
                         </button>
                         <button
                           onClick={() => {
-                            // Preserve homeCountry on cancel — currentUser
-                            // doesn't carry it, so spreading would clear it.
+                            // Restore from authProfile (the canonical DB row)
+                            // rather than currentUser, whose `name` is
+                            // first-name-only via useCurrentUser's split — that
+                            // truncation would display "Brandon" instead of
+                            // "Brandon Hickle" after Cancel until reload.
                             setProfile(prev => ({
                               ...prev,
-                              name: currentUser.name,
-                              email: currentUser.email,
-                              avatarUrl: currentUser.avatarUrl,
+                              name: authProfile?.name ?? currentUser.name,
+                              email: authProfile?.email ?? currentUser.email,
+                              avatarUrl: authProfile?.avatar_url ?? currentUser.avatarUrl,
                             }));
                             setEditingProfile(false);
                           }}

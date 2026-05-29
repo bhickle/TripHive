@@ -248,7 +248,26 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
           <div className="flex items-center gap-2">
             {canPersonalizeAI ? (
               <Link
-                href={`/trip/new?destination=${encodeURIComponent(item.destination)}&days=${item.durationDays}&featured=${item.slug}`}
+                href={(() => {
+                  // Carry the featured row's vibes + first season tag through
+                  // to the Trip Builder so the persona/season steps start
+                  // pre-filled instead of blank — parity with the Wishlist
+                  // "Plan this trip" link. Vibes map to priorities by the
+                  // same lowercase-no-whitespace normalization used in
+                  // wishlist/Client.buildPlanTripHref.
+                  const params = new URLSearchParams({
+                    destination: item.destination,
+                    days: String(item.durationDays),
+                    featured: item.slug,
+                  });
+                  const priorities = (item.vibes ?? [])
+                    .map(v => v.toLowerCase().replace(/\s+/g, ''))
+                    .filter(Boolean);
+                  if (priorities.length) params.set('priorities', priorities.join(','));
+                  const season = item.seasonTags?.[0];
+                  if (season) params.set('season', season);
+                  return `/trip/new?${params.toString()}`;
+                })()}
                 onClick={() => logDestinationEvent(item.destination, 'plan_click')}
                 className="flex items-center gap-1.5 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs font-semibold px-3 py-2 rounded-full transition-colors"
               >

@@ -51,13 +51,18 @@ export function isAffiliateEnabled(): boolean {
 }
 
 /**
- * Tagged search deep-link for an activity / experience. Returns `null` when no
- * activities provider is configured, so callers can simply render nothing.
+ * Tagged search deep-link for an activity / experience. Returns `null` when
+ * either (a) no activities provider is configured, or (b) we don't have a
+ * city to scope the search by — a city-less search on Viator/GetYourGuide
+ * returns a global "Sunset Tour" mix that's almost guaranteed to mismatch
+ * the user's actual destination, so we'd rather render no link than the
+ * wrong one.
  */
 export function activityBookingUrl(opts: { name: string; city?: string | null }): string | null {
-  const q = [opts.name, opts.city].filter(Boolean).join(' ').trim();
-  if (!q) return null;
-  const query = encodeURIComponent(q);
+  const city = (opts.city ?? '').trim();
+  const name = opts.name?.trim() ?? '';
+  if (!city || !name) return null;
+  const query = encodeURIComponent(`${name} ${city}`);
 
   if (VIATOR_PID) {
     return `https://www.viator.com/searchResults/all?text=${query}&pid=${encodeURIComponent(VIATOR_PID)}&mcid=42383&medium=link`;

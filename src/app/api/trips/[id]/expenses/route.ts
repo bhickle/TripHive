@@ -163,7 +163,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // every item must have a non-empty description and a non-negative
     // numeric amount; we trim/coerce here so client-side typos can't
     // poison the JSONB blob.
-    const update: { settled?: boolean; line_items?: Array<{ description: string; amount: number }>; updated_at: string } = {
+    const update: {
+      settled?: boolean;
+      line_items?: Array<{ description: string; amount: number }>;
+      amount?: number;
+      updated_at: string;
+    } = {
       updated_at: new Date().toISOString(),
     };
     if (typeof settled === 'boolean') {
@@ -177,6 +182,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         }))
         .filter(li => li.description.length > 0 && Number.isFinite(li.amount) && li.amount >= 0);
       update.line_items = cleaned;
+      // Recompute parent amount = sum(lineItems) whenever lineItems is
+      // patched. Who-Owes-Who math uses the row's `amount`, not the line-
+      // item sum — without this, editing a line item from $20→$50 would
+      // leave the parent expense at the old total and silently under-bill
+      // the splits. Round to cents to dodge float-fuzz from JS arithmetic.
+      const sum = cleaned.reduce((s, li) => s + li.amount, 0);
+      update.amount = Math.round(sum * 100) / 100;
     }
 
     const { error } = await supabase

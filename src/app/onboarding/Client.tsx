@@ -304,13 +304,25 @@ export default function OnboardingPage() {
           });
         let res = await doSave().catch(() => null);
         if (!res || !res.ok) {
-          // One retry after a short backoff. Profile-save isn't time-critical
-          // but losing it means the user has to re-set their persona later.
+          // Profile-save isn't time-critical but losing it means the user
+          // has to re-set their persona later. Three retries with growing
+          // backoff (600ms / 1.5s) — most transient failures (network blip,
+          // cold-start Supabase RLS evaluation) resolve in that window.
+          // Stashing a flag in localStorage lets the dashboard pick up the
+          // failure on next load and re-attempt the save without surfacing
+          // an error to the user mid-onboarding.
           await new Promise(r => setTimeout(r, 600));
           res = await doSave().catch(() => null);
         }
         if (!res || !res.ok) {
-          console.warn('[onboarding] profile save failed twice; localStorage holds the only copy');
+          await new Promise(r => setTimeout(r, 1500));
+          res = await doSave().catch(() => null);
+        }
+        if (!res || !res.ok) {
+          console.warn('[onboarding] profile save failed three times; flagging for dashboard re-attempt');
+          try {
+            localStorage.setItem('tripcoord_pending_profile_save', '1');
+          } catch { /* private browsing */ }
         }
       }
     } catch (err) {
