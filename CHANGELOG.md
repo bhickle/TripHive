@@ -3,6 +3,74 @@
 > Older "Recently Shipped" notes moved here on 2026-05-19 to keep `CLAUDE.md` under the 40K-char auto-load threshold.
 > Most recent session stays in `CLAUDE.md`. Anything older lives here.
 > May 9 session moved here on 2026-05-29 when the May 29 QA-pass session took its slot.
+> May 29 QA-pass session moved here on 2026-05-29 later the same day when the product-polish + landing-port session took the slot.
+
+---
+
+## Recently Shipped (May 29 QA pass)
+
+Big QA-driven session — multi-agent code audit across 6 surfaces (auth, Trip Builder, itinerary, group hub, prep/layover/discover, billing) followed by **10 commits** clearing the resulting punch list: **3 P0s + 11 P1s + 7 P2s + 3 follow-ups**. No live-site verification possible (no local `.env.local`, no browser automation), so everything is code-level + `tsc` clean. See the "Verify * (live site)" items in `CLAUDE.md` Polish & UX for what still needs eyeballs.
+
+**Build credit accounting refactor — 1 build = 1 charge regardless of chunks**
+- Prior behavior: every `generate-itinerary` chunk charged 25 credits, so a 4-7 day free single-city trip 402'd on chunk 2 and left a partial 3-day skeleton. The Trip Pass pool (50 cr) was also under-built for 6-7 day trips.
+- New `trips.build_credits_charged_at` column. First chunk wins an atomic claim (`UPDATE … WHERE … IS NULL RETURNING`); subsequent chunks see the claim set and skip `checkAiCredits` + `incrementAiCreditsUsed` entirely (`source: 'exempt'`). Multi-city now also charges once total, regardless of city count.
+- Regenerate (`?fresh=1`) sends `freshRebuild: true` on its first chunk only (one-shot `sentFreshRebuild` in the build effect); server clears the prior claim before re-claiming.
+- Failure modes revert the claim so the user can retry: `checkAiCredits` 402-denied and AI-produced-no-days (`dayIndex === 0`).
+- Trip Pass pooling unaffected — pooling lives inside `checkAiCredits`, still runs once for the claim winner. Durable contract documented in `CLAUDE.md` → Code Conventions → "Build credit claim semantics".
+
+**Stripe webhook hardening (4 P1s in one commit)**
+- **Cancel-at-period-end visible:** `customer.subscription.updated` with `cancel_at_period_end=true` persists `profiles.subscription_cancel_at`. `setTier` and `subscription.deleted` clear it. Powers future UX + defensive cron if the deletion event ever fails to fire.
+- **Transient `unpaid` no longer downgrades:** the prior `unpaid` branch zeroed `ai_credits_used` to the free limit via setTier's downgrade-cap; when Stripe's smart-retry recovered, the user had a full fresh paid pool to spend twice. Only `canceled` downgrades now; `subscription.deleted` is the trust signal for final cancellation.
+- **`TIER_CREDITS` synced to `TIER_LIMITS`:** local webhook constant drifted (Nomad 300 vs 250, Free 10 vs 25). Replaced with `tierCredits()` helper reading `TIER_LIMITS` — one source of truth.
+- **Atomic AI credit increment:** new `increment_user_ai_credits` / `increment_trip_pass_credits` SECURITY DEFINER RPCs replace the read-baseline-then-write pattern. Parallel calls now serialize on a row lock instead of clobbering each other to net +cost.
+
+**Auth + abuse mitigation**
+- **Reset-link wrong-account guard:** `update-password` page trusts ONLY the `PASSWORD_RECOVERY` auth event, not `getSession()`. Previously a reset link clicked in a browser logged into a different account would rewrite that account's password via `supabase.auth.updateUser`.
+- **`/api/auth/send-reset-email` rate limited:** new generic `public.rate_limits` table + atomic `consume_rate_limit` RPC. Dual gates (5/hr per IP, 3/hr per recipient) before touching Supabase / SendGrid. Recipient-limit failures still return 200 success so attackers can't probe per-inbox state. Basic email-format validation rejects junk pre-DB.
+- Helper at `lib/supabase/rateLimit.ts` wraps the RPC + `x-forwarded-for` parsing for reuse on future unauth endpoints. Fail-open on Supabase outage.
+
+**Trip Builder gates**
+- **Multi-city paid-tier gate (real this time):** client renders `LockBadge` + `UpgradeModal` on the "Add another destination" button for free tier; server rejects `destinations.length > 1` from `userTier === 'free'` with 403 `MULTI_CITY_LOCKED` so DevTools can't bypass.
+- **Build-button re-entrancy guard:** `handleGenerateItinerary` sets `isBuilding` — rapid clicks (the skeleton POST + router.push window is ~500ms async) can no longer fire twice and create orphan skeleton trips. Spinner copy + reset on the sessionStorage failure path.
+- **fetch-reference SSRF hardening:** literal denylist expanded (cloud-metadata hostnames, CGNAT, IPv6 link-local, IPv4-mapped IPv6). New `resolvedHostIsSafe` does `dns.lookup` and rejects any A/AAAA in a blocked range — attacker-DNS pointing at RFC1918 is caught pre-fetch.
+
+**Itinerary persistence**
+- **Durable delete:** the 5s undo timer no longer holds the PATCH; deletion fires immediately on click. Closing the tab during the undo window can't lose the deletion anymore. Undo re-inserts AND re-persists.
+- **Vote rollback targeted:** both `.catch` paths in `handleVote` now revert only THIS activity's counts, not a blanket replay of day-state-at-click-time. A parallel vote on a different activity isn't wiped out by another vote's failure. `priorState` documented as per-invocation closure.
+- **Print + Day-Of localStorage scoping:** stopped falling back to the global `generatedItinerary` key on empty Supabase reads for UUID tripIds — a user with multiple trips no longer sees Trip B's days inside Trip A's print/day-of view. Demo path (non-UUID id) still uses localStorage.
+- **MapView removed:** the pseudo-grid pins were never real geocoded coordinates, and with `NEXT_PUBLIC_GOOGLE_MAPS_KEY` set the disclosure badge was suppressed — users were seeing a mock that looked real. The Route button at the day header already opens a real Google Maps multi-stop route from the day's actual activity addresses (10 waypoints), which is strictly better. Component file retained for future re-introduction once activities are server-geocoded.
+
+**Group hub — invite/vote race + UX**
+- **`vote_responses` constraint reshuffled:** dropped `UNIQUE (vote_id, voter_name)` (two members with the same display name silently lost one vote; renamed user could double-vote). Added `UNIQUE (vote_id, user_id, option_id)` which serves both single- and multi-pick. Routes treat `23505` as benign no-op success on rapid-double-click races.
+- **Single-pick race fix:** new `cast_single_pick_vote` RPC takes `FOR UPDATE` on the parent `group_votes` row and runs DELETE+INSERT inside the lock. Concurrent pick-switches from the same user serialize instead of leaving two rows.
+- **Invite-send traveler-cap pre-check:** new `getTripTravelerCap` helper in `tripAccess`. Email + SMS invite routes refuse to issue a token when `currentMembers + pendingInvites >= cap`. Recipients no longer hit a 403 dead-end on join after a SendGrid/Twilio send is already paid for.
+- **`invite/sms` validates phone BEFORE DB write** — previously inserted a `trip_invites` row with an empty phone, then returned 400, leaving orphan tokens.
+
+**Domestic-trip detection for non-US homes**
+- `isHomeCountryTrip` was doing `destination.toLowerCase().includes(homeCountry.toLowerCase())`, but `home_country` is stored as the canonical display name ("United Kingdom") while destinations are short forms ("London") — substring never matched. Every non-US user got an international "Don't Forget" seed + a visa card for their own country.
+- New: `canonicalizeCountry` normalizes input through `COUNTRY_ALIASES`; first try matches via `destinationToCountry` (comma-separated dests); falls back to alias-substring match for bare cities. UK home correctly recognizes "London" / "England" / "Scotland" / etc.
+
+**Other P2 polish**
+- **Trip Pass purchase membership check:** `stripe/checkout` admin-checks buyer is organizer or trip_member; UUID-validates `tripId` before Stripe metadata. Closes the "buy a pass for someone else's trip" path.
+- **parse-transport billing:** credit charge moved to right after the Anthropic call resolves so the 422 INCOMPLETE_PARSE path no longer bypasses billing (free Sonnet calls via garbage text).
+- **Expense PATCH `amount` recompute:** patching `lineItems` now recomputes `amount = sum(lineItems)`. Who-Owes-Who math reads `amount`; prior drift silently under-billed splits.
+- Settings "Cancel" restores `name` from `authProfile` (full DB name) instead of first-name-only. Onboarding profile-save: 3 retries + `tripcoord_pending_profile_save` flag. `activityBookingUrl` returns null without a city. Discover "Personalize with AI" link carries vibes + first season tag. Demo wishlist un-heart skips `allItems` removal so re-hearting from /discover later in-session repopulates.
+
+**Schema (all applied via MCP, types regenerated)**
+- `vote_responses` constraint swap.
+- `trips.build_credits_charged_at` timestamptz.
+- `profiles.subscription_cancel_at` timestamptz.
+- `public.rate_limits` table + RLS + `consume_rate_limit(text, integer, integer)` RPC.
+- `increment_user_ai_credits(uuid, integer)` + `increment_trip_pass_credits(uuid, integer)` RPCs.
+- `cast_single_pick_vote(uuid, uuid, text, uuid)` RPC.
+- All RPCs `SECURITY DEFINER`, EXECUTE restricted to `service_role`.
+- Fixed a pre-existing CLAUDE.md instruction that pointed types writes to `src/lib/database.types.ts` — every import actually resolves to `src/lib/supabase/database.types.ts`. Updated all references.
+
+**Audit items deliberately not addressed (with rationale)**
+- `tierResolved` follow-up — bug class closed (`memory/project_tier_resolved_followup.md`); audit re-flagged but the raw `tier` return is paired with `tierResolved` at every consumer.
+- MapView mock-vs-real coordinates — chose option C (hide rather than fix). The "Route" button gives users a real geocoded multi-stop Google Maps view, making the in-app mock strictly redundant.
+
+Commits this session: `43ae9b3` → `2314849` (10 in order). See `git log --grep="^QA pass"` for the full set with messages.
 
 ---
 

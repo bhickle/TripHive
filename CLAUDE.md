@@ -334,76 +334,79 @@ Multiple instances fight over the same auth Web Lock and silently drop the auth 
 
 ---
 
-## Recently Shipped (May 29 QA pass)
+## Recently Shipped (May 29 — product polish + landing port)
 
-Big QA-driven session — multi-agent code audit across 6 surfaces (auth, Trip Builder, itinerary, group hub, prep/layover/discover, billing) followed by **10 commits** clearing the resulting punch list: **3 P0s + 11 P1s + 7 P2s + 3 follow-ups**. No live-site verification possible (no local `.env.local`, no browser automation), so everything is code-level + `tsc` clean. See the "Verify * (live site)" items above for what still needs eyeballs.
+Second wave after the May 29 QA pass (which is in `CHANGELOG.md`). Brandon's site-review punch list: tier numbers shrunk, Help & Support flow built end-to-end, mobile audit + 6 high-confidence fixes, and the approved landing-page mockup ported to live. **4 commits.**
 
-**Build credit accounting refactor — 1 build = 1 charge regardless of chunks**
-- Prior behavior: every `generate-itinerary` chunk charged 25 credits, so a 4-7 day free single-city trip 402'd on chunk 2 and left a partial 3-day skeleton. The Trip Pass pool (50 cr) was also under-built for 6-7 day trips.
-- New `trips.build_credits_charged_at` column. First chunk wins an atomic claim (`UPDATE … WHERE … IS NULL RETURNING`); subsequent chunks see the claim set and skip `checkAiCredits` + `incrementAiCreditsUsed` entirely (`source: 'exempt'`). Multi-city now also charges once total, regardless of city count.
-- Regenerate (`?fresh=1`) sends `freshRebuild: true` on its first chunk only (one-shot `sentFreshRebuild` in the build effect); server clears the prior claim before re-claiming.
-- Failure modes revert the claim so the user can retry: `checkAiCredits` 402-denied and AI-produced-no-days (`dayIndex === 0`).
-- Trip Pass pooling unaffected — pooling lives inside `checkAiCredits`, still runs once for the claim winner. See [Build credit claim semantics](#build-credit-claim-semantics) for the durable contract.
+**Tier numbers + pricing copy alignment**
+- Nomad travelers: 15 → 12 ("extended family/friends" range, not artificially small). Explorer travelers: 8 → 6 (most casual group trips ≤6). Nomad AI credits: 250 → 200 (8 builds; tighter margin, still very generous, ~2× Explorer for less than 2× the price).
+- Single source of truth holds: `TIER_LIMITS` (src/lib/types.ts), `PRICING` (src/hooks/useEntitlements.ts), webhook `tierCredits()` helper all sync to the new caps automatically.
+- Landing + pricing pages reconciled with each other and with reality:
+  - Removed "Community support" from Free (not built; no community channel exists).
+  - Removed "Flight price alerts" from Explorer + "Unlimited flight alerts" from Nomad (not built, not on near-term roadmap).
+  - Surfaced Nomad's AI features (receipt scan, AI packing, AI phrasebook) on the landing card — they were already on /pricing but the landing card was a stripped older version.
+  - Day-limit lines added to Explorer (10) + Nomad (14).
+- `getTierFeatures()` (the single-source-of-truth that drives Settings + UpgradeModal) now skips the support line entirely when `supportLevel === 'community'` so the absence is consistent across surfaces.
+- Upgrade prompt copy ("Nomad for 10 builds") updated to 8.
+- Comparison row + FAQ on /pricing updated to "200/8 builds" math.
 
-**Stripe webhook hardening (4 P1s in one commit)**
-- **Cancel-at-period-end visible:** `customer.subscription.updated` with `cancel_at_period_end=true` persists `profiles.subscription_cancel_at`. `setTier` and `subscription.deleted` clear it. Powers future UX + defensive cron if the deletion event ever fails to fire.
-- **Transient `unpaid` no longer downgrades:** the prior `unpaid` branch zeroed `ai_credits_used` to the free limit via setTier's downgrade-cap; when Stripe's smart-retry recovered, the user had a full fresh paid pool to spend twice. Only `canceled` downgrades now; `subscription.deleted` is the trust signal for final cancellation.
-- **`TIER_CREDITS` synced to `TIER_LIMITS`:** local webhook constant drifted (Nomad 300 vs 250, Free 10 vs 25). Replaced with `tierCredits()` helper reading `TIER_LIMITS` — one source of truth.
-- **Atomic AI credit increment:** new `increment_user_ai_credits` / `increment_trip_pass_credits` SECURITY DEFINER RPCs replace the read-baseline-then-write pattern. Parallel calls now serialize on a row lock instead of clobbering each other to net +cost.
+**"Days Abroad" → "Travel Days"** — Brandon's call: keep the total-days math (don't filter home-country trips), rename the label so it's not misleading when home-country trips are counted. Updated across `/world` stats card, share-card OG image, `/share/world` summary line, and the TripStoryModal stats slide. Internal `daysAbroad` variable kept (too many ripple sites; the user-facing string was the actual bug).
 
-**Auth + abuse mitigation**
-- **Reset-link wrong-account guard:** `update-password` page trusts ONLY the `PASSWORD_RECOVERY` auth event, not `getSession()`. Previously a reset link clicked in a browser logged into a different account would rewrite that account's password via `supabase.auth.updateUser`.
-- **`/api/auth/send-reset-email` rate limited:** new generic `public.rate_limits` table + atomic `consume_rate_limit` RPC. Dual gates (5/hr per IP, 3/hr per recipient) before touching Supabase / SendGrid. Recipient-limit failures still return 200 success so attackers can't probe per-inbox state. Basic email-format validation rejects junk pre-DB.
-- Helper at `lib/supabase/rateLimit.ts` wraps the RPC + `x-forwarded-for` parsing for reuse on future unauth endpoints. Fail-open on Supabase outage.
+**Dashboard hero photo for trips outside the static map** — `destinationPhotos` only knows iceland/tokyo/barcelona/default. Strasbourg fell through to default = beach photo. Fix: prefer `nextTrip.coverImage` (already populated by TripCard's Unsplash flow + persisted in `trip_photos`) before the static map. Static map stays as fallback for trips whose cover hasn't loaded.
 
-**Trip Builder gates**
-- **Multi-city paid-tier gate (real this time):** client renders `LockBadge` + `UpgradeModal` on the "Add another destination" button for free tier; server rejects `destinations.length > 1` from `userTier === 'free'` with 403 `MULTI_CITY_LOCKED` so DevTools can't bypass.
-- **Build-button re-entrancy guard:** `handleGenerateItinerary` sets `isBuilding` — rapid clicks (the skeleton POST + router.push window is ~500ms async) can no longer fire twice and create orphan skeleton trips. Spinner copy + reset on the sessionStorage failure path.
-- **fetch-reference SSRF hardening:** literal denylist expanded (cloud-metadata hostnames, CGNAT, IPv6 link-local, IPv4-mapped IPv6). New `resolvedHostIsSafe` does `dns.lookup` and rejects any A/AAAA in a blocked range — attacker-DNS pointing at RFC1918 is caught pre-fetch.
+**Help & Support flow (medium-weight, full end-to-end)**
+- **Schema:** new `profiles.is_admin` boolean (default false; Brandon's account flipped true in the migration). New `public.support_tickets` table — id, user_id, email, name, subject, body, category (general|bug|billing|feature|account), status (open|in_progress|resolved|closed), priority (normal|high), user_tier, trip_id (FK trips), admin_notes, created_at/updated_at/resolved_at. CHECK constraints on enum columns. RLS: users SELECT/INSERT own; admins SELECT + UPDATE all via sub-select on `profiles.is_admin`. Indexes on `(status, created_at DESC)` and `(user_id, created_at DESC)`.
+- **API:**
+  - `POST /api/support/tickets` — user-facing. Auto-tags Nomad users `priority='high'` (the pricing-page promise). Fan-outs an in-app notification to every admin via the existing `notifications` table (fire-and-forget; notification failure doesn't 500 the submit).
+  - `GET /api/support/tickets[?status=…]` — admin-only, sorted priority desc then created_at desc, capped at 200.
+  - `PATCH /api/support/tickets/[id]` — admin-only, status/priority/admin_notes. Stamps `resolved_at` on transition to 'resolved'; clears on re-open.
+- **UI:**
+  - Settings → new **Help & Support** tab (HelpCircle icon, sits next to Privacy & Data in the section nav). Category select + 200-char subject + 5K-char body (with counter), Nomad users see a "your ticket is flagged priority" hint. Success card surfaces the reply-to email.
+  - `/admin/support` — server-side gated on `profiles.is_admin` (redirects non-admins to `/dashboard`, so the route doesn't surface its existence). Status-filter chips with counts. Tickets expand inline to show body + admin notes (debounced save on blur) + status/priority toggle buttons + a `mailto:` reply-by-email link with subject pre-filled. Priority-high open tickets get an amber border + badge.
+  - `NotificationPanel` wired to the new `support_ticket` notification type (renders as `reminder` icon; clicks route to `/admin/support`).
+- **Pattern to reuse:** future admin routes follow the same gate (`server-side getUser → SELECT is_admin → redirect non-admins`). Add new admins via `UPDATE profiles SET is_admin = true WHERE email = '…'`.
 
-**Itinerary persistence**
-- **Durable delete:** the 5s undo timer no longer holds the PATCH; deletion fires immediately on click. Closing the tab during the undo window can't lose the deletion anymore. Undo re-inserts AND re-persists.
-- **Vote rollback targeted:** both `.catch` paths in `handleVote` now revert only THIS activity's counts, not a blanket replay of day-state-at-click-time. A parallel vote on a different activity isn't wiped out by another vote's failure. `priorState` documented as per-invocation closure.
-- **Print + Day-Of localStorage scoping:** stopped falling back to the global `generatedItinerary` key on empty Supabase reads for UUID tripIds — a user with multiple trips no longer sees Trip B's days inside Trip A's print/day-of view. Demo path (non-UUID id) still uses localStorage.
-- **MapView removed:** the pseudo-grid pins were never real geocoded coordinates, and with `NEXT_PUBLIC_GOOGLE_MAPS_KEY` set the disclosure badge was suppressed — users were seeing a mock that looked real. The Route button at the day header already opens a real Google Maps multi-stop route from the day's actual activity addresses (10 waypoints), which is strictly better. Component file retained for future re-introduction once activities are server-geocoded.
+**Mobile responsiveness — 6 high-confidence fixes**
+- Discover horizontal-rail scroll arrows (`-translate-x-1/2` pushed them off-screen on mobile) → `hidden md:flex`. Founder + Community rails both affected.
+- Hotel + Flight modal grids in the itinerary: `grid-cols-2 gap-4` (6 instances) → `grid-cols-1 sm:grid-cols-2 gap-4`. iOS date pickers stop overlapping their labels.
+- Activity Pulse (Yay/Nay table) tightened on phone: `gap-3 px-4` → `gap-2 sm:gap-3 px-3 sm:px-4`. Header + rows kept in sync.
+- Chat bubbles `max-w-xs` → `max-w-[75%] sm:max-w-xs`. Long messages scale with viewport on phone, lock to 320px on tablet+.
+- Sidebar mobile hamburger `top-4 left-4` → `top-4 right-4` so it stops overlapping universally-left-aligned `<h1>`s on every page. Sidebar still slides from left. Added `aria-label` for screen readers. Trade-off accepted: unconventional placement but avoids touching every page's heading padding.
+- Discover 4-day preview cards `grid-cols-2 md:grid-cols-4` → `grid-cols-1 sm:grid-cols-2 md:grid-cols-4`. Cards stop cramming on iPhone SE (320px).
 
-**Group hub — invite/vote race + UX**
-- **`vote_responses` constraint reshuffled:** dropped `UNIQUE (vote_id, voter_name)` (two members with the same display name silently lost one vote; renamed user could double-vote). Added `UNIQUE (vote_id, user_id, option_id)` which serves both single- and multi-pick. Routes treat `23505` as benign no-op success on rapid-double-click races.
-- **Single-pick race fix:** new `cast_single_pick_vote` RPC takes `FOR UPDATE` on the parent `group_votes` row and runs DELETE+INSERT inside the lock. Concurrent pick-switches from the same user serialize instead of leaving two rows.
-- **Invite-send traveler-cap pre-check:** new `getTripTravelerCap` helper in `tripAccess`. Email + SMS invite routes refuse to issue a token when `currentMembers + pendingInvites >= cap`. Recipients no longer hit a 403 dead-end on join after a SendGrid/Twilio send is already paid for.
-- **`invite/sms` validates phone BEFORE DB write** — previously inserted a `trip_invites` row with an empty phone, then returned 400, leaving orphan tokens.
+**Landing page port (mockups/landing-page.html → src/app/page.tsx)**
+- The live `src/app/page.tsx` was a stripped-down older version that had drifted from the mockup. Ported the richer approved design faithfully, preserving Next.js patterns (`next/link`, `next/image`, `useCallback` scrollTo) and the `PRICING` constants so price edits flow through automatically.
+- **New sections live:** Problem statement → "All-in-one toolkit" (8 emoji-tagged tools + trip-type chip row) → 3-step How It Works → 4 feature pillars (distance / solo-or-group / split tracks / first draft, each with an inline illustrative card) → simplified pricing strip → Objection handler ("Can't I just ask a chatbot?") → 5-row FAQ (native `<details>`) → Final amber CTA → simplified footer.
+- **Pricing strip is intentionally minimal** — 4 short-blurb cards funneling to /pricing for the detailed comparison. **DO NOT** add detailed feature lists back to the landing card; that's what /pricing is for, and the minimal-funnel pattern is the design intent.
+- All paid CTAs route to `/pricing` (where Stripe checkout lives); free CTAs route to `/auth/signup`. No Stripe wiring changed.
+- ~430 line component, replacing ~450 line prior version (slightly leaner despite gaining 5 new sections — removed bulk by dropping the duplicated detailed tier feature lists).
 
-**Domestic-trip detection for non-US homes**
-- `isHomeCountryTrip` was doing `destination.toLowerCase().includes(homeCountry.toLowerCase())`, but `home_country` is stored as the canonical display name ("United Kingdom") while destinations are short forms ("London") — substring never matched. Every non-US user got an international "Don't Forget" seed + a visa card for their own country.
-- New: `canonicalizeCountry` normalizes input through `COUNTRY_ALIASES`; first try matches via `destinationToCountry` (comma-separated dests); falls back to alias-substring match for bare cities. UK home correctly recognizes "London" / "England" / "Scotland" / etc.
+**Schema this session (all via MCP, types regenerated)**
+- `profiles.is_admin boolean NOT NULL DEFAULT false`. Brandon's account flipped true in the same migration.
+- `public.support_tickets` table with full enum CHECK + RLS + indexes.
 
-**Other P2 polish**
-- **Trip Pass purchase membership check:** `stripe/checkout` admin-checks buyer is organizer or trip_member; UUID-validates `tripId` before Stripe metadata. Closes the "buy a pass for someone else's trip" path.
-- **parse-transport billing:** credit charge moved to right after the Anthropic call resolves so the 422 INCOMPLETE_PARSE path no longer bypasses billing (free Sonnet calls via garbage text).
-- **Expense PATCH `amount` recompute:** patching `lineItems` now recomputes `amount = sum(lineItems)`. Who-Owes-Who math reads `amount`; prior drift silently under-billed splits.
-- Settings "Cancel" restores `name` from `authProfile` (full DB name) instead of first-name-only. Onboarding profile-save: 3 retries + `tripcoord_pending_profile_save` flag. `activityBookingUrl` returns null without a city. Discover "Personalize with AI" link carries vibes + first season tag. Demo wishlist un-heart skips `allItems` removal so re-hearting from /discover later in-session repopulates.
+**Commits**
+- `57665ae` Tier numbers + landing+pricing copy + Strasbourg photo + Days Abroad→Travel Days rename
+- `e37c705` Support flow (schema + API + Settings form + admin inbox + notifications wiring)
+- `411c865` 6 mobile high-confidence fixes
+- `f8ab215` Landing page port
 
-**Schema (all applied via MCP, types regenerated)**
-- `vote_responses` constraint swap.
-- `trips.build_credits_charged_at` timestamptz.
-- `profiles.subscription_cancel_at` timestamptz.
-- `public.rate_limits` table + RLS + `consume_rate_limit(text, integer, integer)` RPC.
-- `increment_user_ai_credits(uuid, integer)` + `increment_trip_pass_credits(uuid, integer)` RPCs.
-- `cast_single_pick_vote(uuid, uuid, text, uuid)` RPC.
-- All RPCs `SECURITY DEFINER`, EXECUTE restricted to `service_role`.
-- Fixed a pre-existing CLAUDE.md instruction that pointed types writes to `src/lib/database.types.ts` — every import actually resolves to `src/lib/supabase/database.types.ts`. Updated all references.
+**Code-level reviews from this session (no code change — Brandon's testing)**
+- **Transport parser** — biggest live-test risk is **multi-leg confirmations silently dropping the return** (Sonnet returns ONE leg from an Amtrak outbound+return). Other concerns: Confirm-button has no double-click guard, `meetTime` default isn't enforced server-side, 12h↔24h normalization is prompt-only. 8 paste-and-go test scenarios prepared for Brandon to try (Flixbus / Hertz / Amtrak multi-leg / Viator / 12h time / vague / garbage / under-20-char).
+- **Mobile Section B** — 6 "likely problems" need device testing before deciding what to fix (multi-line day-header on phone landscape, iPad-portrait sidebar cramping, dynamic chat-panel height calc, Trip Builder group-type card stack vertical scroll, world-map projection at narrow widths, pricing comparison cards on iPad).
 
-**Audit items deliberately not addressed (with rationale)**
-- `tierResolved` follow-up — bug class closed (`memory/project_tier_resolved_followup.md`); audit re-flagged but the raw `tier` return is paired with `tierResolved` at every consumer.
-- MapView mock-vs-real coordinates — chose option C (hide rather than fix). The "Route" button gives users a real geocoded multi-stop Google Maps view, making the in-app mock strictly redundant.
-
-Commits this session: `43ae9b3` → `2314849` (10 in order). See `git log --grep="^QA pass"` for the full set with messages.
+**Verify next on live (post-deploy)**
+- Tier display: Settings → Subscription should show new caps (6 travelers Explorer / 12 Nomad / 200 credits Nomad). Pricing comparison row + FAQ math should match.
+- `/admin/support`: log in as Brandon → submit a test ticket from Settings → bell icon should tick → click it → land on `/admin/support` → ticket renders with priority badge if Nomad-tier. Log in as non-admin → `/admin/support` should redirect to `/dashboard`.
+- Strasbourg trip on dashboard: hero photo should match the actual Strasbourg cover (or the cover that was persisted via TripCard's Unsplash flow), not the default beach.
+- Landing page: section anchors (Everything inside / How It Works) scroll smoothly, FAQ details expand, final CTA goes to signup, all paid CTAs go to /pricing.
+- Mobile: hamburger top-right doesn't overlap `<h1>`; Discover rail arrows gone on phone; modal date fields full-width on phone; chat bubbles fill more bubble width.
 
 ---
 
 ## Older sessions
 
-Pre-May-29 session notes (May 9 and earlier) live in `CHANGELOG.md`. Same folder; open it directly or ask Claude to read it.
+Pre-today session notes (May 29 QA pass, May 9, May 8, May 7, and earlier) live in `CHANGELOG.md`. Same folder; open it directly or ask Claude to read it.
 
 ---
 
