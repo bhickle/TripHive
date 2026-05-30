@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
+import { addressContainsCity, lookupPlacesAddress } from '@/lib/places/verifyDayLocations';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -257,10 +258,78 @@ IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — halluci
     if (objStart === -1 || objEnd === -1) throw new Error('No JSON object in response');
     cleaned = cleaned.slice(objStart, objEnd + 1);
 
-    const activity = JSON.parse(cleaned);
+    let activity = JSON.parse(cleaned);
 
-    // Charge after a successful suggestion. Failed suggestions (caught
-    // below) don't consume credits.
+    // ── Verify-before-return: Tier 1 + Tier 2 location validation ──
+    // Same gate the day-level validator uses, scaled to a single
+    // activity. `destination` is the day's city (the itinerary client
+    // and group client both pass currentDayData.city now, falling back
+    // to the trip's destination for older trips). Up to 2 correction
+    // retries with the failed venue added to the exclude list so the
+    // AI doesn't re-suggest the same wrong-city pick. Brandon's
+    // 2026-05-30 directive: "verify before becoming an itinerary."
+    const placesApiKey = process.env.GOOGLE_MAPS_KEY ?? '';
+    const verifyActivity = async (act: { name?: string; address?: string }): Promise<boolean> => {
+      const address = typeof act.address === 'string' ? act.address : '';
+      const name = typeof act.name === 'string' ? act.name : '';
+      if (!destination || !address) return true; // can't validate, fail open
+      // Tier 1 — string check
+      if (!addressContainsCity(address, destination)) return false;
+      // Tier 2 — Places lookup. Fails open on API issues.
+      if (!placesApiKey || !name) return true;
+      const placesAddr = await lookupPlacesAddress(name, destination, placesApiKey);
+      if (placesAddr && !addressContainsCity(placesAddr, destination)) return false;
+      return true;
+    };
+
+    let verifyRetries = 0;
+    const MAX_VERIFY_RETRIES = 2;
+    const rejectedNames: string[] = [];
+    while (verifyRetries < MAX_VERIFY_RETRIES) {
+      if (await verifyActivity(activity)) break;
+      // Failed. Add the wrong-city pick to the exclude list and retry.
+      const rejectedName = typeof activity?.name === 'string' ? activity.name : 'previous suggestion';
+      rejectedNames.push(rejectedName);
+      verifyRetries++;
+      const correctionPrompt = `${prompt}
+
+CORRECTION — your previous suggestion failed location verification:
+The venue "${rejectedName}" you suggested is NOT actually located in ${destination}. This is a critical correctness failure.
+
+Add these to the HARD CONSTRAINT list (do NOT suggest any of them):
+${rejectedNames.map(n => `- ${n}`).join('\n')}
+
+Suggest a DIFFERENT venue that is genuinely located in ${destination} — verify the address before emitting. If you can't recall a real venue in ${destination}, describe a category ("a casual bistro near the town center") rather than naming a venue in the wrong city.`;
+
+      const retryMessage = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: correctionPrompt }],
+      });
+      const retryText = retryMessage.content[0].type === 'text' ? retryMessage.content[0].text : '';
+      let retryCleaned = retryText
+        .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '')
+        .replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+        .replace(/,(\s*[}\]])/g, '$1')
+        .trim();
+      const rStart = retryCleaned.indexOf('{');
+      const rEnd = retryCleaned.lastIndexOf('}');
+      if (rStart === -1 || rEnd === -1) break; // can't parse; keep last activity
+      retryCleaned = retryCleaned.slice(rStart, rEnd + 1);
+      try { activity = JSON.parse(retryCleaned); } catch { break; }
+    }
+    // Final check after the loop. If still failing, hard-fail without
+    // charging the user — they got nothing they can use.
+    if (!(await verifyActivity(activity))) {
+      console.warn(`[suggest-activity] hard-fail after ${verifyRetries} retries for ${destination}: rejected=${rejectedNames.join(', ')}`);
+      return NextResponse.json({
+        error: 'VERIFICATION_FAILED',
+        message: `Couldn't find a real ${isRestaurant ? 'restaurant' : 'venue'} in ${destination} — every suggestion kept resolving to the wrong city. Please try again or pick manually.`,
+      }, { status: 500 });
+    }
+
+    // Charge after a successful, verified suggestion. Failed suggestions
+    // (caught above or in the outer catch) don't consume credits.
     await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
     return NextResponse.json({ activity });

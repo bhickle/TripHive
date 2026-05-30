@@ -127,7 +127,7 @@ interface PlacesTextSearchResult {
  * on any API failure (Places down, network, no results) — Tier 2 then
  * fails OPEN, since Tier 1 already passed.
  */
-async function lookupPlacesAddress(
+export async function lookupPlacesAddress(
   venueName: string,
   dayCity: string,
   apiKey: string,

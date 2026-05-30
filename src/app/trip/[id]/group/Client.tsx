@@ -511,13 +511,19 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         }
       }
 
+      // Pass the DAY's city (not the trip-level destination) so excursion
+      // days like Versailles get a Versailles-area suggestion, not a
+      // Paris one. Falls back to tripDestination when the day has no
+      // city set (older trips built before the 2026-05-30 prompt fix).
+      const dayForNay = itineraryDaysData.find(d => d.day === nay.dayNumber);
+      const dayCity = dayForNay?.city || tripDestination;
       const res = await fetch('/api/suggest-activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination: tripDestination,
+          destination: dayCity,
           dayNumber: nay.dayNumber,
-          date: itineraryDaysData.find(d => d.day === nay.dayNumber)?.date ?? '',
+          date: dayForNay?.date ?? '',
           existingActivityName: nay.name,
           timeSlot: nay.timeSlot,
           track: 'shared',
@@ -525,7 +531,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data.activity) throw new Error('No suggestion');
+      if (!res.ok || !data.activity) throw new Error(data.message || 'No suggestion');
 
       // Patch the replacement into the itinerary
       const updatedDays: ItineraryDay[] = itineraryDaysData.map(day => {
