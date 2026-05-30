@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { detectLocaleCountry } from '@/lib/world/countries';
 import CountryPicker from '@/components/CountryPicker';
 import Link from 'next/link';
@@ -236,8 +237,21 @@ const INITIAL: ProfileState = {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const currentUser = useCurrentUser();
   const [step, setStep] = useState(0);
   const [state, setState] = useState<ProfileState>(INITIAL);
+
+  // Onboarding is a registered-user surface — the profile/persona it
+  // collects only makes sense when there's a Supabase user to attach it
+  // to. The old behavior let anonymous users fill out the wizard,
+  // localStorage-persist the result, then hit the /dashboard auth gate
+  // and lose the form. Redirect to signup up front instead (carries the
+  // /onboarding return target so the user lands back here after auth).
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace(`/auth/signup?redirect=${encodeURIComponent('/onboarding')}`);
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router]);
 
   const patchState = useCallback((patch: Partial<ProfileState>) => {
     setState((prev) => ({ ...prev, ...patch }));

@@ -47,6 +47,19 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
 
+  // Trip subpages (itinerary / group / prep / dayof / memories / print) are
+  // private app surfaces and must require a registered user. The individual
+  // page Clients used to be inconsistent — dashboard/trips/wishlist all
+  // redirected unauth users to /auth/login, but /trip/[id]/itinerary
+  // silently rendered the shell with empty content. Gate at the layout so
+  // every subpage gets the same redirect for free. Demo user counts as
+  // authed (real session, demo email — see lib/demo.ts).
+  useEffect(() => {
+    if (!currentUser.isLoading && !currentUser.id && !currentUser.isDemo) {
+      router.replace(`/auth/login?redirect=${encodeURIComponent(pathname)}`);
+    }
+  }, [currentUser.isLoading, currentUser.id, currentUser.isDemo, router, pathname]);
+
   const mockTrip = trips.find(t => t.id === params.id);
 
   // Always start null — avoids SSR/client hydration mismatch.
