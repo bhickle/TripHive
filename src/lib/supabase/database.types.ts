@@ -1504,6 +1504,30 @@ export type Database = {
           },
         ]
       }
+      venue_location_cache: {
+        Row: {
+          cache_key: string
+          checked_at: string
+          city: string
+          formatted_address: string | null
+          venue_name: string
+        }
+        Insert: {
+          cache_key: string
+          checked_at?: string
+          city: string
+          formatted_address?: string | null
+          venue_name: string
+        }
+        Update: {
+          cache_key?: string
+          checked_at?: string
+          city?: string
+          formatted_address?: string | null
+          venue_name?: string
+        }
+        Relationships: []
+      }
       venue_verification_cache: {
         Row: {
           cache_key: string

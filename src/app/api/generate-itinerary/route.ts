@@ -2110,6 +2110,9 @@ export async function POST(request: NextRequest) {
        * IMPORTANT: this function emits the verified `day` event itself.
        * Callers should NOT re-emit after success.
        */
+      // One admin client for the whole stream, shared by every day's
+      // location-cache reads/writes (verify-before-show Tier 2 cache).
+      const verifyLocationCacheClient = createAdminClient();
       const verifyThenSendDay = async (dayObj: Record<string, unknown>, dayIndex: number): Promise<boolean> => {
         // Wrap the day in a typed view for the validator. Day objects in
         // the SSE pipeline are Record<string, unknown> (since the AI's
@@ -2130,6 +2133,7 @@ export async function POST(request: NextRequest) {
           placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
           maxRetries: 2,
           sendStatus: (message: string) => send({ type: 'status', message }),
+          supabase: verifyLocationCacheClient,
         });
         if (result.ok) {
           // Either passed first try or was successfully corrected; emit.

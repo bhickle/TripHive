@@ -32,6 +32,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { ItineraryDay, Activity, TransportLeg } from '@/lib/types';
+import type { createAdminClient } from '@/lib/supabase/admin';
 
 // ─── Normalization helpers ──────────────────────────────────────────────────
 
@@ -120,19 +121,49 @@ interface PlacesTextSearchResult {
   formattedAddress?: string;
 }
 
-/**
- * Query Google Places for a single venue's formattedAddress. Used by
- * Tier 2 when the Tier 1 string check passes but we still want to
- * confirm the venue is physically where it claims to be. Returns null
- * on any API failure (Places down, network, no results) — Tier 2 then
- * fails OPEN, since Tier 1 already passed.
- */
-export async function lookupPlacesAddress(
+// ─── Location cache (venue_location_cache) ──────────────────────────────────
+//
+// Tier 2 Places lookups used to fire on EVERY build with zero reuse — the
+// single biggest variable cost in the build pipeline. This cache makes the
+// resolved address reusable across builds AND users (it's global: a venue's
+// address is a property of the venue, not the trip). Mirrors the proven
+// pattern in verifyVenues.ts `runVerificationPass`, but stored in its own
+// table so it never touches the open/closed-status cache path.
+
+/** 30-day TTL. Addresses barely change, but this keeps the table small and
+ *  lets the existing expire-venue-cache cron sweep it on the same cadence. */
+const LOCATION_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export interface LocationCacheContext {
+  /** Admin client (bypasses RLS). When null, lookups still run but the
+   *  results aren't persisted — only the in-request memo applies. */
+  supabase: ReturnType<typeof createAdminClient> | null;
+  /** Per-request memo: cacheKey → resolved formattedAddress (null = Places
+   *  returned no result; a real cached negative). Shared across the initial
+   *  validation and any correction re-checks so the unchanged venues on a
+   *  corrected day aren't re-looked-up. */
+  memo: Map<string, string | null>;
+}
+
+/** Canonical cache key for a (venue, city) pair. City is part of the key so
+ *  "Hard Rock Cafe" in Rome never collides with the one in Orlando. */
+function buildLocationCacheKey(venueName: string, city: string): string {
+  return `${normalize(venueName)}|${normalize(city)}`;
+}
+
+type PlacesLookupOutcome =
+  | { kind: 'found'; address: string }
+  | { kind: 'no_result' } // Places responded, zero matches → safe to cache as null
+  | { kind: 'error' };    // network/API failure → do NOT cache (transient)
+
+/** Like lookupPlacesAddress but distinguishes "no result" (cacheable) from
+ *  "error" (not cacheable), which the cache needs to avoid baking in a blip. */
+async function lookupPlacesAddressDetailed(
   venueName: string,
   dayCity: string,
   apiKey: string,
-): Promise<string | null> {
-  if (!apiKey) return null;
+): Promise<PlacesLookupOutcome> {
+  if (!apiKey) return { kind: 'error' };
   const query = `${venueName} ${dayCity}`;
   try {
     const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -144,12 +175,71 @@ export async function lookupPlacesAddress(
       },
       body: JSON.stringify({ textQuery: query, maxResultCount: 1 }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { kind: 'error' };
     const data = await res.json() as { places?: PlacesTextSearchResult[] };
-    return data.places?.[0]?.formattedAddress ?? null;
+    const addr = data.places?.[0]?.formattedAddress;
+    return addr ? { kind: 'found', address: addr } : { kind: 'no_result' };
   } catch {
-    return null;
+    return { kind: 'error' };
   }
+}
+
+/** Upsert resolved lookups (found + no_result) for future builds. Non-fatal:
+ *  a write failure just means the next build re-pays that Places call. */
+async function upsertLocationCache(
+  supabase: ReturnType<typeof createAdminClient>,
+  rows: Array<{ cache_key: string; venue_name: string; city: string; formatted_address: string | null }>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase
+    .from('venue_location_cache')
+    .upsert(rows, { onConflict: 'cache_key' });
+  if (error) console.warn('[verifyDayLocations] location cache upsert failed:', error.message);
+}
+
+/**
+ * Query Google Places for a single venue's formattedAddress. Used by
+ * Tier 2 when the Tier 1 string check passes but we still want to
+ * confirm the venue is physically where it claims to be. Returns null
+ * on any API failure (Places down, network, no results) — Tier 2 then
+ * fails OPEN, since Tier 1 already passed.
+ */
+export async function lookupPlacesAddress(
+  venueName: string,
+  dayCity: string,
+  apiKey: string,
+  cache?: LocationCacheContext,
+): Promise<string | null> {
+  if (!apiKey) return null;
+  const key = buildLocationCacheKey(venueName, dayCity);
+
+  // In-request memo first (covers repeats + correction re-checks).
+  if (cache?.memo.has(key)) return cache.memo.get(key) ?? null;
+
+  // Then the shared DB cache, if a client was supplied.
+  if (cache?.supabase) {
+    const { data } = await cache.supabase
+      .from('venue_location_cache')
+      .select('formatted_address, checked_at')
+      .eq('cache_key', key)
+      .maybeSingle();
+    if (data && Date.now() - new Date(data.checked_at).getTime() < LOCATION_CACHE_TTL_MS) {
+      cache.memo.set(key, data.formatted_address);
+      return data.formatted_address;
+    }
+  }
+
+  // Miss → Places call.
+  const outcome = await lookupPlacesAddressDetailed(venueName, dayCity, apiKey);
+  if (outcome.kind === 'error') return null; // don't cache transient failures
+  const addr = outcome.kind === 'found' ? outcome.address : null;
+  cache?.memo.set(key, addr);
+  if (cache?.supabase) {
+    await upsertLocationCache(cache.supabase, [
+      { cache_key: key, venue_name: venueName, city: dayCity, formatted_address: addr },
+    ]);
+  }
+  return addr;
 }
 
 // ─── Validation result + correction prompt ─────────────────────────────────
@@ -178,6 +268,7 @@ export interface ValidationResult {
 export async function validateDayLocations(
   day: ItineraryDay,
   placesApiKey: string,
+  cache?: LocationCacheContext,
 ): Promise<ValidationResult> {
   const dayCity = day.city;
   if (!dayCity) return { ok: true, failures: [] }; // no city set, can't validate
@@ -200,26 +291,74 @@ export async function validateDayLocations(
     }
   }
 
-  // Tier 2 — parallel Places lookups for everything that passed Tier 1.
-  // Concurrency-capped at 6 to stay polite to the Places quota.
+  // Tier 2 — Places lookups for everything that passed Tier 1, cached.
+  // A local memo is always used (so the city-match check below has the
+  // resolved address even with no DB cache); the DB read/write only happens
+  // when a supabase client was supplied via `cache`.
   if (placesApiKey && tier1Survivors.length > 0) {
-    const CONCURRENCY = 6;
-    for (let start = 0; start < tier1Survivors.length; start += CONCURRENCY) {
-      const slice = tier1Survivors.slice(start, start + CONCURRENCY);
-      const results = await Promise.all(
-        slice.map(item => lookupPlacesAddress(item.name, dayCity, placesApiKey).then(addr => ({ item, addr })))
-      );
-      for (const { item, addr } of results) {
-        if (addr && !addressContainsCity(addr, dayCity)) {
-          failures.push({
-            source: item.source,
-            index: item.index,
-            name: item.name,
-            address: item.address ?? '',
-            reason: 'places_city_mismatch',
-            placesAddress: addr,
-          });
+    const memo = cache?.memo ?? new Map<string, string | null>();
+    const supabase = cache?.supabase ?? null;
+
+    // One key per survivor; resolve uniques once (a venue repeated on the
+    // same day, or already memoized from a prior correction pass, is free).
+    const keyed = tier1Survivors.map(item => ({ item, key: buildLocationCacheKey(item.name, dayCity) }));
+    const repForKey = new Map(keyed.map(k => [k.key, k.item]));
+    const uniqueKeys = Array.from(repForKey.keys());
+
+    // Bulk-read the cache for keys we don't already have memoized.
+    if (supabase) {
+      const toRead = uniqueKeys.filter(k => !memo.has(k));
+      if (toRead.length > 0) {
+        const { data: rows } = await supabase
+          .from('venue_location_cache')
+          .select('cache_key, formatted_address, checked_at')
+          .in('cache_key', toRead);
+        const now = Date.now();
+        for (const row of rows ?? []) {
+          if (now - new Date(row.checked_at).getTime() < LOCATION_CACHE_TTL_MS) {
+            memo.set(row.cache_key, row.formatted_address);
+          }
         }
+      }
+    }
+
+    // Places-call the still-unknown keys, concurrency-capped at 6.
+    const misses = uniqueKeys.filter(k => !memo.has(k));
+    const newRows: Array<{ cache_key: string; venue_name: string; city: string; formatted_address: string | null }> = [];
+    const CONCURRENCY = 6;
+    for (let start = 0; start < misses.length; start += CONCURRENCY) {
+      const slice = misses.slice(start, start + CONCURRENCY);
+      const results = await Promise.all(
+        slice.map(key => {
+          const item = repForKey.get(key)!;
+          return lookupPlacesAddressDetailed(item.name, dayCity, placesApiKey).then(outcome => ({ key, item, outcome }));
+        }),
+      );
+      for (const { key, item, outcome } of results) {
+        if (outcome.kind === 'error') continue; // fail open, don't cache
+        const addr = outcome.kind === 'found' ? outcome.address : null;
+        memo.set(key, addr);
+        newRows.push({ cache_key: key, venue_name: item.name, city: dayCity, formatted_address: addr });
+      }
+    }
+
+    // Persist the new lookups for future builds (+ users).
+    if (supabase && newRows.length > 0) await upsertLocationCache(supabase, newRows);
+
+    // City-match check using the resolved addresses. `undefined` (a Places
+    // error with no memo entry) and `null` (no result) both fail open — same
+    // as the pre-cache behavior where a null lookup was skipped.
+    for (const { item, key } of keyed) {
+      const addr = memo.get(key);
+      if (addr && !addressContainsCity(addr, dayCity)) {
+        failures.push({
+          source: item.source,
+          index: item.index,
+          name: item.name,
+          address: item.address ?? '',
+          reason: 'places_city_mismatch',
+          placesAddress: addr,
+        });
       }
     }
   }
@@ -309,6 +448,9 @@ export interface ValidateAndCorrectOptions {
   maxRetries?: number;
   /** Optional status-event sender (SSE) — gets a friendly message string. */
   sendStatus?: (message: string) => void;
+  /** Optional admin client for the global Places location cache. When omitted
+   *  or null, verification still runs — just without cross-build caching. */
+  supabase?: ReturnType<typeof createAdminClient> | null;
 }
 
 export interface ValidateAndCorrectResult {
@@ -336,8 +478,16 @@ export async function validateAndCorrectDay(
   let current = day;
   let retries = 0;
 
+  // One cache context for this day, shared across the initial validation and
+  // every correction re-check — so a corrected day only Places-calls the
+  // venue that actually changed, not the whole day again.
+  const cache: LocationCacheContext = {
+    supabase: opts.supabase ?? null,
+    memo: new Map<string, string | null>(),
+  };
+
   // Initial validation.
-  let result = await validateDayLocations(current, opts.placesApiKey);
+  let result = await validateDayLocations(current, opts.placesApiKey, cache);
   if (result.ok) return { day: current, ok: true, retries: 0 };
 
   // Correction loop.
@@ -359,7 +509,7 @@ export async function validateAndCorrectDay(
     corrected.day = current.day;
     corrected.date = current.date;
     corrected.city = current.city;
-    result = await validateDayLocations(corrected, opts.placesApiKey);
+    result = await validateDayLocations(corrected, opts.placesApiKey, cache);
     current = corrected;
     if (result.ok) return { day: current, ok: true, retries };
   }

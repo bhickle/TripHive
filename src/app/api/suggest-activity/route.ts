@@ -3,7 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
-import { addressContainsCity, lookupPlacesAddress } from '@/lib/places/verifyDayLocations';
+import { addressContainsCity, lookupPlacesAddress, type LocationCacheContext } from '@/lib/places/verifyDayLocations';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -269,15 +270,22 @@ IMPORTANT: Always set "website" to null. Do NOT invent or guess URLs — halluci
     // AI doesn't re-suggest the same wrong-city pick. Brandon's
     // 2026-05-30 directive: "verify before becoming an itinerary."
     const placesApiKey = process.env.GOOGLE_MAPS_KEY ?? '';
+    // Shared location cache for this request — the global venue_location_cache
+    // (cross-build/user) plus a per-request memo so a venue rejected on one
+    // retry isn't re-looked-up on the next.
+    const verifyCache: LocationCacheContext = {
+      supabase: createAdminClient(),
+      memo: new Map<string, string | null>(),
+    };
     const verifyActivity = async (act: { name?: string; address?: string }): Promise<boolean> => {
       const address = typeof act.address === 'string' ? act.address : '';
       const name = typeof act.name === 'string' ? act.name : '';
       if (!destination || !address) return true; // can't validate, fail open
       // Tier 1 — string check
       if (!addressContainsCity(address, destination)) return false;
-      // Tier 2 — Places lookup. Fails open on API issues.
+      // Tier 2 — Places lookup (cached). Fails open on API issues.
       if (!placesApiKey || !name) return true;
-      const placesAddr = await lookupPlacesAddress(name, destination, placesApiKey);
+      const placesAddr = await lookupPlacesAddress(name, destination, placesApiKey, verifyCache);
       if (placesAddr && !addressContainsCity(placesAddr, destination)) return false;
       return true;
     };

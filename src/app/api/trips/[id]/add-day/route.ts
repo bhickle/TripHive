@@ -202,6 +202,7 @@ Rules:
         systemPrompt: SYSTEM_PROMPT,
         placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
         maxRetries: 2,
+        supabase: createAdminClient(),
       });
       if (!verifyResult.ok) {
         const failedNames = (verifyResult.finalFailures ?? [])
