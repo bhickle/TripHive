@@ -166,6 +166,21 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
     setTimeout(() => setLinkCopied(false), 2500);
   };
 
+  // Don't render the trip shell until auth resolves AND we have a user. The
+  // useEffect above will redirect unauth users, but without this guard the
+  // shell briefly renders (sidebar + topbar + empty page) before the bounce
+  // — feels broken even though functionally it's correct. Demo user gets
+  // through immediately. (QA-pass finding 2026-05-29.)
+  const authResolving = currentUser.isLoading;
+  const hasAccess = !!currentUser.id || currentUser.isDemo;
+  if (authResolving || !hasAccess) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-parchment">
+        <div className="text-sm text-zinc-500">Loading…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-parchment">
       <Sidebar

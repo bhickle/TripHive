@@ -194,10 +194,20 @@ export default function LoginPage() {
 
           {/* OAuth (Google/Apple) hidden until providers are configured in Supabase. */}
 
-          {/* Sign Up Link */}
+          {/* Sign Up Link — preserves ?redirect= so the bounce-through
+              auth flow lands the user on the same return target after
+              they create an account. (QA-pass finding 2026-05-29.) */}
           <p className="text-center text-zinc-600">
             Don&apos;t have an account?{' '}
-            <Link href="/auth/signup" className="font-semibold text-sky-700 hover:text-sky-800">
+            <Link
+              href={(() => {
+                const r = typeof window !== 'undefined'
+                  ? new URLSearchParams(window.location.search).get('redirect')
+                  : null;
+                return r ? `/auth/signup?redirect=${encodeURIComponent(r)}` : '/auth/signup';
+              })()}
+              className="font-semibold text-sky-700 hover:text-sky-800"
+            >
               Sign up
             </Link>
           </p>

@@ -137,7 +137,7 @@ function SignupPageInner() {
                 Didn&apos;t get it? Check spam or wait a minute and refresh your inbox.
               </p>
               <a
-                href="/auth/login"
+                href={`/auth/login${searchParams?.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect') as string)}` : ''}`}
                 className="inline-block text-sm font-semibold text-sky-700 hover:text-sky-900 underline-offset-2 hover:underline"
               >
                 Already confirmed? Log in →
@@ -287,10 +287,17 @@ function SignupPageInner() {
 
           {/* OAuth (Google/Apple) hidden until providers are configured in Supabase. */}
 
-          {/* Log In Link */}
+          {/* Log In Link — preserves ?redirect= so a user who bounced into
+              signup from /onboarding (or anywhere else) and clicks "Log in"
+              instead lands back on the same return target after login. The
+              previous bare /auth/login link dropped the param and the user
+              ended up on /dashboard regardless. (QA-pass finding 2026-05-29.) */}
           <p className="text-center text-zinc-600">
             Already have an account?{' '}
-            <Link href="/auth/login" className="font-semibold text-sky-700 hover:text-sky-800">
+            <Link
+              href={`/auth/login${searchParams?.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect') as string)}` : ''}`}
+              className="font-semibold text-sky-700 hover:text-sky-800"
+            >
               Log in
             </Link>
           </p>
