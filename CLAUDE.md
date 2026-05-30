@@ -2,7 +2,7 @@
 
 > **App name:** tripcoord (brand, always lowercase) / **Repo:** tripcoord / **Domain:** tripcoord.ai  
 > **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · Supabase · Anthropic Claude API · Stripe  
-> **Last updated:** 2026-05-29
+> **Last updated:** 2026-05-30
 
 ---
 
@@ -362,69 +362,98 @@ const supabase = createSupabaseBrowserClient();
 ```
 Multiple instances fight over the same auth Web Lock and silently drop the auth session, which makes calls run as anonymous and silently fail RLS. This was the root cause of the photo-upload-vanishes-on-refresh bug (commit after `9191974`).
 
+### Verify-before-show (AI emit gate)
+Every AI route that emits a day or activity to the user runs through a 2-tier location-validation gate BEFORE the data reaches the client. The shared helper is `src/lib/places/verifyDayLocations.ts`:
+
+```ts
+import { validateAndCorrectDay } from '@/lib/places/verifyDayLocations';
+const result = await validateAndCorrectDay(dayObj, {
+  anthropic: client,
+  modelId: 'claude-sonnet-4-6',
+  systemPrompt: SYSTEM_PROMPT,
+  placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
+  maxRetries: 2,
+  sendStatus: (msg) => send({ type: 'status', message: msg }),
+});
+if (!result.ok) { /* hard fail — return 500 / SSE error, don't charge */ }
+return result.day;
+```
+
+**Tier 1** (free): string-check every activity's `address` against `day.city` (normalized — strip diacritics, lowercase, expand St./Mt.). **Tier 2** (~$0.03/venue): Places API lookup for venues that passed Tier 1, check the resolved `formattedAddress` contains `day.city`. On failure: re-prompt the AI for the single failing day/activity with explicit correction guidance + retry up to 2x. On hard fail: emit error + don't charge credits.
+
+Coverage: `/api/generate-itinerary` (all 3 SSE emit sites), `/api/trips/[id]/add-day`, `/api/suggest-activity`. The smaller-grain `addressContainsCity` + `lookupPlacesAddress` are exported for the single-activity path. Brandon's 2026-05-30 directive: "I want it to verify before becoming an itinerary." Don't add a NEW AI-emit route without wiring it through this gate.
+
 ---
 
-## Recently Shipped (May 29 evening — multi-admin + design consistency sweep + naming)
+## Recently Shipped (May 29 night → May 30 morning — QA pass + landing reposition + verify-before-show)
 
-Third wave of the May 29 marathon. Brandon submitted a test support ticket and asked how multi-admin coordination would work — that question kicked off the rest of the session: 4 admins granted, ticket assignment + audit trail shipped, a full design-consistency audit + 3 rounds of fixes, and three naming/voice decisions. **9 commits.**
+Two-day marathon. Started with a 5-agent QA pass on the full site, became a strategic landing reposition (group-OS pitch, demote AI itinerary), became cost-cutting AI model routing, became a brutal-honesty product audit, ended with a real correctness bug fix that grew into a multi-route verify-before-show architecture. **17 commits.**
 
-**Multi-admin support coordination**
-- **3 new admins granted via SQL**: Abby Stark, Mallory Hixon, Luke. All four (incl. Brandon) are `is_admin = true` — `/admin/support` is reachable and ticket fan-outs hit everyone.
-- **Schema:** `support_tickets.assigned_to` + `support_tickets.last_updated_by` (both uuid FK → profiles ON DELETE SET NULL). Indexed on `assigned_to`.
-- **API:** GET returns `{ tickets, admins, callerId }` for N+1-free name rendering. PATCH accepts `assigned_to`, validates admin, stamps `last_updated_by = caller`, fires in-app notification to a new assignee when it's someone OTHER than the caller.
-- **UI:** assignment badge per ticket ("Unclaimed" / "You" sky / first-name violet), "Assigned to me" filter chip, Claim/Reassign/Unassign buttons + an "Assign to…" select, "Last touched by X · Yh ago" footer, sky-tinted card border when assigned to caller. Sort: unassigned-first → priority → newest.
-- **Bug caught during the multi-admin test (commit `ffb2db4`):** `ORDER BY priority DESC` was putting 'normal' BEFORE 'high' because Postgres sorts text columns lexicographically (`'h' < 'n'`). Flipped to ASC, captured in memory `text-enum-sort-gotcha` so it's not repeated for 3+-value text enums.
+**QA pass — 5 themed fix groups (commits `503be26` → `aa96791`)**
+- Group A — Day-Of + Print palette reconciliation: ~30 slate→zinc swaps on dayof; `rounded-xl` → `rounded-2xl` on hero + tile cards; End-of-day button `slate-900 rounded-xl` → `sky-800 rounded-full`; Print page amber → zinc on Tonight's Stay + prep notes (was overusing amber for non-Trip-Pass copy).
+- Group B — Brand color violations: Bus/Coach `indigo-*` → `sky-700`; HIGHLIGHT_CATEGORY_META nightlife `fuchsia-*` → `amber-*`; Date Night `pink-*` → `rose-*`; `/trips` share filter `amber-500` → `sky-800`.
+- Group C — Button shape normalization: prep Generate AI List + Pack tabs `rounded-xl` → `rounded-full`; group pending member row `rounded-xl` → `rounded-2xl`; community/[id] like+fork+activity-like `rounded-lg` → `rounded-full`.
+- Group D — Hand-rolled empty states → shared `<EmptyState>`: dashboard "Tumbleweeds", itinerary "No itinerary yet", Discover community-empty (3 → 6 adopters).
+- Group E — API + prompt hardening: EDITORIAL BACKBONE MAY → MUST swap on dietary/accessibility clash; CommunityTripCard day-preview responsive grid (`grid-cols-2` → `grid-cols-1 sm:grid-cols-2`).
 
-**Dashboard notification bell unified with itinerary (commit `577c008`)**
-- Dashboard had its own 250-line custom Bell + dropdown that wasn't opening, positioned RIGHT of "Add Someone" while the itinerary TopBar put it LEFT. Brandon flagged the look mismatch + non-functionality.
-- Fix: ripped out the dashboard's custom bell + state + panel JSX (254 lines deleted, 18 added) and used the shared `<NotificationBell />` from `src/components/NotificationPanel` — same component the itinerary's TopBar mounts. Self-contained: fetches /api/notifications, subscribes to Realtime, renders its own dropdown with deep-link routing.
-- Moved LEFT of "Add Someone" to match TopBar order.
+**Landing + pricing visual unification (commits `a70084c` → `4785b67`)**
+- New shared `<MarketingNav>` component at `src/components/MarketingNav.tsx`; mounted on `/` AND `/pricing` (was a stripped Back+logo shell). Anchor links use `/#all-in-one` and `/#how` so they navigate-and-scroll from /pricing AND hash-scroll from /.
+- Hero copy rewritten: "✦ The group trip's planning OS — solo welcome too" + h1 "Plan it together. Pull it off as a group." Toolkit grid 8 emojis → Lucide icons in sky-50 chips with sky-800 strokes. Pillar 1-4 reordered: Group → Split Tracks → Day-Of → AI (was AI first). Cruise mode tile DROPPED (overselling what shipped); Group voting tile added. "split tracks" prose unbolded. "Everything inside" nav link → "All In One Place" with parity in the section eyebrow.
 
-**Design consistency audit + sweep — 3 rounds, ~20 items.** A multi-agent design audit caught visible drift across landing/pricing, auth/settings, dashboard/world, itinerary, group/prep/discover/layover. Highlights:
+**Anonymous-app-access gating (commit `d0868ab`)**
+- Brandon's directive: "no ways to get into the app without registering for the free version." Audit found two unguarded surfaces: `/trip/[id]/*` (the layout) and `/onboarding`. Both now redirect unauth users to login/signup with `?redirect=` preservation. Marketing/Discover stays public — funnel content, not app.
 
-- **Brand color discipline enforced** — the systemic change was flipping `.btn-primary` and `.input-field` (in `globals.css`) from amber → sky. Auth pages all used these so their submit buttons + input focus rings were AMBER while everything else was sky. Track A/B colors also moved from violet/rose → sky/amber. Detailed rule in [Brand color discipline](#brand-color-discipline) under Code Conventions.
-- **Cross-surface rhythm** — itinerary activity card `rounded-xl` → `rounded-2xl`; dashboard hero `text-5xl` → `text-4xl`; eyebrow color standardized to `text-zinc-500` across landing surfaces; TripCard padding `p-4` → `p-5`; Day-Of palette reconciled (slate-50 → parchment, rounded-xl → rounded-2xl, slate borders → zinc).
-- **Auth polish (round 2)** — Eye/EyeOff toggles on login + signup, "Sign in" → "Log in" everywhere, sentence-case CTAs ("Log in" / "Create account" / proper `…`), Settings input recipe standardized.
-- **Layover CTAs** `rounded-lg` → `rounded-full` (4 buttons). Layover stopped reading as a different app.
-- **Trip Builder Step 1** selected-card border green-700 → sky-700 (green-700 was also the "completed step" indicator — the overlap was confusing).
-- **Pricing tier badges aligned to Landing** — both pages now flag Trip Pass = "Most popular" (amber pill) and Explorer = "Best value" (emerald pill).
-- **New shared `<EmptyState>` component** at `src/components/EmptyState.tsx`. See [Empty state pattern](#empty-state-pattern) under Code Conventions. Adopted in Group chat / Group expenses / Prep My Pack.
-- Smaller wins: Activity Pulse header restyled (sky-800 band → white + uppercase), undo-delete toast `rounded-full` → `rounded-2xl` (matches the other 5 toasts).
+**Onboarding terminal fork screen (commit `95e294c`)**
+- After signup + profile + persona, the wizard used to auto-route to /trip/new. Now lands on a new step 2 fork screen asking "What do you want to do first?" with three CTA cards: Build a trip (sky-700 primary) → /trip/new?firsttrip=true · Browse Discover → /discover · Look around → /dashboard. Profile saves on step 1→2 transition so the fork CTAs are pure navigation.
 
-**Naming + voice decisions (commit `37893ae`)**
-- **"Trips" wins over "Adventures"** as the canonical noun. Dashboard stat "Adventures Planned" → "Trips Planned"; metadata "My Adventures" → "My Trips"; sidebar nav "Adventures" → "Trips". TripStoryModal slide kept "Adventures" as flavor copy.
-- **Trip Builder wizard step labels** normalized to short noun phrases: Who's In / Where To / When / Head Start / **Vibe** / **Pace** / **Budget** / **Build Trip**.
-- **Prep hub tabs pushed voicey** to match Group hub: "Important Stuff" → "Heads Up", "Phrases" → "Speak Local". Group hub stays as-is.
-- **Settled and NOT changing**: "On My Radar" stays on dashboard + /wishlist; "Wishlist" stays in the Group hub — these are intentionally different concepts (personal save list vs trip-scoped wishlist of community items).
+**AI model routing (commit `cbfe2e1`)** — cost-cutting per Brandon's brutal-honesty session
+- `parse-receipt` Opus 4.7 → Haiku 4.5 (vision OCR; ~15x cheaper)
+- `add-day` Opus 4.7 → Sonnet 4.6 (single day = one /generate-itinerary chunk; Opus was overkill)
+- `generate-phrases` Sonnet 4.6 → Haiku 4.5 (translation, Haiku's sweet spot)
+- `parse-transport` Sonnet 4.6 → Haiku 4.5 (structured extract)
+- Untouched: generate-itinerary, suggest-activity, generate-layover, parse-itinerary (quality-critical).
 
-**Mobile (1 fix this evening)**
-Trip Builder Step 1 group-type cards `grid-cols-1 md:grid-cols-2` → `grid-cols-2 md:grid-cols-4`; inner padding `p-6` → `p-4 sm:p-6`; icon `w-8 h-8` → `w-7 h-7 sm:w-8 sm:h-8`. The four cards used to eat ~480px stacked on iPhone SE.
+**QA-pass P0 + quick wins (commits `388e11f`, `3c1f59c`)**
+- Trip layout auth flash: was render-then-redirect (unauth users briefly saw shell); now renders centered "Loading…" until auth resolves.
+- Auth cross-link `?redirect=` preservation: "Already have an account? Log in" + "Don't have an account? Sign up" + "Already confirmed? Log in" links now carry the redirect param forward (was dropping it, breaking the onboarding cold-start chain).
+- Discover guest header `border-slate-200` → `border-zinc-200`; pricing billing toggle inactive contrast `zinc-500` → `zinc-600`; onboarding step-1 hint copy tweak; documented `?firsttrip=true` param semantics.
 
-**Schema this session (via MCP, types regenerated)**
-- `support_tickets.assigned_to` (uuid FK profiles ON DELETE SET NULL).
-- `support_tickets.last_updated_by` (uuid FK profiles ON DELETE SET NULL).
-- Index `idx_support_tickets_assigned_to`.
-- `profiles.is_admin = true` for Abby, Mallory, Luke (Brandon was already admin).
+**The Versailles bug + verify-before-show (commits `49266ae`, `e1f1233`, `08b5db1`, `4e71b68`) — the biggest architectural shift**
+
+Brandon caught a real correctness failure: a Paris trip's Versailles excursion-day listed La Jacobine ("59-61 Rue Saint-André des Arts, 75006 Paris") as the lunch venue, 17 km from the Palace of Versailles, with a fabricated "5 min walk, 0.2 mi" transport leg. Four stacked gaps:
+
+1. `day.city` was set to the BASE city for day-trips (per the prompt rule), so the model lost the "we're in Versailles all day" anchor.
+2. No prompt rule said "every activity's address must be in the day's city."
+3. Transport-leg distance/duration was unchecked AI free text.
+4. `verifyVenues` only checks open/closed status, not location.
+
+**Layer 1 — prompt fix (49266ae):** Three edits to `generate-itinerary/route.ts`. `day.city` rule rewritten ("set to the EXCURSION city, not the base city"). DAY-TRIP EXCURSION RULE extended with three sub-rules: (a) set city correctly, (b) every venue MUST be in excursion city with explicit category-fallback if uncertain, (c) return leg unchanged. New Rule 23 — ADDRESS-CITY CONSISTENCY anti-hallucination guard — applies universally with "STOP and pick a different venue" instruction.
+
+**Layer 2 — verify-before-show (e1f1233 + 08b5db1 + 4e71b68):** Brandon vetoed the UI warning badge approach ("verify before becoming an itinerary"). New helper `src/lib/places/verifyDayLocations.ts` exports `validateAndCorrectDay` + the smaller-grain `addressContainsCity` + `lookupPlacesAddress`. Pipeline: every emitted day/activity passes through Tier 1 (string check `address ⊃ day.city` with diacritic strip + St./Mt. expansion) + Tier 2 (Places API lookup, concurrency-capped at 6). On failure, the failing day/activity is re-prompted with explicit correction guidance, retried up to 2x. Status events stream to the client ("Fixing location issues on day 3…"). Hard fail emits a 500/SSE error with a clear human-readable message naming the venues; credits NOT charged on hard fail. Wrapped routes: `/api/generate-itinerary` (all 3 SSE emit sites — main, salvage, continuation), `/api/trips/[id]/add-day`, `/api/suggest-activity`. Group hub's "Suggest another" also fixed to pass `day.city` instead of `tripDestination`.
+
+**Side product/strategy work (no code)**
+- Strategic brutal-honesty session: positioning ("group OS" not "all-in-one"), surface-area cut suggestion (defer Cruise/Memories/Travel Map marketing), pricing simplification analysis (partner-discussion outline in `PRICING_TIER_COLLAPSE_OUTLINE.md`).
+- Pricing tier collapse outline saved to repo root as `PRICING_TIER_COLLAPSE_OUTLINE.md` (decision: keep all four tiers for now per Brandon; document captures the case for $30→$35 Trip Pass, adds Travel Agent tier as a future B2B offering with separate landing page, confirms annual discounts already at 20%).
 
 **New code artifacts**
-- `src/components/EmptyState.tsx` — canonical empty-state shell (see Code Conventions).
-- `TRANSPORT_PARSER_TEST_PROMPTS.md` (repo root) — 8 paste-and-go scenarios for the transport parser, from the earlier code review. Use when sitting down to live-test.
-
-Commits this session: `85d1179` → `37893ae` (9 in order; see `git log --grep="Polish round\|Support inbox\|Dashboard.*bell\|Trip Builder mobile\|Design consistency\|Naming"` for the set).
+- `src/components/MarketingNav.tsx` — shared landing+pricing header
+- `src/lib/places/verifyDayLocations.ts` — verify-before-show helpers
+- `src/lib/itinerary-preview.ts` — extracts day preview shape for community/founder endpoints (from earlier in the marathon)
+- `PRICING_TIER_COLLAPSE_OUTLINE.md` — partner-discussion outline
 
 **Verify next on live**
-- Dashboard bell matches the itinerary TopBar visually + opens its dropdown; Realtime ticks on new notifications.
-- `/admin/support`: all 4 admins reachable; Claim/Reassign/Unassign work; priority sort puts 'high' first.
-- Trip Builder Step 1 cards 2×2 on phone; selected state sky-700 not green-700.
-- Day-Of reads as a continuation of the itinerary (parchment, zinc borders, rounded-2xl).
-- Auth submit buttons sky-800 not amber; password Eye/EyeOff toggle on login + signup.
-- Prep tabs: "Heads Up / My Flights / Admin / Pack This / Speak Local". Sidebar: "Trips" not "Adventures".
+- Anonymous user → /trip/some-id/itinerary should briefly show "Loading…" then bounce to /auth/login?redirect=… (no shell flash).
+- Onboarding cold start: register → profile → style → fork screen with three cards.
+- Landing reads as group-OS (group voting tile, "Plan it together. Pull it off as a group.").
+- Pricing page has the full landing header.
+- AI quality spot-checks on the Haiku routes: receipt scan, phrasebook, transport parse, add-day.
+- The big one: re-trigger a Paris+Versailles trip. Versailles day's lunch should be a real Versailles-area venue (palace café, La Flottille, Au Bonheur de Stéphanie, etc.) — NEVER a Paris venue. Watch for status events ("Fixing location issues on day N…") in the live build banner if the AI tried something wrong-city.
 
 ---
 
 ## Older sessions
 
-Pre-today session notes (May 29 product-polish + landing port, May 29 QA pass, May 9, May 8, May 7, and earlier) all live in `CHANGELOG.md`. Three rotations on 2026-05-29 — heavy day. Open it or ask Claude.
+Pre-today session notes (May 29 evening multi-admin + design-consistency-sweep, May 29 product-polish + landing port, May 29 QA pass, May 9, May 8, May 7, and earlier) all live in `CHANGELOG.md`. Four rotations on 2026-05-29 — heavy day.
 
 ---
 
@@ -441,4 +470,9 @@ Pre-today session notes (May 29 product-polish + landing port, May 29 QA pass, M
 | Shared TypeScript types | `src/lib/types.ts` |
 | Supabase schema types | `src/lib/supabase/database.types.ts` |
 | Auth user hook | `src/hooks/useCurrentUser.ts` |
+| Verify-before-show helper | `src/lib/places/verifyDayLocations.ts` |
+| Shared marketing nav (/ + /pricing) | `src/components/MarketingNav.tsx` |
+| Shared empty-state shell | `src/components/EmptyState.tsx` |
+| Day-preview extractor (community/founder) | `src/lib/itinerary-preview.ts` |
+| Pricing-strategy partner outline | `PRICING_TIER_COLLAPSE_OUTLINE.md` |
 | Go-live checklist | `GOLIVE_CHECKLIST.md` (workspace root) |

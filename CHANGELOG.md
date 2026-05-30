@@ -5,6 +5,32 @@
 > May 9 session moved here on 2026-05-29 when the May 29 QA-pass session took its slot.
 > May 29 QA-pass session moved here on 2026-05-29 later the same day when the product-polish + landing-port session took the slot.
 > May 29 product-polish + landing-port session moved here later the same day when the multi-admin + design-consistency-sweep session took the slot (third rotation in 24h — heavy day).
+> May 29 multi-admin + design-consistency-sweep session moved here on 2026-05-30 when the night-marathon + verify-before-show session took the slot.
+
+---
+
+## Recently Shipped (May 29 evening — multi-admin + design consistency sweep + naming)
+
+Third wave of the May 29 marathon. Brandon submitted a test support ticket and asked how multi-admin coordination would work — that question kicked off the rest of the session: 4 admins granted, ticket assignment + audit trail shipped, a full design-consistency audit + 3 rounds of fixes, and three naming/voice decisions. **9 commits.**
+
+**Multi-admin support coordination**
+- **3 new admins granted via SQL**: Abby Stark, Mallory Hixon, Luke. All four (incl. Brandon) are `is_admin = true` — `/admin/support` is reachable and ticket fan-outs hit everyone.
+- **Schema:** `support_tickets.assigned_to` + `support_tickets.last_updated_by` (both uuid FK → profiles ON DELETE SET NULL). Indexed on `assigned_to`.
+- **API:** GET returns `{ tickets, admins, callerId }` for N+1-free name rendering. PATCH accepts `assigned_to`, validates admin, stamps `last_updated_by = caller`, fires in-app notification to a new assignee when it's someone OTHER than the caller.
+- **UI:** assignment badge per ticket ("Unclaimed" / "You" sky / first-name violet), "Assigned to me" filter chip, Claim/Reassign/Unassign buttons + an "Assign to…" select, "Last touched by X · Yh ago" footer, sky-tinted card border when assigned to caller. Sort: unassigned-first → priority → newest.
+- **Bug caught during the multi-admin test (commit `ffb2db4`):** `ORDER BY priority DESC` was putting 'normal' BEFORE 'high' because Postgres sorts text columns lexicographically (`'h' < 'n'`). Flipped to ASC, captured in memory `text-enum-sort-gotcha` so it's not repeated for 3+-value text enums.
+
+**Dashboard notification bell unified with itinerary (commit `577c008`)** — dashboard's custom 250-line bell ripped out + shared `<NotificationBell />` mounted; moved LEFT of "Add Someone" to match TopBar order.
+
+**Design consistency audit + sweep — 3 rounds, ~20 items.** `.btn-primary` and `.input-field` (in `globals.css`) flipped amber → sky; Track A/B colors moved from violet/rose → sky/amber; itinerary activity card `rounded-xl` → `rounded-2xl`; dashboard hero `text-5xl` → `text-4xl`; eyebrow color standardized to `text-zinc-500`; TripCard padding `p-4` → `p-5`; Day-Of palette reconciled (slate-50 → parchment, rounded-xl → rounded-2xl, slate borders → zinc); auth Eye/EyeOff toggles added; Layover CTAs `rounded-lg` → `rounded-full`; Trip Builder Step 1 selected border green-700 → sky-700; pricing tier badges aligned to landing (Trip Pass "Most popular" amber, Explorer "Best value" emerald); new shared `<EmptyState>` component at `src/components/EmptyState.tsx` (adopted in Group chat / Group expenses / Prep My Pack).
+
+**Naming + voice (commit `37893ae`)** — "Trips" wins over "Adventures" (dashboard stat, metadata, sidebar). Trip Builder wizard step labels normalized to short noun phrases (Who's In / Where To / When / Head Start / Vibe / Pace / Budget / Build Trip). Prep hub tabs pushed voicey ("Important Stuff" → "Heads Up", "Phrases" → "Speak Local"). "On My Radar" + Group hub "Wishlist" kept as intentionally different concepts.
+
+**Mobile (1 fix)** — Trip Builder Step 1 group-type cards `grid-cols-1 md:grid-cols-2` → `grid-cols-2 md:grid-cols-4` (was eating ~480px stacked on iPhone SE).
+
+**Schema this session** — `support_tickets.assigned_to`, `support_tickets.last_updated_by`, `idx_support_tickets_assigned_to`, `profiles.is_admin = true` for Abby/Mallory/Luke.
+
+Commits this session: `85d1179` → `37893ae` (9 in order).
 
 ---
 
