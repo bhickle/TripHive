@@ -1272,7 +1272,7 @@ ${hasShoppingPriority ? `
     "shoppingGuide": [ ... (EVERY day — exactly 2 spots anchored to this day's neighborhoods) ],` : ''}
     "day": 1,
     "date": "${startDate}",
-    "city": "Primary city or town for this day (e.g. 'Paris', 'Reykjavik', 'Kyoto') — used for per-day weather. For day trips from a base city, use the base city.",
+    "city": "Physical city/town the group is in for this day (e.g. 'Paris', 'Versailles', 'Reykjavik'). Used for per-day weather AND to validate every activity's address. For day-trips away from the base city, set this to the EXCURSION city — on a Versailles excursion from a Paris-base trip, this is 'Versailles', not 'Paris'. Treat this field as the source of truth for where the group physically is all day.",
     "theme": "Evocative 3-5 word theme for the day",
     "photoSpots": [
       {
@@ -1384,7 +1384,10 @@ Every activity must include a "transportToNext" field:
 - distanceMiles: distance in miles (use 0 for car/rideshare where exact route varies)
 - notes: CRITICAL — this must describe the journey FROM the CURRENT activity TO the NEXT activity. The note must reference the destination of the NEXT activity (e.g., if walking to a castle next, write "Walk north along the river to the castle entrance"). Never describe a route to a place you already visited, and never reference the previous activity's destination. Always look FORWARD to where the group is going next.
 Set transportToNext to null on the last activity of each day (no onward journey needed).
-DAY-TRIP / EXCURSION RETURN RULE: On any day where the group travels outside their home city or base hotel (e.g., Versailles from Paris, Salzburg from Munich, a coastal day trip), the last activity of that excursion MUST include a transportToNext leg explicitly routing the group back to the home city or hotel. Never leave the group stranded at the excursion site with no return journey shown. The return leg must be realistic: same mode they used to get there (train back, rideshare back, etc.) with accurate duration.
+DAY-TRIP / EXCURSION RULE: On any day where the group travels outside their home city or base hotel (e.g., Versailles from Paris, Salzburg from Munich, a coastal day trip):
+  (a) Set "city" to the EXCURSION city (e.g. 'Versailles'), not the base city.
+  (b) Every activity, restaurant, café, and photo spot on this day MUST be physically located in that excursion city or its immediate surroundings (≤ 5 mi / 8 km from the excursion's anchor venue). NEVER place a venue from the base city (e.g. a central Paris restaurant) on a Versailles day — that is a critical correctness failure. If you can't recall a real restaurant in the excursion city, choose a known on-site option (the Versailles palace grounds have multiple cafés; trains have dining cars; etc.) or describe a category ("a brasserie near the Versailles RER station") rather than naming a venue in the wrong city.
+  (c) The last activity of the excursion MUST include a transportToNext leg explicitly routing the group back to the base city or hotel. The return leg must be realistic — same mode they used to get there (train back, rideshare back, etc.) with accurate duration.
 
 MODE SELECTION RULES (based on travel time):
 - Under 15 min: walk (if terrain allows) or rideshare
@@ -1434,7 +1437,8 @@ RULES:
   - For restaurants, bars, cafés, smaller indie attractions, and themed/niche spots: when the REAL VENUES list above includes options, PREFER those over venues drawn from training-data memory. The Places list is freshness-filtered; your training data is not — restaurants close, change ownership, or rebrand often, and a venue you remember as great may be permanently shut.
   - If you must reach beyond the list (sparse data for a small town), only suggest establishments you are HIGHLY CONFIDENT are still operating today. When in doubt, fall back to a more durable option — a museum, market, public park, well-known neighborhood walk, or a long-established institution — rather than a specific small business you can't be sure is still open.
   - For very large or niche venues (single-location attractions, theme-park-specific restaurants, festival-only pop-ups), state in the activity description that travelers should verify current operating status on the official website before going, if there is any doubt.
-  - This rule applies to attractions too: an attraction you remember as open may have closed permanently. If you are not confident a niche attraction is still operating, omit it.${dailyOutlinesText ? dailyOutlinesText : ''}
+  - This rule applies to attractions too: an attraction you remember as open may have closed permanently. If you are not confident a niche attraction is still operating, omit it.
+23. ADDRESS-CITY CONSISTENCY — anti-hallucination guard: Every activity's "address" field MUST be in the day's "city" field or its immediate metropolitan area. Before emitting any venue, mentally check: "Is this venue physically in the day's city?" If not — STOP and pick a different venue. This rule is independent of the excursion rule above; it applies to EVERY day. The model has been observed picking real restaurants by name without verifying their location (e.g. naming a Paris restaurant on a Versailles day). This is a critical correctness failure. When in doubt about whether a specific venue is in the right city, pick a generic-but-correct description ("a casual bistro near the Place d'Armes") over a confidently-named-but-wrong specific venue.${dailyOutlinesText ? dailyOutlinesText : ''}
 ${getSeasonalContext(startDate, destination)}
 
 Return ONLY the JSON array. No markdown. No explanation. Start with [ and end with ].`;
