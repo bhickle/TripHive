@@ -117,13 +117,13 @@ function TransportCardDayOf({ leg, status }: { leg: TransportLeg; status: 'done'
     }`}>
       <button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setExpanded(!expanded)}>
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-          status === 'done' ? 'bg-slate-100 text-slate-400' : `${cfg.bgColor} ${cfg.color}`
+          status === 'done' ? 'bg-zinc-100 text-zinc-400' : `${cfg.bgColor} ${cfg.color}`
         }`}>
           {cfg.icon}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-semibold uppercase tracking-wide ${status === 'done' ? 'text-slate-400' : cfg.color}`}>
+            <span className={`text-xs font-semibold uppercase tracking-wide ${status === 'done' ? 'text-zinc-400' : cfg.color}`}>
               {cfg.label}
             </span>
             {status === 'now' && (
@@ -135,54 +135,54 @@ function TransportCardDayOf({ leg, status }: { leg: TransportLeg; status: 'done'
               <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">SOON</span>
             )}
           </div>
-          <p className={`font-semibold text-sm truncate ${status === 'done' ? 'text-slate-400' : 'text-slate-900'}`}>
+          <p className={`font-semibold text-sm truncate ${status === 'done' ? 'text-zinc-400' : 'text-zinc-900'}`}>
             {leg.meetingPoint}
           </p>
-          <p className="text-xs text-slate-500 truncate">
+          <p className="text-xs text-zinc-500 truncate">
             {leg.meetTime ? `Meet ${formatTime(leg.meetTime)}` : ''}
             {leg.meetTime && leg.departureTime ? ' \u00b7 ' : ''}
             {leg.departureTime ? `Depart ${formatTime(leg.departureTime)}` : ''}
             {leg.destination ? ` \u2192 ${leg.destination}` : ''}
           </p>
         </div>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
       {expanded && (
         <div className={`px-4 pb-4 space-y-3 border-t ${cfg.borderColor}`}>
           <div className="grid grid-cols-2 gap-2 mt-3">
             {leg.operator && (
-              <div className="p-2.5 rounded-lg bg-white/70 border border-slate-100">
-                <p className="text-xs text-slate-500">Operator</p>
-                <p className="text-sm font-semibold text-slate-900">{leg.operator}</p>
+              <div className="p-2.5 rounded-lg bg-white/70 border border-zinc-100">
+                <p className="text-xs text-zinc-500">Operator</p>
+                <p className="text-sm font-semibold text-zinc-900">{leg.operator}</p>
               </div>
             )}
             {leg.confirmationRef && (
-              <div className="p-2.5 rounded-lg bg-white/70 border border-slate-100">
-                <p className="text-xs text-slate-500">Confirmation</p>
-                <p className="text-sm font-semibold text-slate-900 font-mono">{leg.confirmationRef}</p>
+              <div className="p-2.5 rounded-lg bg-white/70 border border-zinc-100">
+                <p className="text-xs text-zinc-500">Confirmation</p>
+                <p className="text-sm font-semibold text-zinc-900 font-mono">{leg.confirmationRef}</p>
               </div>
             )}
             {leg.carClass && (
-              <div className="p-2.5 rounded-lg bg-white/70 border border-slate-100">
-                <p className="text-xs text-slate-500">Vehicle</p>
-                <p className="text-sm font-semibold text-slate-900">{leg.carClass}</p>
+              <div className="p-2.5 rounded-lg bg-white/70 border border-zinc-100">
+                <p className="text-xs text-zinc-500">Vehicle</p>
+                <p className="text-sm font-semibold text-zinc-900">{leg.carClass}</p>
               </div>
             )}
             {leg.duration && (
-              <div className="p-2.5 rounded-lg bg-white/70 border border-slate-100">
-                <p className="text-xs text-slate-500">Duration</p>
-                <p className="text-sm font-semibold text-slate-900">{leg.duration}</p>
+              <div className="p-2.5 rounded-lg bg-white/70 border border-zinc-100">
+                <p className="text-xs text-zinc-500">Duration</p>
+                <p className="text-sm font-semibold text-zinc-900">{leg.duration}</p>
               </div>
             )}
             {leg.costPerPerson !== undefined && (
-              <div className="p-2.5 rounded-lg bg-white/70 border border-slate-100">
-                <p className="text-xs text-slate-500">Per person</p>
-                <p className="text-sm font-semibold text-slate-900">${leg.costPerPerson}</p>
+              <div className="p-2.5 rounded-lg bg-white/70 border border-zinc-100">
+                <p className="text-xs text-zinc-500">Per person</p>
+                <p className="text-sm font-semibold text-zinc-900">${leg.costPerPerson}</p>
               </div>
             )}
           </div>
-          {leg.notes && <p className="text-xs text-slate-500 italic">{leg.notes}</p>}
+          {leg.notes && <p className="text-xs text-zinc-500 italic">{leg.notes}</p>}
           {mapsUrl && (
             <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
               className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors ${cfg.bgColor} ${cfg.textColor} hover:opacity-80`}>
@@ -211,10 +211,10 @@ function ActivityCardDayOf({ activity, status, trackLabel }: { activity: Activit
       <div className="p-4">
         <div className="flex items-start gap-3">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
-            status === 'done' ? 'bg-slate-100' : activity.isRestaurant ? 'bg-amber-50' : 'bg-sky-50'
+            status === 'done' ? 'bg-zinc-100' : activity.isRestaurant ? 'bg-amber-50' : 'bg-sky-50'
           }`}>
             {status === 'done' ? (
-              <CheckCircle2 className="w-5 h-5 text-slate-400" />
+              <CheckCircle2 className="w-5 h-5 text-zinc-400" />
             ) : activity.isRestaurant ? (
               <Utensils className="w-4 h-4 text-amber-600" />
             ) : (
@@ -223,7 +223,7 @@ function ActivityCardDayOf({ activity, status, trackLabel }: { activity: Activit
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className={`text-xs font-medium ${status === 'done' ? 'text-slate-400' : 'text-slate-500'}`}>
+              <span className={`text-xs font-medium ${status === 'done' ? 'text-zinc-400' : 'text-zinc-500'}`}>
                 {formatTimeRange(activity.timeSlot)}
               </span>
               {status === 'now' && (
@@ -240,18 +240,18 @@ function ActivityCardDayOf({ activity, status, trackLabel }: { activity: Activit
                 </span>
               )}
             </div>
-            <h3 className={`font-semibold text-sm leading-snug ${status === 'done' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+            <h3 className={`font-semibold text-sm leading-snug ${status === 'done' ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
               {activity.title}
             </h3>
             {activity.address && (
-              <p className="text-xs text-slate-500 mt-0.5 truncate">{activity.address}</p>
+              <p className="text-xs text-zinc-500 mt-0.5 truncate">{activity.address}</p>
             )}
             {activity.description && status !== 'done' && (
-              <p className="text-xs text-slate-500 mt-1.5 line-clamp-2">{activity.description}</p>
+              <p className="text-xs text-zinc-500 mt-1.5 line-clamp-2">{activity.description}</p>
             )}
           </div>
           {(activity.costEstimate !== undefined && activity.costEstimate > 0) && (
-            <span className="text-xs font-medium text-slate-500 flex-shrink-0">${activity.costEstimate}/person</span>
+            <span className="text-xs font-medium text-zinc-500 flex-shrink-0">${activity.costEstimate}/person</span>
           )}
         </div>
         {(status === 'now' || status === 'soon') && (
@@ -353,10 +353,10 @@ export default function DayOfPage() {
   // Render a loading state until the real trip's currentDay is loaded.
   if (!currentDay) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="min-h-screen bg-zinc-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-500 text-sm">Loading today&apos;s plan…</p>
+          <p className="text-zinc-500 text-sm">Loading today&apos;s plan…</p>
         </div>
       </main>
     );
@@ -435,18 +435,18 @@ export default function DayOfPage() {
       <div className="bg-white border-b border-zinc-100 sticky top-0 z-40">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link href={`/trip/${tripId}/itinerary`}
-            className="w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
-            <ChevronLeft className="w-5 h-5 text-slate-600" />
+            className="w-9 h-9 rounded-lg hover:bg-zinc-100 flex items-center justify-center transition-colors">
+            <ChevronLeft className="w-5 h-5 text-zinc-600" />
           </Link>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-500 font-medium">Day {currentDay.day} — {currentDay.city ?? destination}</p>
-            <p className="font-script italic font-semibold text-slate-900 truncate">
+            <p className="text-xs text-zinc-500 font-medium">Day {currentDay.day} — {currentDay.city ?? destination}</p>
+            <p className="font-script italic font-semibold text-zinc-900 truncate">
               {currentDay.theme || 'Today\'s Schedule'}
             </p>
           </div>
           <div className="text-right flex-shrink-0">
-            <p className="text-lg font-script italic font-semibold text-slate-900">{formattedTime}</p>
-            <p className="text-xs text-slate-500">{doneCount}/{totalActivities} done</p>
+            <p className="text-lg font-script italic font-semibold text-zinc-900">{formattedTime}</p>
+            <p className="text-xs text-zinc-500">{doneCount}/{totalActivities} done</p>
           </div>
         </div>
       </div>
@@ -467,7 +467,7 @@ export default function DayOfPage() {
 
           {/* Crew */}
           <div className="col-span-2 bg-white rounded-2xl border border-zinc-100 shadow-sm p-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Crew</p>
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Crew</p>
             <div className="space-y-1.5">
               {crewDisplay.map((m) => (
                 <button key={m.id}
@@ -480,16 +480,16 @@ export default function DayOfPage() {
                   }}
                   className={`w-full flex items-center gap-2 ${isMockTrip ? '' : 'cursor-default'}`}>
                   <div className="relative flex-shrink-0">
-                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
+                    <div className="w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
                       {m.name.charAt(0)}
                     </div>
                     {isMockTrip && (
                       <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white ${
-                        checkedIn.has(m.id) ? 'bg-emerald-500' : 'bg-slate-300'
+                        checkedIn.has(m.id) ? 'bg-emerald-500' : 'bg-zinc-300'
                       }`} />
                     )}
                   </div>
-                  <span className="text-xs text-slate-700 truncate text-left">{m.name.split(' ')[0]}</span>
+                  <span className="text-xs text-zinc-700 truncate text-left">{m.name.split(' ')[0]}</span>
                 </button>
               ))}
             </div>
@@ -498,7 +498,7 @@ export default function DayOfPage() {
 
         {/* Now highlight */}
         {nowItem && (
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-sky-700 to-sky-600 text-white p-5 shadow-lg">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-700 to-sky-600 text-white p-5 shadow-lg">
             <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/5 -translate-y-8 translate-x-8" />
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-2">
@@ -536,7 +536,7 @@ export default function DayOfPage() {
 
         {/* Timeline */}
         <div>
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Today&apos;s Schedule</h2>
+          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Today&apos;s Schedule</h2>
           <div className="space-y-2">
             {timeline.map((item) => {
               const status = getStatus(item);
@@ -550,7 +550,7 @@ export default function DayOfPage() {
         </div>
 
         {/* Emergency */}
-        <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
+        <div className="flex items-start gap-3 p-4 bg-red-50 rounded-2xl border border-red-200">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-red-900">Emergency</p>
@@ -563,31 +563,31 @@ export default function DayOfPage() {
         {/* End of day */}
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
           <button onClick={() => setShowEndOfDay(!showEndOfDay)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
-            <span className="font-semibold text-slate-900">End of Day Summary</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showEndOfDay ? 'rotate-180' : ''}`} />
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-50 transition-colors">
+            <span className="font-semibold text-zinc-900">End of Day Summary</span>
+            <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform ${showEndOfDay ? 'rotate-180' : ''}`} />
           </button>
           {showEndOfDay && (
-            <div className="px-5 pb-5 border-t border-slate-100 space-y-4 pt-4">
+            <div className="px-5 pb-5 border-t border-zinc-100 space-y-4 pt-4">
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 text-center">
+                <div className="bg-emerald-50 rounded-2xl p-3 border border-zinc-100 text-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                   <p className="text-2xl font-script italic font-semibold text-emerald-700">{doneCount}/{totalActivities}</p>
                   <p className="text-xs text-emerald-700 font-medium">Done</p>
                 </div>
-                <div className="bg-sky-50 rounded-xl p-3 border border-sky-100 text-center">
+                <div className="bg-sky-50 rounded-2xl p-3 border border-zinc-100 text-center">
                   <DollarSign className="w-5 h-5 text-sky-600 mx-auto mb-1" />
                   <p className="text-2xl font-script italic font-semibold text-sky-700">$127</p>
                   <p className="text-xs text-sky-700 font-medium">Spent</p>
                 </div>
-                <div className="bg-violet-50 rounded-xl p-3 border border-violet-100 text-center">
+                <div className="bg-violet-50 rounded-2xl p-3 border border-zinc-100 text-center">
                   <Camera className="w-5 h-5 text-violet-600 mx-auto mb-1" />
                   <p className="text-2xl font-script italic font-semibold text-violet-700">8</p>
                   <p className="text-xs text-violet-700 font-medium">Photos</p>
                 </div>
               </div>
               <Link href={`/trip/${tripId}/memories`}
-                className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors">
+                className="flex items-center justify-center gap-2 py-3 rounded-full bg-sky-800 text-white text-sm font-semibold hover:bg-sky-900 transition-colors">
                 <Camera className="w-4 h-4" />View Today&apos;s Memories
               </Link>
             </div>
@@ -598,18 +598,18 @@ export default function DayOfPage() {
         <div className="grid grid-cols-3 gap-2 pb-4">
           <Link href={`/trip/${tripId}/itinerary`}
             className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-2xl border border-zinc-100 hover:border-sky-300 hover:shadow-sm hover:bg-sky-50 transition-all duration-300">
-            <CalendarDays className="w-5 h-5 text-slate-600" />
-            <span className="text-xs font-medium text-slate-700">Itinerary</span>
+            <CalendarDays className="w-5 h-5 text-zinc-600" />
+            <span className="text-xs font-medium text-zinc-700">Itinerary</span>
           </Link>
           <Link href={`/trip/${tripId}/group`}
             className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-2xl border border-zinc-100 hover:border-sky-300 hover:shadow-sm hover:bg-sky-50 transition-all duration-300">
-            <MessageSquare className="w-5 h-5 text-slate-600" />
-            <span className="text-xs font-medium text-slate-700">Group</span>
+            <MessageSquare className="w-5 h-5 text-zinc-600" />
+            <span className="text-xs font-medium text-zinc-700">Group</span>
           </Link>
           <Link href={`/trip/${tripId}/discover`}
             className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-2xl border border-zinc-100 hover:border-sky-300 hover:shadow-sm hover:bg-sky-50 transition-all duration-300">
-            <Zap className="w-5 h-5 text-slate-600" />
-            <span className="text-xs font-medium text-slate-700">Discover</span>
+            <Zap className="w-5 h-5 text-zinc-600" />
+            <span className="text-xs font-medium text-zinc-700">Discover</span>
           </Link>
         </div>
 

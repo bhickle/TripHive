@@ -193,7 +193,7 @@ export default function PrintItineraryPage() {
               <h2 className="text-xl font-bold">Day {day.day} — {day.theme ?? ''}</h2>
               {day.date && <p className="text-sm text-zinc-400">{day.date}</p>}
               {day.destinationTip && (
-                <p className="text-sm text-amber-700 mt-1 italic">💡 {day.destinationTip}</p>
+                <p className="text-sm text-zinc-600 mt-1 italic">💡 {day.destinationTip}</p>
               )}
             </div>
 
@@ -213,7 +213,7 @@ export default function PrintItineraryPage() {
                     {act.address && <p className="text-xs text-zinc-400 mt-0.5">{act.address}</p>}
                     {act.description && <p className="text-xs text-zinc-600 mt-1 leading-relaxed">{act.description}</p>}
                     {act.packingTips && act.packingTips.length > 0 && (
-                      <p className="text-xs text-amber-600 mt-1">Bring: {act.packingTips.join(' · ')}</p>
+                      <p className="text-xs text-zinc-500 mt-1">Bring: {act.packingTips.join(' · ')}</p>
                     )}
                     {act.transportToNext && (
                       <p className="text-xs text-zinc-300 mt-1">↓ {act.transportToNext.mode} · {act.transportToNext.durationMins} min{act.transportToNext.notes ? ` · ${act.transportToNext.notes}` : ''}</p>
@@ -269,14 +269,14 @@ export default function PrintItineraryPage() {
             {/* Tonight's Stay */}
             {todaysHotels.length > 0 && (
               <div className="mt-6 pl-24">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-2">🛏️ Tonight's Stay</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">🛏️ Tonight's Stay</p>
                 <div className="space-y-2">
                   {todaysHotels.map((h, hi) => (
-                    <div key={hi} className="pl-4 border-l-2 border-amber-100">
-                      <p className="text-xs font-semibold text-amber-800">{h.name}</p>
-                      {h.address && <p className="text-[10px] text-amber-600">{h.address}</p>}
+                    <div key={hi} className="pl-4 border-l-2 border-zinc-100">
+                      <p className="text-xs font-semibold text-zinc-800">{h.name}</p>
+                      {h.address && <p className="text-[10px] text-zinc-600">{h.address}</p>}
                       {(h.checkIn || h.checkOut) && (
-                        <p className="text-[10px] text-amber-500 mt-0.5">
+                        <p className="text-[10px] text-zinc-500 mt-0.5">
                           {h.checkIn && `Check-in: ${h.checkIn}`}{h.checkIn && h.checkOut ? ' · ' : ''}{h.checkOut && `Check-out: ${h.checkOut}`}
                         </p>
                       )}
