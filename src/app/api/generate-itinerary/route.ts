@@ -1694,7 +1694,15 @@ export async function POST(request: NextRequest) {
   if (requestBodyTripId && !claimedThisRequest) {
     credits = { ok: true, ctx: { used: 0, limit: 0, cost: 0, source: 'exempt' } };
   } else {
-    credits = await checkAiCredits(auth.ctx.userId, userTier, 'itinerary_generate', requestBodyTripId);
+    // Regenerate (freshRebuild marks the regen's claim-winning chunk) is
+    // charged at the cheaper itinerary_regenerate rate — the cache is warm,
+    // and the Trip Pass pool is deliberately sized for "1 build (25) + 1 regen
+    // (10) + tweaks". The 2026-05-29 build-claim refactor had charged every
+    // regen at the full build rate (25), making that pool impossible.
+    // incrementAiCreditsUsed below charges credits.ctx.cost, so it follows
+    // this action automatically.
+    const buildAction = freshRebuild ? 'itinerary_regenerate' : 'itinerary_generate';
+    credits = await checkAiCredits(auth.ctx.userId, userTier, buildAction, requestBodyTripId);
     if (!credits.ok) {
       // We set the claim but the gate denied us — revert so the user can
       // retry (e.g. after topping up credits or starting a Trip Pass).
