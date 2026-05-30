@@ -350,8 +350,8 @@ export default function TripsPage() {
                 onClick={() => setShareFilter(value)}
                 className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
                   shareFilter === value
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-white border border-zinc-200 text-zinc-600 hover:border-amber-400'
+                    ? 'bg-sky-800 text-white'
+                    : 'bg-white border border-zinc-200 text-zinc-600 hover:border-sky-400'
                 }`}
               >
                 {label}

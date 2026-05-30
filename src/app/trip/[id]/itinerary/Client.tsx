@@ -93,10 +93,12 @@ const transportConfig: Record<
   bus: {
     icon: <Bus className="w-4 h-4" />,
     label: 'Bus / Coach',
-    dotColor: 'bg-indigo-400',
-    badgeBg: 'bg-indigo-50',
-    badgeText: 'text-indigo-700',
-    borderColor: 'border-indigo-200',
+    // Sky-700 differentiates Bus from Flight (sky-400 dot) while staying
+    // inside the approved palette — indigo isn't on it.
+    dotColor: 'bg-sky-700',
+    badgeBg: 'bg-sky-50',
+    badgeText: 'text-sky-800',
+    borderColor: 'border-sky-200',
   },
   train: {
     icon: <TrainFront className="w-4 h-4" />,
@@ -131,7 +133,10 @@ const HIGHLIGHT_CATEGORY_META: Record<HighlightCategory, {
 }> = {
   photo:     { icon: Camera,      label: 'Photo',     bg: 'bg-violet-50',   border: 'border-violet-100',   text: 'text-violet-900',   textMuted: 'text-violet-600',   pill: 'bg-violet-100 text-violet-700 border-violet-200',     tipText: 'text-violet-700' },
   food:      { icon: Utensils,    label: 'Food',      bg: 'bg-rose-50',     border: 'border-rose-100',     text: 'text-rose-900',     textMuted: 'text-rose-600',     pill: 'bg-rose-100 text-rose-700 border-rose-200',           tipText: 'text-rose-700' },
-  nightlife: { icon: Music,       label: 'Nightlife', bg: 'bg-fuchsia-50',  border: 'border-fuchsia-100',  text: 'text-fuchsia-900',  textMuted: 'text-fuchsia-600',  pill: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',  tipText: 'text-fuchsia-700' },
+  // Nightlife was fuchsia (not in the approved palette); re-coded to amber
+  // since nightlife reads as "warm/glowing" semantically and the in-widget
+  // category coding is decorative, not Trip-Pass marketing chrome.
+  nightlife: { icon: Music,       label: 'Nightlife', bg: 'bg-amber-50',    border: 'border-amber-100',    text: 'text-amber-900',    textMuted: 'text-amber-600',    pill: 'bg-amber-100 text-amber-700 border-amber-200',        tipText: 'text-amber-700' },
   shopping:  { icon: ShoppingBag, label: 'Shopping',  bg: 'bg-emerald-50',  border: 'border-emerald-100',  text: 'text-emerald-900',  textMuted: 'text-emerald-600',  pill: 'bg-emerald-100 text-emerald-700 border-emerald-200',  tipText: 'text-emerald-700' },
 };
 

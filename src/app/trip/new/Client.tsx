@@ -3008,7 +3008,7 @@ function TripBuilderPage() {
                   </div>
 
                   {/* Date Night Toggle */}
-                  <div className="flex items-center space-x-3 p-4 bg-pink-50 rounded-lg border border-pink-200">
+                  <div className="flex items-center space-x-3 p-4 bg-rose-50 rounded-lg border border-rose-200">
                     <input
                       type="checkbox"
                       checked={state.dateNight}
@@ -3018,7 +3018,7 @@ function TripBuilderPage() {
                           dateNight: e.target.checked,
                         }))
                       }
-                      className="w-5 h-5 rounded border-pink-300 text-pink-600 focus:ring-pink-500"
+                      className="w-5 h-5 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
                     />
                     <div>
                       <label className="text-sm font-medium text-zinc-900">
