@@ -10,7 +10,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
   Globe2, ArrowRight, Sparkles, Clock, Lock, TrendingUp,
-  ExternalLink, Sun, Sunset, Moon, ChevronLeft, ChevronRight, MapPin, Calendar,
+  ExternalLink, Sun, Sunset, Moon, ChevronRight, MapPin, Calendar, Users,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { ForkTripModal } from '@/components/ForkTripModal';
@@ -85,6 +85,12 @@ interface CommunityTrip {
   viewerLiked: boolean;
   planClickCount: number;
   createdAt: string;
+  // Lightweight 4-day preview returned by /api/community + /api/founder-
+  // itineraries — drives the activity-strip on CommunityTripCard so a
+  // founder/community trip reads as substantively as a Featured itinerary,
+  // not just a name + cover photo. May be [] for legacy trips with no
+  // itinerary saved.
+  previewDays?: Array<{ day: number; title: string; activities: Array<{ title: string; time: string }> }>;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -605,66 +611,117 @@ interface CommunityTripCardProps {
 }
 
 function CommunityTripCard({ trip, liked, forking, onLike, onFork }: CommunityTripCardProps) {
+  // Visually parallel with FeaturedItineraryCard so the Founder Itineraries +
+  // What-the-community-is-building rails don't read as a different product
+  // surface from Seasonal Collections. Bigger hero (h-52, matches Featured),
+  // editorial-style day-preview strip when /api/community returned activity
+  // hints, and a See-full / Like / Use-as-starting-point footer in the same
+  // rhythm as the Featured card.
+  const previewDays = (trip.previewDays ?? []).slice(0, 4);
   return (
-    <div className="snap-start shrink-0 w-[300px] sm:w-[330px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col">
+    <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
       <Link href={`/community/${trip.id}`} className="block group">
-        <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
+        <div className="relative h-52 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
           {trip.coverImage && (
             <Image
               src={trip.coverImage}
               alt={trip.destination}
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-500"
+              sizes="(max-width: 768px) 100vw, 50vw"
             />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
           {trip.likeCount > 0 && (
             <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
               <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
             </div>
           )}
-          <div className="absolute bottom-3 left-3 right-3">
-            <p className="text-white font-script italic text-xl font-semibold drop-shadow">{trip.destination}</p>
+          <div className="absolute bottom-0 left-0 right-0 p-4">
+            <div className="flex items-center gap-1.5 text-white/70 text-xs mb-1">
+              <MapPin className="w-3 h-3" />
+              {trip.destination}
+            </div>
+            <h3 className="font-script italic text-2xl text-white font-bold leading-tight drop-shadow">
+              {trip.title || trip.destination}
+            </h3>
           </div>
         </div>
       </Link>
 
-      <div className="p-4 flex-1 flex flex-col gap-3">
-        <div className="flex items-center gap-3 text-xs text-zinc-500">
-          {trip.tripLength > 0 && (
-            <span className="inline-flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> {trip.tripLength} {trip.tripLength === 1 ? 'day' : 'days'}
-            </span>
-          )}
-          {trip.groupSize > 0 && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="w-3 h-3" /> {trip.groupSize} {trip.groupSize === 1 ? 'traveler' : 'travelers'}
-            </span>
-          )}
-        </div>
-        {trip.organizerName && (
-          <p className="text-xs text-zinc-500">by {trip.organizerName.split(/\s+/)[0]}</p>
+      {/* Stats strip — same shape as FeaturedItineraryCard */}
+      <div className="flex items-center gap-4 px-4 py-2.5 border-b border-zinc-100 text-xs text-zinc-500">
+        {trip.tripLength > 0 && (
+          <span className="flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-sky-500" /> {trip.tripLength} {trip.tripLength === 1 ? 'day' : 'days'}
+          </span>
         )}
-        <div className="flex items-center gap-2 mt-auto">
-          <button
-            onClick={onLike}
-            className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-              liked
-                ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                : 'bg-zinc-50 text-zinc-600 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
-            }`}
-            aria-label={liked ? 'Unlike' : 'Like'}
+        {trip.groupSize > 0 && (
+          <span className="flex items-center gap-1">
+            <Users className="w-3.5 h-3.5" /> {trip.groupSize} {trip.groupSize === 1 ? 'traveler' : 'travelers'}
+          </span>
+        )}
+        {trip.organizerName && (
+          <span className="ml-auto text-zinc-400">by {trip.organizerName.split(/\s+/)[0]}</span>
+        )}
+      </div>
+
+      {/* Day-by-day preview */}
+      <div className="p-4 flex-1 flex flex-col gap-3">
+        {previewDays.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            {previewDays.map(day => (
+              <div key={day.day} className="bg-stone-50 rounded-xl p-3 border border-zinc-100">
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Day {day.day}</div>
+                {day.title && (
+                  <div className="text-xs font-semibold text-zinc-700 mb-2 leading-snug line-clamp-1">{day.title}</div>
+                )}
+                <div className="space-y-1">
+                  {day.activities.length === 0 ? (
+                    <div className="text-[10px] text-zinc-400 italic">No activities</div>
+                  ) : day.activities.map((act, idx) => {
+                    const cfg = timeConfig[act.time as keyof typeof timeConfig] ?? timeConfig.morning;
+                    return (
+                      <div key={idx} className="flex items-center gap-1">
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                        <span className="text-[10px] text-zinc-500 truncate">{act.title}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-auto pt-3 border-t border-zinc-100 gap-2">
+          <Link
+            href={`/community/${trip.id}`}
+            className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1 transition-colors whitespace-nowrap"
           >
-            <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
-            {liked ? 'Liked' : 'Like'}
-          </button>
-          <button
-            onClick={onFork}
-            disabled={forking}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-lg transition-all"
-          >
-            {forking ? 'Copying…' : 'Use as starting point'}
-          </button>
+            See full itinerary <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onLike}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all ${
+                liked
+                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                  : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+              }`}
+              aria-label={liked ? 'Unlike' : 'Like'}
+            >
+              <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
+              {liked ? 'Liked' : 'Like'}
+            </button>
+            <button
+              onClick={onFork}
+              disabled={forking}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-700 disabled:bg-zinc-300 text-white text-xs font-bold rounded-full transition-all"
+            >
+              {forking ? 'Copying…' : 'Use as starting point'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -698,16 +755,6 @@ export default function DiscoverPage() {
   // Liked-state is shared across both rails — likes are keyed by trip id, and a
   // founder trip is just as likeable as any community trip.
   const [communityLikedIds, setCommunityLikedIds] = useState<Set<string>>(new Set());
-  // Horizontal "arrow-over" carousels (not stacking grids).
-  const communityRailRef = useRef<HTMLDivElement>(null);
-  const founderRailRef = useRef<HTMLDivElement>(null);
-  const scrollRail = (ref: React.RefObject<HTMLDivElement | null>, dir: -1 | 1) => {
-    const el = ref.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.9), behavior: 'smooth' });
-  };
-  const scrollCommunityRail = (dir: -1 | 1) => scrollRail(communityRailRef, dir);
-  const scrollFounderRail = (dir: -1 | 1) => scrollRail(founderRailRef, dir);
   const [forkingId, setForkingId] = useState<string | null>(null);
   // The modal opens with a pending trip target; null means closed.
   const [pendingForkTrip, setPendingForkTrip] = useState<CommunityTrip | null>(null);
@@ -1311,38 +1358,21 @@ export default function DiscoverPage() {
                   <p className="text-sm text-zinc-500 mt-0.5">Real trips hand-picked by the tripcoord founders — like &apos;em, save &apos;em, or use one as your starting point</p>
                 </div>
               </div>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => scrollFounderRail(-1)}
-                  aria-label="Scroll left"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollFounderRail(1)}
-                  aria-label="Scroll right"
-                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-                <div
-                  ref={founderRailRef}
-                  className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                >
-                  {founderTrips.map(trip => (
-                    <CommunityTripCard
-                      key={trip.id}
-                      trip={trip}
-                      liked={communityLikedIds.has(trip.id)}
-                      forking={forkingId === trip.id}
-                      onLike={() => handleCommunityLike(trip.id)}
-                      onFork={() => handleCommunityFork(trip)}
-                    />
-                  ))}
-                </div>
+              {/* Grid layout (was a horizontal scroll-rail until 2026-05-29) —
+                  the Founder card now shows a day-preview strip + bigger hero
+                  to match FeaturedItineraryCard, so it's a card you dwell on,
+                  not skim past. 2-col on lg, single on small. */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {founderTrips.map(trip => (
+                  <CommunityTripCard
+                    key={trip.id}
+                    trip={trip}
+                    liked={communityLikedIds.has(trip.id)}
+                    forking={forkingId === trip.id}
+                    onLike={() => handleCommunityLike(trip.id)}
+                    onFork={() => handleCommunityFork(trip)}
+                  />
+                ))}
               </div>
             </section>
           )}
@@ -1420,40 +1450,17 @@ export default function DiscoverPage() {
                   </p>
                 </div>
               ) : (
-                <div className="relative">
-                  {/* Arrow-over carousel: a few cards visible, arrow through the
-                      rest — not a stacking grid that grows downward. */}
-                  <button
-                    type="button"
-                    onClick={() => scrollCommunityRail(-1)}
-                    aria-label="Scroll left"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 hidden md:flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scrollCommunityRail(1)}
-                    aria-label="Scroll right"
-                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 hidden md:flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                  <div
-                    ref={communityRailRef}
-                    className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                  >
-                    {communityTrips.map(trip => (
-                      <CommunityTripCard
-                        key={trip.id}
-                        trip={trip}
-                        liked={communityLikedIds.has(trip.id)}
-                        forking={forkingId === trip.id}
-                        onLike={() => handleCommunityLike(trip.id)}
-                        onFork={() => handleCommunityFork(trip)}
-                      />
-                    ))}
-                  </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {communityTrips.map(trip => (
+                    <CommunityTripCard
+                      key={trip.id}
+                      trip={trip}
+                      liked={communityLikedIds.has(trip.id)}
+                      forking={forkingId === trip.id}
+                      onLike={() => handleCommunityLike(trip.id)}
+                      onFork={() => handleCommunityFork(trip)}
+                    />
+                  ))}
                 </div>
               )}
             </section>

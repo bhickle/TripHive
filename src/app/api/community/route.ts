@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { extractPreviewDays, type PreviewDay } from '@/lib/itinerary-preview';
 
 /**
  * GET /api/community
@@ -93,15 +94,21 @@ export async function GET(req: Request) {
       for (const p of profiles ?? []) organizerNames.set(p.id, p.name);
     }
 
-    // Itinerary day counts so the card can show "5 days · Tokyo"
+    // Itinerary day counts so the card can show "5 days · Tokyo", plus a
+    // lightweight 4-day preview that the discover-rail cards render as a
+    // hint of what's inside the trip — same visual shape as
+    // FeaturedItineraryCard. extractPreviewDays() strips the rich days
+    // jsonb down to per-day title + 3 activity titles.
     const { data: itinRows } = await supabase
       .from('itineraries')
       .select('trip_id, days')
       .in('trip_id', tripIds);
     const dayCounts = new Map<string, number>();
+    const dayPreviews = new Map<string, PreviewDay[]>();
     for (const row of itinRows ?? []) {
-      const days = Array.isArray(row.days) ? row.days.length : 0;
-      dayCounts.set(row.trip_id, days);
+      const days = Array.isArray(row.days) ? row.days : [];
+      dayCounts.set(row.trip_id, days.length);
+      dayPreviews.set(row.trip_id, extractPreviewDays(days));
     }
 
     const enriched = trips.map(t => ({
@@ -119,6 +126,7 @@ export async function GET(req: Request) {
       viewerLiked: viewerLikedTripIds.has(t.id),
       planClickCount: planCounts.get(t.destination) ?? 0,
       createdAt: t.created_at,
+      previewDays: dayPreviews.get(t.id) ?? [],
     }));
 
     // Random sample — the community rail should feel fresh and varied, not

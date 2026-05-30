@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { extractPreviewDays, type PreviewDay } from '@/lib/itinerary-preview';
 
 /**
  * GET /api/founder-itineraries
@@ -61,14 +62,19 @@ export async function GET() {
       for (const p of profiles ?? []) organizerNames.set(p.id, p.name);
     }
 
-    // Itinerary day counts so the card can show "7 days".
+    // Itinerary day counts + 4-day preview so the founder card can show the
+    // same activity-strip hint as FeaturedItineraryCard. See
+    // src/lib/itinerary-preview.ts for the extraction shape.
     const { data: itinRows } = await supabase
       .from('itineraries')
       .select('trip_id, days')
       .in('trip_id', tripIds);
     const dayCounts = new Map<string, number>();
+    const dayPreviews = new Map<string, PreviewDay[]>();
     for (const row of itinRows ?? []) {
-      dayCounts.set(row.trip_id, Array.isArray(row.days) ? row.days.length : 0);
+      const days = Array.isArray(row.days) ? row.days : [];
+      dayCounts.set(row.trip_id, days.length);
+      dayPreviews.set(row.trip_id, extractPreviewDays(days));
     }
 
     const enriched = trips.map(t => ({
@@ -86,6 +92,7 @@ export async function GET() {
       viewerLiked: viewerLikedTripIds.has(t.id),
       planClickCount: 0,
       createdAt: t.created_at,
+      previewDays: dayPreviews.get(t.id) ?? [],
     }));
 
     return NextResponse.json({ trips: enriched });
