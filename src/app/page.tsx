@@ -33,14 +33,17 @@ export default function HomePage() {
         </div>
         <div className="relative max-w-4xl mx-auto px-5 py-24 sm:py-32 text-center">
           <div className="inline-block mb-6 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-            <p className="text-sm font-semibold">✦ From solo to group trips, made easy</p>
+            <p className="text-sm font-semibold">✦ The group trip&apos;s planning OS — solo welcome too</p>
           </div>
           <h1 className="font-script italic text-5xl sm:text-6xl lg:text-7xl font-semibold leading-tight mb-6">
-            Every trip you take, in one place
+            Plan it together. Pull it off as a group.
           </h1>
-          <p className="text-xl sm:text-2xl text-blue-50 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Weekend escapes, long-haul adventures, layovers, cruises — all planned and organized from one
-            home base. On your own, or with the whole crew. tripcoord gets you started in minutes.
+          <p className="text-xl sm:text-2xl text-blue-50 mb-8 max-w-3xl mx-auto leading-relaxed">
+            Vote on activities, split costs, run two tracks on the same day, and meet for dinner.
+            tripcoord runs your trip — not just your itinerary.
+          </p>
+          <p className="text-base text-blue-100 mb-10 max-w-2xl mx-auto">
+            On your own, or with the whole crew.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -96,13 +99,17 @@ export default function HomePage() {
               the in-app surfaces (dashboard, sidebar, itinerary, etc.). */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
             {([
-              { Icon: Map,          title: 'Itinerary builder', sub: 'Day-by-day, multi-city' },
-              { Icon: Sparkles,     title: 'Discover',          sub: 'Curated trips & ideas' },
-              { Icon: CheckCircle2, title: 'Prep checklist',    sub: "Don't-forget, sorted" },
+              // Group-OS features lead (reinforces new positioning), classic
+              // planning tools second, supporting features last. Cruise mode
+              // tile demoted 2026-05-29 (the upload-detect-cruise code stays,
+              // but the marketing claim was overselling what shipped).
+              { Icon: Users,        title: 'Group voting',      sub: 'Yay/nay activities together' },
               { Icon: DollarSign,   title: 'Expense split',     sub: 'Who owes who' },
               { Icon: Compass,      title: 'Day-of guide',      sub: 'Where to be, when' },
+              { Icon: Map,          title: 'Itinerary builder', sub: 'Day-by-day, multi-city' },
+              { Icon: CheckCircle2, title: 'Prep checklist',    sub: "Don't-forget, sorted" },
+              { Icon: Sparkles,     title: 'Discover',          sub: 'Curated trips & ideas' },
               { Icon: Plane,        title: 'Layover planner',   sub: 'Make the most of it' },
-              { Icon: Ship,         title: 'Cruise mode',       sub: 'Port-stop planning' },
               { Icon: Globe2,       title: 'Travel map',        sub: "Everywhere you've been" },
             ] as { Icon: LucideIcon; title: string; sub: string }[]).map(({ Icon, title, sub }) => (
               <div key={title} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 text-center">
@@ -180,7 +187,80 @@ export default function HomePage() {
       <section id="features" className="bg-white">
         <div className="max-w-5xl mx-auto px-5 py-20 space-y-16">
 
-          {/* Pillar 1: it goes the distance */}
+          {/* Pillar 1 (NEW LEAD 2026-05-29): group coordination.
+              Was the day-of pillar; group moves up to reinforce the
+              "group trip's planning OS" hero. Image on RIGHT (default
+              grid order, no flip classes). */}
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <Users className="w-8 h-8 text-sky-800" />
+              <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
+                The whole crew, on one link.
+              </h3>
+              <p className="text-zinc-600 leading-relaxed">
+                Invite everyone on one link — they vote on activities, chat, and split costs with you.
+                For the friend who always ends up planning the group trip, the herding finally has a home.
+                Going solo? Same toolkit, just fewer voices.
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-sm text-zinc-500">
+              <div className="flex -space-x-2 mb-4">
+                <div className="w-9 h-9 rounded-full bg-sky-200 border-2 border-white flex items-center justify-center text-sky-800 font-bold text-xs">SA</div>
+                <div className="w-9 h-9 rounded-full bg-emerald-200 border-2 border-white flex items-center justify-center text-emerald-800 font-bold text-xs">JD</div>
+                <div className="w-9 h-9 rounded-full bg-amber-200 border-2 border-white flex items-center justify-center text-amber-800 font-bold text-xs">MK</div>
+                <div className="w-9 h-9 rounded-full bg-zinc-200 border-2 border-white flex items-center justify-center text-zinc-700 font-bold text-xs">+3</div>
+              </div>
+              <div className="bg-amber-50 rounded-xl px-3 py-2 mb-2 flex justify-between">
+                <span className="text-zinc-700 font-medium">🍷 Winery tour</span>
+                <span className="font-bold text-emerald-700">5 👍</span>
+              </div>
+              <div className="bg-zinc-50 rounded-xl px-3 py-2 flex justify-between">
+                <span className="text-zinc-700 font-medium">🧗 Via ferrata</span>
+                <span className="font-bold text-zinc-500">3 👍</span>
+              </div>
+              <div className="mt-3 bg-emerald-50 rounded-xl px-3 py-2 flex justify-between">
+                <span className="font-semibold text-emerald-800">Dinner, split 5 ways</span>
+                <span className="font-bold text-emerald-700">€18 ea</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Pillar 2: split tracks. The differentiating mechanic; image
+              on LEFT (use order classes to flip for visual rhythm vs P1). */}
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div className="order-2 md:order-1 bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-sky-50 rounded-xl p-3">
+                  <p className="font-bold text-sky-800 mb-2">Track A · Foodies</p>
+                  <p className="text-zinc-600">🥘 Market crawl</p>
+                  <p className="text-zinc-600">☕ Coffee roastery</p>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-3">
+                  <p className="font-bold text-amber-800 mb-2">Track B · Hikers</p>
+                  <p className="text-zinc-600">⛰️ Ridge trail</p>
+                  <p className="text-zinc-600">🏞️ Waterfall</p>
+                </div>
+              </div>
+              <div className="text-center mt-3 text-xs font-semibold text-zinc-500">
+                ↓ meet for dinner · 7:30 · Casa Nova
+              </div>
+            </div>
+            <div className="order-1 md:order-2">
+              <Shuffle className="w-8 h-8 text-sky-800" />
+              <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
+                Split up without falling apart.
+              </h3>
+              <p className="text-zinc-600 leading-relaxed">
+                The foodies want the market. The hikers want the trail. With split tracks,
+                tripcoord runs two plans for the same day — then brings everyone back together for dinner,
+                with the meetup time and spot already set. Nobody misses out, nobody fights about it.
+              </p>
+            </div>
+          </div>
+
+          {/* Pillar 3: Day-Of. Was the lead pillar; moves down so the
+              hero's group-OS framing reads first. Image on RIGHT
+              (default order again). */}
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
               <Compass className="w-8 h-8 text-sky-800" />
@@ -202,73 +282,6 @@ export default function HomePage() {
                 <div className="flex items-center gap-2 text-zinc-400"><span>○</span> Share itinerary with home</div>
               </div>
               <p className="text-xs text-zinc-400 mt-3">+ day-of guide · travel map</p>
-            </div>
-          </div>
-
-          {/* Pillar 2: solo or group */}
-          <div className="grid md:grid-cols-2 gap-10 items-center">
-            <div className="order-2 md:order-1 bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 text-sm text-zinc-500">
-              <div className="flex -space-x-2 mb-4">
-                <div className="w-9 h-9 rounded-full bg-sky-200 border-2 border-white flex items-center justify-center text-sky-800 font-bold text-xs">SA</div>
-                <div className="w-9 h-9 rounded-full bg-emerald-200 border-2 border-white flex items-center justify-center text-emerald-800 font-bold text-xs">JD</div>
-                <div className="w-9 h-9 rounded-full bg-amber-200 border-2 border-white flex items-center justify-center text-amber-800 font-bold text-xs">MK</div>
-                <div className="w-9 h-9 rounded-full bg-zinc-200 border-2 border-white flex items-center justify-center text-zinc-700 font-bold text-xs">+3</div>
-              </div>
-              <div className="bg-amber-50 rounded-xl px-3 py-2 mb-2 flex justify-between">
-                <span className="text-zinc-700 font-medium">🍷 Winery tour</span>
-                <span className="font-bold text-emerald-700">5 👍</span>
-              </div>
-              <div className="bg-zinc-50 rounded-xl px-3 py-2 flex justify-between">
-                <span className="text-zinc-700 font-medium">🧗 Via ferrata</span>
-                <span className="font-bold text-zinc-500">3 👍</span>
-              </div>
-              <div className="mt-3 bg-emerald-50 rounded-xl px-3 py-2 flex justify-between">
-                <span className="font-semibold text-emerald-800">Dinner, split 5 ways</span>
-                <span className="font-bold text-emerald-700">€18 ea</span>
-              </div>
-            </div>
-            <div className="order-1 md:order-2">
-              <Users className="w-8 h-8 text-sky-800" />
-              <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
-                Solo today, the whole crew tomorrow.
-              </h3>
-              <p className="text-zinc-600 leading-relaxed">
-                Plan a solo weekend in peace — or invite your people on one link and let them vote on activities,
-                chat, and split the costs with you. For the friend who always ends up planning the group trip,
-                the herding finally has a home.
-              </p>
-            </div>
-          </div>
-
-          {/* Pillar 3: split tracks */}
-          <div className="grid md:grid-cols-2 gap-10 items-center">
-            <div>
-              <Shuffle className="w-8 h-8 text-sky-800" />
-              <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
-                Split up without falling apart.
-              </h3>
-              <p className="text-zinc-600 leading-relaxed">
-                The foodies want the market. The hikers want the trail. With split tracks,
-                tripcoord runs two plans for the same day — then brings everyone back together for dinner,
-                with the meetup time and spot already set. Nobody misses out, nobody fights about it.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-sky-50 rounded-xl p-3">
-                  <p className="font-bold text-sky-800 mb-2">Track A · Foodies</p>
-                  <p className="text-zinc-600">🥘 Market crawl</p>
-                  <p className="text-zinc-600">☕ Coffee roastery</p>
-                </div>
-                <div className="bg-amber-50 rounded-xl p-3">
-                  <p className="font-bold text-amber-800 mb-2">Track B · Hikers</p>
-                  <p className="text-zinc-600">⛰️ Ridge trail</p>
-                  <p className="text-zinc-600">🏞️ Waterfall</p>
-                </div>
-              </div>
-              <div className="text-center mt-3 text-xs font-semibold text-zinc-500">
-                ↓ meet for dinner · 7:30 · Casa Nova
-              </div>
             </div>
           </div>
 
