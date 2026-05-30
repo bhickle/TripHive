@@ -5,6 +5,8 @@ import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { TIER_LIMITS } from '@/lib/types';
+import type { ItineraryDay } from '@/lib/types';
+import { validateAndCorrectDay } from '@/lib/places/verifyDayLocations';
 
 export const maxDuration = 60;
 
@@ -187,10 +189,37 @@ Rules:
         return NextResponse.json({ error: 'PARSE_ERROR', raw }, { status: 500 });
       }
 
-      // Charge after a clean parse.
+      // Verify-before-return. Same Tier 1 + Tier 2 gate as
+      // /generate-itinerary uses on every streamed day. Hard fail
+      // returns a 500 WITHOUT charging credits — the user got nothing
+      // they can use, so they shouldn't pay for it. The correction
+      // calls inside validateAndCorrectDay use AI tokens but those are
+      // absorbed by tripcoord (one add-day charge buys the right to
+      // get a verified day, not a raw model emission).
+      const verifyResult = await validateAndCorrectDay(day as unknown as ItineraryDay, {
+        anthropic: client,
+        modelId: 'claude-sonnet-4-6',
+        systemPrompt: SYSTEM_PROMPT,
+        placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
+        maxRetries: 2,
+      });
+      if (!verifyResult.ok) {
+        const failedNames = (verifyResult.finalFailures ?? [])
+          .slice(0, 3)
+          .map(f => f.name)
+          .join(', ');
+        console.warn(`[add-day] day ${dayNumber} (${destination}) failed location verification after ${verifyResult.retries} retries:`, verifyResult.finalFailures);
+        return NextResponse.json({
+          error: 'VERIFICATION_FAILED',
+          message: `Couldn't reliably plan this day — venues kept resolving outside ${destination}${failedNames ? ` (${failedNames})` : ''}. Please try again.`,
+        }, { status: 500 });
+      }
+
+      // Charge after verification passes — the user is getting a day
+      // we stand behind.
       await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
-      return NextResponse.json({ day });
+      return NextResponse.json({ day: verifyResult.day });
     } catch (err) {
       lastErr = err;
       if (!isRetryableAnthropicError(err) || attempt === MAX_ATTEMPTS) break;

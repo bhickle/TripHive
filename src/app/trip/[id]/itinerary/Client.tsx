@@ -2771,7 +2771,21 @@ function ItineraryPageContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ destination, dayNumber: newDayNumber, date: newDate, existingThemes, priorities }),
       });
-      if (!res.ok) throw new Error('Generation failed');
+      if (!res.ok) {
+        // Surface the server's message when it's a verification fail —
+        // those messages name the specific issue (wrong-city venues) and
+        // are more useful than the generic "Generation failed" fallback.
+        let msg = 'Generation failed';
+        try {
+          const errBody = await res.json() as { error?: string; message?: string };
+          if (errBody?.error === 'VERIFICATION_FAILED' && errBody.message) {
+            msg = errBody.message;
+          } else if (errBody?.message) {
+            msg = errBody.message;
+          }
+        } catch { /* non-JSON body, keep generic */ }
+        throw new Error(msg);
+      }
       const { day: generatedDay } = await res.json() as { day: import('@/lib/types').ItineraryDay };
       // Normalise the AI's day so missing optional fields don't crash render
       // paths that assume they're set. Multiple components read these fields
@@ -2812,8 +2826,14 @@ function ItineraryPageContent() {
       persistDays(finalDays);
       setSelectedDay(newDayNumber);
       setShowAddDayModal(false);
-    } catch {
-      setAddDayError('Could not generate day. Please try again or use Manual mode.');
+    } catch (err) {
+      // Use the thrown message when present (server-side verification
+      // failures name the specific issue). Fall back to the generic
+      // copy for network errors etc.
+      const msg = err instanceof Error && err.message && err.message !== 'Generation failed'
+        ? err.message
+        : 'Could not generate day. Please try again or use Manual mode.';
+      setAddDayError(msg);
     } finally {
       setAddDayGenerating(false);
     }
