@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, Calendar, Users, ArrowLeft, Sparkles, MapPin } from 'lucide-react';
+import { Heart, Calendar, Users, ArrowLeft, Sparkles, MapPin, ChevronDown, ChevronRight } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { ForkTripModal } from '@/components/ForkTripModal';
@@ -74,6 +74,16 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
   const [viewerLikedActivities, setViewerLikedActivities] = useState<Set<string>>(new Set());
   const [itineraryLikeCount, setItineraryLikeCount] = useState(0);
   const [viewerLikedItinerary, setViewerLikedItinerary] = useState(false);
+  // Day accordion — Day 1 expanded by default so the user sees something
+  // immediately; everything else collapsed so a 14-day plan doesn't dump a
+  // five-screen wall of activities. Index-based since CommunityDay.day is
+  // optional. Set rather than per-day toggles to keep "Expand all" trivial.
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(() => new Set([0]));
+  const toggleDay = (idx: number) => setExpandedDays(prev => {
+    const next = new Set(prev);
+    if (next.has(idx)) next.delete(idx); else next.add(idx);
+    return next;
+  });
 
   useEffect(() => {
     fetch(`/api/community/${params.id}`)
@@ -322,7 +332,22 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
           </div>
 
           {/* Itinerary days */}
-          <div className="space-y-6">
+          {itinerary.days.length > 1 && (
+            <div className="flex items-center justify-end mb-3">
+              <button
+                type="button"
+                onClick={() => setExpandedDays(
+                  expandedDays.size === itinerary.days.length
+                    ? new Set([0])
+                    : new Set(itinerary.days.map((_, i) => i))
+                )}
+                className="text-xs font-semibold text-sky-800 hover:text-sky-900 underline"
+              >
+                {expandedDays.size === itinerary.days.length ? 'Collapse all' : 'Expand all'}
+              </button>
+            </div>
+          )}
+          <div className="space-y-4">
             {itinerary.days.length === 0 && (
               <div className="bg-white rounded-2xl border border-zinc-100 p-8 text-center text-zinc-500 text-sm">
                 This itinerary doesn&apos;t have any days saved yet.
@@ -334,20 +359,38 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
                 ...(day.tracks?.track_a ?? []),
                 ...(day.tracks?.track_b ?? []),
               ];
+              const isExpanded = expandedDays.has(dayIdx);
               return (
                 <div key={dayIdx} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-zinc-100">
-                    <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
-                      Day {day.day ?? dayIdx + 1}
-                      {day.theme && <span className="text-zinc-500 text-lg italic"> — {day.theme}</span>}
-                    </h2>
-                    {day.city && (
-                      <p className="text-sm text-zinc-500 inline-flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5" /> {day.city}
-                      </p>
-                    )}
-                  </div>
-                  <div className="divide-y divide-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => toggleDay(dayIdx)}
+                    aria-expanded={isExpanded}
+                    aria-controls={`community-day-${dayIdx}`}
+                    className={`w-full text-left px-6 py-4 flex items-start gap-3 hover:bg-zinc-50 transition-colors ${isExpanded ? 'border-b border-zinc-100' : ''}`}
+                  >
+                    <span className="mt-1.5 flex-shrink-0 text-zinc-400">
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
+                        Day {day.day ?? dayIdx + 1}
+                        {day.theme && <span className="text-zinc-500 text-lg italic"> — {day.theme}</span>}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-sm text-zinc-500">
+                        {day.city && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5" /> {day.city}
+                          </span>
+                        )}
+                        {!isExpanded && allActivities.length > 0 && (
+                          <span className="text-xs text-zinc-400">{allActivities.length} {allActivities.length === 1 ? 'activity' : 'activities'}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                  {isExpanded && (
+                  <div id={`community-day-${dayIdx}`} className="divide-y divide-zinc-100">
                     {allActivities.length === 0 && (
                       <div className="px-6 py-4 text-sm text-zinc-400">No activities planned.</div>
                     )}
@@ -383,6 +426,7 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
                       );
                     })}
                   </div>
+                  )}
                 </div>
               );
             })}

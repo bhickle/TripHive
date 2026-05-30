@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { discoverDestinations as mockDiscoverDestinations, DiscoverDestination, VibeTag } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -238,7 +239,15 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
 
         {/* Footer CTAs — free "Use as starting point" (all tiers) + gated
             "Personalize with AI" (Explorer/Nomad). */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-100 gap-2">
+        {/* Tagline above the CTAs makes it visible that "Personalize with AI"
+            doesn't throw the editorial picks away — the AI build uses them as
+            anchors. Same prompt rule applies in generate-itinerary's
+            EDITORIAL BACKBONE section. */}
+        <p className="text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-100 flex items-center gap-1">
+          <Sparkles className="w-3 h-3 text-violet-500" />
+          AI personalization keeps these editorial picks as the anchors.
+        </p>
+        <div className="flex items-center justify-between mt-2 gap-2">
           <Link
             href={`/discover/${item.slug}`}
             className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1 transition-colors whitespace-nowrap"
@@ -475,11 +484,13 @@ function TopSearchCard({
   onLockedAI: () => void;
   forking: boolean;
 }) {
-  return (
-    <div
-      className="relative bg-gradient-to-br from-sky-600 to-indigo-700 rounded-2xl overflow-hidden cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-      onClick={() => onSearch(name)}
-    >
+  // Matched cards (a featured itinerary exists for this destination) navigate
+  // the entire body to the editorial preview page — proper URL, browser Back
+  // works. Unmatched cards fall back to the in-page filter, but the parent's
+  // onSearch also pushes ?q= so Back still undoes the click.
+  const wrapperClass = "relative bg-gradient-to-br from-sky-600 to-indigo-700 rounded-2xl overflow-hidden cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 block";
+  const wrapperContent = (
+    <>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.08),transparent)]" />
       <div className="p-5 h-full flex flex-col justify-between min-h-[160px]">
         {/* Top row */}
@@ -563,6 +574,20 @@ function TopSearchCard({
           </div>
         )}
       </div>
+    </>
+  );
+
+  if (featuredSlug) {
+    return (
+      <Link href={`/discover/${featuredSlug}`} className={wrapperClass}>
+        {wrapperContent}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={wrapperClass} onClick={() => onSearch(name)}>
+      {wrapperContent}
     </div>
   );
 }
@@ -651,6 +676,8 @@ function CommunityTripCard({ trip, liked, forking, onLike, onFork }: CommunityTr
 export default function DiscoverPage() {
   const currentUser = useCurrentUser();
   const { hasWishlist, tier, tierResolved, getUpgradePrompt } = useEntitlements();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   // "Personalize with AI" (fresh AI build from a featured itinerary) is an
   // Explorer/Nomad feature; Free + Trip Pass get the free "Use as starting
@@ -692,7 +719,10 @@ export default function DiscoverPage() {
   // with AI" action.
   const [showAiUpgrade, setShowAiUpgrade] = useState(false);
 
-  const [query, setQuery] = useState('');
+  // Initial query is seeded from `?q=` so Trending Now → click → URL push
+  // can be undone with the browser Back button (the search box reflects
+  // whatever's currently in the URL).
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
   const [activeContinent, setActiveContinent] = useState('All');
   // Set when the user clicks a Seasonal Collection card. Filters the L2
@@ -868,6 +898,30 @@ export default function DiscoverPage() {
       }, 800);
     }
   }, []);
+
+  // Trending Now body click — pushes `?q=Name` so the URL reflects the
+  // filtered state and browser Back undoes it. (Typed search-box input
+  // intentionally stays state-only to avoid history pollution on every
+  // keystroke.) Matched Trending cards bypass this and navigate to the
+  // real /discover/[slug] preview page instead.
+  const handleTrendingClick = useCallback((name: string) => {
+    setQuery(name);
+    router.push(`/discover?q=${encodeURIComponent(name)}`, { scroll: false });
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        document.getElementById('layer-2-destinations')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+  }, [router]);
+
+  // Keep the search box in sync with browser back/forward — when the URL
+  // changes (e.g. user hits Back after a Trending click), pick up the new
+  // ?q= value and re-sync `query`. Without this, the URL would revert but
+  // the filtered view would stay stuck.
+  const urlQ = searchParams.get('q') ?? '';
+  useEffect(() => {
+    setQuery(prev => (prev === urlQ ? prev : urlQ));
+  }, [urlQ]);
 
   const toggleVibe = (v: VibeTag) => {
     setActiveVibes(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
@@ -1314,7 +1368,7 @@ export default function DiscoverPage() {
                       key={s.name}
                       name={s.name}
                       rank={i + 1}
-                      onSearch={handleSearchChange}
+                      onSearch={handleTrendingClick}
                       featuredSlug={matched?.slug ?? null}
                       wishlisted={wishlistedNames.has(normalizeDestName(s.name))}
                       canWishlist={hasWishlist}
@@ -1447,7 +1501,14 @@ export default function DiscoverPage() {
                   )}
                 </div>
                 <button
-                  onClick={() => { setActiveVibes([]); setActiveContinent('All'); setQuery(''); setActiveCollection(null); }}
+                  onClick={() => {
+                    setActiveVibes([]);
+                    setActiveContinent('All');
+                    setQuery('');
+                    setActiveCollection(null);
+                    // Strip ?q= so browser Back doesn't re-apply it.
+                    if (searchParams.get('q')) router.push('/discover', { scroll: false });
+                  }}
                   className="text-xs text-zinc-500 hover:text-zinc-700 font-semibold underline"
                 >
                   Clear all filters
