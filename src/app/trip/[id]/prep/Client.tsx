@@ -1421,12 +1421,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           {genError && <p className="text-xs text-rose-600 mb-3">{genError}</p>}
           {hasAIPacking ? (
             <button onClick={onGenerate} disabled={generating}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-xl font-semibold text-sm transition-colors">
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full font-semibold text-sm transition-colors">
               {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Sparkles className="w-4 h-4" /> Generate AI List</>}
             </button>
           ) : (
             <div className="inline-flex flex-col items-center gap-2">
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-100 text-zinc-400 rounded-xl font-semibold text-sm cursor-not-allowed">
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-100 text-zinc-400 rounded-full font-semibold text-sm cursor-not-allowed">
                 <Lock className="w-4 h-4" /> Generate AI List
               </div>
               <p className="text-xs text-zinc-500">
@@ -1535,7 +1535,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             const isActive = packSubTab === tab.id;
             return (
               <button key={tab.id} onClick={() => { setPackSubTab(tab.id); setExpandedCategories(new Set(['Clothing'])); }}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${isActive ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100'}`}>
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-all ${isActive ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100'}`}>
                 <Icon className="w-4 h-4" />
                 {tab.label}
                 {tab.count > 0 && (

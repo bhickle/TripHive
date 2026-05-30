@@ -1537,7 +1537,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     <>
                       <div className="space-y-2 mb-4">
                         {pending.map(m => (
-                          <div key={m.id} className="flex items-center justify-between gap-3 px-3 py-2 bg-white rounded-xl border border-amber-200">
+                          <div key={m.id} className="flex items-center justify-between gap-3 px-3 py-2 bg-white rounded-2xl border border-amber-200">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-600 flex-shrink-0">
                                 {(m.name?.[0] ?? '?').toUpperCase()}

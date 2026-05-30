@@ -312,7 +312,7 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-8">
             <button
               onClick={toggleItineraryLike}
-              className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
                 viewerLikedItinerary
                   ? 'bg-rose-50 text-rose-600 border border-rose-200'
                   : 'bg-zinc-50 text-zinc-700 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
@@ -324,7 +324,7 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
             <button
               onClick={handleFork}
               disabled={forking}
-              className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-full transition-all"
             >
               <Sparkles className="w-4 h-4" />
               {forking ? 'Copying itinerary…' : 'Use as starting point'}
@@ -412,7 +412,7 @@ export default function CommunityTripPage({ params }: { params: { id: string } }
                           </div>
                           <button
                             onClick={() => toggleActivityLike(actId)}
-                            className={`flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            className={`flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
                               liked
                                 ? 'bg-rose-50 text-rose-600 border border-rose-200'
                                 : 'bg-zinc-50 text-zinc-500 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
