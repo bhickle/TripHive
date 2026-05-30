@@ -197,7 +197,11 @@ export async function POST(request: NextRequest) {
     const userPrompt = buildUserPrompt(destination, language, destinations);
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      // Phrasebook is destination → translated essentials. Translation
+      // is Haiku's wheelhouse — high-quality output at ~5x lower cost
+      // than Sonnet. Swap back if a specific language pair drifts in
+      // quality (Mandarin tonality, formal-register Japanese, etc.).
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [

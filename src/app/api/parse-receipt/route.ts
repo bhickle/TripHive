@@ -63,7 +63,11 @@ export async function POST(request: NextRequest) {
     }
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-7',
+      // Receipt OCR + structured extract (line items + total). Haiku 4.5
+      // has vision and handles structured extract from images well at
+      // ~15x lower cost than Opus 4.7. Swap back if hallucinated
+      // line-items become a real complaint pattern.
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [

@@ -167,7 +167,10 @@ Rules:
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const response = await client.messages.create({
-        model: 'claude-opus-4-7',
+        // Single-day generation is the same complexity surface as one
+        // chunk of /generate-itinerary, which uses Sonnet 4.6. Opus 4.7
+        // was overkill here — Sonnet matches quality at ~5x lower cost.
+        model: 'claude-sonnet-4-6',
         max_tokens: 4000,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: prompt }],

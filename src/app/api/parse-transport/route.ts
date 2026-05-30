@@ -93,7 +93,11 @@ export async function POST(request: NextRequest) {
     }
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      // Structured extraction (confirmation email → JSON leg fields).
+      // Haiku is well-suited to this and ~5x cheaper than Sonnet. If a
+      // specific provider's email format drifts in extract quality,
+      // first try tightening the prompt before promoting back to Sonnet.
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [
