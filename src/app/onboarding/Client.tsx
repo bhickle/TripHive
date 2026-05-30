@@ -218,7 +218,7 @@ function StyleStep({
         <div className="flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-sky-600 flex-shrink-0" />
           <p className="text-sm text-slate-600">
-            Almost done. One more step to pick what you want to do first.
+            Almost done — next, pick what you want to do first.
           </p>
         </div>
       </div>

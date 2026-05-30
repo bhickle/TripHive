@@ -429,6 +429,15 @@ function TripBuilderPage() {
   const currentUser = useCurrentUser();
   const router = useRouter();
   const searchParams = useSearchParams();
+  // `?firsttrip=true`: the user just came from /onboarding's fork screen
+  // ("Build a trip" CTA). The onboarding flow wrote their profile +
+  // persona to localStorage on the step-1 → step-2 transition, so this
+  // param tells the wizard to hydrate state from localStorage instead of
+  // waiting for the Supabase profile fetch (which is slower and would
+  // leave the wizard blank for a beat). It also flips a few cosmetic
+  // bits — the welcome banner at line 1205 and the step-1 heading at
+  // line 1218. NOT a feature flag and NOT related to demo mode; pure
+  // hydration-source hint set by onboarding/Client.tsx.
   const isFirstTrip = searchParams.get('firsttrip') === 'true';
   const [currentStep, setCurrentStep] = useState(1);
   // Scroll the wizard panel back to the top whenever the step changes —

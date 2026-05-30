@@ -1330,7 +1330,7 @@ export default function DiscoverPage() {
   return (
     <div className={`bg-parchment ${isGuest ? 'min-h-screen' : 'flex h-screen'}`}>
       {isGuest ? (
-        <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200">
+        <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <Link href="/">
               <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
