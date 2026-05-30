@@ -17,6 +17,10 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
  * (try { auth } catch { allow }) as a P0 — it let unauthenticated
  * callers burn Anthropic spend. Now requires a real auth session.
  */
+// Extend the serverless timeout — this route makes a blocking Haiku call
+// that can exceed Vercel's ~15s default. (OPS-1)
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;

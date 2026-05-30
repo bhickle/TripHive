@@ -64,6 +64,10 @@ Cruise detection rules:
 - When uncertain, set isCruise = false. The user can correct from the itinerary page if needed.`;
 }
 
+// Extend the serverless timeout — this route makes a blocking Sonnet call parsing a full pasted/uploaded itinerary
+// that can exceed Vercel's ~15s default. (OPS-1)
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;

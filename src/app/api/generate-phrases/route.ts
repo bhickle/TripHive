@@ -165,6 +165,10 @@ const MOCK_PHRASES = {
 // Auth + Nomad-tier required. Pre-launch QA flagged the prior
 // demo-passthrough pattern as a P0 — it let unauthenticated callers
 // burn Anthropic spend on 8K-token outputs.
+// Extend the serverless timeout — this route makes a blocking Haiku translation call
+// that can exceed Vercel's ~15s default. (OPS-1)
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;

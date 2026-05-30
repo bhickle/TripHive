@@ -74,6 +74,10 @@ async function fetchRealPlaces(destination: string, isRestaurant: boolean, apiKe
   }
 }
 
+// Extend the serverless timeout — this route makes a Sonnet call + synchronous Places verify + up to 2 correction retries (the longest non-streaming path)
+// that can exceed Vercel's ~15s default. (OPS-1)
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;

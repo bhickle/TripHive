@@ -192,6 +192,10 @@ ${discoveryPriorities.length === 0 ? '7.' : '8.'} Return exactly ${days.length} 
 ${discoveryPriorities.length === 0 ? '8.' : '9.'} RESTAURANT BACKFILL — for ONLY these day numbers: ${restaurantDayList.join(', ')}, include the "restaurants" array with EXACTLY 3 entries: one breakfast, one lunch, one dinner. Each must be a REAL named restaurant in ${destination}, geographically anchored to the day's existing activities (no cross-town detours). Time slots: breakfast 07:30–09:00, lunch 12:30–14:00, dinner 19:00–21:00 (en-dash). Use mealType: "breakfast" | "lunch" | "dinner". priceLevel ceilings: breakfast ≤ ${mealPriceLevels.breakfast}, lunch ≤ ${mealPriceLevels.lunch}, dinner ≤ ${mealPriceLevels.dinner} (NEVER exceed ${maxRestaurantPriceLevel} on any meal). Address is best-effort — null is acceptable if you're not sure. Do NOT include restaurants for days NOT in that list, and do NOT re-suggest a restaurant the user already has in their day's activities. The description should cite the source of the restaurant's reputation, not invent a star rating.` : ''}`;
 }
 
+// Extend the serverless timeout — this route makes a blocking Haiku call backfilling restaurants across a full itinerary
+// that can exceed Vercel's ~15s default. (OPS-1)
+export const maxDuration = 120;
+
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;

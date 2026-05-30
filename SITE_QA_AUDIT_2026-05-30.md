@@ -39,9 +39,12 @@ The verified P0s and headline P1s were fixed the same day:
 | **GROUP-3 / GROUP-4** | P0/P1 | `91ca4a0` | Expenses POST validates custom-split sums + rejects non-finite/non-positive amounts server-side. |
 | **DB-1** | P1 | migration | Dropped the `trip-photos: read all` storage policy — the public bucket can no longer be listed/enumerated; photos still render via public URL. |
 | **COMP-2** | P1 | `31a0c7e` | invite email/SMS now rate-limited (per-user + per-recipient hourly windows, 429 on exceed) — no more unbounded SendGrid/Twilio spend. |
+| **OPS-1** | P1 | `<this batch>` | Added `export const maxDuration` to the 8 blocking AI routes (Sonnet/retry paths 300, layover/enrich 120, small Haiku 60) — no more 504s mid-feature. |
+| **DB-2** | P2 | migration | `notifications` INSERT policy changed from `WITH CHECK (true)` to `auth.uid() = user_id` — can no longer forge a notification to another user. |
+| **DB-3** | P2 | migration | Pinned `search_path = public, pg_temp` on all 5 SECURITY DEFINER / trigger functions. |
 | **MONEY-2** | — | — | Resolved by live-DB check: the credit RPCs are atomic (no fix needed). |
 
-Still open (recommended next): AI-1 (parse-itinerary verify gate), OPS-1 (maxDuration 504s), DATA-1 (silent-empty GETs), DB-2/DB-3 (notifications INSERT policy + function search_path), and the brand sweep.
+Still open (recommended next): AI-1 (parse-itinerary verify gate), DATA-1 (silent-empty GETs), DB-4/DB-5 (public-insert spam vectors; leaked-password protection), DB-7 (RLS per-row auth.uid() perf), and the brand sweep.
 
 ---
 

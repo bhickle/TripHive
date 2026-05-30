@@ -150,6 +150,10 @@ const MOCK_RESPONSE = {
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
+// Extend the serverless timeout — this route makes a blocking Sonnet call (up to ~6000 tokens for long layovers)
+// that can exceed Vercel's ~15s default. (OPS-1)
+export const maxDuration = 120;
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
