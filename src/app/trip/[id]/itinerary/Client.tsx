@@ -364,7 +364,7 @@ function ItineraryPageContent() {
   // Keep a ref to the latest aiDays so the vote handler can read current state
   // without causing stale-closure issues or side effects inside state updaters
   const aiDaysRef = useRef<ItineraryDay[] | null>(null);
-  const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | null>(null);
+  const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | 'ai_credits_empty' | null>(null);
 
   // Edit destination / dates modal
   const [showEditTripModal, setShowEditTripModal] = useState(false);
@@ -1296,8 +1296,24 @@ function ItineraryPageContent() {
 
         if (!res.ok || !res.body) {
           let msg = `Generation failed (${res.status})`;
-          try { const d = await res.json(); msg = d.message || d.error || msg; } catch { /* ignore */ }
-          throw new Error(msg);
+          let isCreditsError = false;
+          try {
+            const d = await res.json();
+            msg = d.message || d.error || msg;
+            // 402 with a credit-specific error code → tag so the catch
+            // handler can show the UpgradeModal instead of a plain banner.
+            if (
+              res.status === 402 ||
+              d.error === 'CREDITS_EXHAUSTED' ||
+              d.error === 'TRIP_PASS_CREDITS_EXHAUSTED' ||
+              d.error === 'CREDIT_LIMIT'
+            ) {
+              isCreditsError = true;
+            }
+          } catch { /* ignore */ }
+          const err = new Error(msg) as Error & { isCreditsError?: boolean };
+          err.isCreditsError = isCreditsError;
+          throw err;
         }
 
         const reader    = res.body.getReader();
@@ -1514,7 +1530,18 @@ function ItineraryPageContent() {
           }
         }
       } catch (e) {
-        setLiveBuildError(e instanceof Error ? e.message : 'Something went wrong');
+        // Credit-exhausted is its own UX path: surface the upgrade modal
+        // instead of a generic red banner. Brandon's directive 2026-05-29
+        // after the Bavaria-build failure: "If it is a credit issue, there
+        // should always be a notification pop-up when someone hits their
+        // credit max."
+        const tagged = e as Error & { isCreditsError?: boolean };
+        if (tagged?.isCreditsError) {
+          setUpgradePromptKey('ai_credits_empty');
+          setLiveBuildError(null);
+        } else {
+          setLiveBuildError(e instanceof Error ? e.message : 'Something went wrong');
+        }
         setIsLiveBuilding(false);
         return;
       }

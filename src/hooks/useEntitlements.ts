@@ -233,7 +233,12 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
       return Math.max(0, activeTripPass.aiCreditsTotal - activeTripPass.aiCreditsUsed);
     }
     if (!limits.canUseAI) return 0;
-    if (!user.aiCredits) return limits.aiCreditsPerMonth as number;
+    // If the credit row hasn't loaded yet, fail SAFE (return 0). The previous
+    // behavior — assuming the full monthly allowance — let canAffordAction()
+    // green-light a Build before the real used count arrived, so the server
+    // 402 fired with no client-side warning. entitlementsReady is the proper
+    // loading gate; this is the belt-and-suspenders fallback.
+    if (!user.aiCredits) return 0;
     return Math.max(0, user.aiCredits.total - user.aiCredits.used);
   }, [tier, activeTripPass, limits, user.aiCredits]);
 

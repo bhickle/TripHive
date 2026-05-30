@@ -233,8 +233,10 @@ export default function GeneratingPage() {
           setPhase('error');
           return;
         }
-        if (d.error === 'CREDIT_LIMIT') {
-          // Out of AI credits — show a clear message with the actual reset date, then redirect
+        // Out of AI credits — `aiCredits.ts` returns `CREDITS_EXHAUSTED`
+        // (user-monthly) or `TRIP_PASS_CREDITS_EXHAUSTED` (trip-pooled). Keep
+        // the legacy `CREDIT_LIMIT` alias so any older route still matches.
+        if (d.error === 'CREDITS_EXHAUSTED' || d.error === 'TRIP_PASS_CREDITS_EXHAUSTED' || d.error === 'CREDIT_LIMIT') {
           const total = d.creditsTotal ?? 'your';
           const resetDate = d.creditsResetAt
             ? new Date(d.creditsResetAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
