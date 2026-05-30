@@ -10,7 +10,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
   Globe2, ArrowRight, Sparkles, Clock, Lock, TrendingUp,
-  ExternalLink, Sun, Sunset, Moon, ChevronRight, MapPin, Calendar, Users,
+  ExternalLink, Sun, Sunset, Moon, ChevronLeft, ChevronRight, MapPin, Calendar, Users,
 } from 'lucide-react';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { ForkTripModal } from '@/components/ForkTripModal';
@@ -608,15 +608,93 @@ interface CommunityTripCardProps {
   forking: boolean;
   onLike: () => void;
   onFork: () => void;
+  /**
+   * 'grid' — used on the Founder Picks rail. Big hero (h-52) + day-preview
+   *   strip + Featured-style footer. The point of Founder Picks is to dwell;
+   *   the card sells the trip's content, not just the destination name.
+   *
+   * 'rail' — used on the Community Trips horizontal scroll-rail. Compact
+   *   w-[300px] card (hero h-44, no day preview) so a dozen public trips can
+   *   scroll past without burying the rest of the page. The Founder section
+   *   is the deep-dive; Community is the browse-feed.
+   *
+   * Decision recorded 2026-05-29: Brandon explicitly wanted the two visually
+   * different even though they share data shape — different jobs, different
+   * card density.
+   */
+  variant?: 'grid' | 'rail';
 }
 
-function CommunityTripCard({ trip, liked, forking, onLike, onFork }: CommunityTripCardProps) {
-  // Visually parallel with FeaturedItineraryCard so the Founder Itineraries +
-  // What-the-community-is-building rails don't read as a different product
-  // surface from Seasonal Collections. Bigger hero (h-52, matches Featured),
-  // editorial-style day-preview strip when /api/community returned activity
-  // hints, and a See-full / Like / Use-as-starting-point footer in the same
-  // rhythm as the Featured card.
+function CommunityTripCard({ trip, liked, forking, onLike, onFork, variant = 'grid' }: CommunityTripCardProps) {
+  if (variant === 'rail') {
+    return (
+      <div className="snap-start shrink-0 w-[300px] sm:w-[330px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col">
+        <Link href={`/community/${trip.id}`} className="block group">
+          <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
+            {trip.coverImage && (
+              <Image
+                src={trip.coverImage}
+                alt={trip.destination}
+                fill
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+            {trip.likeCount > 0 && (
+              <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
+                <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
+              </div>
+            )}
+            <div className="absolute bottom-3 left-3 right-3">
+              <p className="text-white font-script italic text-xl font-semibold drop-shadow">{trip.destination}</p>
+            </div>
+          </div>
+        </Link>
+        <div className="p-4 flex-1 flex flex-col gap-3">
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
+            {trip.tripLength > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> {trip.tripLength} {trip.tripLength === 1 ? 'day' : 'days'}
+              </span>
+            )}
+            {trip.groupSize > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Users className="w-3 h-3" /> {trip.groupSize} {trip.groupSize === 1 ? 'traveler' : 'travelers'}
+              </span>
+            )}
+          </div>
+          {trip.organizerName && (
+            <p className="text-xs text-zinc-500">by {trip.organizerName.split(/\s+/)[0]}</p>
+          )}
+          <div className="flex items-center gap-2 mt-auto">
+            <button
+              onClick={onLike}
+              className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                liked
+                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                  : 'bg-zinc-50 text-zinc-600 border border-zinc-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+              }`}
+              aria-label={liked ? 'Unlike' : 'Like'}
+            >
+              <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
+              {liked ? 'Liked' : 'Like'}
+            </button>
+            <button
+              onClick={onFork}
+              disabled={forking}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-lg transition-all"
+            >
+              {forking ? 'Copying…' : 'Use as starting point'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 'grid' variant — used by Founder Picks. Big hero + day-preview strip,
+  // visually parallel with FeaturedItineraryCard. See-full / Like / Use-as-
+  // starting-point footer in the same rhythm.
   const previewDays = (trip.previewDays ?? []).slice(0, 4);
   return (
     <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
@@ -755,6 +833,14 @@ export default function DiscoverPage() {
   // Liked-state is shared across both rails — likes are keyed by trip id, and a
   // founder trip is just as likeable as any community trip.
   const [communityLikedIds, setCommunityLikedIds] = useState<Set<string>>(new Set());
+  // Horizontal arrow-over scroll for the Community Trips rail. Founder Picks
+  // is a 2-col grid (deep-dive) so it doesn't need a ref.
+  const communityRailRef = useRef<HTMLDivElement>(null);
+  const scrollCommunityRail = (dir: -1 | 1) => {
+    const el = communityRailRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.9), behavior: 'smooth' });
+  };
   const [forkingId, setForkingId] = useState<string | null>(null);
   // The modal opens with a pending trip target; null means closed.
   const [pendingForkTrip, setPendingForkTrip] = useState<CommunityTrip | null>(null);
@@ -1354,7 +1440,7 @@ export default function DiscoverPage() {
             <section>
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Founder Itineraries</h2>
+                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Founder Picks</h2>
                   <p className="text-sm text-zinc-500 mt-0.5">Real trips hand-picked by the tripcoord founders — like &apos;em, save &apos;em, or use one as your starting point</p>
                 </div>
               </div>
@@ -1381,7 +1467,7 @@ export default function DiscoverPage() {
             <section>
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Trending Now</h2>
+                  <h2 className="font-script italic text-2xl font-semibold text-zinc-900">Trending</h2>
                   <p className="text-sm text-zinc-500 mt-0.5">What travelers are searching for this week — tap to see a built itinerary or save for later</p>
                 </div>
               </div>
@@ -1432,7 +1518,7 @@ export default function DiscoverPage() {
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-script italic text-2xl font-semibold text-zinc-900">
-                    What the community is building
+                    Community Trips
                   </h2>
                   <p className="text-sm text-zinc-500 mt-0.5">
                     Real itineraries from tripcoord travelers — like &apos;em, save &apos;em, or use one as your starting point
@@ -1450,17 +1536,43 @@ export default function DiscoverPage() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {communityTrips.map(trip => (
-                    <CommunityTripCard
-                      key={trip.id}
-                      trip={trip}
-                      liked={communityLikedIds.has(trip.id)}
-                      forking={forkingId === trip.id}
-                      onLike={() => handleCommunityLike(trip.id)}
-                      onFork={() => handleCommunityFork(trip)}
-                    />
-                  ))}
+                <div className="relative">
+                  {/* Arrow-over carousel: a few cards visible, arrow through
+                      the rest. Community Trips is the browse-feed; Founder
+                      Picks above is the dwell-grid. Different jobs, different
+                      densities — by design (2026-05-29 decision). */}
+                  <button
+                    type="button"
+                    onClick={() => scrollCommunityRail(-1)}
+                    aria-label="Scroll left"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 hidden md:flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollCommunityRail(1)}
+                    aria-label="Scroll right"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-zinc-200 hidden md:flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <div
+                    ref={communityRailRef}
+                    className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    {communityTrips.map(trip => (
+                      <CommunityTripCard
+                        key={trip.id}
+                        trip={trip}
+                        liked={communityLikedIds.has(trip.id)}
+                        forking={forkingId === trip.id}
+                        onLike={() => handleCommunityLike(trip.id)}
+                        onFork={() => handleCommunityFork(trip)}
+                        variant="rail"
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </section>
