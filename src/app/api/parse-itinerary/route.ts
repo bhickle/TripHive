@@ -8,7 +8,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const SYSTEM_PROMPT = `You are an expert travel itinerary parser. Given raw itinerary text (from a PDF, email, travel agent doc, etc.), you extract and restructure it into a clean JSON format.
 
-You preserve ALL activities, times, venues, addresses, and notes from the source. If certain info is missing (like exact times), make reasonable inferences based on context.
+You preserve ALL activities, times, venues, addresses, and notes from the source. If certain info is missing (like exact times), make reasonable inferences based on context. EXCEPTION — never invent or infer venue names or street addresses: only include an "address" that explicitly appears in the source text, otherwise set it to null. This keeps the parsed itinerary faithful to what the user uploaded (so we don't need to "correct" their real venues later).
 
 Return ONLY valid JSON — no markdown, no explanation, no code fences.`;
 
@@ -20,6 +20,7 @@ function buildParsePrompt(rawText: string) {
 {
   "day": <number>,
   "date": "<YYYY-MM-DD or best guess>",
+  "city": "<the city this day takes place in, read from the source; default to the trip's main city>",
   "theme": "<one-line summary of the day, e.g. 'Arrival & City Exploration'>",
   "tracks": {
     "shared": [
@@ -29,7 +30,7 @@ function buildParsePrompt(rawText: string) {
         "name": "<same as title>",
         "timeSlot": "<e.g. '9:00 AM – 11:00 AM'>",
         "description": "<details from the itinerary>",
-        "address": "<address if mentioned, else null>",
+        "address": "<address ONLY if it explicitly appears in the source, else null — never invent one>",
         "website": null,
         "isRestaurant": <true if dining/restaurant>,
         "track": "shared",
@@ -48,6 +49,7 @@ function buildParsePrompt(rawText: string) {
 
 Important rules:
 - Extract the destination and trip dates from the text if present
+- Set each day's "city" to the city that day takes place in (itineraries can span multiple cities — read it from the source). If a day's city isn't clear, default to the main destination city. This powers per-day weather, maps, and correct multi-city handling on regenerate.
 - If no exact dates exist, use "2026-01-01", "2026-01-02", etc. as placeholders
 - Every activity should go in "shared" tracks unless the itinerary specifically splits groups
 - Keep original descriptions verbatim where possible
@@ -167,6 +169,12 @@ export async function POST(req: NextRequest) {
     // Charge the credit AFTER a successful parse.
     await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
+    // Note (verify-before-show): unlike the generator, we deliberately do NOT
+    // run validateAndCorrectDay here. A parsed itinerary's venues are the
+    // user's OWN uploaded plan (user-asserted, not AI-invented), so "correcting"
+    // a real-but-Places-unfindable venue would corrupt their data. Instead the
+    // prompt prevents fabrication at the source (addresses only when present in
+    // the text) and now extracts day.city for weather/maps/multi-city. (AI-1/AI-3)
     return NextResponse.json({
       itinerary: parsed.itinerary,
       meta: parsed.meta || {},
