@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: { id: string; pho
 
     if (error) {
       console.error('photo comments GET error:', error);
-      return NextResponse.json({ comments: [] });
+      return NextResponse.json({ comments: [], error: 'DB_ERROR' }, { status: 500 });
     }
 
     // Resolve current profile names so renaming in settings flows through
@@ -58,7 +58,7 @@ export async function GET(_req: Request, { params }: { params: { id: string; pho
     });
   } catch (err) {
     console.error('photo comments GET threw:', err);
-    return NextResponse.json({ comments: [] });
+    return NextResponse.json({ comments: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

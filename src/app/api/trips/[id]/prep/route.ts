@@ -109,7 +109,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         .select();
       if (seedErr) {
         console.error('prep_tasks seed insert failed:', seedErr);
-        return NextResponse.json({ tasks: [] });
+        return NextResponse.json({ tasks: [], error: 'DB_ERROR' }, { status: 500 });
       }
       return NextResponse.json({ tasks: seeded ?? [] });
     }
@@ -117,7 +117,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ tasks: existing });
   } catch (err) {
     console.error('prep GET error:', err);
-    return NextResponse.json({ tasks: [] });
+    return NextResponse.json({ tasks: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

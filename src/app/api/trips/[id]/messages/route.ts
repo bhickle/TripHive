@@ -49,7 +49,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     });
   } catch (err) {
     console.error('messages GET error:', err);
-    return NextResponse.json({ messages: [] });
+    return NextResponse.json({ messages: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

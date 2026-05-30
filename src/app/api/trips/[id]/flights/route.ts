@@ -60,12 +60,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     if (error) {
       console.error('flights GET error:', error);
-      return NextResponse.json({ items: [] });
+      return NextResponse.json({ items: [], error: 'DB_ERROR' }, { status: 500 });
     }
     return NextResponse.json({ items: data ?? [] });
   } catch (err) {
     console.error('flights GET error:', err);
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({ items: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

@@ -53,7 +53,10 @@ export async function GET() {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) return NextResponse.json({ items: [] });
+    if (error) {
+      console.error('wishlist GET db error:', error);
+      return NextResponse.json({ items: [], error: 'DB_ERROR' }, { status: 500 });
+    }
 
     return NextResponse.json({
       items: (items ?? []).map(i => ({
@@ -70,7 +73,7 @@ export async function GET() {
     });
   } catch (err) {
     console.error('wishlist GET error:', err);
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({ items: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

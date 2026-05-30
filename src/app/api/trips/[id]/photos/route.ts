@@ -24,7 +24,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .order('created_at', { ascending: true })
       .limit(500);
 
-    if (error) return NextResponse.json({ photos: [] });
+    if (error) {
+      console.error('photos GET db error:', error);
+      return NextResponse.json({ photos: [], error: 'DB_ERROR' }, { status: 500 });
+    }
 
     // Aggregate likes + comments in two batched reads so we don't fan out
     // one round-trip per photo. For a 50-photo album this keeps the GET
@@ -68,6 +71,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     });
   } catch (err) {
     console.error('photos GET error:', err);
-    return NextResponse.json({ photos: [] });
+    return NextResponse.json({ photos: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }

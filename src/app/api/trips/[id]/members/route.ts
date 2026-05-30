@@ -109,7 +109,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ members: result });
   } catch (err) {
     console.error('members route error:', err);
-    return NextResponse.json({ members: [] });
+    return NextResponse.json({ members: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

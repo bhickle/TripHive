@@ -42,13 +42,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     if (error) {
       console.error('souvenirs GET error:', error);
-      return NextResponse.json({ items: [] });
+      return NextResponse.json({ items: [], error: 'DB_ERROR' }, { status: 500 });
     }
 
     return NextResponse.json({ items: items ?? [] });
   } catch (err) {
     console.error('souvenirs GET error:', err);
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({ items: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

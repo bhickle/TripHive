@@ -26,7 +26,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .eq('trip_id', params.id)
       .order('created_at', { ascending: false });
 
-    if (error) return NextResponse.json({ votes: [] });
+    if (error) {
+      console.error('group-votes GET db error:', error);
+      return NextResponse.json({ votes: [], error: 'DB_ERROR' }, { status: 500 });
+    }
 
     // For each vote, count responses per option
     type VoteOptionRow = { id: string; label: string; display_order: number };
@@ -86,7 +89,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ votes: enriched });
   } catch (err) {
     console.error('group-votes GET error:', err);
-    return NextResponse.json({ votes: [] });
+    return NextResponse.json({ votes: [], error: 'DB_ERROR' }, { status: 500 });
   }
 }
 

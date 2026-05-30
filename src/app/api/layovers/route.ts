@@ -56,7 +56,7 @@ export async function GET() {
 
   if (error) {
     console.error('layovers GET error:', error);
-    return NextResponse.json({ layovers: [] });
+    return NextResponse.json({ layovers: [], error: 'DB_ERROR' }, { status: 500 });
   }
   return NextResponse.json({ layovers: (data ?? []).map(toClient) });
 }

@@ -21,7 +21,10 @@ export async function GET(
     .select('item_id, item_data, vote, saved, user_id')
     .eq('trip_id', params.id);
 
-  if (error) return NextResponse.json({ items: [] });
+  if (error) {
+    console.error('discover-wishlist GET db error:', error);
+    return NextResponse.json({ items: [], error: 'DB_ERROR' }, { status: 500 });
+  }
 
   // Build the set of people actually on this trip (organizer + current
   // members). Votes are counted only for these user_ids. Without this,
