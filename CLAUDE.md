@@ -390,75 +390,9 @@ Coverage: `/api/generate-itinerary` (all 3 SSE emit sites), `/api/trips/[id]/add
 
 ---
 
-## Recently Shipped (May 29 night → May 30 morning — QA pass + landing reposition + verify-before-show)
-
-Two-day marathon. Started with a 5-agent QA pass on the full site, became a strategic landing reposition (group-OS pitch, demote AI itinerary), became cost-cutting AI model routing, became a brutal-honesty product audit, ended with a real correctness bug fix that grew into a multi-route verify-before-show architecture. **17 commits.**
-
-**QA pass — 5 themed fix groups (commits `503be26` → `aa96791`)**
-- Group A — Day-Of + Print palette reconciliation: ~30 slate→zinc swaps on dayof; `rounded-xl` → `rounded-2xl` on hero + tile cards; End-of-day button `slate-900 rounded-xl` → `sky-800 rounded-full`; Print page amber → zinc on Tonight's Stay + prep notes (was overusing amber for non-Trip-Pass copy).
-- Group B — Brand color violations: Bus/Coach `indigo-*` → `sky-700`; HIGHLIGHT_CATEGORY_META nightlife `fuchsia-*` → `amber-*`; Date Night `pink-*` → `rose-*`; `/trips` share filter `amber-500` → `sky-800`.
-- Group C — Button shape normalization: prep Generate AI List + Pack tabs `rounded-xl` → `rounded-full`; group pending member row `rounded-xl` → `rounded-2xl`; community/[id] like+fork+activity-like `rounded-lg` → `rounded-full`.
-- Group D — Hand-rolled empty states → shared `<EmptyState>`: dashboard "Tumbleweeds", itinerary "No itinerary yet", Discover community-empty (3 → 6 adopters).
-- Group E — API + prompt hardening: EDITORIAL BACKBONE MAY → MUST swap on dietary/accessibility clash; CommunityTripCard day-preview responsive grid (`grid-cols-2` → `grid-cols-1 sm:grid-cols-2`).
-
-**Landing + pricing visual unification (commits `a70084c` → `4785b67`)**
-- New shared `<MarketingNav>` component at `src/components/MarketingNav.tsx`; mounted on `/` AND `/pricing` (was a stripped Back+logo shell). Anchor links use `/#all-in-one` and `/#how` so they navigate-and-scroll from /pricing AND hash-scroll from /.
-- Hero copy rewritten: "✦ The group trip's planning OS — solo welcome too" + h1 "Plan it together. Pull it off as a group." Toolkit grid 8 emojis → Lucide icons in sky-50 chips with sky-800 strokes. Pillar 1-4 reordered: Group → Split Tracks → Day-Of → AI (was AI first). Cruise mode tile DROPPED (overselling what shipped); Group voting tile added. "split tracks" prose unbolded. "Everything inside" nav link → "All In One Place" with parity in the section eyebrow.
-
-**Anonymous-app-access gating (commit `d0868ab`)**
-- Brandon's directive: "no ways to get into the app without registering for the free version." Audit found two unguarded surfaces: `/trip/[id]/*` (the layout) and `/onboarding`. Both now redirect unauth users to login/signup with `?redirect=` preservation. Marketing/Discover stays public — funnel content, not app.
-
-**Onboarding terminal fork screen (commit `95e294c`)**
-- After signup + profile + persona, the wizard used to auto-route to /trip/new. Now lands on a new step 2 fork screen asking "What do you want to do first?" with three CTA cards: Build a trip (sky-700 primary) → /trip/new?firsttrip=true · Browse Discover → /discover · Look around → /dashboard. Profile saves on step 1→2 transition so the fork CTAs are pure navigation.
-
-**AI model routing (commit `cbfe2e1`)** — cost-cutting per Brandon's brutal-honesty session
-- `parse-receipt` Opus 4.7 → Haiku 4.5 (vision OCR; ~15x cheaper)
-- `add-day` Opus 4.7 → Sonnet 4.6 (single day = one /generate-itinerary chunk; Opus was overkill)
-- `generate-phrases` Sonnet 4.6 → Haiku 4.5 (translation, Haiku's sweet spot)
-- `parse-transport` Sonnet 4.6 → Haiku 4.5 (structured extract)
-- Untouched: generate-itinerary, suggest-activity, generate-layover, parse-itinerary (quality-critical).
-
-**QA-pass P0 + quick wins (commits `388e11f`, `3c1f59c`)**
-- Trip layout auth flash: was render-then-redirect (unauth users briefly saw shell); now renders centered "Loading…" until auth resolves.
-- Auth cross-link `?redirect=` preservation: "Already have an account? Log in" + "Don't have an account? Sign up" + "Already confirmed? Log in" links now carry the redirect param forward (was dropping it, breaking the onboarding cold-start chain).
-- Discover guest header `border-slate-200` → `border-zinc-200`; pricing billing toggle inactive contrast `zinc-500` → `zinc-600`; onboarding step-1 hint copy tweak; documented `?firsttrip=true` param semantics.
-
-**The Versailles bug + verify-before-show (commits `49266ae`, `e1f1233`, `08b5db1`, `4e71b68`) — the biggest architectural shift**
-
-Brandon caught a real correctness failure: a Paris trip's Versailles excursion-day listed La Jacobine ("59-61 Rue Saint-André des Arts, 75006 Paris") as the lunch venue, 17 km from the Palace of Versailles, with a fabricated "5 min walk, 0.2 mi" transport leg. Four stacked gaps:
-
-1. `day.city` was set to the BASE city for day-trips (per the prompt rule), so the model lost the "we're in Versailles all day" anchor.
-2. No prompt rule said "every activity's address must be in the day's city."
-3. Transport-leg distance/duration was unchecked AI free text.
-4. `verifyVenues` only checks open/closed status, not location.
-
-**Layer 1 — prompt fix (49266ae):** Three edits to `generate-itinerary/route.ts`. `day.city` rule rewritten ("set to the EXCURSION city, not the base city"). DAY-TRIP EXCURSION RULE extended with three sub-rules: (a) set city correctly, (b) every venue MUST be in excursion city with explicit category-fallback if uncertain, (c) return leg unchanged. New Rule 23 — ADDRESS-CITY CONSISTENCY anti-hallucination guard — applies universally with "STOP and pick a different venue" instruction.
-
-**Layer 2 — verify-before-show (e1f1233 + 08b5db1 + 4e71b68):** Brandon vetoed the UI warning badge approach ("verify before becoming an itinerary"). New helper `src/lib/places/verifyDayLocations.ts` exports `validateAndCorrectDay` + the smaller-grain `addressContainsCity` + `lookupPlacesAddress`. Pipeline: every emitted day/activity passes through Tier 1 (string check `address ⊃ day.city` with diacritic strip + St./Mt. expansion) + Tier 2 (Places API lookup, concurrency-capped at 6). On failure, the failing day/activity is re-prompted with explicit correction guidance, retried up to 2x. Status events stream to the client ("Fixing location issues on day 3…"). Hard fail emits a 500/SSE error with a clear human-readable message naming the venues; credits NOT charged on hard fail. Wrapped routes: `/api/generate-itinerary` (all 3 SSE emit sites — main, salvage, continuation), `/api/trips/[id]/add-day`, `/api/suggest-activity`. Group hub's "Suggest another" also fixed to pass `day.city` instead of `tripDestination`.
-
-**Side product/strategy work (no code)**
-- Strategic brutal-honesty session: positioning ("group OS" not "all-in-one"), surface-area cut suggestion (defer Cruise/Memories/Travel Map marketing), pricing simplification analysis (partner-discussion outline in `PRICING_TIER_COLLAPSE_OUTLINE.md`).
-- Pricing tier collapse outline saved to repo root as `PRICING_TIER_COLLAPSE_OUTLINE.md` (decision: keep all four tiers for now per Brandon; document captures the case for $30→$35 Trip Pass, adds Travel Agent tier as a future B2B offering with separate landing page, confirms annual discounts already at 20%).
-
-**New code artifacts**
-- `src/components/MarketingNav.tsx` — shared landing+pricing header
-- `src/lib/places/verifyDayLocations.ts` — verify-before-show helpers
-- `src/lib/itinerary-preview.ts` — extracts day preview shape for community/founder endpoints (from earlier in the marathon)
-- `PRICING_TIER_COLLAPSE_OUTLINE.md` — partner-discussion outline
-
-**Verify next on live**
-- Anonymous user → /trip/some-id/itinerary should briefly show "Loading…" then bounce to /auth/login?redirect=… (no shell flash).
-- Onboarding cold start: register → profile → style → fork screen with three cards.
-- Landing reads as group-OS (group voting tile, "Plan it together. Pull it off as a group.").
-- Pricing page has the full landing header.
-- AI quality spot-checks on the Haiku routes: receipt scan, phrasebook, transport parse, add-day.
-- The big one: re-trigger a Paris+Versailles trip. Versailles day's lunch should be a real Versailles-area venue (palace café, La Flottille, Au Bonheur de Stéphanie, etc.) — NEVER a Paris venue. Watch for status events ("Fixing location issues on day N…") in the live build banner if the AI tried something wrong-city.
-
----
-
 ## Older sessions
 
-Pre-today session notes (May 29 evening multi-admin + design-consistency-sweep, May 29 product-polish + landing port, May 29 QA pass, May 9, May 8, May 7, and earlier) all live in `CHANGELOG.md`. Four rotations on 2026-05-29 — heavy day.
+All session notes now live in `CHANGELOG.md` (newest first): the May 29 night → May 30 morning marathon (QA pass + landing reposition + verify-before-show), then May 29 evening multi-admin + design-consistency-sweep, May 29 product-polish + landing port, May 29 QA pass, May 9, May 8, May 7, and earlier. The night-marathon was rotated out on 2026-05-30 in a CLAUDE.md slim-down (no newer session had taken its slot) to keep this always-on file under the 40K-char threshold — so CLAUDE.md currently carries no inline "Recently Shipped" section, just this pointer.
 
 ---
 
