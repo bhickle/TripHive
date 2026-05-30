@@ -15,6 +15,7 @@ import {
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { ForkTripModal } from '@/components/ForkTripModal';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
+import { EmptyState } from '@/components/EmptyState';
 
 // ─── Event logging ─────────────────────────────────────────────────────────
 
@@ -1527,14 +1528,11 @@ export default function DiscoverPage() {
               </div>
 
               {communityTrips.length === 0 ? (
-                <div className="text-center py-20 bg-white rounded-2xl border border-zinc-100">
-                  <Globe2 className="w-12 h-12 text-zinc-200 mx-auto mb-4" />
-                  <p className="text-zinc-700 font-semibold">No public itineraries yet</p>
-                  <p className="text-zinc-500 text-sm mt-1 max-w-md mx-auto">
-                    Be the first — toggle <span className="font-semibold">Share publicly</span> on
-                    one of your itineraries to add it here.
-                  </p>
-                </div>
+                <EmptyState
+                  icon={Globe2}
+                  title="No public itineraries yet"
+                  description='Be the first — toggle "Share publicly" on one of your itineraries to add it here.'
+                />
               ) : (
                 <div className="relative">
                   {/* Arrow-over carousel: a few cards visible, arrow through

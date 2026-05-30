@@ -72,6 +72,7 @@ import { TripStoryModal } from '@/components/TripStoryModal';
 import { ParseTransportModal } from '@/components/ParseTransportModal';
 import { ShareTripModal } from '@/components/ShareTripModal';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
+import { EmptyState } from '@/components/EmptyState';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -2935,32 +2936,27 @@ function ItineraryPageContent() {
   if (!hasDays) {
     return (
       <div className="min-h-screen bg-parchment p-3 md:p-6 flex items-center justify-center">
-        <div className="max-w-md w-full text-center">
-          {isLiveBuilding ? (
-            <>
-              <Loader2 className="w-8 h-8 animate-spin text-sky-600 mx-auto mb-4" />
-              <h1 className="text-xl font-script italic font-semibold text-zinc-900 mb-2">
-                {liveBuildStatus || 'Building your itinerary…'}
-              </h1>
-              <p className="text-sm text-zinc-500">Days will appear as they finish generating.</p>
-            </>
-          ) : (
-            <>
-              <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
-                No itinerary yet
-              </h1>
-              <p className="text-sm text-zinc-500 mb-6">
-                This trip doesn&apos;t have any generated days. Try refreshing — if the issue persists, the generation may have failed.
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-bold rounded-full transition-colors"
-              >
-                Refresh
-              </button>
-            </>
-          )}
-        </div>
+        {isLiveBuilding ? (
+          // Live-build branch stays custom — it's a *progress* state not an
+          // empty state, and the spinner + status message rhythm is its own
+          // pattern (mirrored on /trip/generating).
+          <div className="max-w-md w-full text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-sky-600 mx-auto mb-4" />
+            <h1 className="text-xl font-script italic font-semibold text-zinc-900 mb-2">
+              {liveBuildStatus || 'Building your itinerary…'}
+            </h1>
+            <p className="text-sm text-zinc-500">Days will appear as they finish generating.</p>
+          </div>
+        ) : (
+          <div className="max-w-md w-full">
+            <EmptyState
+              icon={MapPin}
+              title="No itinerary yet"
+              description="This trip doesn't have any generated days. Try refreshing — if the issue persists, the generation may have failed."
+              action={{ label: 'Refresh', onClick: () => window.location.reload() }}
+            />
+          </div>
+        )}
       </div>
     );
   }
