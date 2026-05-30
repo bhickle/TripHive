@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useCallback } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Map, Sparkles, CheckCircle2, DollarSign, Compass, Plane, Ship, Globe2, Users, Shuffle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { PRICING } from '@/hooks/useEntitlements';
+import { MarketingNav } from '@/components/MarketingNav';
 
 /**
  * Marketing landing page.
@@ -16,45 +17,14 @@ import { PRICING } from '@/hooks/useEntitlements';
  * after auth.
  */
 export default function HomePage() {
-  const scrollTo = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
   return (
     <div className="min-h-screen bg-parchment font-sans text-zinc-800 antialiased">
       {/* ─── Nav ─── */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-200">
-        <nav className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center">
-            <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
-          </Link>
-          <div className="hidden md:flex items-center gap-7 text-sm font-semibold text-zinc-600">
-            <button type="button" onClick={() => scrollTo('all-in-one')} className="hover:text-zinc-900 transition">
-              Everything inside
-            </button>
-            <button type="button" onClick={() => scrollTo('how')} className="hover:text-zinc-900 transition">
-              How It Works
-            </button>
-            <Link href="/pricing" className="hover:text-zinc-900 transition">
-              Pricing
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/auth/login"
-              className="text-sm font-semibold text-zinc-500 hover:text-zinc-800 px-3 py-2 rounded-lg hover:bg-zinc-100 transition"
-            >
-              Log In
-            </Link>
-            <Link
-              href="/auth/signup"
-              className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm hover:shadow-md transition"
-            >
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <MarketingNav />
+      {/* The MarketingNav component below is shared with /pricing so the
+          marketing header reads identically on both pages. Anchor links use
+          /#id form so they work from /pricing (navigate-then-scroll) AND
+          from / (browser handles same-page hash). */}
 
       {/* ─── Hero ─── */}
       <section className="gradient-hero text-white relative overflow-hidden">
@@ -63,7 +33,7 @@ export default function HomePage() {
         </div>
         <div className="relative max-w-4xl mx-auto px-5 py-24 sm:py-32 text-center">
           <div className="inline-block mb-6 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-            <p className="text-sm font-semibold">✦ group planning made easy — solo trips, too</p>
+            <p className="text-sm font-semibold">✦ From solo to group trips, made easy</p>
           </div>
           <h1 className="font-script italic text-5xl sm:text-6xl lg:text-7xl font-semibold leading-tight mb-6">
             Every trip you take, in one place
@@ -79,13 +49,12 @@ export default function HomePage() {
             >
               Start planning — free <ArrowRight className="w-5 h-5" />
             </Link>
-            <button
-              type="button"
-              onClick={() => scrollTo('how')}
+            <Link
+              href="#how"
               className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-bold rounded-full text-lg hover:bg-white/10 transition"
             >
               See How It Works
-            </button>
+            </Link>
           </div>
           <p className="text-blue-100 text-sm mt-8">No credit card to start • Solo or group</p>
         </div>
@@ -113,7 +82,7 @@ export default function HomePage() {
       <section id="all-in-one" className="bg-white">
         <div className="max-w-6xl mx-auto px-5 py-20">
           <div className="text-center mb-12">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">All in one place</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-2">All In One Place</p>
             <h2 className="font-script italic text-4xl md:text-5xl font-semibold text-zinc-900 mb-4">
               Everything for the trip — start to finish.
             </h2>
@@ -122,20 +91,24 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Toolkit grid */}
+          {/* Toolkit grid — Lucide icons (was emojis until 2026-05-29). Chrome
+              consistency: marketing page now uses the same icon library as
+              the in-app surfaces (dashboard, sidebar, itinerary, etc.). */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-            {[
-              { emoji: '🗺️', title: 'Itinerary builder', sub: 'Day-by-day, multi-city' },
-              { emoji: '✨', title: 'Discover', sub: 'Curated trips & ideas' },
-              { emoji: '✅', title: 'Prep checklist', sub: "Don't-forget, sorted" },
-              { emoji: '💸', title: 'Expense split', sub: 'Who owes who' },
-              { emoji: '🧭', title: 'Day-of guide', sub: 'Where to be, when' },
-              { emoji: '🛬', title: 'Layover planner', sub: 'Make the most of it' },
-              { emoji: '🚢', title: 'Cruise mode', sub: 'Port-stop planning' },
-              { emoji: '🌎', title: 'Travel map', sub: "Everywhere you've been" },
-            ].map(({ emoji, title, sub }) => (
+            {([
+              { Icon: Map,          title: 'Itinerary builder', sub: 'Day-by-day, multi-city' },
+              { Icon: Sparkles,     title: 'Discover',          sub: 'Curated trips & ideas' },
+              { Icon: CheckCircle2, title: 'Prep checklist',    sub: "Don't-forget, sorted" },
+              { Icon: DollarSign,   title: 'Expense split',     sub: 'Who owes who' },
+              { Icon: Compass,      title: 'Day-of guide',      sub: 'Where to be, when' },
+              { Icon: Plane,        title: 'Layover planner',   sub: 'Make the most of it' },
+              { Icon: Ship,         title: 'Cruise mode',       sub: 'Port-stop planning' },
+              { Icon: Globe2,       title: 'Travel map',        sub: "Everywhere you've been" },
+            ] as { Icon: LucideIcon; title: string; sub: string }[]).map(({ Icon, title, sub }) => (
               <div key={title} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 text-center">
-                <div className="text-2xl mb-2">{emoji}</div>
+                <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-sky-50 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-sky-800" />
+                </div>
                 <p className="font-bold text-sm text-zinc-800">{title}</p>
                 <p className="text-xs text-zinc-500 mt-1">{sub}</p>
               </div>
@@ -210,7 +183,7 @@ export default function HomePage() {
           {/* Pillar 1: it goes the distance */}
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
-              <span className="text-3xl">🧭</span>
+              <Compass className="w-8 h-8 text-sky-800" />
               <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
                 It doesn&apos;t stop at the itinerary.
               </h3>
@@ -255,7 +228,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="order-1 md:order-2">
-              <span className="text-3xl">👥</span>
+              <Users className="w-8 h-8 text-sky-800" />
               <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
                 Solo today, the whole crew tomorrow.
               </h3>
@@ -270,12 +243,12 @@ export default function HomePage() {
           {/* Pillar 3: split tracks */}
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
-              <span className="text-3xl">🔀</span>
+              <Shuffle className="w-8 h-8 text-sky-800" />
               <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
                 Split up without falling apart.
               </h3>
               <p className="text-zinc-600 leading-relaxed">
-                The foodies want the market. The hikers want the trail. With <strong>split tracks</strong>,
+                The foodies want the market. The hikers want the trail. With split tracks,
                 tripcoord runs two plans for the same day — then brings everyone back together for dinner,
                 with the meetup time and spot already set. Nobody misses out, nobody fights about it.
               </p>
@@ -301,7 +274,7 @@ export default function HomePage() {
 
           {/* Pillar 4: first draft */}
           <div className="text-center max-w-2xl mx-auto pt-4">
-            <span className="text-3xl">✦</span>
+            <Sparkles className="w-8 h-8 text-sky-800 mx-auto" />
             <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
               A first draft in minutes. You make it yours.
             </h3>
@@ -532,7 +505,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-5 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="font-script italic text-2xl font-semibold text-white">tripcoord</span>
-            <span className="text-zinc-500 text-sm ml-1">· group travel made easy — solo trips, too</span>
+            <span className="text-zinc-500 text-sm ml-1">· From solo to group trips, made easy</span>
           </div>
           <div className="flex gap-6 text-sm">
             <Link href="/pricing" className="hover:text-white transition">Pricing</Link>

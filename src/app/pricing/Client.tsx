@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Globe, CheckCircle, ArrowLeft, X, Sparkles, Users, Zap,
+  Globe, CheckCircle, X, Sparkles, Users, Zap,
   CalendarDays, Map, Camera, Shield, Star, ChevronDown,
   ChevronUp, Lock, Crown, Loader2, Receipt, AlertCircle, Plus,
 } from 'lucide-react';
@@ -13,6 +13,7 @@ import { PRICING } from '@/hooks/useEntitlements';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
 import { useAuth } from '@/context/AuthContext';
+import { MarketingNav } from '@/components/MarketingNav';
 
 // ─── Feature rows for the comparison table ───────────────────────────────────
 
@@ -280,19 +281,9 @@ function PricingPageInner() {
   return (
     <div className="min-h-screen bg-parchment">
 
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-lg border-b border-zinc-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-zinc-500 hover:text-zinc-800 transition-colors text-sm font-medium">
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Link>
-          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
-          <Link href="/auth/signup" className="px-4 py-2 bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold rounded-full transition-all">
-            Get started free
-          </Link>
-        </div>
-      </nav>
+      {/* Nav — shared MarketingNav so /pricing reads as part of the marketing
+          site (was a stripped-down Back + logo + CTA header until 2026-05-29). */}
+      <MarketingNav />
 
       {/* Hero */}
       <section className="pt-20 pb-10 px-4 text-center">
