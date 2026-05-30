@@ -26,6 +26,23 @@
 
 ---
 
+## ✅ Fixes applied (2026-05-30, post-audit)
+
+The verified P0s and headline P1s were fixed the same day:
+
+| Finding | Sev | Commit | What shipped |
+|---|---|---|---|
+| **GROUP-1 / GROUP-2** | P0 | `c1b01fe` | Settlement ledger (`expense_settlements` table + `/settlements` API). "Mark Paid" now records one payment; net = owed − payments, so only that transaction clears. Undo list added. |
+| **SHARE-1** | P0/P1 | `91ca4a0` | `/api/trips/[id]/public` now requires a valid invite token for `is_private` trips (404 otherwise); join page passes the token. |
+| **SEC-1 / SHARE-2** | P1 | `91ca4a0` | `members` GET now requires trip membership; emails returned only to the organizer. |
+| **MONEY-1** | P0/P1 | `70b8c16` | Regenerate charges `itinerary_regenerate` (10), not the full build (25); Trip Pass pool is whole again. |
+| **GROUP-3 / GROUP-4** | P0/P1 | `91ca4a0` | Expenses POST validates custom-split sums + rejects non-finite/non-positive amounts server-side. |
+| **MONEY-2** | — | — | Resolved by live-DB check: the credit RPCs are atomic (no fix needed). |
+
+Still open (recommended next): DB-1 (trip-photos bucket listing), COMP-2 (invite rate-limiting), AI-1 (parse-itinerary verify gate), OPS-1 (maxDuration 504s), DATA-1 (silent-empty GETs), and the brand sweep.
+
+---
+
 ## 1. Security & Access Control
 
 ### 🔴 SEC-1 (P1) — Member roster PII / IDOR leak ✓VERIFIED
