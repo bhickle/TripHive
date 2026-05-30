@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getTripRole, getTripTravelerCap } from '@/lib/supabase/tripAccess';
+import { consumeRateLimit } from '@/lib/supabase/rateLimit';
 
 /**
  * POST /api/invite/sms
@@ -38,6 +39,20 @@ export async function POST(request: NextRequest) {
   const role = await getTripRole(supabase, tripId, userId);
   if (!role || (role !== 'organizer' && role !== 'co_organizer')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Rate limit — SMS costs real money (Twilio) per send, so the windows are
+  // tighter than email. Per-user and per-recipient hourly; fails open if
+  // Supabase is unavailable.
+  const [userOk, toOk] = await Promise.all([
+    consumeRateLimit(`invite_sms:user:${userId}`, 15, 3600),
+    consumeRateLimit(`invite_sms:to:${phoneTrimmed}`, 3, 3600),
+  ]);
+  if (!userOk || !toOk) {
+    return NextResponse.json(
+      { error: 'RATE_LIMITED', message: 'Too many invites just now — please wait a little and try again.' },
+      { status: 429 },
+    );
   }
 
   // Traveler-cap pre-check: refuse to send an invite that the recipient

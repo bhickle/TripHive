@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getTripRole, getTripTravelerCap } from '@/lib/supabase/tripAccess';
+import { consumeRateLimit } from '@/lib/supabase/rateLimit';
 
 /**
  * POST /api/invite/email
@@ -32,6 +33,21 @@ export async function POST(request: NextRequest) {
   const role = await getTripRole(supabase, tripId, userId);
   if (!role || (role !== 'organizer' && role !== 'co_organizer')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Rate limit — this route spends real money (SendGrid) and reputation on
+  // every call, and the rate-limit helper was previously unused here. Bound
+  // both per-user and per-recipient hourly. Fails open if Supabase is down.
+  const recipientKey = email.trim().toLowerCase();
+  const [userOk, toOk] = await Promise.all([
+    consumeRateLimit(`invite_email:user:${userId}`, 30, 3600),
+    consumeRateLimit(`invite_email:to:${recipientKey}`, 5, 3600),
+  ]);
+  if (!userOk || !toOk) {
+    return NextResponse.json(
+      { error: 'RATE_LIMITED', message: 'Too many invites just now — please wait a little and try again.' },
+      { status: 429 },
+    );
   }
 
   // Traveler-cap pre-check: refuse to send an invite that the recipient
