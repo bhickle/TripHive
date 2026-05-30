@@ -234,6 +234,44 @@ export type Database = {
           },
         ]
       }
+      expense_settlements: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          from_name: string
+          id: string
+          to_name: string
+          trip_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          from_name: string
+          id?: string
+          to_name: string
+          trip_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          from_name?: string
+          id?: string
+          to_name?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_settlements_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number

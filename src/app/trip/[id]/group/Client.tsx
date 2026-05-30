@@ -150,13 +150,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         fetch(url).then(r => r.ok ? r.json() : { __failed: true, status: r.status });
       try {
         // Fetch trip title, members, votes, messages, wishlist, expenses in parallel
-        const [tripRes, membersRes, votesRes, messagesRes, wishlistRes, expensesRes] = await Promise.allSettled([
+        const [tripRes, membersRes, votesRes, messagesRes, wishlistRes, expensesRes, settlementsRes] = await Promise.allSettled([
           fetchOrFlag(`/api/trips/${params.id}`),
           fetchOrFlag(`/api/trips/${params.id}/members`),
           fetchOrFlag(`/api/trips/${params.id}/group-votes`),
           fetchOrFlag(`/api/trips/${params.id}/messages`),
           fetchOrFlag(`/api/trips/${params.id}/discover-wishlist`),
           fetchOrFlag(`/api/trips/${params.id}/expenses`),
+          fetchOrFlag(`/api/trips/${params.id}/settlements`),
         ]);
 
         setTabLoadErrors({
@@ -277,6 +278,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             settled: e.settled ?? false,
           }));
           setLocalExpenses(mapped);
+        }
+        if (settlementsRes.status === 'fulfilled' && Array.isArray(settlementsRes.value?.settlements)) {
+          setSettlementPayments(settlementsRes.value.settlements);
         }
         if (wishlistRes.status === 'fulfilled' && wishlistRes.value?.items) {
           // Sort by total engagement (up + down) descending, then by yay-heavy first
@@ -739,6 +743,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [voteCreated, setVoteCreated] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [settledUp, setSettledUp] = useState(false);
+  // Recorded debtor->creditor payments (settle-up ledger). Net balances =
+  // owed (from expenses) − these payments, so "Mark Paid" clears one txn only.
+  const [settlementPayments, setSettlementPayments] = useState<Array<{ id: string; fromName: string; toName: string; amount: number }>>([]);
   // The "Mark Paid" badge is now derived from whether all merged expenses
   // are settled — see the inline check at the Suggested Payments button.
   // Previously this state was a Set<number> keyed by settlement-array index,
@@ -1171,6 +1178,16 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     const balances: Record<string, number> = {};
     groupMembers.forEach((m) => {
       balances[m.name] = (paidByName[m.name] || 0) - (owedByName[m.name] || 0);
+    });
+
+    // Apply recorded settle-up payments. A payment from X to Y means X paid
+    // down their debt (balance up) and Y was repaid (balance down). Only the
+    // netted-out transactions then remain as Suggested Payments.
+    settlementPayments.forEach((p) => {
+      const from = canonicaliseName(p.fromName);
+      const to = canonicaliseName(p.toName);
+      if (from in balances) balances[from] += p.amount;
+      if (to in balances) balances[to] -= p.amount;
     });
 
     // Greedy minimum-transactions settlement
@@ -1833,15 +1850,6 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   <p className="text-emerald-700 font-semibold">All settled up! 🎉</p>
                 </div>
               );
-              // Derived "all paid" — true when every expense feeding the
-              // current settlements has been marked settled. This replaces
-              // the previous Set<number>(index) tracking that went stale
-              // when new expenses arrived. The mock Expense type doesn't
-              // include `settled`; cast each row to read the optional flag
-              // off either shape uniformly.
-              const mergedExpenses = [...expenses, ...localExpenses];
-              const allExpensesSettled = mergedExpenses.length > 0 &&
-                mergedExpenses.every(e => (e as { settled?: boolean }).settled === true);
               return (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
                   <div className="px-5 py-4 bg-sky-800 text-white">
@@ -1861,43 +1869,36 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           {!isMockTrip && (
                             <button
                               onClick={async () => {
-                                // Track per-expense success so a partial failure doesn't
-                                // claim "All settled up" while leaving rows unmarked on
-                                // the server. Run requests in parallel and collect
-                                // results — the previous loop swallowed each error and
-                                // rendered the success toast unconditionally.
-                                const unsettled = localExpenses.filter(e => !e.settled);
-                                const results = await Promise.all(unsettled.map(async exp => {
-                                  try {
-                                    const res = await fetch(`/api/trips/${params.id}/expenses`, {
-                                      method: 'PATCH',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ expenseId: exp.id, settled: true }),
-                                    });
-                                    return { id: exp.id, ok: res.ok };
-                                  } catch {
-                                    return { id: exp.id, ok: false };
-                                  }
-                                }));
-                                const settledIds = new Set(results.filter(r => r.ok).map(r => r.id));
-                                const failedCount = results.length - settledIds.size;
-                                setLocalExpenses(prev => prev.map(e => settledIds.has(e.id) ? { ...e, settled: true } : e));
-                                if (failedCount === 0) {
-                                  setSettledUp(true);
-                                  setTimeout(() => setSettledUp(false), 3000);
-                                } else {
-                                  setActionError(`Couldn't settle ${failedCount} of ${results.length} expenses. Please try again.`);
+                                // Record THIS payment in the settle-up ledger.
+                                // Net balances subtract it, so only this
+                                // transaction clears — unrelated debts stay put.
+                                // (Replaces the old behavior that marked EVERY
+                                // unsettled expense paid on a single click.)
+                                const optimistic = {
+                                  id: `opt_${txn.from}_${txn.to}_${idx}`,
+                                  fromName: txn.from,
+                                  toName: txn.to,
+                                  amount: txn.amount,
+                                };
+                                setSettlementPayments(prev => [optimistic, ...prev]);
+                                try {
+                                  const res = await fetch(`/api/trips/${params.id}/settlements`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ fromName: txn.from, toName: txn.to, amount: txn.amount }),
+                                  });
+                                  if (!res.ok) throw new Error('record failed');
+                                  const data = await res.json();
+                                  setSettlementPayments(prev => prev.map(p => p.id === optimistic.id ? data.settlement : p));
+                                } catch {
+                                  setSettlementPayments(prev => prev.filter(p => p.id !== optimistic.id));
+                                  setActionError("Couldn't record that payment. Please try again.");
                                   setTimeout(() => setActionError(null), 4500);
                                 }
                               }}
-                              disabled={allExpensesSettled}
-                              className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                                allExpensesSettled
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
-                              }`}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
                             >
-                              {allExpensesSettled ? '✓ Paid' : 'Mark Paid'}
+                              Mark Paid
                             </button>
                           )}
                         </div>
@@ -1907,6 +1908,45 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                 </div>
               );
             })()}
+
+            {/* Settled payments — recorded settle-up payments, with undo. */}
+            {!isMockTrip && settlementPayments.some(p => !p.id.startsWith('opt_')) && (
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-zinc-100">
+                  <h3 className="font-bold text-sm text-zinc-700">Settled payments</h3>
+                </div>
+                <div className="divide-y divide-zinc-50">
+                  {settlementPayments.filter(p => !p.id.startsWith('opt_')).map((p) => (
+                    <div key={p.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-semibold text-zinc-700">{p.fromName}</span>
+                        <span className="text-zinc-400 text-xs">paid</span>
+                        <span className="font-semibold text-zinc-700">{p.toName}</span>
+                        <span className="text-zinc-300">·</span>
+                        <span className="font-bold text-zinc-900">${p.amount.toFixed(2)}</span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const prevPayments = settlementPayments;
+                          setSettlementPayments(cur => cur.filter(x => x.id !== p.id));
+                          try {
+                            const res = await fetch(`/api/trips/${params.id}/settlements?settlementId=${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+                            if (!res.ok) throw new Error('undo failed');
+                          } catch {
+                            setSettlementPayments(prevPayments);
+                            setActionError("Couldn't undo that payment. Please try again.");
+                            setTimeout(() => setActionError(null), 4500);
+                          }
+                        }}
+                        className="text-xs font-semibold text-zinc-500 hover:text-zinc-800 px-2 py-1 rounded-full hover:bg-zinc-100 transition-colors"
+                      >
+                        Undo
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Expense list — only visible to paid tiers */}
             {hasExpenses && <div className="space-y-3">
