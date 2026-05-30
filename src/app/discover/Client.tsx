@@ -748,7 +748,7 @@ function CommunityTripCard({ trip, liked, forking, onLike, onFork, variant = 'gr
       {/* Day-by-day preview */}
       <div className="p-4 flex-1 flex flex-col gap-3">
         {previewDays.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
             {previewDays.map(day => (
               <div key={day.day} className="bg-stone-50 rounded-xl p-3 border border-zinc-100">
                 <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Day {day.day}</div>
