@@ -8,6 +8,8 @@ import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits
 import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
 import type { Json } from '@/lib/supabase/database.types';
 import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
+import { validateAndCorrectDay } from '@/lib/places/verifyDayLocations';
+import type { ItineraryDay } from '@/lib/types';
 
 // Extend Vercel function timeout to 5 minutes (300s).
 // Itinerary generation streams 64K tokens per pass; a 10-day trip with two
@@ -2093,6 +2095,61 @@ export async function POST(request: NextRequest) {
         }
       };
 
+      /**
+       * Pre-emit verification gate. Every `day` event passes through here
+       * before it leaves the SSE stream. Two-tier validation: string check
+       * (Tier 1) + Places API check (Tier 2). On failure, the day is re-
+       * prompted to the AI with explicit correction guidance and re-
+       * validated. Up to 2 retries.
+       *
+       * Brandon's 2026-05-30 directive: don't surface broken itineraries
+       * — prevent them. If both retries fail, an `error` SSE event is sent
+       * and `false` is returned so the caller can abort that path. The
+       * partial trip stays persisted; the user can regenerate.
+       *
+       * IMPORTANT: this function emits the verified `day` event itself.
+       * Callers should NOT re-emit after success.
+       */
+      const verifyThenSendDay = async (dayObj: Record<string, unknown>, dayIndex: number): Promise<boolean> => {
+        // Wrap the day in a typed view for the validator. Day objects in
+        // the SSE pipeline are Record<string, unknown> (since the AI's
+        // JSON is freshly parsed) but their shape matches ItineraryDay.
+        const typedDay = dayObj as unknown as ItineraryDay;
+        const dayCity = typedDay.city;
+        // No city → can't validate; pass through. The day's `city` field
+        // is REQUIRED by the prompt, but a defensive check protects
+        // against a model that ignores the schema.
+        if (!dayCity) {
+          send({ type: 'day', index: dayIndex, data: dayObj });
+          return true;
+        }
+        const result = await validateAndCorrectDay(typedDay, {
+          anthropic: client,
+          modelId,
+          systemPrompt: SYSTEM_PROMPT,
+          placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
+          maxRetries: 2,
+          sendStatus: (message: string) => send({ type: 'status', message }),
+        });
+        if (result.ok) {
+          // Either passed first try or was successfully corrected; emit.
+          send({ type: 'day', index: dayIndex, data: result.day as unknown as Record<string, unknown> });
+          return true;
+        }
+        // Hard fail: surface to the client. The trip persists with the
+        // days that already streamed; the user can regenerate.
+        const failedNames = (result.finalFailures ?? [])
+          .slice(0, 3)
+          .map(f => f.name)
+          .join(', ');
+        console.warn(`[generate-itinerary] day ${typedDay.day} (${dayCity}) failed location verification after ${result.retries} retries:`, result.finalFailures);
+        send({
+          type: 'error',
+          message: `Couldn't verify day ${typedDay.day} (${dayCity}) — venues kept resolving to the wrong city (${failedNames || 'multiple'}). Please regenerate.`,
+        });
+        return false;
+      };
+
       try {
         // Open the first-pass stream with retry-with-backoff for connection-time
         // overloaded_error / 5xx. Without this, a single 529 from Anthropic kills
@@ -2212,7 +2269,14 @@ export async function POST(request: NextRequest) {
                     }
 
                     clampPriceLevels(dayObj);
-                    send({ type: 'day', index: dayIndex, data: dayObj });
+                    // Verify-before-emit. Hard fail = abort the build with
+                    // an error event; the partial trip stays persisted so
+                    // the user can regenerate from where we got.
+                    const ok = await verifyThenSendDay(dayObj, dayIndex);
+                    if (!ok) {
+                      controller.close();
+                      return;
+                    }
                     collectedDays.push(dayObj);
                     dayIndex++;
 
@@ -2293,7 +2357,15 @@ export async function POST(request: NextRequest) {
                 const dn = typeof d.day === 'number' ? d.day : -1;
                 if (dn > dayIndex) {
                   clampPriceLevels(d);
-                  send({ type: 'day', index: dayIndex, data: d });
+                  // Verify-before-emit. Salvage path runs after a truncated
+                  // stream so we don't want to abort the whole build on a
+                  // hard fail here — log it and skip the day instead. The
+                  // salvage path is best-effort by construction.
+                  const ok = await verifyThenSendDay(d, dayIndex);
+                  if (!ok) {
+                    console.warn(`[generate-itinerary] salvage day ${dn} skipped after failed verification`);
+                    continue;
+                  }
                   collectedDays.push(d);
                   dayIndex++;
                   if (requestBodyTripId) {
@@ -2539,7 +2611,14 @@ export async function POST(request: NextRequest) {
                         contStart = -1;
                       } else {
                         clampPriceLevels(dayObj);
-                        send({ type: 'day', index: dayIndex, data: dayObj });
+                        // Verify-before-emit on continuation path too.
+                        // Hard fail aborts the chunk loop just like the
+                        // first-pass path.
+                        const ok = await verifyThenSendDay(dayObj, dayIndex);
+                        if (!ok) {
+                          controller.close();
+                          return;
+                        }
                         collectedDays.push(dayObj);
                         dayIndex++;
 
