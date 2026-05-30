@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/lib/supabase/database.types';
-import { getTripRole } from '@/lib/supabase/tripAccess';
+import { getTripRole, requireTripAccess } from '@/lib/supabase/tripAccess';
 import { TIER_LIMITS } from '@/lib/types';
 
 /**
@@ -11,16 +11,12 @@ import { TIER_LIMITS } from '@/lib/types';
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    let userId: string | null = null;
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      userId = user?.id ?? null;
-    } catch { /* unauthenticated */ }
-
-    if (!userId) return NextResponse.json({ members: [] });
-
-    const supabase = createAdminClient();
+    // Membership gate: only the organizer or a member may read the roster.
+    // Previously any logged-in user could read any trip's full member list
+    // (names + emails) by supplying the trip UUID — an IDOR/PII leak.
+    const access = await requireTripAccess(params.id);
+    if (!access.ok) return access.response;
+    const { userId, supabase } = access.ctx;
 
     // Fetch organizer from trips table
     const { data: trip } = await supabase
@@ -28,6 +24,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .select('organizer_id')
       .eq('id', params.id)
       .single();
+
+    // Member emails are contact info — only expose them to the organizer.
+    // (The group UI renders names/avatars, not emails, so non-organizers
+    // lose nothing visible.)
+    const viewerIsOrganizer = !!trip && trip.organizer_id === userId;
 
     // Fetch members from trip_members (non-organizer rows). `preferences` is
     // included so the Crew Readiness panel can show per-member submission
@@ -66,7 +67,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         result.push({
           id: organizer.id,
           name: organizer.name ?? organizer.email?.split('@')[0] ?? 'Organizer',
-          email: organizer.email,
+          email: viewerIsOrganizer ? organizer.email : null,
           avatarUrl: organizer.avatar_url,
           role: 'organizer',
           joinedAt: new Date().toISOString(),
@@ -97,7 +98,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       result.push({
         id: m.user_id ?? m.id,
         name: profile?.name ?? m.name ?? m.email?.split('@')[0] ?? 'Member',
-        email: m.email,
+        email: viewerIsOrganizer ? m.email : null,
         avatarUrl: profile?.avatar_url ?? null,
         role: m.role,
         joinedAt: m.joined_at,

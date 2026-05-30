@@ -158,7 +158,10 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
           const timeoutId = setTimeout(() => controller.abort(), 10000);
           let tripRes: Response | null = null;
           try {
-            tripRes = await fetch(`/api/trips/${tripId}/public`, { signal: controller.signal });
+            // Pass the invite token so private trips (gated server-side) are
+            // previewable by legitimate invitees; open trips ignore it.
+            const publicUrl = `/api/trips/${tripId}/public${inviteToken ? `?token=${encodeURIComponent(inviteToken)}` : ''}`;
+            tripRes = await fetch(publicUrl, { signal: controller.signal });
           } catch {
             // Timeout or network error — fall through to notFound
           } finally {

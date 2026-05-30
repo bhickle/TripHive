@@ -88,8 +88,29 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const body = await req.json();
     const { description, amount, paidByName, splitType, category, customAmounts, lineItems } = body;
 
-    if (!description?.trim() || !amount || !paidByName?.trim()) {
-      return NextResponse.json({ error: 'description, amount, and paidByName are required' }, { status: 400 });
+    if (!description?.trim() || !paidByName?.trim()) {
+      return NextResponse.json({ error: 'description and paidByName are required' }, { status: 400 });
+    }
+
+    // Amount must be a finite, positive number — a negative or NaN amount
+    // would invert / poison the who-owes-whom math.
+    const amt = parseFloat(amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 });
+    }
+
+    // Custom-split shares must sum to the total, or balances never net to
+    // zero. The client checks this, but enforce it server-side so a direct
+    // API call can't persist an inconsistent split.
+    if (splitType === 'custom' && customAmounts && typeof customAmounts === 'object') {
+      const shareSum = Object.values(customAmounts as Record<string, unknown>)
+        .reduce((s: number, v) => s + (parseFloat(String(v)) || 0), 0);
+      if (Math.abs(shareSum - amt) > 0.01) {
+        return NextResponse.json(
+          { error: 'Custom split shares must add up to the total amount.' },
+          { status: 400 },
+        );
+      }
     }
 
     const { data: expense, error } = await supabase
@@ -97,7 +118,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .insert({
         trip_id: params.id,
         description: description.trim(),
-        amount: parseFloat(amount),
+        amount: amt,
         paid_by_name: paidByName.trim(),
         paid_by_user_id: userId,
         split_type: splitType ?? 'equal',
