@@ -10,7 +10,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   Mountain, Waves, Compass, Utensils, Music, Scale,
-  ArrowRight, ArrowLeft, Check, Sparkles,
+  ArrowRight, ArrowLeft, Check, Sparkles, Map as MapIcon,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ const GROUP_TYPES: { id: GroupType; label: string; emoji: string }[] = [
 function StepDots({ step }: { step: number }) {
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
-      {[0, 1].map((i) => (
+      {[0, 1, 2].map((i) => (
         <div
           key={i}
           className={`transition-all duration-300 rounded-full ${
@@ -212,14 +212,103 @@ function StyleStep({
         </div>
       </div>
 
-      {/* CTA hint */}
-      <div className="p-4 bg-gradient-to-r from-sky-50 to-green-50 border border-sky-100 rounded-xl">
+      {/* CTA hint — flow ends on a fork screen that asks the user what
+          they want to do next; this hint sets that expectation. */}
+      <div className="p-4 bg-sky-50 border border-sky-100 rounded-xl">
         <div className="flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-sky-600 flex-shrink-0" />
           <p className="text-sm text-slate-600">
-            Next up: tell us where you want to go and we'll build a full AI-powered itinerary in seconds.
+            Almost done. One more step to pick what you want to do first.
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 3: Fork screen ──────────────────────────────────────────────────────
+// Terminal step after registration + onboarding. Asks the user what they
+// want to do next instead of auto-routing them into the Trip Builder.
+// Three CTA cards: Build a trip (primary), Browse Discover, Look around.
+// Brandon's 2026-05-29 directive — the auto-route into /trip/new felt
+// pushy on cold-signup users who landed via the marketing site and just
+// wanted to look around first.
+
+function ForkStep({
+  yourName,
+  onBuild,
+  onDiscover,
+  onLookAround,
+}: {
+  yourName: string;
+  onBuild: () => void;
+  onDiscover: () => void;
+  onLookAround: () => void;
+}) {
+  const firstName = yourName.trim().split(/\s+/)[0] || 'friend';
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-sky-50 flex items-center justify-center">
+          <Check className="w-7 h-7 text-sky-700" />
+        </div>
+        <h1 className="text-3xl font-script italic font-semibold text-slate-900 mb-2">
+          You&apos;re in, {firstName}.
+        </h1>
+        <p className="text-slate-500">What do you want to do first?</p>
+      </div>
+
+      <div className="space-y-3">
+        {/* Primary: build a trip. Bigger, sky-700, sparkle icon — same
+            shape as the existing primary CTAs on this page. */}
+        <button
+          type="button"
+          onClick={onBuild}
+          className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-sky-700 bg-sky-50 hover:bg-sky-100 transition-colors text-left"
+        >
+          <div className="w-11 h-11 rounded-full bg-sky-700 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-900">Build a trip</p>
+            <p className="text-sm text-slate-600">Tell us where you&apos;re going. tripcoord drafts a full day-by-day plan.</p>
+          </div>
+          <ArrowRight className="w-5 h-5 text-sky-700 flex-shrink-0" />
+        </button>
+
+        {/* Secondary: Discover. Curated browse-first path for users who
+            don't know where to go yet. */}
+        <button
+          type="button"
+          onClick={onDiscover}
+          className="w-full flex items-center gap-4 p-5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-left"
+        >
+          <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+            <Compass className="w-5 h-5 text-slate-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-900">Browse Discover</p>
+            <p className="text-sm text-slate-600">Curated trips, seasonal collections, founder picks. Save what catches your eye.</p>
+          </div>
+          <ArrowRight className="w-5 h-5 text-slate-500 flex-shrink-0" />
+        </button>
+
+        {/* Tertiary: Home Base. For users who registered to claim a spot
+            and want to poke around before committing. */}
+        <button
+          type="button"
+          onClick={onLookAround}
+          className="w-full flex items-center gap-4 p-5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-left"
+        >
+          <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+            <MapIcon className="w-5 h-5 text-slate-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-900">Look around</p>
+            <p className="text-sm text-slate-600">Land on your Home Base. Build a trip whenever you&apos;re ready.</p>
+          </div>
+          <ArrowRight className="w-5 h-5 text-slate-500 flex-shrink-0" />
+        </button>
       </div>
     </div>
   );
@@ -267,6 +356,8 @@ export default function OnboardingPage() {
   const canAdvance = () => {
     if (step === 0) return state.yourName.trim().length >= 1;
     if (step === 1) return state.vibes.length >= 1;
+    // step === 2 is the terminal fork screen — no Next button, the
+    // three CTA cards handle navigation themselves.
     return false;
   };
 
@@ -350,14 +441,29 @@ export default function OnboardingPage() {
       setStep(1);
       return;
     }
-    await saveProfile();
-    router.push('/trip/new?firsttrip=true');
+    if (step === 1) {
+      // Persist the profile NOW (not on the fork CTAs) so even if the
+      // user bails out via the "Skip for now" header link, their persona
+      // is saved. The fork-screen CTAs only handle navigation.
+      await saveProfile();
+      setStep(2);
+      return;
+    }
   };
 
   const handleGoToDashboard = async () => {
     await saveProfile();
     router.push('/dashboard');
   };
+
+  // Fork-screen CTAs (step 2). Profile is already saved by handleNext on
+  // the step-1 transition, so these are pure navigation. Brandon's
+  // 2026-05-29 directive: after registration + onboarding, ASK whether
+  // the user wants to build a trip — don't auto-route them into the
+  // Trip Builder.
+  const handleForkBuild = () => router.push('/trip/new?firsttrip=true');
+  const handleForkDiscover = () => router.push('/discover');
+  const handleForkLookAround = () => router.push('/dashboard');
 
   return (
     <div className="min-h-screen flex flex-col bg-parchment">
@@ -366,13 +472,17 @@ export default function OnboardingPage() {
         <Link href="/">
           <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
         </Link>
-        <button
-          type="button"
-          onClick={handleGoToDashboard}
-          className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
-        >
-          Skip for now →
-        </button>
+        {/* Skip-for-now hidden on the fork screen — that IS the resolution,
+            and "Look around" is already one of the three options. */}
+        {step < 2 && (
+          <button
+            type="button"
+            onClick={handleGoToDashboard}
+            className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            Skip for now →
+          </button>
+        )}
       </header>
 
       {/* Content */}
@@ -383,56 +493,47 @@ export default function OnboardingPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
             {step === 0 && <ProfileStep state={state} onChange={patchState} />}
             {step === 1 && <StyleStep state={state} onChange={patchState} />}
+            {step === 2 && (
+              <ForkStep
+                yourName={state.yourName}
+                onBuild={handleForkBuild}
+                onDiscover={handleForkDiscover}
+                onLookAround={handleForkLookAround}
+              />
+            )}
 
-            {/* Navigation */}
-            <div className="flex items-center gap-3 mt-8">
-              {step > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setStep(0)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back
-                </button>
-              )}
-              {step === 1 ? (
-                <div className="flex-1 flex flex-col gap-2">
+            {/* Navigation — hidden on the fork screen (step 2); the three
+                CTA cards inside ForkStep handle navigation themselves. */}
+            {step < 2 && (
+              <div className="flex items-center gap-3 mt-8">
+                {step > 0 && (
                   <button
                     type="button"
-                    onClick={handleNext}
-                    disabled={!canAdvance()}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-display font-semibold text-base shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+                    onClick={() => setStep(step - 1)}
+                    className="flex items-center gap-2 px-5 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    Create Your First Trip
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleGoToDashboard}
-                    disabled={!canAdvance()}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
-                  >
-                    Confirm and go to Home Base →
-                  </button>
-                </div>
-              ) : (
+                )}
                 <button
                   type="button"
                   onClick={handleNext}
                   disabled={!canAdvance()}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-sky-700 to-sky-600 text-white font-display font-semibold text-base shadow hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
                 >
-                  My Travel Style
+                  {step === 0 ? 'My Travel Style' : 'Continue'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <p className="text-center text-sm text-slate-400 mt-4">
-            Step {step + 1} of 2 — {step === 0 ? 'Your Profile' : 'Travel Style'}
-          </p>
+          {step < 2 && (
+            <p className="text-center text-sm text-slate-400 mt-4">
+              Step {step + 1} of 2 — {step === 0 ? 'Your Profile' : 'Travel Style'}
+            </p>
+          )}
         </div>
       </main>
     </div>
