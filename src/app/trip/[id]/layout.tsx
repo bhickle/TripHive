@@ -8,6 +8,7 @@ import { trips } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/dom/bodyScrollLock';
 import { Copy, Check, X, Users } from 'lucide-react';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 interface TripLayoutProps {
   children: React.ReactNode;
@@ -69,6 +70,8 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  useEscapeKey(() => setShowInviteModal(false), showInviteModal);
 
   // Lock body scroll while on a trip page so the outer h-screen layout
   // is the entire scrollable surface. Without this, something inside the
@@ -218,6 +221,8 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
           <div
             className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
             onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
@@ -229,6 +234,7 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
               </div>
               <button
                 onClick={() => setShowInviteModal(false)}
+                aria-label="Close"
                 className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors"
               >
                 <X className="w-4 h-4 text-zinc-500" />

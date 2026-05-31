@@ -7,6 +7,7 @@ import {
   MapPin, Clock, Users, Hash, DollarSign, RotateCcw,
 } from 'lucide-react';
 import { TransportLeg } from '@/lib/types';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // ─── Transport display config (mirrors itinerary page) ───────────────────────
 
@@ -72,6 +73,7 @@ function TransportPreview({ leg }: { leg: TransportLeg }) {
           {hasDetails && (
             <button
               onClick={() => setExpanded(e => !e)}
+              aria-label="Toggle details"
               className="flex-shrink-0 p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 transition-colors"
             >
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -190,6 +192,8 @@ export function ParseTransportModal({ dayNumber, dayDate, tripId, onAdd, onClose
   const [errorMessage, setErrorMessage] = useState('');
   const [exampleIdx] = useState(() => Math.floor(Math.random() * EXAMPLES.length));
 
+  useEscapeKey(onClose);
+
   const formattedDate = new Date(dayDate).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
   });
@@ -235,7 +239,7 @@ export function ParseTransportModal({ dayNumber, dayDate, tripId, onAdd, onClose
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" role="dialog" aria-modal="true">
 
         {/* Header */}
         <div className="px-6 pt-6 pb-5 border-b border-zinc-100 flex items-start justify-between flex-shrink-0">

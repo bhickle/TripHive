@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { X, Lock, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
 import { UpgradePrompt, PRICING } from '@/hooks/useEntitlements';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 interface UpgradeModalProps {
   prompt: UpgradePrompt;
@@ -22,6 +23,8 @@ interface UpgradeModalProps {
 export function UpgradeModal({ prompt, onClose, tripId, tripGroupSize }: UpgradeModalProps) {
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+
+  useEscapeKey(onClose);
 
   // Trip Pass pricing math — base $30 + $4 per traveler beyond the first 6,
   // capped at maxGroupSize (12). Extra-people line items are added by the
@@ -69,6 +72,8 @@ export function UpgradeModal({ prompt, onClose, tripId, tripGroupSize }: Upgrade
       <div
         className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
         {/* Close */}
         <button

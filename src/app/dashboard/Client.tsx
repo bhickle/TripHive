@@ -436,7 +436,7 @@ export default function DashboardPage() {
                     <p className="text-white/80 text-xs md:text-sm flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
                       {nextTrip.startDate && nextTrip.endDate
-                        ? `${new Date(nextTrip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(nextTrip.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                        ? `${new Date(nextTrip.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(nextTrip.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
                         : 'Dates to be decided'}
                     </p>
                   </div>

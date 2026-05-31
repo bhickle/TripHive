@@ -439,7 +439,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                     <div className="flex items-center space-x-2 text-zinc-600">
                       <Calendar className="w-4 h-4 text-sky-700" />
                       <span className="text-sm">{tripData.startDate && tripData.endDate
-                        ? `${new Date(tripData.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}-${new Date(tripData.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        ? `${new Date(tripData.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}-${new Date(tripData.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
                         : 'Dates to be decided'}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-zinc-600">

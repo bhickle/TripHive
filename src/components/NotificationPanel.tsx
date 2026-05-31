@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { EmptyState } from '@/components/EmptyState';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -254,6 +255,8 @@ export function NotificationBell() {
     router.push(url);
   }, [router]);
 
+  useEscapeKey(() => setOpen(false), open);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Initial fetch from /api/notifications
@@ -344,6 +347,7 @@ export function NotificationBell() {
       {/* Bell button */}
       <button
         onClick={() => setOpen(!open)}
+        aria-label="Notifications"
         className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
           open ? 'bg-sky-50 text-sky-700' : 'hover:bg-zinc-100 text-zinc-600'
         }`}
@@ -358,7 +362,7 @@ export function NotificationBell() {
 
       {/* Panel */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden" role="dialog" aria-modal="true">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
             <div className="flex items-center gap-2">
@@ -381,6 +385,7 @@ export function NotificationBell() {
               )}
               <button
                 onClick={() => setOpen(false)}
+                aria-label="Close"
                 className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors"
               >
                 <X className="w-4 h-4 text-slate-500" />

@@ -593,7 +593,18 @@ function TopSearchCard({
   }
 
   return (
-    <div className={wrapperClass} onClick={() => onSearch(name)}>
+    <div
+      className={wrapperClass}
+      onClick={() => onSearch(name)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          if (e.key === ' ') e.preventDefault();
+          onSearch(name);
+        }
+      }}
+    >
       {wrapperContent}
     </div>
   );
