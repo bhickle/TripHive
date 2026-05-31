@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuth } from '@/lib/supabase/requireAuth';
-import { getTripRole } from '@/lib/supabase/tripAccess';
+import { getTripRole, getOrganizerTier } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
 import type { Json } from '@/lib/supabase/database.types';
@@ -1592,23 +1592,32 @@ export async function POST(request: NextRequest) {
     } catch { /* non-blocking */ }
   }
 
-  const tierLimits = TIER_LIMITS[userTier];
+  // Trip LENGTH + multi-city are properties of the trip's PLAN (built under the
+  // organizer's tier), so they gate on the ORGANIZER's tier — a lower-tier
+  // co-organizer regenerating must not have the organizer's days/cities cut.
+  // For a brand-new build the caller IS the organizer, so this equals userTier.
+  // (AI credits + feature gating below stay on the caller's own tier.)
+  let planTier = userTier;
+  if (requestBodyTripId) {
+    try { planTier = await getOrganizerTier(createAdminClient(), requestBodyTripId); }
+    catch { /* fall back to caller's tier */ }
+  }
+  const tierLimits = TIER_LIMITS[planTier];
   const requestedLength = Number(body.tripLength) || 7;
 
   if (requestedLength > tierLimits.maxTripDays) {
     return NextResponse.json({
       error: 'TRIP_LENGTH_LIMIT',
-      message: `Your ${userTier} plan supports itineraries up to ${tierLimits.maxTripDays} days. Upgrade to generate longer trips.`,
+      message: `This trip's plan supports itineraries up to ${tierLimits.maxTripDays} days. Upgrade to generate longer trips.`,
     }, { status: 403 });
   }
 
-  // Multi-city gate — free tier is single-city only. The Trip Builder hides
-  // the "add another destination" button on free, but a DevTools-edited
-  // payload would otherwise sneak through. Keep the check loose: any
-  // destinations array with >1 entries counts as multi-city.
+  // Multi-city gate — gated on the trip's plan (organizer's tier; free = single
+  // city only). The Trip Builder hides the "add another destination" button on
+  // free, but a DevTools-edited payload would otherwise sneak through.
   const destinationsArr = Array.isArray(body.destinations) ? body.destinations as unknown[] : [];
   const isMultiCityRequest = destinationsArr.filter(d => typeof d === 'string' && d.trim()).length > 1;
-  if (isMultiCityRequest && userTier === 'free') {
+  if (isMultiCityRequest && planTier === 'free') {
     return NextResponse.json({
       error: 'MULTI_CITY_LOCKED',
       message: 'Multi-city trips are available on Trip Pass and up. Upgrade or stick to one destination.',

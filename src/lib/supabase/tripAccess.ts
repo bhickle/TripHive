@@ -275,6 +275,32 @@ export async function hasTripFeatureAccess(
  * (currentTotal + pendingInvites) >= cap blocks a NEW invite, while
  * currentTotal >= cap blocks an actual JOIN.
  */
+/**
+ * The trip organizer's subscription tier. Trip LENGTH + multi-city are
+ * properties of the organizer's plan (the trip was built under it), so length
+ * caps on add-day / regenerate gate on THIS — not the caller's tier — so a
+ * lower-tier co-organizer doesn't have the organizer's days/cities cut. (AI
+ * feature gates + credits stay on the caller's own tier.) See the co-organizer
+ * parity rule. Defaults to 'free' if the trip/organizer can't be resolved.
+ */
+export async function getOrganizerTier(
+  supabase: ReturnType<typeof createAdminClient>,
+  tripId: string,
+): Promise<SubscriptionTier> {
+  const { data: trip } = await supabase
+    .from('trips')
+    .select('organizer_id')
+    .eq('id', tripId)
+    .maybeSingle();
+  if (!trip?.organizer_id) return 'free';
+  const { data: orgProfile } = await supabase
+    .from('profiles')
+    .select('subscription_tier')
+    .eq('id', trip.organizer_id)
+    .maybeSingle();
+  return (orgProfile?.subscription_tier as SubscriptionTier | null) ?? 'free';
+}
+
 export async function getTripTravelerCap(
   supabase: ReturnType<typeof createAdminClient>,
   tripId: string,

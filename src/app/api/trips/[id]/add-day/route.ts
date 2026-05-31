@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
-import { requireTripAiRole } from '@/lib/supabase/tripAccess';
+import { requireTripAiRole, getOrganizerTier } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { TIER_LIMITS } from '@/lib/types';
@@ -47,17 +47,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const roleCheck = await requireTripAiRole(params.id);
   if (!roleCheck.ok) return roleCheck.response;
 
-  // Tier cap: don't let add-day push the trip beyond the caller's
-  // maxTripDays. Without this check, a free user (max 7 days) could
-  // extend an existing trip indefinitely via repeated add-day calls.
-  // Matches the same per-tier limit /api/generate-itinerary enforces.
-  // Caller-tier asymmetry note: a Nomad co-org adding to a free
-  // organizer's trip will hit the Nomad cap (14), not the organizer's;
-  // acceptable for v1 since the AI build itself was already gated by
-  // the organizer's tier when the trip was first created.
-  const tierLimit = TIER_LIMITS[auth.ctx.tier].maxTripDays;
+  // Tier cap: don't let add-day push the trip beyond its plan's maxTripDays.
+  // The cap follows the ORGANIZER's tier, not the caller's — the trip was built
+  // under the organizer's plan, so a lower-tier co-organizer must not have its
+  // days cut and can extend up to the organizer's max. (AI feature gates +
+  // credits below stay on the caller's own tier.)
   try {
     const admin = createAdminClient();
+    const organizerTier = await getOrganizerTier(admin, params.id);
+    const tierLimit = TIER_LIMITS[organizerTier].maxTripDays;
     // Count the ACTUAL itinerary days, not trips.trip_length — the latter is
     // never bumped when a day is added, so reading it let repeated add-day
     // calls bypass the cap. The live day count reflects every prior add.
@@ -72,7 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json(
         {
           error: 'TRIP_LENGTH_LIMIT',
-          message: `Your ${auth.ctx.tier} plan supports trips up to ${tierLimit} days. Upgrade to add more.`,
+          message: `This trip's plan supports trips up to ${tierLimit} days. Upgrade to add more.`,
         },
         { status: 403 },
       );
