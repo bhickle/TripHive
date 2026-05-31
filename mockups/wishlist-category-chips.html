@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>tripcoord — Wishlist category chip colors</title>
+<style>
+  :root {
+    /* current rainbow */
+    --blue-100:#dbeafe;   --blue-800:#1e40af;
+    --sky-100:#e0f2fe;    --sky-800:#075985;   --sky-900:#0c4a6e;
+    --emerald-100:#d1fae5;--emerald-800:#065f46;
+    --green-100:#dcfce7;  --green-800:#166534;
+    --rose-100:#ffe4e6;   --rose-800:#9f1239;
+    --purple-100:#f3e8ff; --purple-800:#6b21a8;
+    --pink-100:#fce7f3;   --pink-800:#9d174d;
+    --teal-100:#ccfbf1;   --teal-800:#115e59;
+    --orange-100:#ffedd5; --orange-800:#9a3412;
+    --zinc-100:#f4f4f5;   --zinc-700:#3f3f46;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background:#faf8f3; color:#27272a; margin:0; padding:40px 32px; line-height:1.5;
+  }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:#71717a; font-size:14px; margin:0 0 32px; }
+  .panel {
+    background:#fff; border:1px solid #f4f4f5; border-radius:16px;
+    padding:24px; margin-bottom:24px; box-shadow:0 1px 2px rgba(0,0,0,.04);
+    max-width:720px;
+  }
+  .panel h2 { font-size:16px; margin:0 0 4px; }
+  .panel .note { color:#71717a; font-size:13px; margin:0 0 16px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip {
+    display:inline-flex; align-items:center; padding:4px 12px;
+    border-radius:9999px; font-size:12px; font-weight:600;
+  }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; margin-top:16px; font-size:12px; color:#71717a; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .swatch { width:12px; height:12px; border-radius:3px; }
+  .recommend { border:2px solid #075985; }
+  .badge { display:inline-block; background:#075985; color:#fff; font-size:11px; font-weight:700;
+           padding:2px 8px; border-radius:9999px; margin-left:8px; vertical-align:middle; }
+</style>
+</head>
+<body>
+  <h1>Wishlist category chips — color options</h1>
+  <p class="sub">"On My Radar" destination cards tag each saved place with category chips. The brand ruling reserves accent colors (amber = paid, rose = errors, violet = AI Pick, emerald = "Best value"), so the current rainbow pulls in off-palette families. Here are sanctioned-palette replacements.</p>
+
+  <!-- CURRENT -->
+  <div class="panel">
+    <h2>Current (off-palette rainbow)</h2>
+    <p class="note">Uses blue, purple, pink, teal, orange, green, rose — none in the sanctioned set.</p>
+    <div class="chips">
+      <span class="chip" style="background:var(--blue-100);color:var(--blue-800)">Culture</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-900)">Food</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Adventure</span>
+      <span class="chip" style="background:var(--emerald-100);color:var(--emerald-800)">Nature</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-900)">Temples</span>
+      <span class="chip" style="background:var(--green-100);color:var(--green-800)">Hiking</span>
+      <span class="chip" style="background:var(--rose-100);color:var(--rose-800)">Markets</span>
+      <span class="chip" style="background:var(--purple-100);color:var(--purple-800)">Photography</span>
+      <span class="chip" style="background:var(--pink-100);color:var(--pink-800)">Romance</span>
+      <span class="chip" style="background:var(--teal-100);color:var(--teal-800)">Wellness</span>
+      <span class="chip" style="background:var(--teal-100);color:var(--teal-800)">Relaxed</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Balanced</span>
+      <span class="chip" style="background:var(--orange-100);color:var(--orange-800)">Foodie</span>
+      <span class="chip" style="background:var(--purple-100);color:var(--purple-800)">Nightlife</span>
+      <span class="chip" style="background:var(--blue-100);color:var(--blue-800)">Cultural</span>
+    </div>
+  </div>
+
+  <!-- OPTION A -->
+  <div class="panel recommend">
+    <h2>Option A — 3-bucket semantic<span class="badge">Recommended</span></h2>
+    <p class="note">Groups categories into three sanctioned families: <b>sky</b> = culture / food / city experiences, <b>emerald</b> = outdoors / active / wellness, <b>zinc</b> = neutral. Keeps useful color grouping without leaving the palette.</p>
+    <div class="chips">
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Culture</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Food</span>
+      <span class="chip" style="background:var(--emerald-100);color:var(--emerald-800)">Adventure</span>
+      <span class="chip" style="background:var(--emerald-100);color:var(--emerald-800)">Nature</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Temples</span>
+      <span class="chip" style="background:var(--emerald-100);color:var(--emerald-800)">Hiking</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Markets</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Photography</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Romance</span>
+      <span class="chip" style="background:var(--emerald-100);color:var(--emerald-800)">Wellness</span>
+      <span class="chip" style="background:var(--emerald-100);color:var(--emerald-800)">Relaxed</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Balanced</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Foodie</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Nightlife</span>
+      <span class="chip" style="background:var(--sky-100);color:var(--sky-800)">Cultural</span>
+    </div>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--sky-100)"></span> sky — culture / food / city</span>
+      <span><span class="swatch" style="background:var(--emerald-100)"></span> emerald — outdoors / active / wellness</span>
+      <span><span class="swatch" style="background:var(--zinc-100)"></span> zinc — neutral</span>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="panel">
+    <h2>Option B — all neutral</h2>
+    <p class="note">Every chip is the same zinc neutral; the label alone distinguishes categories. Maximally consistent, but no color grouping.</p>
+    <div class="chips">
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Culture</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Food</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Adventure</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Nature</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Temples</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Hiking</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Markets</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Photography</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Romance</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Wellness</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Relaxed</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Balanced</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Foodie</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Nightlife</span>
+      <span class="chip" style="background:var(--zinc-100);color:var(--zinc-700)">Cultural</span>
+    </div>
+  </div>
+
+</body>
+</html>

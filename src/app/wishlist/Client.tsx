@@ -478,25 +478,15 @@ function AddDestinationModal({
 
 // ─── Tag colour helper ────────────────────────────────────────────────────────
 
-function getTagColor(tag: string) {
-  const colors: Record<string, string> = {
-    Culture:     'bg-blue-100 text-blue-800',
-    Food:        'bg-sky-100 text-sky-900',
-    Adventure:   'bg-sky-100 text-sky-800',
-    Nature:      'bg-emerald-100 text-emerald-800',
-    Temples:     'bg-sky-100 text-sky-900',
-    Hiking:      'bg-green-100 text-green-800',
-    Markets:     'bg-rose-100 text-rose-800',
-    Photography: 'bg-purple-100 text-purple-800',
-    Romance:     'bg-pink-100 text-pink-800',
-    Wellness:    'bg-teal-100 text-teal-800',
-    Relaxed:     'bg-teal-100 text-teal-800',
-    Balanced:    'bg-zinc-100 text-zinc-700',
-    Foodie:      'bg-orange-100 text-orange-800',
-    Nightlife:   'bg-purple-100 text-purple-800',
-    Cultural:    'bg-blue-100 text-blue-800',
-  };
-  return colors[tag] || 'bg-zinc-100 text-zinc-800';
+// Category chips render as a uniform neutral zinc pill — the label alone
+// distinguishes categories. The earlier per-category rainbow (blue/purple/
+// pink/teal/orange/green/rose) pulled in off-palette accent families that the
+// brand ruling reserves (amber = paid, rose = errors, violet = AI Pick).
+// Kept as a function (rather than inlining the class) so a future tiered scheme
+// can slot back in without touching call sites. See the 2026-05-31 UI QA pass
+// and mockups/wishlist-category-chips.html.
+function getTagColor(_tag: string) {
+  return 'bg-zinc-100 text-zinc-700';
 }
 
 // Build the "Plan this trip" link for a wishlist item. Carries everything the

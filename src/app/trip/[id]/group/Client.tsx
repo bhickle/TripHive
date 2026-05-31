@@ -1647,13 +1647,13 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       <div className="flex items-center gap-2 mb-1">
                         <ShieldCheck className={`w-4 h-4 ${tripIsPrivate ? 'text-emerald-600' : 'text-zinc-400'}`} />
                         <h3 className="font-semibold text-zinc-900 text-sm">
-                          {tripIsPrivate ? 'Private trip' : 'Public share link'}
+                          Require invite to join
                         </h3>
                       </div>
                       <p className="text-xs text-zinc-500 leading-relaxed">
                         {tripIsPrivate
-                          ? 'Only people you\'ve invited via email or SMS can join. Sharing the bare trip link won\'t let anyone else in.'
-                          : 'Anyone with the trip link can join the group. Turn this on to require an emailed/texted invite.'}
+                          ? 'On — only people you\'ve invited via email or SMS can join. Sharing the bare trip link won\'t let anyone else in.'
+                          : 'Off — anyone with the trip link can join the group. Turn on to require an emailed or texted invite.'}
                       </p>
                     </div>
                     <button

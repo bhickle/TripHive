@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { discoverDestinations as mockDiscoverDestinations, DiscoverDestination, VibeTag } from '@/data/mock';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useUnsplashCover, UNSPLASH_UTM, type UnsplashCover } from '@/hooks/useUnsplashCover';
 import {
   Search, Heart, Plane, Hotel, Ticket, Star, Flame,
   Globe2, ArrowRight, Sparkles, Clock, Lock, TrendingUp,
@@ -637,31 +638,72 @@ interface CommunityTripCardProps {
   variant?: 'grid' | 'rail';
 }
 
+// Compact Unsplash credit chip for dynamically-fetched covers. Top-right (the
+// like-count badge owns top-left, the destination title owns the bottom) with a
+// subtle dark pill so it stays legible over a bright photo. Links stop
+// propagation so they open Unsplash without triggering the card's nav overlay.
+function UnsplashAttribution({ cover }: { cover: UnsplashCover }) {
+  return (
+    <div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded-md bg-black/30 backdrop-blur-sm text-[9px] text-white/75">
+      <a
+        href={`${cover.photographerUrl}${UNSPLASH_UTM}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="underline-offset-2 hover:underline hover:text-white transition-colors"
+      >
+        {cover.photographer}
+      </a>
+      {' / '}
+      <a
+        href={`${cover.photoUrl ?? 'https://unsplash.com'}${UNSPLASH_UTM}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="underline-offset-2 hover:underline hover:text-white transition-colors"
+      >
+        Unsplash
+      </a>
+    </div>
+  );
+}
+
 function CommunityTripCard({ trip, liked, forking, onLike, onFork, variant = 'grid' }: CommunityTripCardProps) {
+  // Founder/community trips rarely carry a saved cover_image, so fall back to a
+  // dynamic Unsplash cover (same path the dashboard trip cards use) instead of
+  // the bare gradient. Skips the fetch when a cover already exists.
+  const dynamicCover = useUnsplashCover(trip.destination, !trip.coverImage);
+  const photoSrc = trip.coverImage ?? dynamicCover?.url ?? null;
+  const cardCover = !trip.coverImage && dynamicCover?.photographer && dynamicCover.photographerUrl
+    ? dynamicCover
+    : null;
+
   if (variant === 'rail') {
     return (
       <div className="snap-start shrink-0 w-[300px] sm:w-[330px] bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col">
-        <Link href={`/community/${trip.id}`} className="block group">
-          <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
-            {trip.coverImage && (
-              <Image
-                src={trip.coverImage}
-                alt={trip.destination}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-            {trip.likeCount > 0 && (
-              <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
-                <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
-              </div>
-            )}
-            <div className="absolute bottom-3 left-3 right-3">
-              <p className="text-white font-script italic text-xl font-semibold drop-shadow">{trip.destination}</p>
+        <div className="relative h-44 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700 group">
+          {photoSrc && (
+            <Image
+              src={photoSrc}
+              alt={trip.destination}
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+          {trip.likeCount > 0 && (
+            <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
+              <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
             </div>
+          )}
+          <div className="absolute bottom-3 left-3 right-3">
+            <p className="text-white font-script italic text-xl font-semibold drop-shadow">{trip.destination}</p>
           </div>
-        </Link>
+          {/* Stretched nav link — keeps the attribution chip out of the card's
+              anchor (nested <a> is invalid HTML). */}
+          <Link href={`/community/${trip.id}`} aria-label={trip.destination} className="absolute inset-0 z-[1]" />
+          {cardCover && <UnsplashAttribution cover={cardCover} />}
+        </div>
         <div className="p-4 flex-1 flex flex-col gap-3">
           <div className="flex items-center gap-3 text-xs text-zinc-500">
             {trip.tripLength > 0 && (
@@ -710,34 +752,36 @@ function CommunityTripCard({ trip, liked, forking, onLike, onFork, variant = 'gr
   const previewDays = (trip.previewDays ?? []).slice(0, 4);
   return (
     <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
-      <Link href={`/community/${trip.id}`} className="block group">
-        <div className="relative h-52 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700">
-          {trip.coverImage && (
-            <Image
-              src={trip.coverImage}
-              alt={trip.destination}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
-              sizes="(max-width: 768px) 100vw, 50vw"
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-          {trip.likeCount > 0 && (
-            <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
-              <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
-            </div>
-          )}
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <div className="flex items-center gap-1.5 text-white/70 text-xs mb-1">
-              <MapPin className="w-3 h-3" />
-              {trip.destination}
-            </div>
-            <h3 className="font-script italic text-2xl text-white font-bold leading-tight drop-shadow">
-              {trip.title || trip.destination}
-            </h3>
+      <div className="relative h-52 overflow-hidden bg-gradient-to-br from-ocean-700 via-ocean-800 to-earth-700 group">
+        {photoSrc && (
+          <Image
+            src={photoSrc}
+            alt={trip.destination}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            sizes="(max-width: 768px) 100vw, 50vw"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+        {trip.likeCount > 0 && (
+          <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white backdrop-blur-sm">
+            <Heart className="w-3 h-3 fill-current" /> {trip.likeCount}
           </div>
+        )}
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+          <div className="flex items-center gap-1.5 text-white/70 text-xs mb-1">
+            <MapPin className="w-3 h-3" />
+            {trip.destination}
+          </div>
+          <h3 className="font-script italic text-2xl text-white font-bold leading-tight drop-shadow">
+            {trip.title || trip.destination}
+          </h3>
         </div>
-      </Link>
+        {/* Stretched nav link — keeps the attribution chip out of the card's
+            anchor (nested <a> is invalid HTML). */}
+        <Link href={`/community/${trip.id}`} aria-label={trip.title || trip.destination} className="absolute inset-0 z-[1]" />
+        {cardCover && <UnsplashAttribution cover={cardCover} />}
+      </div>
 
       {/* Stats strip — same shape as FeaturedItineraryCard */}
       <div className="flex items-center gap-4 px-4 py-2.5 border-b border-zinc-100 text-xs text-zinc-500">

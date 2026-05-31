@@ -30,6 +30,7 @@ import {
   Lock,
   Info,
   Crown,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface BookedFlight {
@@ -2016,7 +2017,7 @@ function TripBuilderPage() {
                   })())) && (
                     <div>
                       <label className="block text-sm font-semibold text-zinc-900 mb-1">
-                        Nights per City
+                        Days per City
                       </label>
                       <p className="text-xs text-zinc-400 mb-3">Optional — helps the AI balance time across your stops. Leave blank for even distribution.</p>
                       {(() => {
@@ -2028,8 +2029,8 @@ function TripBuilderPage() {
                         return (
                           <>
                             {!datesSet && (
-                              <p className="text-xs text-zinc-500 mb-3 flex items-center gap-1.5">
-                                <span>⚠️</span> Set your trip dates first to allocate nights. (#95)
+                              <p className="text-xs text-rose-700 mb-3 flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" /> Set your trip dates first to allocate days.
                               </p>
                             )}
                             {(() => {
@@ -2074,13 +2075,13 @@ function TripBuilderPage() {
                                       return (
                                         <p className={`text-xs mt-1 ${diff > 0 ? 'text-rose-600' : 'text-zinc-500'}`}>
                                           {diff > 0
-                                            ? `That's ${diff} night${diff === 1 ? '' : 's'} over your ${state.tripLength}-day trip — trim a city or extend your trip.`
-                                            : `${state.tripLength - total} night${state.tripLength - total === 1 ? '' : 's'} still unassigned — they'll be divided evenly.`}
+                                            ? `That's ${diff} day${diff === 1 ? '' : 's'} over your ${state.tripLength}-day trip — trim a city or extend your trip.`
+                                            : `${state.tripLength - total} day${state.tripLength - total === 1 ? '' : 's'} still unassigned — they'll be divided evenly.`}
                                         </p>
                                       );
                                     }
                                     if (total > 0 && total === state.tripLength) {
-                                      return <p className="text-xs text-green-700 mt-1">All {state.tripLength} nights accounted for.</p>;
+                                      return <p className="text-xs text-green-700 mt-1">All {state.tripLength} days accounted for.</p>;
                                     }
                                     return null;
                                   })()}
@@ -3490,7 +3491,7 @@ function TripBuilderPage() {
             {currentStep === 2 && state.destinations.length >= 2 && (() => {
               const total = Object.values(state.daysPerDestination).reduce((a: number, b: number) => a + b, 0);
               return total > state.tripLength ? (
-                <p className="text-xs text-rose-500">Total nights exceed your trip length — trim days or extend your trip to continue</p>
+                <p className="text-xs text-rose-500">Total days exceed your trip length — trim a city or extend your trip to continue</p>
               ) : null;
             })()}
             {currentStep === 3 && !state.flexibleDates && !state.startDate && (

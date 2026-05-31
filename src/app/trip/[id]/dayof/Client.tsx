@@ -400,12 +400,30 @@ export default function DayOfPage() {
 
   const displayNow = isMockTrip ? (10 * 60 + 15) : getCurrentTimeInMinutes();
 
+  // Local "today" as YYYY-MM-DD to compare against the displayed day's date.
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  // Days until (positive) / since (negative) the displayed day.
+  const dayDelta = currentDay.date
+    ? Math.round((new Date(currentDay.date + 'T12:00:00').getTime() - new Date(todayStr + 'T12:00:00').getTime()) / 86400000)
+    : 0;
+  // Live progress ("Happening Now", done/now badges, the clock-driven timeline
+  // status) only makes sense when the day on screen is actually today. Mock
+  // trips stay "live" so the demo shows the real-time experience. For a future
+  // or past day we fall back to a static schedule preview — otherwise a trip
+  // 17 days out would badge a 9–11am activity "Happening Now" just because the
+  // current wall-clock time fell inside its window.
+  const isLiveToday = isMockTrip || (!!currentDay.date && currentDay.date === todayStr);
+
   const getStatus = (item: TimelineItemDayOf): 'done' | 'now' | 'soon' | 'upcoming' => {
+    if (!isLiveToday) return dayDelta < 0 ? 'done' : 'upcoming';
     const endMins = item.kind === 'activity' ? parseEndTime(item.data.timeSlot) : item.sortTime + 20;
     return getItemStatus(item.sortTime, endMins, displayNow);
   };
 
-  const nowItem = timeline.find((i) => getStatus(i) === 'now');
+  const nowItem = isLiveToday ? timeline.find((i) => getStatus(i) === 'now') : undefined;
   const doneCount = timeline.filter((i) => getStatus(i) === 'done').length;
   const totalActivities = timeline.filter((i) => i.kind === 'activity').length;
 
@@ -495,6 +513,27 @@ export default function DayOfPage() {
             </div>
           </div>
         </div>
+
+        {/* Future/past trip preview banner — neutral FYI (zinc) per the brand
+            warning-color ruling: this isn't an error, it's "live progress
+            kicks in on the day." Only for real trips; mock stays "live". */}
+        {!isMockTrip && !isLiveToday && (
+          <div className="flex items-start gap-2.5 bg-zinc-100 border border-zinc-200 rounded-2xl px-4 py-3">
+            <CalendarDays className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-zinc-700">
+                {dayDelta > 0
+                  ? `Your trip starts in ${dayDelta} ${dayDelta === 1 ? 'day' : 'days'}`
+                  : 'This trip has wrapped'}
+              </p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {dayDelta > 0
+                  ? 'Here’s the day-one plan. Live progress and “Happening Now” kick in once the day arrives.'
+                  : 'Showing the final day’s plan. Live progress only runs during the trip.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Now highlight */}
         {nowItem && (

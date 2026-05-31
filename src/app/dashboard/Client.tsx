@@ -359,10 +359,15 @@ export default function DashboardPage() {
   const heroPhoto = nextTrip?.coverImage || photos[hashCode(dailySeed) % photos.length];
 
   const calculateDaysUntil = (startDate: string) => {
-    // Noon-pad to avoid the UTC-midnight off-by-one in west-of-UTC zones.
+    // Compare date-to-date (both anchored at local noon) so the partial
+    // current day doesn't round up — subtracting the live `now` from noon of
+    // the start date made a 17-day gap read as "18 days away" any time of day
+    // past midnight. Noon-anchoring also dodges the UTC-midnight off-by-one
+    // west of UTC.
     const start = new Date(startDate + 'T12:00:00');
-    const today = new Date();
-    const days = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const n = new Date();
+    const today = new Date(n.getFullYear(), n.getMonth(), n.getDate(), 12, 0, 0);
+    const days = Math.round((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(0, days);
   };
 
