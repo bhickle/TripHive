@@ -1068,12 +1068,27 @@ export default function GroupPage({ params }: { params: { id: string } }) {
     // Persist to Supabase for real trips
     if (!isMockTrip) {
       try {
-        await fetch(`/api/trips/${params.id}/messages`, {
+        const res = await fetch(`/api/trips/${params.id}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content }),
         });
-      } catch { /* message is already shown optimistically */ }
+        if (!res.ok) throw new Error(`send failed (${res.status})`);
+        // Reconcile the optimistic id to the real DB id so reaction-UPDATE
+        // realtime events can match this message before a reload.
+        const data = await res.json().catch(() => null);
+        const realId = data?.message?.id;
+        if (realId) {
+          setChatMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, id: realId } : m));
+        }
+      } catch {
+        // Send failed — remove the optimistic bubble and restore the input so
+        // the user knows it didn't go through (it was silently kept before). (DATA-3)
+        setChatMessages(prev => prev.filter(m => m.id !== optimistic.id));
+        setMessageInput(content);
+        setActionError("Couldn't send your message — please try again.");
+        setTimeout(() => setActionError(null), 4000);
+      }
     }
   };
 
@@ -1160,10 +1175,17 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           owedByName[canon] = (owedByName[canon] || 0) + (amt as number);
         });
       } else {
-        // Equal split among participants
-        const perPerson = exp.amount / participants.length;
-        participants.forEach((name) => {
-          owedByName[name] = (owedByName[name] || 0) + perPerson;
+        // Equal split — distribute in whole cents so the shares always sum
+        // EXACTLY to the expense (no lost/duplicated penny on amounts that
+        // don't divide evenly, e.g. $100 / 3). The remainder cents go to the
+        // first few participants. (GROUP-7)
+        const totalCents = Math.round(exp.amount * 100);
+        const n = participants.length;
+        const baseCents = Math.floor(totalCents / n);
+        const remainder = totalCents - baseCents * n;
+        participants.forEach((name, i) => {
+          const cents = baseCents + (i < remainder ? 1 : 0);
+          owedByName[name] = (owedByName[name] || 0) + cents / 100;
         });
       }
     });

@@ -48,6 +48,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to load trips' }, { status: 500 });
     }
 
+    if (memberRowsRes.error) {
+      // A membership-query failure must not silently drop all "shared with me"
+      // trips — surface it the same way as the owned-trips error path.
+      console.error('List trips (member) error:', JSON.stringify(memberRowsRes.error));
+      return NextResponse.json({ error: 'Failed to load trips' }, { status: 500 });
+    }
+
     const ownedTrips = ownedRes.data ?? [];
     const memberRows = memberRowsRes.data ?? [];
 

@@ -209,7 +209,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       // leave the parent expense at the old total and silently under-bill
       // the splits. Round to cents to dodge float-fuzz from JS arithmetic.
       const sum = cleaned.reduce((s, li) => s + li.amount, 0);
-      update.amount = Math.round(sum * 100) / 100;
+      // Only overwrite the parent amount when the line items actually carry
+      // amounts. Receipt-scanned expenses store line items with amount:0 and
+      // the real total on the parent — a benign line-item edit must NOT
+      // recompute the parent to $0 and silently wipe it from the splits. (GROUP-9)
+      if (sum > 0) {
+        update.amount = Math.round(sum * 100) / 100;
+      }
     }
 
     const { error } = await supabase

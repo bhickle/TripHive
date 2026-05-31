@@ -238,16 +238,41 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (existing) {
         return NextResponse.json({ ok: true, alreadyMember: true });
       }
-    } else if (email?.trim()) {
-      const { data: existing } = await supabase
-        .from('trip_members')
-        .select('id')
-        .eq('trip_id', params.id)
-        .eq('email', email.trim())
-        .maybeSingle();
+    } else {
+      // Guest joiner (no user_id). Dedup on exact email when one is provided…
+      if (email?.trim()) {
+        const { data: existing } = await supabase
+          .from('trip_members')
+          .select('id')
+          .eq('trip_id', params.id)
+          .eq('email', email.trim())
+          .maybeSingle();
 
-      if (existing) {
-        return NextResponse.json({ ok: true, alreadyMember: true });
+        if (existing) {
+          return NextResponse.json({ ok: true, alreadyMember: true });
+        }
+      }
+
+      // …and ALSO dedup on (trip_id, lower(name)) for guests, so a guest who
+      // re-joins with no email / a different email doesn't create a duplicate
+      // traveler row that burns the cap. Only match guest rows (user_id IS
+      // NULL) so we don't collapse a guest into an account-holder with the
+      // same display name.
+      if (name?.trim()) {
+        // Escape LIKE wildcards so a name with %/_ stays an exact (case-
+        // insensitive) match rather than a pattern.
+        const namePattern = name.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+        const { data: existingByName } = await supabase
+          .from('trip_members')
+          .select('id')
+          .eq('trip_id', params.id)
+          .is('user_id', null)
+          .ilike('name', namePattern)
+          .maybeSingle();
+
+        if (existingByName) {
+          return NextResponse.json({ ok: true, alreadyMember: true });
+        }
       }
     }
 

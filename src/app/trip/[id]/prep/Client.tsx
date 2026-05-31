@@ -360,31 +360,54 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     return parts.length > 1 ? parts : [dest];
   };
 
-  const toggleDocTask = (taskId: string) => {
+  const toggleDocTask = async (taskId: string) => {
     const wasCompleted = completedTasks.has(taskId);
     const newCompleted = new Set(completedTasks);
     if (wasCompleted) newCompleted.delete(taskId); else newCompleted.add(taskId);
     setCompletedTasks(newCompleted);
+    // Roll back against CURRENT state (functional form) — reverse only this
+    // task's toggle so a concurrent update isn't clobbered by a stale snapshot.
+    const restore = () => setCompletedTasks(prev => {
+      const reverted = new Set(prev);
+      if (wasCompleted) reverted.add(taskId); else reverted.delete(taskId);
+      return reverted;
+    });
     if (!isMockTrip) {
-      fetch(`/api/trips/${params.id}/prep`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, completed: !wasCompleted }),
-      }).catch(() => setCompletedTasks(completedTasks));
+      try {
+        // A 500/403 RESOLVES the promise — must check res.ok, not just .catch.
+        const res = await fetch(`/api/trips/${params.id}/prep`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId, completed: !wasCompleted }),
+        });
+        if (!res.ok) restore();
+      } catch {
+        restore();
+      }
     }
   };
 
-  const togglePackedItem = (itemId: string) => {
+  const togglePackedItem = async (itemId: string) => {
     const wasPacked = packedItems.has(itemId);
     const newPacked = new Set(packedItems);
     if (wasPacked) newPacked.delete(itemId); else newPacked.add(itemId);
     setPackedItems(newPacked);
+    const restore = () => setPackedItems(prev => {
+      const reverted = new Set(prev);
+      if (wasPacked) reverted.add(itemId); else reverted.delete(itemId);
+      return reverted;
+    });
     if (!isMockTrip) {
-      fetch(`/api/trips/${params.id}/packing`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId, packed: !wasPacked }),
-      }).catch(() => setPackedItems(packedItems));
+      try {
+        const res = await fetch(`/api/trips/${params.id}/packing`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, packed: !wasPacked }),
+        });
+        if (!res.ok) restore();
+      } catch {
+        restore();
+      }
     }
   };
 
@@ -542,16 +565,26 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     setNewGroupPackItem('');
   };
 
-  const toggleGroupPackedItem = (itemId: string) => {
+  const toggleGroupPackedItem = async (itemId: string) => {
     const wasPacked = groupPackedItems.has(itemId);
     const next = new Set(groupPackedItems);
     if (wasPacked) next.delete(itemId); else next.add(itemId);
     setGroupPackedItems(next);
-    fetch(`/api/trips/${params.id}/packing`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId, packed: !wasPacked }),
-    }).catch(() => setGroupPackedItems(groupPackedItems));
+    const restore = () => setGroupPackedItems(prev => {
+      const reverted = new Set(prev);
+      if (wasPacked) reverted.add(itemId); else reverted.delete(itemId);
+      return reverted;
+    });
+    try {
+      const res = await fetch(`/api/trips/${params.id}/packing`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, packed: !wasPacked }),
+      });
+      if (!res.ok) restore();
+    } catch {
+      restore();
+    }
   };
 
   const deleteGroupPackItem = (itemId: string) => {
@@ -611,16 +644,26 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     setNewMyPackItem('');
   };
 
-  const toggleMyPackedItem = (itemId: string) => {
+  const toggleMyPackedItem = async (itemId: string) => {
     const wasPacked = myPackedItems.has(itemId);
     const next = new Set(myPackedItems);
     if (wasPacked) next.delete(itemId); else next.add(itemId);
     setMyPackedItems(next);
-    fetch(`/api/trips/${params.id}/packing`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId, packed: !wasPacked }),
-    }).catch(() => setMyPackedItems(myPackedItems));
+    const restore = () => setMyPackedItems(prev => {
+      const reverted = new Set(prev);
+      if (wasPacked) reverted.add(itemId); else reverted.delete(itemId);
+      return reverted;
+    });
+    try {
+      const res = await fetch(`/api/trips/${params.id}/packing`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, packed: !wasPacked }),
+      });
+      if (!res.ok) restore();
+    } catch {
+      restore();
+    }
   };
 
   const deleteMyPackItem = (itemId: string) => {
