@@ -26,37 +26,54 @@
 
 ---
 
-## ✅ Fixes applied (2026-05-30, post-audit)
+## ✅ Fixes applied (2026-05-30)
 
-The verified P0s and headline P1s were fixed the same day:
+Nearly everything actionable was shipped across a series of batches. Grouped by area; commit in parens. The full-detail findings remain in §§1-13 below for reference.
 
-| Finding | Sev | Commit | What shipped |
-|---|---|---|---|
-| **GROUP-1 / GROUP-2** | P0 | `c1b01fe` | Settlement ledger (`expense_settlements` table + `/settlements` API). "Mark Paid" now records one payment; net = owed − payments, so only that transaction clears. Undo list added. |
-| **SHARE-1** | P0/P1 | `91ca4a0` | `/api/trips/[id]/public` now requires a valid invite token for `is_private` trips (404 otherwise); join page passes the token. |
-| **SEC-1 / SHARE-2** | P1 | `91ca4a0` | `members` GET now requires trip membership; emails returned only to the organizer. |
-| **MONEY-1** | P0/P1 | `70b8c16` | Regenerate charges `itinerary_regenerate` (10), not the full build (25); Trip Pass pool is whole again. |
-| **GROUP-3 / GROUP-4** | P0/P1 | `91ca4a0` | Expenses POST validates custom-split sums + rejects non-finite/non-positive amounts server-side. |
-| **DB-1** | P1 | migration | Dropped the `trip-photos: read all` storage policy — the public bucket can no longer be listed/enumerated; photos still render via public URL. |
-| **COMP-2** | P1 | `31a0c7e` | invite email/SMS now rate-limited (per-user + per-recipient hourly windows, 429 on exceed) — no more unbounded SendGrid/Twilio spend. |
-| **OPS-1** | P1 | `<this batch>` | Added `export const maxDuration` to the 8 blocking AI routes (Sonnet/retry paths 300, layover/enrich 120, small Haiku 60) — no more 504s mid-feature. |
-| **DB-2** | P2 | migration | `notifications` INSERT policy changed from `WITH CHECK (true)` to `auth.uid() = user_id` — can no longer forge a notification to another user. |
-| **DB-3** | P2 | migration | Pinned `search_path = public, pg_temp` on all 5 SECURITY DEFINER / trigger functions. |
-| **AI-1 / AI-3** | P1 | `d104b7a` | parse-itinerary: added `day.city` (fixes uploaded multi-city regenerate + weather/maps) and stopped the prompt fabricating addresses (verify-before-show gap, at the source — parsed venues are user-asserted, so no aggressive correction). |
-| **DATA-1** | P1 | `db0bccf` | 11 GET routes now return `{…:[], error:'DB_ERROR'}` + HTTP 500 + log on DB error instead of a silent empty 200 (shape preserved → no client crash). |
-| **DB-4** | P3 | `6aa98b9` | `destination_events` anonymous logging now IP-rate-limited (120/min). |
-| **Brand A/B/C** | P2 | `155adea` | Track A/B selector violet/rose → sky/amber; 28 sky primary buttons → `rounded-full`; banned indigo → sky on Discover/world-share gradients. |
-| **MONEY-2** | — | — | Resolved by live-DB check: the credit RPCs are atomic (no fix needed). |
+**Verified P0s + headline P1s (first pass)**
+- **GROUP-1/2** (P0) — settlement ledger (`expense_settlements` + `/settlements` API); "Mark Paid" records one payment, net = owed − payments (`c1b01fe`).
+- **SHARE-1** (P0/P1) — `/public` requires an invite token for private trips (`91ca4a0`). **SEC-1/SHARE-2** (P1) — members GET requires membership; emails organizer-only (`91ca4a0`).
+- **MONEY-1** (P0/P1) — regenerate charges 10, not 25; Trip Pass pool whole again (`70b8c16`).
+- **GROUP-3/4** (P0/P1) — server-side expense validation (`91ca4a0`).
+- **DB-1** (P1) — dropped `trip-photos: read all` storage policy (no more bucket enumeration) (migration).
+- **COMP-2** (P1) — invite email/SMS rate-limited (`31a0c7e`).
+- **OPS-1** (P1) — `maxDuration` on 8 AI routes; **DATA-1** (P1) — silent-empty GETs → 500 (`db0bccf`); **AI-1/3** (P1) — parse-itinerary `day.city` + no fabrication (`d104b7a`); **DB-4** (P3) — destination_events rate-limit (`6aa98b9`).
+- **DB-2/DB-3** (P2) — notifications INSERT policy + function `search_path` (migration).
 
-**Deferred — genuine design decisions (need Brandon, not unilateral):**
-- **Brand D** — migrate 6 hand-rolled empty states to `<EmptyState>` (refactor; minor appearance shift).
-- **Brand E** — re-theme the fully-purple surfaces (layover lounge/day-pass cards, memories "Contributors" stat) — replacement hue is a choice.
-- ~~**Brand F**~~ — **RESOLVED 2026-05-30 (commit `403bf4f`):** Brandon chose Treatment B — `rose` for problem/caution/failure banners, `zinc` for neutral FYIs; amber stays for paid moments only. Applied across the flagged banners + documented in CLAUDE.md.
-- ~~**Brand (trip/new amber-accents)**~~ — **DONE 2026-05-30 (commit `06d6ab8`):** toggles → sky-800, date-validation → rose, hints → zinc, input chips + review card → zinc, Edit-links → sky, focus rings → sky, "Set up trip & invite" button → sky-800. Crown premium icon kept gold.
-- **Brand G** — category/transport-map hues (wishlist/layover/discover) reach for teal/pink/purple/indigo — deliberate differentiation; leave unless tightening hard.
-- **DB-5** (P3) — enable leaked-password protection (Supabase Auth dashboard toggle — Brandon-owned).
-- **DB-7** (perf) — wrap RLS `auth.uid()` in a scalar subquery across ~30 tables (58 policies) before scale; plus 32 unused indexes + 2 unindexed FKs (hygiene).
-- Lower-priority items throughout §§1-13 (e.g. SHARE-5 world opt-in, GROUP settlement-identity-by-name, COMP input caps) remain documented for a future pass.
+**Tier / co-org**
+- **TIER-1** — trip length + multi-city gate on the **organizer's** tier; AI features + credits on the **caller's** own tier (`fc93225`).
+
+**Brand**
+- **A/B/C** — Track A/B, button pills, indigo→sky (`155adea`); **F** — warning banners rose/zinc, Treatment B (`403bf4f`); **trip/new amber-accents** (`06d6ab8`); **E** — purple surfaces → sky/zinc; **D** — 4 empty states → `<EmptyState>` (`014e333`). **G** skipped per Brandon (category maps are deliberate differentiation).
+
+**Batch B — security & privacy** (`0dc43f5`)
+- **SEC-4** destinations/search auth + rate-limit · **SEC-5** og-preview SSRF (DNS-resolve + manual redirects) · **SEC-6** verify-venues role-gate + rate-limit · **SHARE-3** fork allow-lists preferences + `is_private:false` · **SHARE-4** accepted token not reusable by a stranger on a private trip · **COMP-4** invite-email HTML escaping · **GROUP-5** member-removal `DELETE`.
+
+**Batch C — AI routes** (`37819d9`)
+- **AI-2** enrich drops wrong-city restaurants (verify-before-show) · **AI-4** priorityHighlights reshaped to keyed record · **AI-5** hotels JSON guard.
+
+**Batch C/D — data & group** (`6753e9e`)
+- **DATA-3** chat send rollback + id reconcile · **DATA-4** prep toggles check `res.ok` · **DATA-5** `/api/trips` surfaces membership errors · **GROUP-7** exact-cent split + guest name-dedup · **GROUP-9** receipt-edit won't zero an expense.
+
+**Batch E — ops & a11y** (`baf2fbb`, `4718b53`)
+- **OPS-2/3/4/5** `/auth/*` preview-exempt, cron/webhook informative status · **A11Y-1** keyboard Discover card · **A11Y-2** 4 modals get dialog role + Escape + icon labels · **A11Y-3** date off-by-one anchors.
+
+**Batch G — housekeeping** (`21c8f28`)
+- **MONEY-2** RPC bodies snapshotted to `db/functions.sql` · **MONEY-6** dropped dead `profiles.ai_credits_total` (migration + types).
+
+## ⚠️ Still open — deferred with reason (NOT quick fixes / need a decision)
+- **DATA-2** (P1) — itinerary realtime concurrent-edit clobber. Risky change to the 4,000-line core file; today it self-corrects on reload (stale view, not data loss). Wants dedicated concurrency design + runtime testing.
+- **GROUP-6** (P1) — settle by stable id. The data model stores split participants by **name**; guests have no `user_id`. Needs a schema change (participant ids on expenses) — feature work, not a patch.
+- **GROUP-7 (participant-selection + cap TOCTOU)** (P1) — the participant picker is a UI feature; the cap race needs a DB constraint/trigger.
+- **SHARE-5** (P2) — world opt-in. Default-`false` would silently turn off everyone's **live** world-share + there's no opt-in toggle UI yet. Product call + UI.
+- **DB-7** (perf) — the "32 unused indexes" are unused only because there's **no pre-launch traffic** (dropping FK/lookup indexes would hurt production). The 59-policy RLS `auth.uid()`→`(select auth.uid())` wrap is the real win but risky to automate without RLS runtime testing. **Post-traffic, dedicated pass** — doing it now would likely do harm.
+- **SEC-2 / COMP-1** (P1) — `stripe/checkout` doesn't allow-list `priceId` / clamp `extraPeople`. Worth doing; not yet shipped.
+- **SEC-3** (P1, launch-blocker, Brandon-owned) — remove the `?? 'tc2026'` middleware fallback + set a strong `PREVIEW_SECRET`.
+- **MONEY-3** (P1) — credit-reset cadence disagrees across 3 writers (pick one).
+- **A11Y form-label association (155 inputs) + zinc-300/400 contrast** — large mechanical sweep, lower value.
+- Remaining lower-priority §§1-13 items (SEC-7, MONEY-4/5, AI-6 type drift, COMP-5 input caps + JSONB RMW races, OPS-6 misc, group wishlist swatch).
+
+**Config toggles (Brandon-owned, on the CLAUDE.md go-live list):** DB-5 leaked-password protection; Maps Static API (fixes the Trip Story map).
 
 ---
 
