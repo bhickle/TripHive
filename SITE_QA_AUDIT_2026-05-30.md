@@ -51,7 +51,8 @@ The verified P0s and headline P1s were fixed the same day:
 **Deferred — genuine design decisions (need Brandon, not unilateral):**
 - **Brand D** — migrate 6 hand-rolled empty states to `<EmptyState>` (refactor; minor appearance shift).
 - **Brand E** — re-theme the fully-purple surfaces (layover lounge/day-pass cards, memories "Contributors" stat) — replacement hue is a choice.
-- ~~**Brand F**~~ — **RESOLVED 2026-05-30 (commit `403bf4f`):** Brandon chose Treatment B — `rose` for problem/caution/failure banners, `zinc` for neutral FYIs; amber stays for paid moments only. Applied across the flagged banners + documented in CLAUDE.md. (Amber-as-accent in trip/new — review card, toggles, input chips — left as a separate styling decision.)
+- ~~**Brand F**~~ — **RESOLVED 2026-05-30 (commit `403bf4f`):** Brandon chose Treatment B — `rose` for problem/caution/failure banners, `zinc` for neutral FYIs; amber stays for paid moments only. Applied across the flagged banners + documented in CLAUDE.md.
+- ~~**Brand (trip/new amber-accents)**~~ — **DONE 2026-05-30 (commit `06d6ab8`):** toggles → sky-800, date-validation → rose, hints → zinc, input chips + review card → zinc, Edit-links → sky, focus rings → sky, "Set up trip & invite" button → sky-800. Crown premium icon kept gold.
 - **Brand G** — category/transport-map hues (wishlist/layover/discover) reach for teal/pink/purple/indigo — deliberate differentiation; leave unless tightening hard.
 - **DB-5** (P3) — enable leaked-password protection (Supabase Auth dashboard toggle — Brandon-owned).
 - **DB-7** (perf) — wrap RLS `auth.uid()` in a scalar subquery across ~30 tables (58 policies) before scale; plus 32 unused indexes + 2 unindexed FKs (hygiene).
