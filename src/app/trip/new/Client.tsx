@@ -1898,14 +1898,14 @@ function TripBuilderPage() {
                       {state.startDate && state.endDate && (
                         <div className={`mt-3 px-4 py-3 rounded-xl border ${
                           state.tripLength < 2
-                            ? 'bg-amber-50 border-amber-200'
+                            ? 'bg-rose-50 border-rose-200'
                             : entitlementsReady && state.tripLength > maxTripDays
                             ? 'bg-rose-50 border-rose-200'
                             : 'bg-green-50 border-green-200'
                         }`}>
                           <p className={`text-sm font-semibold ${
                             state.tripLength < 2
-                              ? 'text-amber-800'
+                              ? 'text-rose-800'
                               : entitlementsReady && state.tripLength > maxTripDays
                               ? 'text-rose-800'
                               : 'text-green-800'
@@ -1927,7 +1927,7 @@ function TripBuilderPage() {
                             </p>
                           )}
                           {state.tripLength < 2 && (
-                            <p className="text-xs text-amber-700 mt-0.5">
+                            <p className="text-xs text-rose-700 mt-0.5">
                               End date must be on or after start date. Adjust your dates above.
                             </p>
                           )}
@@ -2028,7 +2028,7 @@ function TripBuilderPage() {
                         return (
                           <>
                             {!datesSet && (
-                              <p className="text-xs text-amber-600 mb-3 flex items-center gap-1.5">
+                              <p className="text-xs text-zinc-500 mb-3 flex items-center gap-1.5">
                                 <span>⚠️</span> Set your trip dates first to allocate nights. (#95)
                               </p>
                             )}
@@ -2072,7 +2072,7 @@ function TripBuilderPage() {
                                     if (total > 0 && total !== state.tripLength) {
                                       const diff = total - state.tripLength;
                                       return (
-                                        <p className={`text-xs mt-1 ${diff > 0 ? 'text-rose-600' : 'text-amber-700'}`}>
+                                        <p className={`text-xs mt-1 ${diff > 0 ? 'text-rose-600' : 'text-zinc-500'}`}>
                                           {diff > 0
                                             ? `That's ${diff} night${diff === 1 ? '' : 's'} over your ${state.tripLength}-day trip — trim a city or extend your trip.`
                                             : `${state.tripLength - total} night${state.tripLength - total === 1 ? '' : 's'} still unassigned — they'll be divided evenly.`}
@@ -2204,7 +2204,7 @@ function TripBuilderPage() {
                             down, and a Nomad user doesn't lose it via
                             a 'free' default that later resolves up. */}
                         {tierResolved && tier === 'nomad' && (
-                          <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-amber-100 rounded-xl">
+                          <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-zinc-100 rounded-xl">
                             <button
                               onClick={() => setState(prev => ({
                                 ...prev,
@@ -2214,7 +2214,7 @@ function TripBuilderPage() {
                                   : null,
                               }))}
                               className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${
-                                state.isOpenJaw ? 'bg-amber-500' : 'bg-slate-200'
+                                state.isOpenJaw ? 'bg-sky-800' : 'bg-slate-200'
                               }`}
                             >
                               <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
@@ -2236,14 +2236,14 @@ function TripBuilderPage() {
                               <input type="text" placeholder="e.g. FCO, BCN"
                                 value={state.bookedFlight.returnDepartureAirport ?? ''}
                                 onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnDepartureAirport: e.target.value } }))}
-                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white" />
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 bg-white" />
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Arrives At (home)</label>
                               <input type="text" placeholder="e.g. JFK, LAX"
                                 value={state.bookedFlight.returnArrivalAirport ?? ''}
                                 onChange={e => setState(prev => ({ ...prev, bookedFlight: { ...prev.bookedFlight!, returnArrivalAirport: e.target.value } }))}
-                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white" />
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 bg-white" />
                             </div>
                           </div>
                         )}
@@ -2508,7 +2508,7 @@ function TripBuilderPage() {
                             : null,
                         }))}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          state.hasPreBookedCar ? 'bg-amber-500' : 'bg-slate-200'
+                          state.hasPreBookedCar ? 'bg-sky-800' : 'bg-slate-200'
                         }`}
                       >
                         <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
@@ -2531,7 +2531,7 @@ function TripBuilderPage() {
                             placeholder="e.g. Hertz, Enterprise, Sixt"
                             value={state.bookedCar.company}
                             onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, company: e.target.value } }))}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 bg-white"
                           />
                         </div>
                         <div>
@@ -2541,7 +2541,7 @@ function TripBuilderPage() {
                             placeholder="e.g. Compact SUV, Economy"
                             value={state.bookedCar.carClass}
                             onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, carClass: e.target.value } }))}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 bg-white"
                           />
                         </div>
                       </div>
@@ -2554,7 +2554,7 @@ function TripBuilderPage() {
                           placeholder="e.g. Keflavik Airport (KEF), Downtown Chicago"
                           value={state.bookedCar.pickupLocation}
                           onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, pickupLocation: e.target.value } }))}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 bg-white"
                         />
                       </div>
                       <div>
@@ -2564,7 +2564,7 @@ function TripBuilderPage() {
                           placeholder="e.g. HZ-4821993"
                           value={state.bookedCar.confirmationRef}
                           onChange={e => setState(prev => ({ ...prev, bookedCar: { ...prev.bookedCar!, confirmationRef: e.target.value } }))}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100 bg-white"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 bg-white"
                         />
                       </div>
                     </div>
@@ -2799,13 +2799,13 @@ function TripBuilderPage() {
                       {state.mustHaves.map((item) => (
                         <span
                           key={item}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium rounded-full"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 border border-zinc-200 text-zinc-700 text-sm font-medium rounded-full"
                         >
                           📍 {item}
                           <button
                             type="button"
                             onClick={() => setState(prev => ({ ...prev, mustHaves: prev.mustHaves.filter(m => m !== item) }))}
-                            className="text-amber-500 hover:text-amber-700 ml-0.5"
+                            className="text-zinc-400 hover:text-zinc-600 ml-0.5"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -3234,14 +3234,14 @@ function TripBuilderPage() {
                     <div className="p-4 bg-parchment rounded-lg border border-stone-200">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Trip Length</p>
-                        <button onClick={() => setCurrentStep(3)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
+                        <button onClick={() => setCurrentStep(3)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
                       </div>
                       <p className="text-lg font-semibold text-zinc-900">{state.tripLength} days</p>
                     </div>
                     <div className="p-4 bg-parchment rounded-lg border border-stone-200">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">Budget (per person)</p>
-                        <button onClick={() => setCurrentStep(7)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Edit →</button>
+                        <button onClick={() => setCurrentStep(7)} className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2">Edit →</button>
                       </div>
                       <p className="text-lg font-semibold text-zinc-900">
                         ${state.budget.toLocaleString()} <span className="text-sm text-zinc-500">× {state.groupSize} = ${(state.budget * state.groupSize).toLocaleString()}</span>
@@ -3293,14 +3293,14 @@ function TripBuilderPage() {
 
                   {/* Must-haves & Notes */}
                   {(state.mustHaves.length > 0 || state.additionalContext.trim()) && (
-                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-amber-900">
+                        <p className="text-sm font-semibold text-zinc-800">
                           Must-haves & Notes
                         </p>
                         <button
                           onClick={() => setCurrentStep(5)}
-                          className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2"
+                          className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2"
                         >
                           Edit (Step 5 →)
                         </button>
@@ -3310,7 +3310,7 @@ function TripBuilderPage() {
                           {state.mustHaves.map((item) => (
                             <span
                               key={item}
-                              className="inline-flex items-center px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full text-sm font-medium"
+                              className="inline-flex items-center px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-full text-sm font-medium"
                             >
                               ✓ {item}
                             </span>
@@ -3318,7 +3318,7 @@ function TripBuilderPage() {
                         </div>
                       )}
                       {state.additionalContext.trim() && (
-                        <p className="text-sm text-amber-800 mt-2 italic">
+                        <p className="text-sm text-zinc-600 mt-2 italic">
                           "{state.additionalContext.trim()}"
                         </p>
                       )}
@@ -3376,7 +3376,7 @@ function TripBuilderPage() {
                         <button
                           onClick={handleSaveAndInvite}
                           disabled={savingDraft || !state.destination.trim()}
-                          className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-full bg-amber-600 hover:bg-amber-700 disabled:bg-amber-200 disabled:text-amber-400 text-white transition-all"
+                          className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-full bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white transition-all"
                         >
                           {savingDraft ? (
                             <><Loader2 className="w-4 h-4 animate-spin" />Saving trip…</>
