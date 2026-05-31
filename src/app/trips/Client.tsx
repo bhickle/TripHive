@@ -536,9 +536,18 @@ export default function TripsPage() {
               const hasDates = !!trip.startDate && !!trip.endDate;
               const startDate = hasDates ? new Date(trip.startDate + 'T12:00:00') : null;
               const endDate = hasDates ? new Date(trip.endDate + 'T12:00:00') : null;
-              const days = startDate && endDate
+              const dateDiff = startDate && endDate
                 ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-                : (trip.tripLength ?? 0);
+                : 0;
+              // Prefer the builder-selected length (matches the grid TripCard
+              // badge); date-diff alone disagreed with it (e.g. list "3d" vs
+              // grid "4d" for the same trip).
+              const days = (trip.tripLength && trip.tripLength > 0) ? trip.tripLength : dateDiff;
+              // Flexible-date trip → stored dates are a wide window, not the
+              // actual trip. Lead with the length ("N-day trip · flexible
+              // dates") so the length and the dates don't look like a
+              // contradiction.
+              const isFlexibleWindow = hasDates && !!trip.tripLength && trip.tripLength > 0 && dateDiff > trip.tripLength + 3;
               const status = (trip.status as string) in { planning: 1, active: 1, completed: 1 }
                 ? (trip.status as 'planning' | 'active' | 'completed')
                 : 'planning';
@@ -580,7 +589,9 @@ export default function TripsPage() {
                       <span className="flex items-center gap-1.5 whitespace-nowrap">
                         <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         {trip.startDate && trip.endDate
-                          ? <>{formatDate(trip.startDate)} — {formatDate(trip.endDate)} ({days}d)</>
+                          ? (isFlexibleWindow
+                              ? <>{days}-day trip · flexible dates</>
+                              : <>{formatDate(trip.startDate)} — {formatDate(trip.endDate)} ({days}d)</>)
                           : <span className="italic text-sky-700">Dates not set yet</span>}
                       </span>
                       {/* Mobile-only travelers chip — desktop hoists it to

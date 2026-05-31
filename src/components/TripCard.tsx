@@ -185,6 +185,13 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
     : 0;
   const daysCount = (trip.tripLength && trip.tripLength > 0) ? trip.tripLength : dateDiff;
   const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // Flexible-date trips store the start/end as a wide availability WINDOW (e.g.
+  // "anytime Jan–May") while tripLength holds the real length, so the literal
+  // range reads like a contradiction against the duration badge ("Jan 1 – May
+  // 31 · 10d"). Detect it heuristically (no flexible_dates column exists) when
+  // the stored span is much wider than the trip length, and lead with the
+  // length instead of the day-precise range.
+  const isFlexibleWindow = hasDates && !!trip.tripLength && trip.tripLength > 0 && dateDiff > trip.tripLength + 3;
   const status = statusConfig[trip.status];
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -336,7 +343,11 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
           <div className="flex items-center gap-1.5 text-xs text-zinc-500">
             <Calendar className="w-3 h-3" />
             {startDate && endDate ? (
-              <span>{formatDate(startDate)} – {formatDate(endDate)}</span>
+              isFlexibleWindow ? (
+                <span>{daysCount}-day trip · flexible dates</span>
+              ) : (
+                <span>{formatDate(startDate)} – {formatDate(endDate)}</span>
+              )
             ) : (
               <span className="italic text-sky-700">Dates not set yet — tap to pick</span>
             )}

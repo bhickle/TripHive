@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>tripcoord — Flexible-date trip card</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background:#faf8f3; color:#27272a; margin:0; padding:40px 32px; line-height:1.5;
+  }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:#71717a; font-size:14px; margin:0 0 8px; max-width:760px; }
+  .explain { color:#52525b; font-size:13px; margin:0 0 28px; max-width:760px;
+             background:#f4f4f5; border:1px solid #e4e4e7; border-radius:10px; padding:12px 14px; }
+  .explain code { background:#e4e4e7; padding:1px 5px; border-radius:4px; font-size:12px; }
+  .row { display:flex; flex-wrap:wrap; gap:24px; margin-bottom:36px; }
+  .col { width:300px; }
+  .col h2 { font-size:14px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .col .note { color:#71717a; font-size:12px; margin:0 0 12px; min-height:32px; }
+  .badge-rec { background:#075985; color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:9999px; }
+  .badge-bad { background:#e11d48; color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:9999px; }
+
+  /* trip card */
+  .card { background:#fff; border:1px solid #f4f4f5; border-radius:16px; overflow:hidden;
+          box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .card.rec { outline:2px solid #075985; }
+  .hero { position:relative; height:140px;
+          background:linear-gradient(135deg,#0369a1,#075985 60%,#7c5e3b); }
+  .hero .scrim { position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,.6),transparent 60%); }
+  .hero .dur { position:absolute; top:10px; right:10px; background:rgba(0,0,0,.4); color:#fff;
+               font-size:11px; font-weight:600; padding:2px 9px; border-radius:9999px; backdrop-filter:blur(4px); }
+  .hero .status { position:absolute; top:10px; left:10px; background:rgba(7,89,133,.9); color:#fff;
+                  font-style:italic; font-size:12px; padding:2px 10px; border-radius:9999px; }
+  .hero .dest { position:absolute; left:14px; bottom:10px; color:rgba(255,255,255,.92);
+                font-style:italic; font-size:18px; font-weight:600; text-shadow:0 1px 3px rgba(0,0,0,.4); }
+  .body { padding:16px; }
+  .body .title { font-style:italic; font-size:16px; font-weight:600; color:#18181b; margin:0 0 10px; }
+  .meta { display:flex; align-items:center; gap:6px; color:#71717a; font-size:12px; margin-bottom:4px; }
+  .meta svg { width:13px; height:13px; flex-shrink:0; }
+  .meta .flex-pill { background:#f0f9ff; color:#075985; font-weight:600; font-size:10px;
+                     padding:1px 7px; border-radius:9999px; }
+  .ico { width:13px; height:13px; display:inline-block; vertical-align:-2px; }
+</style>
+</head>
+<body>
+  <h1>Flexible-date trip card</h1>
+  <p class="sub">When a trip is built with <b>flexible dates</b>, the stored start/end span the whole <i>availability window</i> (e.g. "anytime Jan–May") while the duration badge holds the <i>real</i> trip length. Today the card prints the literal window next to the badge, which reads like a bug.</p>
+  <p class="explain">Detection (no schema change): a trip is treated as flexible when the stored date span is much larger than its length — <code>(end − start + 1) &gt; trip_length + 3</code>. Real example: Tampa stores <code>Jan 1 – May 31</code> (150 days) with <code>trip_length = 10</code>.</p>
+
+  <div class="row">
+    <!-- CURRENT -->
+    <div class="col">
+      <h2><span class="badge-bad">Today</span> Reads like a contradiction</h2>
+      <p class="note">A 10-day trip showing a 5-month date range.</p>
+      <div class="card">
+        <div class="hero">
+          <div class="scrim"></div>
+          <span class="status">Planning</span>
+          <span class="dur">10d</span>
+          <span class="dest">Tampa, FL</span>
+        </div>
+        <div class="body">
+          <p class="title">Tampa Bay Sports &amp; Flavors</p>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span>Jan 1 – May 31 · 10d</span>
+          </div>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+            <span>3 travelers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION A -->
+    <div class="col">
+      <h2><span class="badge-rec">Option A · Recommended</span></h2>
+      <p class="note">Calendar row says it's a flexible window at month resolution; badge keeps the real length.</p>
+      <div class="card rec">
+        <div class="hero">
+          <div class="scrim"></div>
+          <span class="status">Planning</span>
+          <span class="dur">10d</span>
+          <span class="dest">Tampa, FL</span>
+        </div>
+        <div class="body">
+          <p class="title">Tampa Bay Sports &amp; Flavors</p>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span class="flex-pill">Flexible</span>
+            <span>Jan – May 2027</span>
+          </div>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+            <span>3 travelers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION B -->
+    <div class="col">
+      <h2>Option B · Length-first</h2>
+      <p class="note">Lead with the length, drop the literal range entirely.</p>
+      <div class="card">
+        <div class="hero">
+          <div class="scrim"></div>
+          <span class="status">Planning</span>
+          <span class="dur">10d</span>
+          <span class="dest">Tampa, FL</span>
+        </div>
+        <div class="body">
+          <p class="title">Tampa Bay Sports &amp; Flavors</p>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span>10-day trip · flexible dates</span>
+          </div>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+            <span>3 travelers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION C -->
+    <div class="col">
+      <h2>Option C · "Anytime"</h2>
+      <p class="note">Conversational; badge keeps the length.</p>
+      <div class="card">
+        <div class="hero">
+          <div class="scrim"></div>
+          <span class="status">Planning</span>
+          <span class="dur">10d</span>
+          <span class="dest">Tampa, FL</span>
+        </div>
+        <div class="body">
+          <p class="title">Tampa Bay Sports &amp; Flavors</p>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span>Anytime Jan – May 2027</span>
+          </div>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+            <span>3 travelers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="font-size:14px;margin:0 0 10px;">For reference — a normal fixed-date trip (unchanged)</h2>
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <div class="hero">
+          <div class="scrim"></div>
+          <span class="status">Planning</span>
+          <span class="dur">4d</span>
+          <span class="dest">Tampa, FL</span>
+        </div>
+        <div class="body">
+          <p class="title">Tampa Bay Sports &amp; Flavors</p>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span>Jul 12 – Jul 15</span>
+          </div>
+          <div class="meta">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+            <span>3 travelers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
