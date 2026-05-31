@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Bell, ArrowLeft, Loader2 } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 
 // Server returns rows from the `notifications` table — see /api/notifications/route.ts.
 // `type` is typed loosely because the DB writes DB-side type names
@@ -232,13 +233,11 @@ export default function NotificationsPage() {
             )}
 
             {!loading && !loadError && notifications.length === 0 && (
-              <div className="px-6 py-16 text-center">
-                <Bell className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
-                <p className="text-base font-medium text-zinc-700 mb-1">No notifications yet</p>
-                <p className="text-sm text-zinc-400">
-                  Trip activity, votes, expenses, and invites will show up here.
-                </p>
-              </div>
+              <EmptyState
+                icon={Bell}
+                title="No notifications yet"
+                description="Trip activity, votes, expenses, and invites will show up here."
+              />
             )}
 
             {!loading && !loadError && notifications.length > 0 && (

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { tripPhotos as mockTripPhotos, itineraryDays as mockItineraryDays, groupMembers as mockGroupMembers, MOCK_TRIP_IDS } from '@/data/mock';
 import { Avatar } from '@/components/Avatar';
+import { EmptyState } from '@/components/EmptyState';
 // IMPORTANT: import the singleton from lib/supabase/client — never call
 // createBrowserClient directly. Competing instances fight over the same
 // auth Web Lock and routinely lose the session, which made uploads run
@@ -613,10 +614,10 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
             <p className="text-3xl font-bold text-stone-700 mt-1">{totalDays}</p>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
-            <Users className="w-8 h-8 text-purple-600 mb-2" />
-            <p className="text-xs font-semibold text-purple-900 uppercase">Contributors</p>
-            <p className="text-3xl font-bold text-purple-700 mt-1">{uniqueUploaders.length}</p>
+          <div className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-lg p-6 border border-sky-100">
+            <Users className="w-8 h-8 text-sky-700 mb-2" />
+            <p className="text-xs font-semibold text-zinc-700 uppercase">Contributors</p>
+            <p className="text-3xl font-bold text-sky-800 mt-1">{uniqueUploaders.length}</p>
           </div>
 
           <button
@@ -1104,11 +1105,11 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
 
         {/* Empty state — done loading, no photos uploaded yet */}
         {!photosLoading && !photosLoadError && tripPhotos.length === 0 && !isMockTrip && (
-          <div className="text-center py-16 bg-white rounded-2xl border border-zinc-100">
-            <Camera className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-            <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">No photos yet</h3>
-            <p className="text-zinc-600 text-sm">Upload some above to start your trip album.</p>
-          </div>
+          <EmptyState
+            icon={Camera}
+            title="No photos yet"
+            description="Upload some above to start your trip album."
+          />
         )}
 
         {/* Photos that don't fall under any itinerary day — surface them

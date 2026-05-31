@@ -207,12 +207,12 @@ function HotelDayRoomStrip({ city }: { city: string }) {
     { label: 'DayBreak Hotels', href: `https://www.daybreakhotels.com/?utm_source=tripcoord` },
   ];
   return (
-    <div className="mb-4 p-4 bg-violet-50/60 border border-violet-200 rounded-xl">
+    <div className="mb-4 p-4 bg-sky-50 border border-sky-100 rounded-xl">
       <div className="flex items-start gap-3">
         <span className="text-xl flex-shrink-0">💧</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-violet-900 mb-1">Search day rooms near {city}</p>
-          <p className="text-xs text-violet-700 mb-3 leading-relaxed">
+          <p className="text-sm font-semibold text-zinc-900 mb-1">Search day rooms near {city}</p>
+          <p className="text-xs text-zinc-600 mb-3 leading-relaxed">
             Day-use rooms include pool, spa, and gym access — ideal for a refresh between flights.
           </p>
           <div className="flex items-center gap-2 flex-wrap">
@@ -222,10 +222,10 @@ function HotelDayRoomStrip({ city }: { city: string }) {
                 href={l.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-violet-300 rounded-full text-xs font-semibold text-violet-800 hover:bg-violet-100 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-sky-200 rounded-full text-xs font-semibold text-sky-800 hover:bg-sky-50 transition-colors"
               >
                 {l.label}
-                <span className="text-violet-400">↗</span>
+                <span className="text-sky-400">↗</span>
               </a>
             ))}
           </div>
@@ -243,15 +243,15 @@ function LoungeDayPassStrip({ airportCode }: { airportCode: string }) {
     { label: 'LoungeBuddy',   href: `https://loungebuddy.com/airports/${code}?utm_source=tripcoord` },
   ];
   return (
-    <div className="mb-3 p-4 bg-purple-50/60 border border-purple-200 rounded-xl">
+    <div className="mb-3 p-4 bg-sky-50 border border-sky-100 rounded-xl">
       <div className="flex items-start gap-3">
         <span className="text-2xl flex-shrink-0">🛋️</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <p className="text-sm font-semibold text-purple-900">No lounge access via your card?</p>
-            <span className="text-[10px] px-2 py-0.5 bg-purple-200 text-purple-800 rounded-full font-bold uppercase tracking-wide">Day Pass</span>
+            <p className="text-sm font-semibold text-zinc-900">No lounge access via your card?</p>
+            <span className="text-[10px] px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full font-bold uppercase tracking-wide">Day Pass</span>
           </div>
-          <p className="text-xs text-purple-700 mb-3 leading-relaxed">
+          <p className="text-xs text-zinc-600 mb-3 leading-relaxed">
             Most major airports sell single-visit lounge passes (~$30–60). Worth it for a 2+ hr break with food, Wi-Fi, and quiet seating.
           </p>
           <div className="flex items-center gap-2 flex-wrap">
@@ -261,10 +261,10 @@ function LoungeDayPassStrip({ airportCode }: { airportCode: string }) {
                 href={l.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-purple-300 rounded-full text-xs font-semibold text-purple-800 hover:bg-purple-100 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-sky-200 rounded-full text-xs font-semibold text-sky-800 hover:bg-sky-50 transition-colors"
               >
                 {l.label}
-                <span className="text-purple-400">↗</span>
+                <span className="text-sky-400">↗</span>
               </a>
             ))}
           </div>
@@ -1149,9 +1149,9 @@ export default function LayoverPlannerPage() {
                   return (
                     <div className="mb-8">
                       <div className="flex items-center gap-2 mb-4">
-                        <Hotel className="w-5 h-5 text-violet-600" />
+                        <Hotel className="w-5 h-5 text-sky-700" />
                         <h3 className="font-script italic text-lg font-semibold text-zinc-900">Hotel Day Rooms</h3>
-                        <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">
+                        <span className="text-xs px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full font-medium">
                           Quick refresh
                         </span>
                       </div>
@@ -1166,9 +1166,9 @@ export default function LayoverPlannerPage() {
               {result.hotelSuggestions && result.hotelSuggestions.length > 0 && (
                 <div className="mb-8">
                   <div className="flex items-center gap-2 mb-4">
-                    <Hotel className="w-5 h-5 text-violet-600" />
+                    <Hotel className="w-5 h-5 text-sky-700" />
                     <h3 className="font-script italic text-lg font-semibold text-zinc-900">Rest & Recharge</h3>
-                    <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">
+                    <span className="text-xs px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full font-medium">
                       Long layover hotels
                     </span>
                   </div>
@@ -1179,7 +1179,7 @@ export default function LayoverPlannerPage() {
                   <HotelDayRoomStrip city={result.airport.city} />
                   <div className="space-y-3">
                     {result.hotelSuggestions.map((hotel, i) => (
-                      <div key={i} className="card p-5 border-l-4 border-l-violet-400">
+                      <div key={i} className="card p-5 border-l-4 border-l-sky-400">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -1198,7 +1198,7 @@ export default function LayoverPlannerPage() {
                             </div>
                             <p className="text-sm text-zinc-700">{hotel.why}</p>
                             {hotel.checkInNote && (
-                              <p className="text-xs text-violet-700 mt-1.5 font-medium">💡 {hotel.checkInNote}</p>
+                              <p className="text-xs text-zinc-600 mt-1.5 font-medium">💡 {hotel.checkInNote}</p>
                             )}
                             <div className="flex items-center gap-3 mt-2.5">
                               <button

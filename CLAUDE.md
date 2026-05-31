@@ -269,6 +269,8 @@ These are the active items to build/fix, in rough priority order. Note: this lis
   - [ ] **Claude can do on request:** (a) read-only Supabase content scan (discover/featured/seasonal/notifications rows) for any stored "TripCoord" strings; (b) sweep `/mockups/*` (still say `TRIPCOORD`) and the stale `wayfare` path note in `CLAUDE_CODE_FIXLIST.md:296`.
   - Note: the **local folder stays `TripHive`** on purpose — it's wired into the Claude project path; renaming gains nothing and breaks local config.
 - [ ] Re-enable email confirmation in Supabase (currently OFF for testing ease)
+- [ ] **Enable Maps Static API on the Google Maps key** (Google Cloud Console → APIs & Services → enable "Maps Static API"). The Trip Story "Where we went" map uses Static Maps; it renders broken until this is enabled (separate API from Maps JS / Places). _From the 2026-05-30 QA audit._
+- [ ] **Enable leaked-password protection in Supabase Auth** (Auth → Providers → Password → toggle on; checks HaveIBeenPwned). _QA audit finding DB-5._
 - [ ] Complete SendGrid domain authentication so emails land in inbox, not spam
 - [ ] Add `/auth/update-password` to Supabase redirect allowlist
 - [ ] Upgrade Twilio from trial to Pay As You Go + complete A2P 10DLC registration

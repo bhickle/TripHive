@@ -1091,12 +1091,13 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         )}
 
         {flightsLoaded && flights.length === 0 && editingFlightId !== 'new' && (
-          <div className="bg-white rounded-2xl border border-dashed border-zinc-200 p-8 text-center">
-            <Plane className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
-            <p className="text-zinc-600 text-sm">
-              No flights saved yet. Add your outbound, return, and any layover legs so they're easy to find on the road.
-            </p>
-          </div>
+          <EmptyState
+            compact
+            icon={Plane}
+            title="No flights saved yet"
+            description="Add your outbound, return, and any layover legs so they're easy to find on the road."
+            action={{ label: '+ Add flight', onClick: () => openFlightEditor('new') }}
+          />
         )}
 
         {flights.map(f => editingFlightId === f.id ? (
@@ -1320,7 +1321,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                   <p className={`font-medium ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
                 )}
               </div>
-              <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">Custom</span>
+              <span className="text-xs px-2.5 py-1 bg-zinc-100 text-zinc-600 rounded-full font-medium">Custom</span>
               {editingTaskId !== task.id && (
                 <>
                   <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">
@@ -1567,8 +1568,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         {/* ── My Pack sub-tab ── */}
         {packSubTab === 'mine' && (
           <>
-            <div className="bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
-              <p className="text-xs text-violet-700"><span className="font-semibold">My Pack</span> — your private list. Only you can see this: personal clothing, toiletries, medications, and anything you don't want to share with the group.</p>
+            <div className="bg-zinc-100 border border-zinc-200 rounded-xl px-4 py-3">
+              <p className="text-xs text-zinc-600"><span className="font-semibold">My Pack</span> — your private list. Only you can see this: personal clothing, toiletries, medications, and anything you don't want to share with the group.</p>
             </div>
             {user ? (
               <>
@@ -1767,7 +1768,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                   <p className={`font-medium ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>{task.title}</p>
                 )}
               </div>
-              <span className="text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">Custom</span>
+              <span className="text-xs px-2.5 py-1 bg-zinc-100 text-zinc-600 rounded-full font-medium">Custom</span>
               {editingTaskId !== task.id && (
                 <>
                   <button onClick={() => startEditTask(task.id, task.title)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-300 hover:text-zinc-600 transition-all flex-shrink-0" aria-label="Edit task">

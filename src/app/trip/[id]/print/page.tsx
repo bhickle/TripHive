@@ -226,15 +226,15 @@ export default function PrintItineraryPage() {
             {/* Photo Spots */}
             {photoSpots.length > 0 && (
               <div className="mt-6 pl-24">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400 mb-2">📷 Photo Spots</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-sky-600 mb-2">📷 Photo Spots</p>
                 <div className="space-y-2">
                   {photoSpots.map((spot, si) => (
-                    <div key={si} className="pl-4 border-l-2 border-violet-100">
-                      <p className="text-xs font-semibold text-violet-800">
+                    <div key={si} className="pl-4 border-l-2 border-sky-100">
+                      <p className="text-xs font-semibold text-zinc-800">
                         {spot.name}
-                        {spot.timeOfDay && <span className="ml-2 text-[10px] font-normal text-violet-400 uppercase">{spot.timeOfDay}</span>}
+                        {spot.timeOfDay && <span className="ml-2 text-[10px] font-normal text-zinc-400 uppercase">{spot.timeOfDay}</span>}
                       </p>
-                      {spot.tip && <p className="text-xs text-violet-600 mt-0.5 leading-relaxed">{spot.tip}</p>}
+                      {spot.tip && <p className="text-xs text-zinc-600 mt-0.5 leading-relaxed">{spot.tip}</p>}
                     </div>
                   ))}
                 </div>

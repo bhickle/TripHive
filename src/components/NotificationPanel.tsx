@@ -8,6 +8,7 @@ import {
   Calendar, CreditCard,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { EmptyState } from '@/components/EmptyState';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -390,13 +391,12 @@ export function NotificationBell() {
           {/* List */}
           <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-50">
             {notifications.length === 0 ? (
-              <div className="py-12 text-center px-6">
-                <Bell className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm font-semibold text-slate-600 mb-1">No notifications yet</p>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Activity from your trips — group chat messages, expense splits, itinerary changes, and more — will appear here.
-                </p>
-              </div>
+              <EmptyState
+                compact
+                icon={Bell}
+                title="No notifications yet"
+                description="Activity from your trips — group chat messages, expense splits, itinerary changes, and more — will appear here."
+              />
             ) : (
               <>
                 {unread.length > 0 && (
