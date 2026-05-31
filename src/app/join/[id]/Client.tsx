@@ -382,7 +382,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
             <p className="text-zinc-600 mb-6">We couldn't find the trip you're looking for. Please check the link and try again.</p>
             <Link
               href="/"
-              className="inline-flex items-center space-x-2 px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-semibold transition-all"
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-full font-semibold transition-all"
             >
               <span>Back to Home</span>
               <ArrowRight className="w-4 h-4" />
@@ -486,7 +486,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 <button
                   onClick={handleContinue}
                   disabled={!guestData.name.trim()}
-                  className="w-full mt-8 px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
+                  className="w-full mt-8 px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-full font-semibold transition-all flex items-center justify-center space-x-2"
                 >
                   <span>Next</span>
                   <ChevronRight className="w-5 h-5" />
@@ -588,7 +588,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                 <button
                   onClick={handleContinue}
                   disabled={!guestData.priorities.length || !guestData.accommodation || !guestData.curiosity || joining}
-                  className="flex-1 px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
+                  className="flex-1 px-6 py-3 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-300 text-white rounded-full font-semibold transition-all flex items-center justify-center space-x-2"
                 >
                   {joining ? (
                     <>

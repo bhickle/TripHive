@@ -1055,7 +1055,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             Cancel
           </button>
           <button onClick={submitFlight} disabled={flightAdding}
-            className="px-4 py-2 text-sm font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg transition-all disabled:opacity-50 flex items-center gap-2">
+            className="px-4 py-2 text-sm font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-full transition-all disabled:opacity-50 flex items-center gap-2">
             {flightAdding && <Loader2 className="w-4 h-4 animate-spin" />}
             {editingFlightId === 'new' ? 'Save flight' : 'Save changes'}
           </button>
@@ -1075,7 +1075,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             </div>
             {editingFlightId !== 'new' && (
               <button onClick={() => openFlightEditor('new')}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg transition-all">
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-full transition-all">
                 <Plus className="w-4 h-4" /> Add flight
               </button>
             )}
@@ -1926,7 +1926,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
             </p>
             <button
               onClick={loadPhrasebook}
-              className="px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-xl font-semibold transition-colors inline-flex items-center gap-2"
+              className="px-6 py-3 bg-sky-800 hover:bg-sky-900 text-white rounded-full font-semibold transition-colors inline-flex items-center gap-2"
             >
               <Globe className="w-4 h-4" />
               Generate {multi ? 'Phrasebooks' : 'Phrasebook'}
@@ -1955,7 +1955,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
           <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
           <p className="text-lg font-semibold text-zinc-900">Couldn't load phrases</p>
           <p className="text-sm text-zinc-500 mt-1">{phrasesError}</p>
-          <button onClick={loadPhrasebook} className="mt-4 px-5 py-2.5 bg-sky-800 text-white rounded-lg text-sm font-medium hover:bg-sky-900 transition-colors">
+          <button onClick={loadPhrasebook} className="mt-4 px-5 py-2.5 bg-sky-800 text-white rounded-full text-sm font-medium hover:bg-sky-900 transition-colors">
             Try Again
           </button>
         </div>

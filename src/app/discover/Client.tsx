@@ -154,7 +154,7 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
             sizes="(max-width: 768px) 100vw, 50vw"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-sky-600 to-indigo-700" />
+          <div className="w-full h-full bg-gradient-to-br from-sky-600 to-sky-800" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
 
@@ -495,7 +495,7 @@ function TopSearchCard({
   // the entire body to the editorial preview page — proper URL, browser Back
   // works. Unmatched cards fall back to the in-page filter, but the parent's
   // onSearch also pushes ?q= so Back still undoes the click.
-  const wrapperClass = "relative bg-gradient-to-br from-sky-600 to-indigo-700 rounded-2xl overflow-hidden cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 block";
+  const wrapperClass = "relative bg-gradient-to-br from-sky-600 to-sky-800 rounded-2xl overflow-hidden cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 block";
   const wrapperContent = (
     <>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.08),transparent)]" />
@@ -683,7 +683,7 @@ function CommunityTripCard({ trip, liked, forking, onLike, onFork, variant = 'gr
             <button
               onClick={onFork}
               disabled={forking}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-lg transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-full transition-all"
             >
               {forking ? 'Copying…' : 'Use as starting point'}
             </button>
@@ -1356,7 +1356,7 @@ export default function DiscoverPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-sky-700 mb-3">Discover</p>
 
             {!hasWishlist && (
-              <div className="flex items-center justify-between gap-4 px-5 py-4 mb-6 bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl">
+              <div className="flex items-center justify-between gap-4 px-5 py-4 mb-6 bg-gradient-to-r from-sky-50 to-sky-100 border border-sky-200 rounded-2xl">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
                     <Lock className="w-4 h-4 text-sky-700" />
@@ -1366,7 +1366,7 @@ export default function DiscoverPage() {
                     <p className="text-xs text-zinc-500">Upgrade to save destinations to your wishlist and unlock full discovery.</p>
                   </div>
                 </div>
-                <Link href="/pricing" className="flex-shrink-0 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-xl transition-colors whitespace-nowrap">
+                <Link href="/pricing" className="flex-shrink-0 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-full transition-colors whitespace-nowrap">
                   Upgrade
                 </Link>
               </div>

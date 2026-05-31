@@ -1701,7 +1701,7 @@ function TripBuilderPage() {
                               setShowCitySuggestions(false);
                             }}
                             disabled={!destinationCityInput.trim()}
-                            className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -2789,7 +2789,7 @@ function TripBuilderPage() {
                         setMustHaveInput('');
                       }}
                       disabled={!mustHaveInput.trim()}
-                      className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus className="w-4 h-4" />
                     </button>

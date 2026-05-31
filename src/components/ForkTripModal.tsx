@@ -143,7 +143,7 @@ export function ForkTripModal({
               endDate: endDate || null,
             })}
             disabled={forking}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-all"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-full transition-all"
           >
             <Sparkles className="w-4 h-4" />
             {forking ? 'Copying itinerary…' : 'Use this itinerary'}

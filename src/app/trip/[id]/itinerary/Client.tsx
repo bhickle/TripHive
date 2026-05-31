@@ -3025,7 +3025,7 @@ function ItineraryPageContent() {
             </div>
             <button
               onClick={handleOpenEditTrip}
-              className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-xl transition-colors whitespace-nowrap"
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-full transition-colors whitespace-nowrap"
             >
               <Pencil className="w-3.5 h-3.5" /> Set dates
             </button>
@@ -4780,7 +4780,7 @@ function ItineraryPageContent() {
                       <button
                         onClick={() => handleEnrichDay(currentDayData.day, !dayHasRestaurants)}
                         disabled={isEnriching}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-xl transition-colors"
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-xs font-semibold rounded-full transition-colors"
                       >
                         {isEnriching ? (
                           <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {dayHasRestaurants ? 'Generating highlights…' : 'Adding restaurants & highlights…'}</>
@@ -5066,7 +5066,7 @@ function ItineraryPageContent() {
                   href={`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(aiMeta?.destination ?? '')}${aiMeta?.startDate ? `&checkin=${aiMeta.startDate}` : ''}${aiMeta?.endDate ? `&checkout=${aiMeta.endDate}` : ''}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-xl transition-all"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-xs font-semibold rounded-full transition-all"
                 >
                   Browse Hotels on Booking.com →
                 </a>
@@ -5352,8 +5352,8 @@ function ItineraryPageContent() {
                   <div className="flex gap-2">
                     {[
                       { id: 'shared' as const, label: 'Shared', active: 'bg-sky-500 text-white', dot: 'bg-sky-500' },
-                      { id: 'track_a' as const, label: 'Track A', active: 'bg-violet-500 text-white', dot: 'bg-violet-500' },
-                      { id: 'track_b' as const, label: 'Track B', active: 'bg-rose-500 text-white', dot: 'bg-rose-500' },
+                      { id: 'track_a' as const, label: 'Track A', active: 'bg-sky-500 text-white', dot: 'bg-sky-500' },
+                      { id: 'track_b' as const, label: 'Track B', active: 'bg-amber-500 text-white', dot: 'bg-amber-500' },
                     ].map(t => (
                       <button
                         key={t.id}
@@ -5497,7 +5497,7 @@ function ItineraryPageContent() {
                     setSavingBooking(false);
                   }
                 }}
-                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-full text-sm transition-all flex items-center justify-center gap-2"
               >
                 {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : editingHotelIndex !== null ? 'Update Hotel' : 'Save Hotel'}
               </button>
@@ -5616,7 +5616,7 @@ function ItineraryPageContent() {
               <button
                 disabled={addDayGenerating}
                 onClick={handleAddDay}
-                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-full text-sm transition-all flex items-center justify-center gap-2"
               >
                 {addDayGenerating
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating day…</>
@@ -5739,7 +5739,7 @@ function ItineraryPageContent() {
                     setSavingBooking(false);
                   }
                 }}
-                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white font-semibold rounded-full text-sm transition-all flex items-center justify-center gap-2"
               >
                 {savingBooking ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Flight'}
               </button>
@@ -6088,7 +6088,7 @@ function ItineraryPageContent() {
                     }
                   }}
                   disabled={isSendingInvite || !inviteContact.trim()}
-                  className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white rounded-lg font-medium text-sm transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-200 disabled:text-zinc-400 text-white rounded-full font-medium text-sm transition-colors"
                 >
                   {isSendingInvite ? 'Sending…' : 'Send Invite'}
                 </button>

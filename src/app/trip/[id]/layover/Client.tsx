@@ -413,7 +413,7 @@ export default function LayoverPlannerPage() {
                               ${activity.cost}
                             </span>
                           </div>
-                          <button className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-sky-800 text-white rounded-lg hover:bg-sky-900 transition-all text-sm font-semibold">
+                          <button className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-sky-800 text-white rounded-full hover:bg-sky-900 transition-all text-sm font-semibold">
                             <Navigation className="w-4 h-4" />
                             Navigate
                           </button>
@@ -607,7 +607,7 @@ export default function LayoverPlannerPage() {
                           <DollarSign className="w-3 h-3" /> {exc.cost}
                         </span>
                       </div>
-                      <button className="w-full px-4 py-2 bg-sky-800 text-white rounded-lg hover:bg-sky-900 transition-all text-sm font-semibold">
+                      <button className="w-full px-4 py-2 bg-sky-800 text-white rounded-full hover:bg-sky-900 transition-all text-sm font-semibold">
                         Book Shore Excursion
                       </button>
                     </div>

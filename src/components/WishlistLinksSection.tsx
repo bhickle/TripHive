@@ -173,7 +173,7 @@ export function WishlistLinksSection({ itemId, links, onLinksChange, canEdit = t
             <button
               onClick={(e) => { e.stopPropagation(); handleAdd(); }}
               disabled={fetching || !inputUrl.trim()}
-              className="flex-shrink-0 px-2.5 py-1.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg transition-colors"
+              className="flex-shrink-0 px-2.5 py-1.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full transition-colors"
               aria-label="Add link"
             >
               {fetching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}

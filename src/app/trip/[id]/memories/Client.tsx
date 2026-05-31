@@ -1332,7 +1332,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                                     <button
                                       type="submit"
                                       disabled={editBusy || !editingDraft.trim()}
-                                      className="px-3 py-1.5 text-xs font-semibold bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg transition-colors"
+                                      className="px-3 py-1.5 text-xs font-semibold bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full transition-colors"
                                     >
                                       {editBusy ? 'Saving…' : 'Save'}
                                     </button>
@@ -1389,7 +1389,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                       <button
                         type="submit"
                         disabled={!newCommentBody.trim() || postingComment}
-                        className="px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors"
+                        className="px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-full transition-colors"
                       >
                         {postingComment ? 'Posting…' : 'Post'}
                       </button>

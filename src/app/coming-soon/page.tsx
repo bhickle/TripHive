@@ -88,7 +88,7 @@ export default function ComingSoonPage() {
             />
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm rounded-xl shadow-sm transition-all whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-sky-800 hover:bg-sky-900 text-white font-semibold text-sm rounded-full shadow-sm transition-all whitespace-nowrap"
             >
               Notify me
               <ArrowRight className="w-4 h-4" />

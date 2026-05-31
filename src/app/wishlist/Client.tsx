@@ -353,7 +353,7 @@ function AddDestinationModal({
                     }
                   }}
                   disabled={!socialUrl.trim()}
-                  className="px-3 py-2.5 bg-sky-800 text-white text-xs font-semibold rounded-xl hover:bg-sky-900 disabled:opacity-40 transition-colors flex-shrink-0"
+                  className="px-3 py-2.5 bg-sky-800 text-white text-xs font-semibold rounded-full hover:bg-sky-900 disabled:opacity-40 transition-colors flex-shrink-0"
                   title="Try to extract a destination name from the URL"
                 >
                   Import

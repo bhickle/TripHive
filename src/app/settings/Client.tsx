@@ -917,7 +917,7 @@ export default function SettingsPage() {
                         <button
                           onClick={saveProfile}
                           disabled={profileSaving}
-                          className={`px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${profileSaved ? 'bg-green-600 text-white' : profileSaveError ? 'bg-rose-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                          className={`px-6 py-2 rounded-full transition-all font-semibold disabled:opacity-60 ${profileSaved ? 'bg-green-600 text-white' : profileSaveError ? 'bg-rose-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                         >
                           {profileSaved ? '✓ Saved!' : profileSaving ? 'Saving…' : profileSaveError ? '✕ Save failed' : 'Save Changes'}
                         </button>
@@ -1286,7 +1286,7 @@ export default function SettingsPage() {
                   <button
                     onClick={saveNotifications}
                     disabled={notifSaving}
-                    className={`mt-6 px-6 py-2 rounded-lg transition-all font-semibold disabled:opacity-60 ${notifError ? 'bg-rose-600 text-white' : notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                    className={`mt-6 px-6 py-2 rounded-full transition-all font-semibold disabled:opacity-60 ${notifError ? 'bg-rose-600 text-white' : notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                   >
                     {notifError ? 'Couldn’t save — try again' : notifSaved ? '✓ Saved!' : notifSaving ? 'Saving…' : 'Save Changes'}
                   </button>
@@ -1351,7 +1351,7 @@ export default function SettingsPage() {
                                 <button
                                   onClick={() => handleSubmitComment(integration.id, integration.name)}
                                   disabled={!comments[integration.id]?.trim()}
-                                  className="px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg transition-colors"
+                                  className="px-3 py-2 bg-sky-800 hover:bg-sky-900 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-full transition-colors"
                                 >
                                   <Send className="w-4 h-4" />
                                 </button>

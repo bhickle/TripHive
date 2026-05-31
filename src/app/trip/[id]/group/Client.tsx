@@ -2144,7 +2144,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                                       }
                                     }}
                                     disabled={savingLineItems}
-                                    className="px-3 py-1.5 text-xs font-semibold bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg transition-colors"
+                                    className="px-3 py-1.5 text-xs font-semibold bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full transition-colors"
                                   >
                                     {savingLineItems ? 'Saving…' : 'Save'}
                                   </button>
@@ -2213,7 +2213,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           <button
                             onClick={handleScanReceipt}
                             disabled={isScanning}
-                            className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-full transition-colors flex items-center justify-center gap-2"
                           >
                             {isScanning ? (
                               <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scanning…</>
@@ -2457,7 +2457,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         }
                       }}
                       disabled={!newExpenseName.trim() || !newExpenseAmount || !newExpensePaidBy.trim()}
-                      className="flex-1 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg font-semibold text-sm transition-colors"
+                      className="flex-1 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full font-semibold text-sm transition-colors"
                     >
                       Add Expense
                     </button>
@@ -3032,7 +3032,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           }
                         }
                       }}
-                      className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-medium text-sm transition-colors"
+                      className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-full font-medium text-sm transition-colors"
                     >
                       Put It Out There
                     </button>
@@ -3083,7 +3083,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                         <button
                           onClick={confirmAddToItinerary}
                           disabled={addToItinSaving}
-                          className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-lg font-semibold text-sm transition-colors"
+                          className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white rounded-full font-semibold text-sm transition-colors"
                         >
                           {addToItinSaving ? 'Saving…' : 'Add to Itinerary'}
                         </button>
@@ -3289,7 +3289,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       setInviteLinkCopied(true);
                       setTimeout(() => setInviteLinkCopied(false), 2000);
                     }}
-                    className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg font-medium text-sm transition-colors whitespace-nowrap"
+                    className="px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white rounded-full font-medium text-sm transition-colors whitespace-nowrap"
                   >
                     {inviteLinkCopied ? '✓ Copied!' : 'Copy'}
                   </button>
@@ -3406,7 +3406,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                   }
                 }}
                 disabled={isSending}
-                className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-sky-600 text-white rounded-lg font-medium text-sm transition-colors"
+                className="flex-1 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-sky-600 text-white rounded-full font-medium text-sm transition-colors"
               >
                 {isSending ? 'Sending...' : 'Send Invite'}
               </button>}

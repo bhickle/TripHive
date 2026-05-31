@@ -146,7 +146,7 @@ export default function DiscoverItineraryPage() {
             className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-sky-600 to-indigo-700" />
+          <div className="w-full h-full bg-gradient-to-br from-sky-600 to-sky-800" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
@@ -310,7 +310,7 @@ export default function DiscoverItineraryPage() {
         </div>
 
         {/* ── CTA ──────────────────────────────────────────────────────── */}
-        <div className="mt-10 bg-gradient-to-br from-sky-600 to-indigo-700 rounded-2xl p-8 text-center">
+        <div className="mt-10 bg-gradient-to-br from-sky-600 to-sky-800 rounded-2xl p-8 text-center">
           <div className="text-white/80 text-sm mb-2 flex items-center justify-center gap-1.5">
             <Sparkles className="w-4 h-4" />
             AI-personalized for your group

@@ -210,7 +210,7 @@ export function TagCitiesModal({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60"
+            className="bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold px-4 py-2 rounded-full disabled:opacity-60"
           >
             {saving ? 'Saving…' : chips.length === 0 ? 'Save' : `Save ${chips.length} ${chips.length === 1 ? 'city' : 'cities'}`}
           </button>

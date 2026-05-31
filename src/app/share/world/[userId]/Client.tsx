@@ -73,7 +73,7 @@ export default function ShareWorldClient({ userId, summary }: ClientProps) {
         </div>
 
         {/* CTA */}
-        <div className="mt-10 bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-100 rounded-2xl p-7 sm:p-9 text-center">
+        <div className="mt-10 bg-gradient-to-br from-sky-50 to-sky-100 border border-sky-100 rounded-2xl p-7 sm:p-9 text-center">
           <Globe className="w-10 h-10 text-sky-700 mx-auto mb-3" />
           <h2 className="font-script italic text-2xl sm:text-3xl font-semibold text-zinc-900 mb-2">
             Where to next?
