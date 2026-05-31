@@ -164,8 +164,8 @@ ItineraryDay {
 |------|--------------------|
 | `free` | 25 AI credits/mo (= 1 build), 4 travelers, 7-day max trip |
 | `trip_pass` | 50 credits per pass (1 build + 1 regen + 5 small tweaks), 6 base travelers (extras purchasable), 7-day max |
-| `explorer` | 100 credits/mo (~4 builds), 8 travelers, 10-day max, split tracks + co-organizer |
-| `nomad` | 250 credits/mo (~10 builds), 15 travelers, 14-day max, all features |
+| `explorer` | 100 credits/mo (~4 builds), 6 travelers, 10-day max, split tracks + co-organizer |
+| `nomad` | 200 credits/mo (~8 builds), 12 travelers, 14-day max, all features |
 
 Gates live in `useEntitlements` hook → checked against `profile.subscription_tier` from Supabase.  
 `UpgradeModal` + `LockBadge` components handle the UI gating.
@@ -207,7 +207,7 @@ Claude cannot set these — Brandon must add them manually.
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | ✅ Set | Client-side Maps embed |
 | `NEXT_PUBLIC_APP_URL` | ✅ Set | https://www.tripcoord.ai |
 | `PREVIEW_SECRET` | ⚠️ Optional (pre-launch) | Coming-soon bypass — `?preview=<value>` sets a 90-day cookie. **Middleware falls back to the literal `tc2026` when this env var is unset** (re-introduced 2026-05-13 to unblock pre-launch testers). Anyone who reads the bundled middleware JS can see the fallback, so it's a speedbump not real access control. **Before public launch:** set this to a strong value in Vercel AND remove the `?? 'tc2026'` fallback in `src/middleware.ts` line 11. Do BOTH — env var alone is not enough while the fallback is in source. |
-| `UNSPLASH_ACCESS_KEY` | ❌ Missing | Dynamic trip card photos (#78) |
+| `UNSPLASH_ACCESS_KEY` | ✅ Set | Dynamic trip card photos (#78 — shipped; cover photos render live) |
 | `TICKETMASTER_API_KEY` | ❌ Missing | Real events data (#69) |
 | `VIATOR_AFFILIATE_ID` | ❌ Missing | Affiliate booking links (#70) |
 | `GETYOURGUIDE_AFFILIATE_ID` | ❌ Missing | Affiliate booking links (#70) |
@@ -239,7 +239,7 @@ These are the active items to build/fix, in rough priority order. Note: this lis
 
 ### 🟡 Polish & UX
 - [ ] **Reference-link fetch reliability** (shipped 2026-05-25, commit `58fdefe`) — "Plan this trip" on an On My Radar item now fetches the user's saved links via `/api/fetch-reference` (Reddit `.json`, else HTML→text; SSRF-guarded, bot UA, best-effort, no AI/credit cost) and feeds the extracted text to the generator as a "reference material" prompt slot. **Limitation:** it's a plain server-side fetch + tag-strip, so it gets little/nothing from sites that bot-block, login-wall, or render content in JS. Known problem sites: **TripAdvisor** (Cloudflare/anti-bot — and it's literally suggested in the paste box, so this will be common), **Reddit** (unauth bot 403s), **Instagram / TikTok / X / Facebook / Pinterest / Yelp** (login wall + JS), **Booking / Expedia / Airbnb** (anti-bot), **YouTube** (description only, no transcript), **Google Maps/Docs links** (JS app, no static text). Generally fine: most travel blogs, Medium/Substack, news articles, Wikipedia. Failure is graceful — `referenceContent` stays empty, the build proceeds on destination + priorities, and the Trip Builder's "pulled ideas" chip just never flips to "ready." **Fallback if it matters:** a render/proxy scraping service (e.g. a headless-render API) for the JS/anti-bot sites, official APIs where they exist (Reddit OAuth, YouTube transcript), and/or a Readability-style extractor + a small Haiku summarization pass on whatever HTML is retrieved.
-- [ ] **Unsplash integration** (`#78`) — dynamic destination photos on trip cards. Code scaffold is ready; just needs `UNSPLASH_ACCESS_KEY` env var + wiring in `src/app/trips/page.tsx` and `dashboard/page.tsx`.
+- ~~**Unsplash integration** (`#78`)~~ — **Shipped.** `UNSPLASH_ACCESS_KEY` is set; dynamic destination cover photos render live on trip cards via `/api/unsplash/photo` (resolved URL persisted to `trips.cover_image`, attribution chip + download tracking per Unsplash production guidelines). See `src/components/TripCard.tsx`.
 - [ ] **Ticketmaster events** (`#69`) — real event data on Discover/What's Out There. Needs `TICKETMASTER_API_KEY`.
 - [ ] **Viator/GetYourGuide affiliate links** (`#70`) — "Book This" links on activity cards in the itinerary. Scaffold at `scripts/enrich-affiliate-links.ts`. Needs affiliate registration + API keys (blocked until site is live for affiliate approval).
 - [ ] **Prompt-cache optimization (low priority)** — `cacheableGuidance` can fall below Anthropic's 2K-token threshold for users with few priorities, in which case caching silently doesn't happen. Not a regression — the current architecture is correct, just sub-optimal at the low end. Bigger fix: move stable user-prompt content (budgetTierText, groupTypeText, walkingRuleText, etc.) into the cacheable region so multi-city chunks share more cache. Audit notes from 2026-05-08.

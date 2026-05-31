@@ -173,6 +173,9 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.destination) {
           setTripDestination(tripRes.value.trip.destination);
         }
+        if (tripRes.status === 'fulfilled' && typeof tripRes.value?.trip?.group_size === 'number') {
+          setTripGroupSize(tripRes.value.trip.group_size);
+        }
         if (tripRes.status === 'fulfilled' && tripRes.value?.trip?.budget_total) {
           setTripBudgetTotal(tripRes.value.trip.budget_total);
         }
@@ -344,6 +347,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   const [replacingActivityId, setReplacingActivityId] = useState<string | null>(null);
   const [replacedActivityIds, setReplacedActivityIds] = useState<Set<string>>(new Set());
   const [tripDestination, setTripDestination] = useState<string>('');
+  // Planned party size from the Trip Builder (trips.group_size). This is the
+  // expected headcount, which can exceed the number of people who have
+  // actually joined (groupMembers.length). Showing both as "X of N joined"
+  // avoids the dashboard-card-vs-group-hub mismatch where the card showed the
+  // planned size (group_size) and the hub showed only joined members.
+  const [tripGroupSize, setTripGroupSize] = useState<number>(0);
   const [itineraryDaysData, setItineraryDaysData] = useState<ItineraryDay[]>([]);
   // Trip budget_total from Supabase — used to calculate the utilization bar
   const [tripBudgetTotal, setTripBudgetTotal] = useState<number>(0);
@@ -1438,7 +1447,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             {tripName}
           </h1>
           <p className="text-lg text-zinc-600">
-            {groupMembers.length} {groupMembers.length === 1 ? 'person' : 'people'} on this trip
+            {tripGroupSize > groupMembers.length ? (
+              // Planned party size exceeds who's actually joined — show both so
+              // this number reconciles with the "N travelers" on the trip card
+              // (which reflects the planned group_size).
+              <>{groupMembers.length} of {tripGroupSize} joined</>
+            ) : (
+              <>{groupMembers.length} {groupMembers.length === 1 ? 'person' : 'people'} on this trip</>
+            )}
           </p>
         </div>
       )}

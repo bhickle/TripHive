@@ -202,11 +202,19 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
   };
 
   return (
-    <Link
-      href={`/trip/${trip.id}/itinerary`}
-      onClick={() => onCardClick?.(trip.id)}
-      className="group block bg-white rounded-2xl overflow-hidden border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
-    >
+    <div className="group relative block bg-white rounded-2xl overflow-hidden border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+      {/* Stretched nav link — covers the whole card (z-[1]) so a click
+          anywhere opens the itinerary, EXCEPT the interactive controls
+          (attribution, action buttons) which sit at a higher z-index.
+          This replaces wrapping the whole card in a <Link>: nesting the
+          attribution / action <a> tags inside that outer anchor is invalid
+          HTML and was routing card clicks to the Unsplash profile link. */}
+      <Link
+        href={`/trip/${trip.id}/itinerary`}
+        onClick={() => onCardClick?.(trip.id)}
+        aria-label={`View ${trip.title}`}
+        className="absolute inset-0 z-[1]"
+      />
       {/* Image — tall, editorial */}
       <div className="relative h-52 overflow-hidden bg-zinc-200">
         {photoSrc ? (
@@ -263,7 +271,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
         {/* Top-right cluster: hover-revealed edit/delete on the LEFT, duration
             badge on the RIGHT (last child) so it stays flush to the edge and
             doesn't look like it's floating when the buttons are hidden. */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
           {/* "Plan a similar trip" — opens Trip Builder with this trip's
                shape (destination, priorities, group, budget) pre-filled
                but dates/bookings empty. Hides while delete-confirm is
@@ -345,6 +353,6 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
           <ArrowRight className="w-3.5 h-3.5 text-sky-700" />
         </div>
       </div>
-    </Link>
+    </div>
   );
 };
