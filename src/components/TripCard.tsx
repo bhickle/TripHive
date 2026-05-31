@@ -260,11 +260,10 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
           </span>
         </div>
 
-        {/* Duration badge + duplicate + delete button */}
+        {/* Top-right cluster: hover-revealed edit/delete on the LEFT, duration
+            badge on the RIGHT (last child) so it stays flush to the edge and
+            doesn't look like it's floating when the buttons are hidden. */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5">
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">
-            {daysCount}d
-          </span>
           {/* "Plan a similar trip" — opens Trip Builder with this trip's
                shape (destination, priorities, group, budget) pre-filled
                but dates/bookings empty. Hides while delete-confirm is
@@ -307,6 +306,10 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
               <X className="w-3 h-3" />
             </button>
           )}
+          {/* Duration badge — last child so it's flush to the right edge. */}
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">
+            {daysCount}d
+          </span>
         </div>
 
         {/* Destination name overlaid — Cormorant italic */}
