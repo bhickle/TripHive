@@ -69,6 +69,7 @@ Rules: (1) All hotels must be real and accurately named. (2) Vary the 3 picks â€
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
     const objStart = cleaned.indexOf('{');
     const objEnd = cleaned.lastIndexOf('}');
+    if (objStart === -1 || objEnd <= objStart) throw new Error('No JSON object in response');
     const parsed = JSON.parse(cleaned.slice(objStart, objEnd + 1));
     await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
     return NextResponse.json(parsed);

@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/supabase/requireAuth';
 import { requireTripAiRole } from '@/lib/supabase/tripAccess';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
+import { addressContainsCity } from '@/lib/places/verifyDayLocations';
 import type { Json } from '@/lib/supabase/database.types';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -388,6 +389,45 @@ export async function POST(req: NextRequest) {
     };
   };
 
+  /** Reshape the model's FLAT priorityHighlights array into the keyed
+   *  Record<string, Array<...>> shape ItineraryDay expects (and that the
+   *  sidebar reads via priorityHighlights[priorityId]). The prompt asks for
+   *  a flat array where each item carries a "priority" field; the day type
+   *  groups by that id and items carry NO priority field. Mismatch meant the
+   *  sidebar got an array and rendered nothing. Returns null when there's
+   *  nothing usable so the merge can fall back to the existing value. */
+  const regroupPriorityHighlights = (
+    raw: unknown,
+  ): Record<string, Array<{
+    name: string; type?: string; neighborhood?: string;
+    description?: string; bestFor?: string; bestTime?: string; tip?: string;
+  }>> | null => {
+    if (!Array.isArray(raw)) return null;
+    const grouped: Record<string, Array<{
+      name: string; type?: string; neighborhood?: string;
+      description?: string; bestFor?: string; bestTime?: string; tip?: string;
+    }>> = {};
+    for (const entry of raw) {
+      if (!entry || typeof entry !== 'object') continue;
+      const e = entry as Record<string, unknown>;
+      const priority = typeof e.priority === 'string' ? e.priority.trim() : '';
+      const name = typeof e.name === 'string' ? e.name : '';
+      if (!priority || !name) continue;
+      const item: {
+        name: string; type?: string; neighborhood?: string;
+        description?: string; bestFor?: string; bestTime?: string; tip?: string;
+      } = { name };
+      if (typeof e.type === 'string') item.type = e.type;
+      if (typeof e.neighborhood === 'string') item.neighborhood = e.neighborhood;
+      if (typeof e.description === 'string') item.description = e.description;
+      if (typeof e.bestFor === 'string') item.bestFor = e.bestFor;
+      if (typeof e.bestTime === 'string') item.bestTime = e.bestTime;
+      if (typeof e.tip === 'string') item.tip = e.tip;
+      (grouped[priority] ??= []).push(item);
+    }
+    return Object.keys(grouped).length > 0 ? grouped : null;
+  };
+
   const mergedDays = days.map(d => {
     const enriched = enrichmentByDay.get(d.day);
     if (!enriched) return d;
@@ -408,8 +448,20 @@ export async function POST(req: NextRequest) {
       Array.isArray(enriched.restaurants) &&
       enriched.restaurants.length > 0
     ) {
+      // Verify-before-show (Tier 1 only): a backfilled restaurant with a
+      // non-null address must have that address in the day's city. The AI
+      // sometimes emits a wrong-city venue (the Versailles-lunch-in-Paris
+      // bug class); drop those rather than inject them. Restaurants with a
+      // null address have nothing to verify and pass through unchanged.
+      const dayCity = typeof existing.city === 'string' ? existing.city : undefined;
       const newRestaurants = (enriched.restaurants as Array<Record<string, unknown>>)
         .filter(r => typeof r.name === 'string' && r.name.trim().length > 0)
+        .filter(r => {
+          const addr = typeof r.address === 'string' ? r.address : null;
+          // Null address → nothing to verify, keep it. Otherwise require the
+          // address to contain the day's city (Tier-1 string check).
+          return !addr || addressContainsCity(addr, dayCity);
+        })
         .map((r, i) => buildRestaurantActivity(d.day, i, r));
       const existingShared = Array.isArray(mergedTracks?.shared) ? (mergedTracks?.shared as unknown[]) : [];
       mergedTracks = {
@@ -427,7 +479,7 @@ export async function POST(req: NextRequest) {
       foodieTips: enriched.foodieTips ?? existing.foodieTips ?? null,
       nightlifeHighlights: enriched.nightlifeHighlights ?? existing.nightlifeHighlights ?? null,
       shoppingGuide: enriched.shoppingGuide ?? existing.shoppingGuide ?? null,
-      priorityHighlights: enriched.priorityHighlights ?? existing.priorityHighlights ?? null,
+      priorityHighlights: regroupPriorityHighlights(enriched.priorityHighlights) ?? existing.priorityHighlights ?? null,
       destinationTip: enriched.destinationTip ?? existing.destinationTip ?? null,
     };
   });
