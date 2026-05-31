@@ -136,12 +136,21 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const sig = req.headers.get('stripe-signature') ?? '';
 
+  // Explicit misconfiguration guard — without the secret, constructEvent would
+  // throw and fall into the catch below, masking a server misconfig as a bad
+  // Stripe signature (400). Surface it honestly as a 500 instead.
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error('[stripe/webhook] STRIPE_WEBHOOK_SECRET is not configured');
+    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+  }
+
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(
       rawBody,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET!,
+      webhookSecret,
     );
   } catch (err) {
     console.error('[stripe/webhook] signature verification failed:', err);

@@ -37,8 +37,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ── Always allow the OAuth callback — it arrives before the cookie is set ──
-  if (pathname.startsWith('/auth/callback')) {
+  // ── Always allow all auth pages — login, signup, reset-password,
+  // update-password, and the OAuth callback. A password-reset / email-confirm
+  // link must work for anyone, including users without the preview cookie. ──
+  if (pathname.startsWith('/auth/')) {
     return NextResponse.next();
   }
 

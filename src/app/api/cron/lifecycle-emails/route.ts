@@ -41,7 +41,7 @@ interface EmailJob {
 }
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tripcoord.ai';
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? 'hello@tripcoord.ai';
+const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? 'noreply@tripcoord.ai';
 
 function firstName(name: string | null, email: string): string {
   if (name) return name.split(' ')[0];
@@ -358,8 +358,10 @@ export async function GET(req: NextRequest) {
 
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) {
-    console.error('[cron/lifecycle-emails] SENDGRID_API_KEY is not set');
-    return NextResponse.json({ error: 'SENDGRID_API_KEY not configured' }, { status: 500 });
+    // A disabled-email config is not an error — log a warning and 200 so the
+    // daily cron run doesn't go red in the logs.
+    console.warn('[cron/lifecycle-emails] SENDGRID_API_KEY is not set — skipping send');
+    return NextResponse.json({ ok: true, skipped: 'no SENDGRID_API_KEY' });
   }
 
   const supabase = createAdminClient();
