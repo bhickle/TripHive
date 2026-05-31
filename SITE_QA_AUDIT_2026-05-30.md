@@ -42,9 +42,20 @@ The verified P0s and headline P1s were fixed the same day:
 | **OPS-1** | P1 | `<this batch>` | Added `export const maxDuration` to the 8 blocking AI routes (Sonnet/retry paths 300, layover/enrich 120, small Haiku 60) — no more 504s mid-feature. |
 | **DB-2** | P2 | migration | `notifications` INSERT policy changed from `WITH CHECK (true)` to `auth.uid() = user_id` — can no longer forge a notification to another user. |
 | **DB-3** | P2 | migration | Pinned `search_path = public, pg_temp` on all 5 SECURITY DEFINER / trigger functions. |
+| **AI-1 / AI-3** | P1 | `d104b7a` | parse-itinerary: added `day.city` (fixes uploaded multi-city regenerate + weather/maps) and stopped the prompt fabricating addresses (verify-before-show gap, at the source — parsed venues are user-asserted, so no aggressive correction). |
+| **DATA-1** | P1 | `db0bccf` | 11 GET routes now return `{…:[], error:'DB_ERROR'}` + HTTP 500 + log on DB error instead of a silent empty 200 (shape preserved → no client crash). |
+| **DB-4** | P3 | `6aa98b9` | `destination_events` anonymous logging now IP-rate-limited (120/min). |
+| **Brand A/B/C** | P2 | `155adea` | Track A/B selector violet/rose → sky/amber; 28 sky primary buttons → `rounded-full`; banned indigo → sky on Discover/world-share gradients. |
 | **MONEY-2** | — | — | Resolved by live-DB check: the credit RPCs are atomic (no fix needed). |
 
-Still open (recommended next): AI-1 (parse-itinerary verify gate), DATA-1 (silent-empty GETs), DB-4/DB-5 (public-insert spam vectors; leaked-password protection), DB-7 (RLS per-row auth.uid() perf), and the brand sweep.
+**Deferred — genuine design decisions (need Brandon, not unilateral):**
+- **Brand D** — migrate 6 hand-rolled empty states to `<EmptyState>` (refactor; minor appearance shift).
+- **Brand E** — re-theme the fully-purple surfaces (layover lounge/day-pass cards, memories "Contributors" stat) — replacement hue is a choice.
+- **Brand F** — **ruling needed:** ~15 amber "warning" banners have no sanctioned hue (and the same "couldn't load trips" banner is rose on dashboard but amber on trips/prep). Bless amber-as-warning in CLAUDE.md, or standardize on rose/zinc.
+- **Brand G** — category/transport-map hues (wishlist/layover/discover) reach for teal/pink/purple/indigo — deliberate differentiation; leave unless tightening hard.
+- **DB-5** (P3) — enable leaked-password protection (Supabase Auth dashboard toggle — Brandon-owned).
+- **DB-7** (perf) — wrap RLS `auth.uid()` in a scalar subquery across ~30 tables (58 policies) before scale; plus 32 unused indexes + 2 unindexed FKs (hygiene).
+- Lower-priority items throughout §§1-13 (e.g. SHARE-5 world opt-in, GROUP settlement-identity-by-name, COMP input caps) remain documented for a future pass.
 
 ---
 
