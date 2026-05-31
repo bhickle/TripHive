@@ -59,16 +59,69 @@ function normalize(input: string): string {
 }
 
 /**
+ * Exonym → endonym aliases. The AI's English `day.city` ("Lisbon") often
+ * doesn't appear verbatim in a real local-language address ("…, 1100-053
+ * Lisboa, Portugal"), so a naive substring check fails EVERY venue in those
+ * cities and the verify gate drops the whole day — which silently zeroed out
+ * builds for Lisbon, Munich, Florence, etc. (2026-05-31 launch-blocker QA).
+ *
+ * Keys + values are pre-normalized (lowercase, accent-stripped) to match
+ * `normalize()` output. This only ADDS accepted spellings for known city
+ * pairs — it never weakens the wrong-city catch (a Paris address on a
+ * Versailles day still fails, because "paris" isn't an alias of "versailles").
+ */
+const CITY_ALIASES: Record<string, string[]> = {
+  lisbon: ['lisboa'],
+  porto: ['oporto'], oporto: ['porto'],
+  munich: ['munchen', 'muenchen'],
+  cologne: ['koln', 'koeln'],
+  nuremberg: ['nurnberg', 'nuernberg'],
+  florence: ['firenze'],
+  rome: ['roma'],
+  milan: ['milano'],
+  naples: ['napoli'],
+  venice: ['venezia'],
+  turin: ['torino'],
+  genoa: ['genova'],
+  padua: ['padova'],
+  vienna: ['wien'],
+  prague: ['praha'],
+  warsaw: ['warszawa'],
+  krakow: ['cracow'], cracow: ['krakow'],
+  moscow: ['moskva'],
+  athens: ['athina', 'athinai'],
+  seville: ['sevilla'],
+  lyon: ['lyons'],
+  geneva: ['geneve', 'genf'],
+  zurich: ['zuerich'],
+  copenhagen: ['kobenhavn', 'koebenhavn'],
+  gothenburg: ['goteborg', 'goeteborg'],
+  antwerp: ['antwerpen'],
+  brussels: ['bruxelles', 'brussel'],
+  bruges: ['brugge'],
+  ghent: ['gent'],
+  bucharest: ['bucuresti'],
+  belgrade: ['beograd'],
+  kyiv: ['kiev'], kiev: ['kyiv'],
+  mumbai: ['bombay'], bombay: ['mumbai'],
+  beijing: ['peking'],
+};
+
+/**
  * Tier 1: cheap string check. Does the activity's address contain the
- * day's city name? Returns true if the city name (or any reasonable
- * variant) is present in the address.
+ * day's city name (or a known local-language variant of it)? Returns true
+ * if any accepted spelling of the city is present in the address.
  */
 export function addressContainsCity(address: string | undefined, dayCity: string | undefined): boolean {
   if (!address || !dayCity) return true; // can't validate without both — fail open
   const normAddress = normalize(address);
-  const normCity = normalize(dayCity);
-  if (!normCity) return true;
-  return normAddress.includes(normCity);
+  // Use the city core only — drop a trailing ", Country" / ", State" so
+  // "Lisbon, Portugal" checks against "lisbon", not "lisbon portugal" (which
+  // a "…Lisboa, Portugal" address would never contain as a contiguous run).
+  const cityCore = normalize(dayCity.split(',')[0]);
+  if (!cityCore) return true;
+  const candidates = [cityCore, ...(CITY_ALIASES[cityCore] ?? [])];
+  return candidates.some(c => normAddress.includes(c));
 }
 
 // ─── Collect addressable items from a day ───────────────────────────────────

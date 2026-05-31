@@ -2163,7 +2163,16 @@ export async function POST(request: NextRequest) {
           .slice(0, 3)
           .map(f => f.name)
           .join(', ');
-        console.warn(`[generate-itinerary] day ${typedDay.day} (${dayCity}) failed location verification after ${result.retries} retries:`, result.finalFailures);
+        // Error-level (not warn) with the full failures incl. addresses +
+        // what Places resolved — this is the diagnostic for "build produced
+        // zero days": it shows EXACTLY which venue/address tripped the gate
+        // (e.g. an exonym mismatch like day.city "Lisbon" vs "…Lisboa").
+        console.error(
+          `[generate-itinerary] day ${typedDay.day} (${dayCity}) FAILED location verification after ${result.retries} retries:`,
+          JSON.stringify((result.finalFailures ?? []).map(f => ({
+            name: f.name, address: f.address, reason: f.reason, placesAddress: f.placesAddress,
+          }))),
+        );
         send({
           type: 'error',
           message: `Couldn't verify day ${typedDay.day} (${dayCity}) — venues kept resolving to the wrong city (${failedNames || 'multiple'}). Please regenerate.`,
@@ -2768,9 +2777,25 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Signal stream end to client. Include total days emitted so the client
-        // can detect partial results (e.g. truncated generation).
-        send({ type: 'done', daysEmitted: dayIndex, model: modelId });
+        // Zero days survived this chunk — a real failure, not a "done". Could
+        // be every day failing verification, or the model emitting no parseable
+        // day at all. Surface it as an error (don't close 200-but-empty into a
+        // perpetual client spinner) and log at error level so it's visible in
+        // Vercel without grepping for the per-day warnings.
+        if (dayIndex === 0) {
+          console.error('[generate-itinerary] stream produced ZERO days — no verified itinerary emitted', {
+            tripId: requestBodyTripId ?? null,
+            model: modelId,
+          });
+          send({
+            type: 'error',
+            message: "We couldn't generate this itinerary. Please try again — if it keeps failing, regenerate from the trip page.",
+          });
+        } else {
+          // Signal stream end to client. Include total days emitted so the client
+          // can detect partial results (e.g. truncated generation).
+          send({ type: 'done', daysEmitted: dayIndex, model: modelId });
+        }
 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

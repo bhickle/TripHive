@@ -1568,10 +1568,22 @@ function ItineraryPageContent() {
         }
       }
 
+      // Stream(s) closed with ZERO days — a hard failure, not a partial build.
+      // Show the failure state immediately instead of saving an empty trip,
+      // stamping itinerary_generated_at, and leaving the user on a spinner /
+      // bare "No itinerary yet" until they navigate away and back (QA #13).
+      const finalDayCount = (aiDaysRef.current ?? []).length;
+      if (finalDayCount === 0) {
+        setLiveBuildError(
+          "We couldn't generate any days for this itinerary. Tap Refresh to try again — if it keeps failing, please regenerate.",
+        );
+        setIsLiveBuilding(false);
+        return;
+      }
+
       // If after retries we still don't have every day the user asked for,
       // surface a soft warning. The trip page's regenerate button can fill
       // the gaps. Better than a hard "Generation failed" wall.
-      const finalDayCount = (aiDaysRef.current ?? []).length;
       if (finalDayCount < totalDays) {
         const missing = totalDays - finalDayCount;
         setActionError(`We built ${finalDayCount} of ${totalDays} days. Tap Regenerate to fill the missing ${missing} ${missing === 1 ? 'day' : 'days'}.`);
@@ -2967,6 +2979,19 @@ function ItineraryPageContent() {
             </h1>
             <p className="text-sm text-zinc-500">Days will appear as they finish generating.</p>
           </div>
+        ) : liveBuildError ? (
+          // Generation finished but produced nothing — show the actual failure
+          // (rose = error, per the brand ruling) instead of the neutral
+          // "No itinerary yet" empty state, which read as "nothing here yet"
+          // rather than "the build failed" (QA #13).
+          <div className="max-w-md w-full">
+            <EmptyState
+              icon={AlertCircle}
+              title="Generation didn't finish"
+              description={liveBuildError}
+              action={{ label: 'Refresh', onClick: () => window.location.reload() }}
+            />
+          </div>
         ) : (
           <div className="max-w-md w-full">
             <EmptyState
@@ -3002,8 +3027,8 @@ function ItineraryPageContent() {
           </div>
         )}
         {liveBuildError && (
-          <div className="mb-4 flex items-center gap-3 px-5 py-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
+          <div className="mb-4 flex items-center gap-3 px-5 py-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-500" />
             <span className="text-sm font-medium">{liveBuildError}</span>
           </div>
         )}

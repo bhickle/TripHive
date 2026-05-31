@@ -54,6 +54,47 @@ export async function isNotificationAllowedForUser(
   }
 }
 
+/**
+ * Insert a notification only if an equivalent one doesn't already exist for
+ * this (user_id, type, trip_id). Prevents invite RE-SENDS from stacking
+ * duplicate bell entries — the 2026-05-31 QA found a single trip invite that
+ * had fanned out into 5 identical rows because each "send invite" press
+ * inserted unconditionally.
+ *
+ * Best-effort and fail-open: if the existence check errors we still insert
+ * (favor delivering the notification over silently dropping it). Not race-safe
+ * against two truly-simultaneous sends, but that's a far smaller problem than
+ * the manual re-send stacking this prevents.
+ */
+export async function insertNotificationDeduped(
+  supabase: AdminClient,
+  row: {
+    user_id: string;
+    type: string;
+    trip_id: string | null;
+    trip_name?: string | null;
+    inviter_name?: string | null;
+    message?: string | null;
+  },
+): Promise<void> {
+  try {
+    if (row.trip_id) {
+      const { data: existing } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', row.user_id)
+        .eq('type', row.type)
+        .eq('trip_id', row.trip_id)
+        .limit(1);
+      if (existing && existing.length > 0) return; // already notified for this trip+type
+    }
+    const { error } = await supabase.from('notifications').insert(row);
+    if (error) console.error('[insertNotificationDeduped] insert failed:', error);
+  } catch (err) {
+    console.error('[insertNotificationDeduped] unexpected error:', err);
+  }
+}
+
 interface FanOutInput {
   supabase: AdminClient;
   tripId: string;

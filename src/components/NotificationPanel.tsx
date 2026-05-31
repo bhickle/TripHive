@@ -229,7 +229,12 @@ function NotifItem({
             <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
           )}
         </div>
-        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{notif.message}</p>
+        {/* Suppress the body when it's identical to the title — types like
+            badge_earned / support_ticket use the message AS the title, so
+            rendering it again here doubled the same line in the card. */}
+        {notif.message && notif.message !== notif.title && (
+          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{notif.message}</p>
+        )}
         <div className="flex items-center gap-2 mt-1.5">
           {notif.tripName && (
             <span className="text-xs text-slate-400 truncate">{notif.tripName}</span>

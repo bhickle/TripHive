@@ -109,8 +109,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (existingUserId) {
-    // Insert in-app notification for the existing user
-    await supabase.from('notifications').insert({
+    // Insert in-app notification for the existing user — deduped so re-sending
+    // an invite doesn't stack multiple identical bell entries (QA #14).
+    const { insertNotificationDeduped } = await import('@/lib/supabase/notify');
+    await insertNotificationDeduped(supabase, {
       user_id: existingUserId,
       type: 'trip_invite',
       trip_id: tripId,

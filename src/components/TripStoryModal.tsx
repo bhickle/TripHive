@@ -242,7 +242,10 @@ function CoverSlide({ trip, members, coverPhoto }: { trip: Trip; members: StoryM
       </div>
       <div className="absolute bottom-0 left-0 right-0 p-8 pb-12">
         <p className="text-sky-300 text-xs font-semibold uppercase tracking-widest mb-2">{country}</p>
-        <h2 className="text-6xl font-black text-white leading-none mb-3 drop-shadow-lg">{dest}</h2>
+        {/* Step the size down for long city names so they don't clip off the
+            card's right edge ("PITTSBURGH" overflowed at text-6xl). break-words
+            is a final safety net for very long single tokens. */}
+        <h2 className={`${dest.length > 12 ? 'text-4xl' : dest.length > 9 ? 'text-5xl' : 'text-6xl'} font-black text-white leading-none mb-3 drop-shadow-lg break-words`}>{dest}</h2>
         <p className="text-white/80 text-lg font-semibold mb-1">{trip.title}</p>
         <p className="text-white/60 text-sm mb-6">{formatDateRange(trip)}</p>
         {members.length > 0 && (
@@ -284,7 +287,7 @@ function NumbersSlide({
     { value: days,        label: 'Days Out There',    sub: 'of actual living',    color: 'text-sky-300' },
     { value: activities,  label: 'Activities Planned', sub: 'zero of them boring', color: 'text-violet-300' },
     { value: photoCount,  label: 'Photos Taken',       sub: 'memories made',       color: 'text-emerald-300' },
-    { value: memberCount, label: 'People',             sub: 'who made it happen',  color: 'text-rose-300' },
+    { value: memberCount, label: memberCount === 1 ? 'Person' : 'People', sub: 'who made it happen',  color: 'text-rose-300' },
   ];
   return (
     <SlideWithPhotoBg bgPhoto={bgPhoto}>
@@ -1018,11 +1021,15 @@ interface SlideEditorProps {
   onToggle: (id: string) => void;
   onStart: () => void;
   onClose: () => void;
+  /** Actual number of slides the deck will render — already filtered for
+   *  enabled-AND-has-data, so it matches the progress-bar dot count. Counting
+   *  enabled defs alone overstated it (e.g. "9 slides" but 7 dots) when
+   *  data-less slides like photos/crew drop out. */
+  slideCount: number;
 }
 
-function SlideEditor({ mode, enabledIds, onToggle, onStart, onClose }: SlideEditorProps) {
+function SlideEditor({ mode, enabledIds, onToggle, onStart, onClose, slideCount }: SlideEditorProps) {
   const defs = mode === 'trip' ? TRIP_SLIDE_DEFS : YEARLY_SLIDE_DEFS;
-  const activeCount = defs.filter(d => enabledIds.has(d.id)).length;
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-[min(390px,calc(100vw-2rem))] bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
@@ -1076,10 +1083,10 @@ function SlideEditor({ mode, enabledIds, onToggle, onStart, onClose }: SlideEdit
         <div className="px-5 py-5 border-t border-white/8">
           <button
             onClick={onStart}
-            disabled={activeCount < 2}
+            disabled={slideCount < 2}
             className="w-full py-3.5 bg-gradient-to-r from-sky-800 to-green-700 hover:from-sky-700 hover:to-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-full text-sm transition-all shadow-lg"
           >
-            Watch Story → ({activeCount} slides)
+            Watch Story → ({slideCount} slides)
           </button>
         </div>
       </div>
@@ -1374,6 +1381,7 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
         onToggle={toggleSlide}
         onStart={() => { setShowEditor(false); setCurrentSlide(0); setProgress(0); }}
         onClose={onClose}
+        slideCount={totalSlides}
       />
     );
   }
