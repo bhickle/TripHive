@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X, Upload, FileText, Loader2, CheckCircle2,
-  PlusCircle, ChevronRight, AlertCircle,
+  PlusCircle, ChevronRight, AlertCircle, Info,
   Sparkles, Anchor, Ship, Trash2, Users, Pencil, Copy, Check,
 } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -701,13 +701,13 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   unless we surface this here so the user can either remove
                   duplicates or convert them to text. */}
               {loadedFiles.filter(f => f.pdfBase64).length > 1 && (
-                <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-amber-900">
+                    <p className="text-xs font-semibold text-rose-900">
                       Multiple PDFs detected
                     </p>
-                    <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                    <p className="text-xs text-rose-700 mt-0.5 leading-relaxed">
                       Only the first PDF will be parsed in full detail. The rest will be ignored. To merge multiple PDFs into one trip, copy each one's text and paste below.
                     </p>
                   </div>
@@ -720,13 +720,13 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   truncate output. 2MB is a reasonable proxy for >10 pages.
                   Soft warning only — user can still proceed. */}
               {loadedFiles.some(f => f.pdfBase64 && f.size > 2_000_000) && (
-                <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-amber-900">
+                    <p className="text-xs font-semibold text-rose-900">
                       Large PDF — parse may truncate or use extra credits
                     </p>
-                    <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                    <p className="text-xs text-rose-700 mt-0.5 leading-relaxed">
                       PDFs over ~10 pages can hit output limits and lose detail. For best results, extract just the trip-relevant pages or paste the text below instead.
                     </p>
                   </div>
@@ -850,9 +850,9 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                         Loading your trips…
                       </div>
                     ) : realTrips.length === 0 ? (
-                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-                        <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                        <p className="text-xs text-amber-800">No trips found. Create a new trip first, or select &quot;New trip&quot; above.</p>
+                      <div className="flex items-center gap-3 px-4 py-3 bg-zinc-100 border border-zinc-200 rounded-xl">
+                        <Info className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                        <p className="text-xs text-zinc-600">No trips found. Create a new trip first, or select &quot;New trip&quot; above.</p>
                       </div>
                     ) : (
                       <select
@@ -1075,9 +1075,9 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
               )}
 
               {tripChoice === 'existing' && (
-                <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl">
-                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-800 leading-relaxed">
+                <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-2xl">
+                  <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-rose-700 leading-relaxed">
                     This will <strong>replace</strong> the existing days on{' '}
                     <strong>{realTrips.find(t => t.id === selectedTripId)?.title || 'this trip'}</strong>.
                     The current itinerary will be overwritten.

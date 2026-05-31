@@ -418,11 +418,11 @@ export default function TripsPage() {
 
         {/* Fetch failure — distinguish from empty state. */}
         {tripsLoadError && filteredTrips.length === 0 && !tripsLoading && (
-          <div className="mb-6 flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-            <p className="text-sm text-amber-800">⚠️ Couldn't load your trips. Check your connection and try again.</p>
+          <div className="mb-6 flex items-center justify-between px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
+            <p className="text-sm text-rose-700">⚠️ Couldn't load your trips. Check your connection and try again.</p>
             <button
               onClick={() => { setTripsLoadError(false); window.location.reload(); }}
-              className="ml-4 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap"
+              className="ml-4 text-xs font-semibold text-rose-600 hover:text-rose-800 underline underline-offset-2 whitespace-nowrap"
             >
               Retry
             </button>

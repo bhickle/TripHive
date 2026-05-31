@@ -2446,9 +2446,9 @@ function TripBuilderPage() {
                         });
                         if (warnings.length === 0) return null;
                         return (
-                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
                             {warnings.map((w, i) => (
-                              <p key={i} className="text-xs text-amber-800 flex items-center gap-1.5">
+                              <p key={i} className="text-xs text-rose-700 flex items-center gap-1.5">
                                 <span className="flex-shrink-0">⚠</span> {w}
                               </p>
                             ))}
@@ -2519,8 +2519,8 @@ function TripBuilderPage() {
                   </div>
 
                   {state.hasPreBookedCar && state.bookedCar && (
-                    <div className="p-5 bg-amber-50 border border-amber-100 rounded-xl space-y-4">
-                      <p className="text-xs text-amber-700 font-medium -mb-1">
+                    <div className="p-5 bg-zinc-100 border border-zinc-200 rounded-xl space-y-4">
+                      <p className="text-xs text-zinc-600 font-medium -mb-1">
                         The AI will route all inter-destination legs around your confirmed car rental.
                       </p>
                       <div className="grid grid-cols-2 gap-4">
@@ -3362,12 +3362,12 @@ function TripBuilderPage() {
                         whose cache says trip_pass doesn't briefly see this
                         banner before profile loads and corrects the tier. */}
                     {tierResolved && tier === 'trip_pass' && state.groupSize >= 2 && (
-                      <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                      <div className="mb-5 p-4 bg-zinc-100 border border-zinc-200 rounded-xl">
                         <div className="flex items-start gap-3 mb-3">
-                          <Users className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <Users className="w-5 h-5 text-zinc-400 flex-shrink-0 mt-0.5" />
                           <div>
-                            <p className="text-sm font-semibold text-amber-900">Get everyone&apos;s input first</p>
-                            <p className="text-xs text-amber-700 mt-0.5">
+                            <p className="text-sm font-semibold text-zinc-800">Get everyone&apos;s input first</p>
+                            <p className="text-xs text-zinc-600 mt-0.5">
                               Invite your group before generating — the AI will fold everyone&apos;s preferences
                               into the itinerary automatically.
                             </p>

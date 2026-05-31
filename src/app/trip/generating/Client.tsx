@@ -514,13 +514,13 @@ export default function GeneratingPage() {
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
                   onClick={() => router.push('/pricing?reason=credits')}
-                  className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-full transition-colors"
                 >
                   See upgrade plans
                 </button>
                 <button
                   onClick={() => router.push('/dashboard')}
-                  className="px-5 py-2.5 bg-white border border-amber-200 hover:bg-amber-50 text-amber-800 text-sm font-semibold rounded-xl transition-colors"
+                  className="px-5 py-2.5 bg-white border border-amber-200 hover:bg-amber-50 text-amber-800 text-sm font-semibold rounded-full transition-colors"
                 >
                   Back to dashboard
                 </button>

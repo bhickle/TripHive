@@ -1240,15 +1240,15 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               </div>
             </div>
             {isSchengenDest && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-4">
                 <div className="flex gap-3">
-                  <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <Info className="w-5 h-5 text-zinc-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-amber-900 mb-1">EU Entry/Exit System (EES) — Schengen Area</h3>
-                    <p className="text-sm text-amber-800 mb-2">
+                    <h3 className="font-semibold text-zinc-800 mb-1">EU Entry/Exit System (EES) — Schengen Area</h3>
+                    <p className="text-sm text-zinc-600 mb-2">
                       The EU&apos;s new <strong>Entry/Exit System (EES)</strong> is being rolled out for non-EU visitors to the Schengen Area. First-time visitors must register biometric data (fingerprints + facial photo) at the border. This replaces manual passport stamping.
                     </p>
-                    <ul className="text-sm text-amber-800 space-y-1">
+                    <ul className="text-sm text-zinc-600 space-y-1">
                       <li>⏱ <strong>Allow extra time at border control</strong> — registration can add 15–30 min on your first Schengen entry.</li>
                       <li>📋 Check <a href="https://travel.ec.europa.eu/travel-safety/entry-exit-system-ees_en" target="_blank" rel="noopener noreferrer" className="underline font-medium">the official EES page</a> for the latest rollout status before you travel.</li>
                       <li>🔁 Applies to non-EU/Schengen passport holders (including US, UK, Australian citizens).</li>
@@ -1598,8 +1598,8 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         {/* ── Gifts sub-tab ── */}
         {packSubTab === 'gifts' && (
           <>
-            <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-              <p className="text-xs text-amber-700"><span className="font-semibold">Gifts</span> — your private souvenir list. Track who you want to buy for and what to get them. Only you can see this.</p>
+            <div className="bg-zinc-100 border border-zinc-200 rounded-xl px-4 py-3">
+              <p className="text-xs text-zinc-600"><span className="font-semibold">Gifts</span> — your private souvenir list. Track who you want to buy for and what to get them. Only you can see this.</p>
             </div>
             {user ? (
               <>
@@ -1952,7 +1952,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
     if (phrasesError) {
       return (
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-12 text-center">
-          <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+          <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
           <p className="text-lg font-semibold text-zinc-900">Couldn't load phrases</p>
           <p className="text-sm text-zinc-500 mt-1">{phrasesError}</p>
           <button onClick={loadPhrasebook} className="mt-4 px-5 py-2.5 bg-sky-800 text-white rounded-full text-sm font-medium hover:bg-sky-900 transition-colors">
@@ -2107,11 +2107,11 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
         {/* Trip load error banner */}
         {prepLoadError && (
-          <div className="mb-6 flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-            <p className="text-sm text-amber-800">⚠️ Couldn't load your trip data — showing defaults. Check your connection and try refreshing.</p>
+          <div className="mb-6 flex items-center justify-between px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
+            <p className="text-sm text-rose-700">⚠️ Couldn't load your trip data — showing defaults. Check your connection and try refreshing.</p>
             <button
               onClick={() => { setPrepLoadError(false); window.location.reload(); }}
-              className="ml-4 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap"
+              className="ml-4 text-xs font-semibold text-rose-600 hover:text-rose-800 underline underline-offset-2 whitespace-nowrap"
             >
               Retry
             </button>
