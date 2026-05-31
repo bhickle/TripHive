@@ -226,8 +226,8 @@ function SlideWithPhotoBg({ bgPhoto, children }: { bgPhoto?: string; children: R
 
 // ─── Trip Story Slides ────────────────────────────────────────────────────────
 
-function CoverSlide({ trip, members }: { trip: Trip; members: StoryMember[] }) {
-  const photo = getCoverPhoto(trip.destination);
+function CoverSlide({ trip, members, coverPhoto }: { trip: Trip; members: StoryMember[]; coverPhoto: string }) {
+  const photo = coverPhoto;
   const dest = trip.destination.split(',')[0].toUpperCase();
   const country = trip.destination.split(',')[1]?.trim() || '';
   return (
@@ -369,6 +369,10 @@ const crewRoles = ['The Organizer', 'The Adventurer', 'The Foodie', 'The Navigat
 // Uses NEXT_PUBLIC_GOOGLE_MAPS_KEY (the public key Maps embeds use). If
 // the key is missing the slide falls back to a simple chip list with no map.
 function CitiesMapSlide({ bgPhoto, cities }: { bgPhoto?: string; cities: string[] }) {
+  // If the Static Maps image itself fails to load (API not enabled on the
+  // key, quota, network), fall back to the chip-only view instead of a
+  // broken-image icon.
+  const [mapFailed, setMapFailed] = useState(false);
   const trimmed = cities.map(c => (c ?? '').trim()).filter(Boolean);
   // Dedupe case-insensitively while preserving display casing of first occurrence.
   const seen = new Set<string>();
@@ -402,17 +406,18 @@ function CitiesMapSlide({ bgPhoto, cities }: { bgPhoto?: string; cities: string[
         </div>
 
         <div className="flex-1 flex items-center justify-center my-6">
-          {mapUrl ? (
+          {mapUrl && !mapFailed ? (
             // Plain <img> not next/image — Static Maps URLs are dynamic per
             // city tuple and don't benefit from Next's image optimizer.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={mapUrl}
               alt={`Map of ${unique.join(', ')}`}
+              onError={() => setMapFailed(true)}
               className="rounded-2xl shadow-2xl max-w-full max-h-full object-contain border border-white/20"
             />
           ) : (
-            // Key missing or no cities — chip-only fallback.
+            // Key missing / map failed / no cities — chip-only fallback.
             <div className="bg-white/10 border border-white/20 rounded-2xl p-8 text-white/70 text-sm">
               {unique.length > 0 ? 'Map preview unavailable' : 'No cities tagged yet'}
             </div>
@@ -739,8 +744,8 @@ function PhotosSlide({ photos, reactions, onOpen }: PhotoGridProps) {
   );
 }
 
-function ShareSlide({ trip, onDownload }: { trip: Trip; onDownload: () => void }) {
-  const photo = getCoverPhoto(trip.destination);
+function ShareSlide({ trip, onDownload, coverPhoto }: { trip: Trip; onDownload: () => void; coverPhoto: string }) {
+  const photo = coverPhoto;
   return (
     <div className="relative w-full h-full overflow-hidden">
       <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover scale-110" />
@@ -1218,6 +1223,12 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
 
   // Build full slide render arrays
   const tripPhotosForSlide = effectivePhotos.slice(0, 7);
+  // Cover/share photo: prefer a real uploaded trip photo, then the trip's
+  // persisted cover image, then a destination stock fallback. (The main photo
+  // should pull from the trip's own photos when it has any.)
+  const tripCoverPhoto = effectivePhotos[0]?.url
+    ?? activeTripData.coverImage
+    ?? getCoverPhoto(activeTripData.destination);
   // visited_cities for the new CitiesMapSlide. Falls through to AI-planned
   // cities (`activeTripData.cities`) for a sensible mock-data preview, but
   // real trips only show the slide when the user has tagged at least one city.
@@ -1226,7 +1237,7 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
     : (activeTripData.cities ?? []);
 
   const allTripSlides = [
-    { id: 'cover',   render: () => <CoverSlide trip={activeTripData} members={effectiveMembers} /> },
+    { id: 'cover',   render: () => <CoverSlide trip={activeTripData} members={effectiveMembers} coverPhoto={tripCoverPhoto} /> },
     { id: 'numbers', render: () => <NumbersSlide trip={activeTripData} bgPhoto={getBg(0)} days={effectiveDays} memberCount={effectiveMembers.length} photoCount={effectivePhotos.length} /> },
     { id: 'days',    render: () => <DayHighlightsSlide trip={activeTripData} bgPhoto={getBg(1)} days={effectiveDays} /> },
     { id: 'crew',    render: () => <CrewSlide bgPhoto={getBg(2)} members={effectiveMembers} /> },
@@ -1234,7 +1245,7 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
     { id: 'toppicks', render: () => <TopPicksSlide bgPhoto={getBg(3)} days={effectiveDays} /> },
     { id: 'laughs',  render: () => <LaughsSlide bgPhoto={getBg(4)} moments={laughMomentsForSlide} laughCount={laughCountForSlide} /> },
     { id: 'photos',  render: () => <PhotosSlide photos={tripPhotosForSlide} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotosForSlide, idx)} /> },
-    { id: 'share',   render: () => <ShareSlide trip={activeTripData} onDownload={handleDownload} /> },
+    { id: 'share',   render: () => <ShareSlide trip={activeTripData} onDownload={handleDownload} coverPhoto={tripCoverPhoto} /> },
   ];
 
   const allYearlySlides = [
