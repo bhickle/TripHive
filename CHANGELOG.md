@@ -7,6 +7,29 @@
 > May 29 product-polish + landing-port session moved here later the same day when the multi-admin + design-consistency-sweep session took the slot (third rotation in 24h — heavy day).
 > May 29 multi-admin + design-consistency-sweep session moved here on 2026-05-30 when the night-marathon + verify-before-show session took the slot.
 > May 29 night → May 30 morning marathon (QA pass + landing reposition + verify-before-show) moved here on 2026-05-30 in a CLAUDE.md slim-down — no newer session took its slot; rotated to keep the always-on file under the 40K-char threshold. CLAUDE.md now carries only the "Older sessions" pointer.
+> May 30 full-site QA audit + remediation marathon logged here directly (CLAUDE.md keeps only the pointer; full findings live in SITE_QA_AUDIT_2026-05-30.md).
+
+---
+
+## Recently Shipped (2026-05-30 — full-site QA audit + remediation marathon)
+
+A multi-day marathon: an 11-agent read-only QA audit across the whole app + a live-database audit (Supabase advisors, RLS, RPC bodies), then remediation of ~30 findings. **~31 commits, 5 production migrations, all tsc-clean.** Full findings + status: `SITE_QA_AUDIT_2026-05-30.md`.
+
+**The audit** — 11 agents across 3 waves (tier gates, security/IDOR, credits/Stripe, persistence, AI/data-model, ops/crons, a11y, brand, group/expenses, invites/sharing, completeness) + live-DB checks. ~70 findings. Verified P0s: GROUP-1 (Mark Paid settled the whole ledger), SHARE-1 (`/public` leaked private-trip metadata), SEC-1 (members roster email IDOR), MONEY-1 (regenerate charged 25 not 10).
+
+**Cost-leak fix that kicked it off** — Places location-verification (verify-before-show Tier 2) was uncached → new global `venue_location_cache` (commit `696bd1b`), the single biggest per-build variable cost.
+
+**P0s + headline P1s** — settlement ledger (`expense_settlements` table; "Mark Paid" records one payment); `/public` privacy gate; members membership-gate + organizer-only emails; regenerate charges `itinerary_regenerate` (10); server-side expense validation; `trip-photos` bucket listing dropped; invite email/SMS rate-limited; `maxDuration` on 8 AI routes; 11 GET routes surface DB errors (not silent empty); parse-itinerary `day.city` + no fabrication; notifications INSERT policy + function `search_path` (DB-2/3).
+
+**Co-organizer rule (TIER-1)** — settled with Brandon: trip **length + multi-city** gate on the **organizer's** tier (never cut a co-org's days); **AI features + credits** on the **caller's own** tier (Trip Pass → shared pool). New `getOrganizerTier` helper applied in generate-itinerary + add-day.
+
+**Batch B–G** — SEC-4/5/6 (auth + rate-limit + SSRF), SHARE-3/4 (fork allow-list, token reuse), COMP-4 (email escaping), GROUP-5 (member DELETE), AI-2/4/5 (enrich verify + shape, hotels guard), DATA-3/4/5 (chat rollback, prep toggles, trips errors), GROUP-7/9 (cent-split + guest dedup, receipt guard), OPS-2/3/4/5 (/auth exempt, informative cron/webhook status), A11Y-1/2/3 (keyboard card, modal dialogs + escape, date anchors), MONEY-2/6 (RPC snapshot `db/functions.sql`, dropped dead `profiles.ai_credits_total`).
+
+**Brand** — Track A/B regression, ~28 button pills → `rounded-full`, indigo→sky, warning banners → rose/zinc ("Treatment B" ruling), trip/new amber-accents, purple surfaces → sky/zinc (E), 4 empty states → `<EmptyState>` (D). Skipped G (category maps — deliberate differentiation) per Brandon.
+
+**Four UX fixes (from Brandon's review)** — trip-card day badge anchored right (no float); Trip Story cover pulls from real photos + map fails gracefully; Discover "What's Out There" tiles cleaned (Lucide icons + soft placeholder, no rainbow gradients/giant emoji).
+
+**Deferred (documented with reasons in the audit doc)** — DATA-2 (realtime clobber — needs concurrency design), GROUP-6 (settle-by-id — needs schema change), SHARE-5 (world opt-in — product call + toggle UI), DB-7 (RLS perf + indexes — post-traffic pass; "unused" indexes are a no-traffic artifact), SEC-2/COMP-1 (checkout priceId allow-list), SEC-3 (`tc2026` launch-blocker). New go-live toggles added to CLAUDE.md: Maps Static API (fixes Trip Story map), leaked-password protection.
 
 ---
 
