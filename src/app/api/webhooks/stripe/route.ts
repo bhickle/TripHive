@@ -100,7 +100,6 @@ async function setTier(
     .from('profiles')
     .update({
       subscription_tier: tier,
-      ai_credits_total: credits,
       ai_credits_used: nextUsed,
       ai_credits_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       // Any tier transition (paid->paid, paid->free, free->paid) clears the
@@ -326,7 +325,6 @@ export async function POST(req: NextRequest) {
           const credits = tierCredits(t);
           await supabaseAdmin.from('profiles').update({
             ai_credits_used: 0,
-            ai_credits_total: credits,
             ai_credits_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           }).eq('id', userId);
         }

@@ -949,7 +949,6 @@ export type Database = {
       profiles: {
         Row: {
           ai_credits_reset_at: string | null
-          ai_credits_total: number
           ai_credits_used: number
           avatar_url: string | null
           created_at: string
@@ -969,7 +968,6 @@ export type Database = {
         }
         Insert: {
           ai_credits_reset_at?: string | null
-          ai_credits_total?: number
           ai_credits_used?: number
           avatar_url?: string | null
           created_at?: string
@@ -989,7 +987,6 @@ export type Database = {
         }
         Update: {
           ai_credits_reset_at?: string | null
-          ai_credits_total?: number
           ai_credits_used?: number
           avatar_url?: string | null
           created_at?: string
