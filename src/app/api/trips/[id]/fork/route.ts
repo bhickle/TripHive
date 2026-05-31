@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { Json } from '@/lib/supabase/database.types';
+
+/**
+ * Copy only safe, planning-relevant keys out of the source trip's preferences
+ * blob. The raw blob can carry private/internal fields (uploaded references,
+ * group notes, etc.) that a fork shouldn't inherit, so we allow-list rather
+ * than copy verbatim. Unknown / missing keys are simply dropped.
+ */
+const SAFE_PREFERENCE_KEYS = [
+  'vibes',
+  'priorities',
+  'budgetTier',
+  'budget',
+  'pace',
+  'groupType',
+  'destinations',
+  'daysPerDestination',
+] as const;
+
+function sanitizePreferences(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of SAFE_PREFERENCE_KEYS) {
+    if (key in src && src[key] !== undefined) out[key] = src[key];
+  }
+  return out;
+}
 
 /**
  * POST /api/trips/[id]/fork
@@ -77,11 +105,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         group_type: source.group_type,
         budget_total: source.budget_total,
         budget_breakdown: source.budget_breakdown,
-        preferences: source.preferences,
+        // Allow-list the preferences blob — never inherit the source's full
+        // preferences (may carry private fields the fork shouldn't get).
+        preferences: sanitizePreferences(source.preferences) as unknown as Json,
         cover_image: source.cover_image,
         cover_image_meta: source.cover_image_meta,
         is_public_template: false, // forked trips start private
-        is_private: source.is_private,
+        is_private: false,         // a fork shouldn't inherit the source's private flag
         status: 'planning',
       })
       .select()

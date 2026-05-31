@@ -134,8 +134,13 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
         group_size: 2,
         status: 'planning',
         cover_image: featured.hero_image ?? null,
+        // Preferences are built fresh from the featured catalog (vibes only),
+        // not copied from any source trip blob — already effectively an
+        // allow-list, so nothing private to strip here.
         preferences: { vibes: featured.vibes ?? [] },
         is_public_template: false,
+        is_private: false, // a fork shouldn't be private by default
+
       })
       .select('id')
       .single();

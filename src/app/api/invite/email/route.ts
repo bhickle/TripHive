@@ -136,9 +136,12 @@ export async function POST(request: NextRequest) {
     ? `${appUrl}/join/${tripId}?invite=${inviteToken}`
     : `${appUrl}/join/${tripId}`;
   const subject = `${inviterName || 'Someone'} invited you to join ${tripName || 'a trip'} on tripcoord`;
+  // Escape any user-supplied text before it goes into the HTML body — a trip
+  // named `<img src=x onerror=…>` would otherwise inject markup. (COMP-4)
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const bodyHtml = message
-    ? message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    : `${inviterName || 'A friend'} has invited you to join <strong>${tripName}</strong> on tripcoord — AI-powered group travel planning.`;
+    ? esc(message)
+    : `${esc(inviterName || 'A friend')} has invited you to join <strong>${esc(tripName || 'a trip')}</strong> on tripcoord — AI-powered group travel planning.`;
   const bodyText = message || `${inviterName || 'A friend'} has invited you to join ${tripName || 'a trip'} on tripcoord.\n\nJoin here: ${joinUrl}`;
 
   try {

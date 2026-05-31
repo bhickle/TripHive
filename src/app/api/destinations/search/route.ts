@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ALL_DESTINATIONS, FEATURED_NAMES } from '@/data/destinations';
+import { requireAuth } from '@/lib/supabase/requireAuth';
+import { consumeRateLimit, clientIpFromRequest } from '@/lib/supabase/rateLimit';
 
 // ─── Local scoring ────────────────────────────────────────────────────────────
 function score(dest: typeof ALL_DESTINATIONS[0], q: string): number {
@@ -33,6 +35,17 @@ function score(dest: typeof ALL_DESTINATIONS[0], q: string): number {
 }
 
 export async function GET(request: NextRequest) {
+  // Require auth — this endpoint proxies Google Places Autocomplete on the
+  // server's billing key. Without auth, anyone with the URL can drain the quota.
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
+  // Per-IP rate limit on top of auth — cap autocomplete bursts (keystroke-
+  // driven calls) so a single authed client can't run up the Places bill.
+  if (!(await consumeRateLimit('dest_search:ip:' + clientIpFromRequest(request), 60, 60))) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
+
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') ?? '').trim();
 

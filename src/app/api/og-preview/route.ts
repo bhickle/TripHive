@@ -1,5 +1,49 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import dns from 'node:dns/promises';
+
+export const runtime = 'nodejs';
+
+// SSRF: reject an IP literal in any private/loopback/link-local/ULA/CGNAT
+// range. Used for both the URL hostname (when it's already an IP) and every
+// DNS-resolved A/AAAA address. Mirrors fetch-reference's isUnsafeIp.
+function isUnsafeIp(ipRaw: string): boolean {
+  const host = ipRaw.toLowerCase();
+  return (
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host === '::' ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
+    /^169\.254\./.test(host) ||      // link-local, incl. AWS/GCP metadata IP
+    /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./.test(host) || // CGNAT
+    /^fc00:/.test(host) ||
+    /^fd[0-9a-f]{2}:/.test(host) ||  // unique local addrs (full ULA range)
+    /^fe80:/.test(host) ||           // IPv6 link-local
+    /^::ffff:/.test(host)            // IPv4-mapped IPv6 (don't trust)
+  );
+}
+
+/**
+ * Resolve a hostname to its A/AAAA addresses and verify NONE land in a
+ * private/loopback/link-local range. Resolution failure → unsafe (we don't
+ * fetch hosts we couldn't verify). Catches "public-looking" hostnames an
+ * attacker controls that resolve to internal IPs.
+ */
+async function resolvedHostIsSafe(hostname: string): Promise<boolean> {
+  try {
+    const addresses = await dns.lookup(hostname, { all: true });
+    if (addresses.length === 0) return false;
+    for (const a of addresses) {
+      if (isUnsafeIp(a.address)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * POST /api/og-preview   [auth required]
@@ -49,21 +93,19 @@ export async function POST(req: Request) {
     }
     // SSRF: refuse private/loopback hosts. Defensive — Vercel functions
     // shouldn't have access to internal networks anyway, but treat the
-    // endpoint as if it does.
+    // endpoint as if it does. Two stages: (1) literal denylist + IP-literal
+    // range check on the URL hostname; (2) DNS resolution + range check on
+    // every resolved A/AAAA, so a "public-looking" hostname that resolves to
+    // an internal IP is caught before the fetch fires.
     const host = parsed.hostname.toLowerCase();
     if (
       host === 'localhost' ||
       host.endsWith('.localhost') ||
-      host === '0.0.0.0' ||
-      /^127\./.test(host) ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
-      /^169\.254\./.test(host) ||
-      /^fc00:/.test(host) ||
-      /^fd00:/.test(host) ||
-      host === '::1'
+      isUnsafeIp(host)
     ) {
+      return NextResponse.json({ error: 'unsupported host' }, { status: 400 });
+    }
+    if (!(await resolvedHostIsSafe(host))) {
       return NextResponse.json({ error: 'unsupported host' }, { status: 400 });
     }
 
@@ -74,6 +116,9 @@ export async function POST(req: Request) {
     try {
       const res = await fetch(url, {
         signal: controller.signal,
+        // Don't auto-follow redirects — a public host could 30x to an internal
+        // one, bypassing the SSRF guard we ran against the original hostname.
+        redirect: 'manual',
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; tripcoordBot/1.0; +https://tripcoord.ai)',
           Accept: 'text/html,application/xhtml+xml',

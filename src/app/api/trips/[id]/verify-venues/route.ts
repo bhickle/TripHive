@@ -18,7 +18,9 @@
  *   - On-demand re-verification (e.g. user clicks "Refresh venue checks")
  *     reuses the same endpoint.
  *
- * Auth: requireTripAccess — any trip member can trigger.
+ * Auth: requireTripAiRole — organizer / co-organizer only (this spends
+ * Google Places money per call, so it's gated above plain membership), plus
+ * a short per-trip rate limit.
  * Idempotent: re-runs overwrite the prior verification map.
  *
  * Cost: ~1 Google Places `searchText` call per named venue. A typical
@@ -27,7 +29,8 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireTripAccess } from '@/lib/supabase/tripAccess';
+import { requireTripAiRole } from '@/lib/supabase/tripAccess';
+import { consumeRateLimit } from '@/lib/supabase/rateLimit';
 import type { Json } from '@/lib/supabase/database.types';
 import type { ItineraryDay } from '@/lib/types';
 import {
@@ -40,9 +43,15 @@ import {
 export const maxDuration = 300;
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const access = await requireTripAccess(params.id);
+  const access = await requireTripAiRole(params.id);
   if (!access.ok) return access.response;
   const { supabase } = access.ctx;
+
+  // Per-trip rate limit — each call fans out to dozens of billed Google Places
+  // lookups, so cap re-verification bursts (e.g. mashing "Refresh checks").
+  if (!(await consumeRateLimit('verify_venues:trip:' + params.id, 3, 60))) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
 
   const apiKey = process.env.GOOGLE_MAPS_KEY;
   if (!apiKey) {

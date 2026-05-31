@@ -176,7 +176,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (inviteToken) {
       const { data: invite } = await supabase
         .from('trip_invites')
-        .select('id, trip_id, status, expires_at')
+        .select('id, trip_id, status, expires_at, email')
         .eq('token', inviteToken)
         .maybeSingle();
       if (!invite) {
@@ -186,8 +186,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         return NextResponse.json({ error: 'Invite token does not match this trip' }, { status: 400 });
       }
       if (invite.status === 'accepted') {
-        // Idempotent re-join is fine; return ok without re-consuming. The
-        // trip_members row check below will catch dupes.
+        // An accepted token is single-use against its original invitee. A
+        // same-person re-join is fine (the trip_members dupe check below
+        // returns alreadyMember). But on a PRIVATE trip, a leaked accepted
+        // link must NOT let a DIFFERENT person in — require the caller's email
+        // to match the invited email. (SHARE-4)
+        if (trip.is_private && invite.email) {
+          let callerEmail = email?.trim() ?? '';
+          if (!callerEmail) {
+            try {
+              const ac = await createClient();
+              const { data: { user: u } } = await ac.auth.getUser();
+              callerEmail = u?.email ?? '';
+            } catch { /* no session email */ }
+          }
+          if (callerEmail.toLowerCase() !== invite.email.toLowerCase()) {
+            return NextResponse.json({ error: 'This invite has already been used.' }, { status: 403 });
+          }
+        }
       } else if (invite.status && invite.status !== 'pending') {
         return NextResponse.json({ error: `Invite is ${invite.status}` }, { status: 400 });
       }
@@ -477,6 +493,63 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ ok: true, memberId, role });
   } catch (err) {
     console.error('PATCH members error:', err);
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/trips/[id]/members?memberId=<user_id|row_id>
+ * Removes a member (or guest) from the trip. Organizer / co-organizer only;
+ * the organizer cannot be removed. memberId matches either the member's
+ * user_id (account members) or their trip_members row id (guests) — the same
+ * dual identifier the GET surfaces and PATCH uses. (GROUP-5)
+ */
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const supabase = createAdminClient();
+    const callerRole = await getTripRole(supabase, params.id, user.id);
+    if (callerRole !== 'organizer' && callerRole !== 'co_organizer') {
+      return NextResponse.json({ error: 'Only organizers and co-organizers can remove members' }, { status: 403 });
+    }
+
+    const memberId = new URL(req.url).searchParams.get('memberId') ?? '';
+    if (!/^[0-9a-f-]{36}$/i.test(memberId)) {
+      return NextResponse.json({ error: 'memberId (uuid) required' }, { status: 400 });
+    }
+
+    // Never remove the organizer (their id surfaces as a member id in the GET).
+    const { data: trip } = await supabase
+      .from('trips')
+      .select('organizer_id')
+      .eq('id', params.id)
+      .single();
+    if (trip?.organizer_id && trip.organizer_id === memberId) {
+      return NextResponse.json({ error: 'The organizer cannot be removed.' }, { status: 400 });
+    }
+
+    // memberId is uuid-validated above, so it's safe in the .or() filter.
+    const { data: removed, error } = await supabase
+      .from('trip_members')
+      .delete()
+      .eq('trip_id', params.id)
+      .or(`user_id.eq.${memberId},id.eq.${memberId}`)
+      .select('id');
+
+    if (error) {
+      console.error('member delete error:', error);
+      return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 });
+    }
+    if (!removed || removed.length === 0) {
+      return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, memberId });
+  } catch (err) {
+    console.error('DELETE members error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   }
 }
