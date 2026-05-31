@@ -116,7 +116,9 @@ Webhook sets `ai_credits_reset_at = now()+30d` (`webhooks/stripe/route.ts:105,32
 
 ## 3. Tier Gates & Entitlements
 
-### TIER-1 (P2) — Co-organizer parity violated on trip-length + feature gates
+### TIER-1 (P2) — ✅ RESOLVED + SHIPPED 2026-05-30 (`fc93225`)
+**Ruling (Brandon):** trip **length + multi-city** = the **organizer's** tier (the trip was built under their plan; never cut a co-org's days — they can add up to the organizer's max). **AI features + credits** = the co-org's **own** tier (Trip Pass → shared pool) — that part was already correct. Fix: `getOrganizerTier` helper in `tripAccess.ts`, applied to the length/multi-city gates in `generate-itinerary` + `add-day`. _Original finding below._
+
 `add-day/route.ts:58` and `generate-itinerary` (`:1528,1595`) check `maxTripDays`/`MULTI_CITY_LOCKED` against the **caller's** tier; `parse-transport:54` and receipt/packing/phrases gate features on `auth.ctx.tier`. But traveler caps + co-org promotion correctly use the **organizer's** tier, and credits pool to the trip pass. So a free co-organizer on a paid trip is blocked from transport-parser/multi-city/higher day caps even though the trip qualifies — and a paid co-org on a free trip gets the higher cap. Contradicts the documented co-organizer-parity rule. **Note:** the `TIER_LIMITS` comment "co-organizer uses their own pool" partly contradicts the memory — needs a product decision. **Fix:** resolve `tierLimits` from the organizer when `tripId` is present, OR update the rule/docs to "own tier."
 
 ### TIER-2 (P3) — `maxBookedHotels` not enforced on the build prompt
