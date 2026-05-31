@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { consumeRateLimit, clientIpFromRequest } from '@/lib/supabase/rateLimit';
 
 /**
  * GET /api/discover
@@ -91,6 +92,14 @@ export async function POST(request: NextRequest) {
     // multi-KB payloads into destination_events forever.
     if (typeof destination !== 'string' || destination.length > 100) {
       return NextResponse.json({ ok: false, error: 'destination too long' }, { status: 400 });
+    }
+
+    // Rate-limit anonymous event logging by IP (DB-4). The table is open by
+    // design; this just bounds bot spam volume. 120/min is far above real
+    // browsing, and the limiter fails open if Supabase is unavailable.
+    const ip = clientIpFromRequest(request);
+    if (!(await consumeRateLimit(`discover_event:ip:${ip}`, 120, 60))) {
+      return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
     }
 
     // Resolve user if logged in (best-effort, not required)
