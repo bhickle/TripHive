@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, MapPin, Star, Clock, Plus, AlertCircle, Check, ExternalLink, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Search, MapPin, Star, Clock, Plus, AlertCircle, Check, ExternalLink, ThumbsUp, ThumbsDown, Compass, UtensilsCrossed, Ticket, Mountain, Landmark, Dumbbell } from 'lucide-react';
 import { MOCK_TRIP_IDS } from '@/data/mock';
 
 interface DiscoverItem {
@@ -293,13 +293,15 @@ const smartAlerts = [
   },
 ];
 
-const categoryIcons: Record<DiscoverItem['category'], string> = {
-  experiences: '🎯',
-  dining: '🍽️',
-  events: '🎭',
-  nature: '🏔️',
-  sights: '🏛️',
-  sports: '⛹️',
+// Clean Lucide line icons per category (replaces the old emoji set) — used on
+// the placeholder card header + the category badge for a consistent look.
+const categoryIcons: Record<DiscoverItem['category'], React.ElementType> = {
+  experiences: Compass,
+  dining: UtensilsCrossed,
+  events: Ticket,
+  nature: Mountain,
+  sights: Landmark,
+  sports: Dumbbell,
 };
 
 type FilterCategory = 'all' | DiscoverItem['category'];
@@ -1024,8 +1026,11 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 {filteredItems.map((item) => (
                   <div key={item.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col group">
-                    {/* Photo / Gradient header */}
-                    <div className={`relative h-44 overflow-hidden rounded-t-2xl bg-gradient-to-br ${item.imageGradient}`}>
+                    {/* Photo / placeholder header. Until real imagery
+                        (Viator/Ticketmaster) lands, the placeholder is a single
+                        soft on-brand panel + a clean category line-icon — not a
+                        per-item rainbow gradient with a giant emoji. */}
+                    <div className="relative h-44 overflow-hidden rounded-t-2xl bg-gradient-to-br from-sky-50 via-zinc-50 to-zinc-100">
                       {item.imageUrl && (
                         <img
                           src={item.imageUrl}
@@ -1036,14 +1041,14 @@ export default function DiscoverPage({ params }: { params: { id: string } }) {
                       )}
                       {!item.imageUrl && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-6xl">{categoryIcons[item.category]}</span>
+                          {React.createElement(categoryIcons[item.category], { className: 'w-12 h-12 text-sky-300', strokeWidth: 1.5 })}
                         </div>
                       )}
-                      {/* Permanent subtle bottom gradient for text legibility */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                      {/* Category badge */}
-                      <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 bg-black/40 backdrop-blur-sm text-white text-xs font-semibold rounded-full">
-                        <span>{categoryIcons[item.category]}</span>
+                      {/* Bottom gradient only over a real photo (legibility). */}
+                      {item.imageUrl && <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />}
+                      {/* Category badge — soft light pill (works on the placeholder and on a photo). */}
+                      <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/85 backdrop-blur-sm text-zinc-700 text-xs font-semibold rounded-full border border-zinc-200/60">
+                        {React.createElement(categoryIcons[item.category], { className: 'w-3.5 h-3.5' })}
                         {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
                       </span>
                       {/* Match score badge */}
