@@ -95,6 +95,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   const destination = (body.destination as string) || 'the destination';
+  // The day's stored `city` must match the main build's format ("Lisbon"),
+  // not the full "Lisbon, Portugal" destination string — otherwise the day
+  // eyebrow on an added day reads differently from the build's days (QA #23).
+  // Keep the full `destination` in venue-guidance text below for the country
+  // context the model needs to disambiguate.
+  const cityForDay = destination.split(',')[0].trim();
   const dayNumber = (body.dayNumber as number) || 1;
   const date = (body.date as string) || '';
   const existingThemes = (body.existingThemes as string[]) || [];
@@ -118,7 +124,7 @@ Return EXACTLY this JSON object (no array wrapper, no markdown). Field names MUS
 {
   "day": ${dayNumber},
   "date": "${date}",
-  "city": "${destination}",
+  "city": "${cityForDay}",
   "theme": "<3-5 word theme>",
   "tracks": {
     "shared": [
@@ -186,6 +192,10 @@ Rules:
         // Parse error doesn't charge — the user got nothing usable.
         return NextResponse.json({ error: 'PARSE_ERROR', raw }, { status: 500 });
       }
+
+      // Force the stored city to the normalized core regardless of what the
+      // model echoed, so an added day's eyebrow matches the build's days.
+      if (day && typeof day === 'object') day.city = cityForDay;
 
       // Verify-before-return. Same Tier 1 + Tier 2 gate as
       // /generate-itinerary uses on every streamed day. Hard fail

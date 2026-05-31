@@ -353,6 +353,11 @@ function ItineraryPageContent() {
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+  // General "Regenerate itinerary" confirm (Add menu + any-trip recovery) —
+  // distinct from showRegenConfirm (the pending-members nudge) and
+  // showRevertConfirm (restore the AI baseline). Warns that a fresh build
+  // replaces the current days and spends AI credits.
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [suggestingActivityId, setSuggestingActivityId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -890,6 +895,16 @@ function ItineraryPageContent() {
     // days (this is a regenerate — start over, don't pick up where we left off).
     router.push(`/trip/${tripPageId}/itinerary?mode=generating&fresh=1`);
   }, [aiMeta, tripRow, tripPageId, router]);
+
+  // Recovery action for a build that produced zero days. The empty-state
+  // "Try again" button used to just reload the page, which never re-ran
+  // generation (QA #22). handleRegenerate reconstructs the build payload from
+  // tripRow/aiMeta and re-fires the chunked build via ?mode=generating&fresh=1;
+  // fall back to a reload only if neither is loaded yet (regenerate would no-op).
+  const handleRetryBuild = useCallback(() => {
+    if (aiMeta || tripRow) handleRegenerate();
+    else window.location.reload();
+  }, [aiMeta, tripRow, handleRegenerate]);
 
   useEffect(() => {
     const load = async () => {
@@ -2989,7 +3004,7 @@ function ItineraryPageContent() {
               icon={AlertCircle}
               title="Generation didn't finish"
               description={liveBuildError}
-              action={{ label: 'Refresh', onClick: () => window.location.reload() }}
+              action={{ label: 'Try again', onClick: handleRetryBuild }}
             />
           </div>
         ) : (
@@ -2997,8 +3012,8 @@ function ItineraryPageContent() {
             <EmptyState
               icon={MapPin}
               title="No itinerary yet"
-              description="This trip doesn't have any generated days. Try refreshing — if the issue persists, the generation may have failed."
-              action={{ label: 'Refresh', onClick: () => window.location.reload() }}
+              description="This trip doesn't have any generated days. Tap below to build it — if a build just failed, this re-runs the generation."
+              action={{ label: 'Build itinerary', onClick: handleRetryBuild }}
             />
           </div>
         )}
@@ -3323,19 +3338,28 @@ function ItineraryPageContent() {
                   >
                     <Plane className="w-4 h-4 text-sky-600" /> Flight
                   </button>
-                  {/* Revert to original — destructive, shown only when an AI
-                      baseline snapshot exists. Separated by a divider and
-                      colored rose to signal "this undoes things". */}
+                  {/* Regenerate + Revert — grouped under one divider. Regenerate
+                      (org/co-org, spends credits) does a fresh AI build for ANY
+                      trip — the only standalone entry point besides the new-prefs
+                      nudge (QA #22). Revert restores the AI baseline and only
+                      shows when a snapshot exists; rose-colored to signal it
+                      undoes edits. */}
+                  {(canTriggerAi || hasOriginal) && <div className="my-1 border-t border-zinc-100" />}
+                  {canTriggerAi && (
+                    <button
+                      onClick={() => { setShowRegenerateConfirm(true); setShowAddMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                    >
+                      <RefreshCw className="w-4 h-4 text-sky-600" /> Regenerate itinerary
+                    </button>
+                  )}
                   {hasOriginal && (
-                    <>
-                      <div className="my-1 border-t border-zinc-100" />
-                      <button
-                        onClick={() => { setShowRevertConfirm(true); setShowAddMenu(false); }}
-                        className="w-full text-left px-4 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50 flex items-center gap-2.5"
-                      >
-                        <RefreshCw className="w-4 h-4 text-rose-600" /> Revert to AI original
-                      </button>
-                    </>
+                    <button
+                      onClick={() => { setShowRevertConfirm(true); setShowAddMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50 flex items-center gap-2.5"
+                    >
+                      <RefreshCw className="w-4 h-4 text-rose-600" /> Revert to AI original
+                    </button>
                   )}
                 </div>
               )}
@@ -3547,6 +3571,34 @@ function ItineraryPageContent() {
                   className="px-5 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold rounded-full transition-colors"
                 >
                   Generate now
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* General "Regenerate itinerary" confirm (Add menu). Fresh AI build
+            replaces the current days and spends AI credits, so warn first. */}
+        {showRegenerateConfirm && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRegenerateConfirm(false)}>
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+              <h3 className="font-script italic text-2xl font-semibold text-zinc-900 mb-2">Regenerate itinerary?</h3>
+              <p className="text-sm text-zinc-700 mb-3">
+                This builds a fresh AI itinerary for this trip. <span className="font-semibold text-zinc-900">The current days — and any edits you&apos;ve made</span> will be replaced.
+              </p>
+              <p className="text-xs text-zinc-500 mb-6">Uses AI credits. Hotel bookings, photos, votes, and chat are untouched.</p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowRegenerateConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-zinc-700 hover:text-zinc-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setShowRegenerateConfirm(false); handleRegenerate(); }}
+                  className="px-5 py-2 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors inline-flex items-center gap-2"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Regenerate
                 </button>
               </div>
             </div>
