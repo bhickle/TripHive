@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X, Sparkles, Loader2, AlertCircle, CheckCircle2,
   Car, Bus, TrainFront, Compass, ChevronDown, ChevronUp,
@@ -190,7 +190,11 @@ export function ParseTransportModal({ dayNumber, dayDate, tripId, onAdd, onClose
   const [parseState, setParseState] = useState<ParseState>('idle');
   const [parsedLeg, setParsedLeg] = useState<TransportLeg | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [exampleIdx] = useState(() => Math.floor(Math.random() * EXAMPLES.length));
+  // Pick the random example AFTER mount, not in the state initializer — a
+  // Math.random() in render runs once on the server prerender and again on the
+  // client, mismatching and triggering a React hydration error (QA #20).
+  const [exampleIdx, setExampleIdx] = useState(0);
+  useEffect(() => { setExampleIdx(Math.floor(Math.random() * EXAMPLES.length)); }, []);
 
   useEscapeKey(onClose);
 

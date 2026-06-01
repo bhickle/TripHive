@@ -9,6 +9,11 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 ---
 
+## 📌 Reported directly (2026-06-01)
+
+- [x] **R1. Marketing nav logo broken. — DONE 2026-06-01.** The batch-6 MarketingNav rewrite pointed the logo at `/tripcoord-wordmark.svg`, which doesn't exist; reverted to `/tripcoord_logo.png` (the file the Sidebar uses). _(Regression I introduced — apologies.)_
+- [x] **R2. Adding a day didn't update the day count on the itinerary cover. — DONE 2026-06-01.** `add-day` saved the day but never synced `trips.trip_length`, so the trip-card "Nd" cover badge stayed stale. Fixed server-side: the trips PATCH now sets `trip_length = days.length` whenever the `days` array is saved (covers add/remove/reorder, self-heals drift).
+
 ## 🔴 High — correctness / money / security
 
 > **Update 2026-06-01:** #1, #2, #3, #5, #6 fixed (commit pending). #4 intentionally deferred to launch (preview-secret fallback is in active use for testing).
@@ -37,9 +42,9 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 - [x] **10. `freshRebuild` clear-then-claim isn't atomic (NEW). — DONE 2026-06-01** (replaced the unconditional clear-then-claim with a compare-and-swap against the read value; Postgres re-checks the WHERE post-lock so exactly one concurrent regen wins). `src/app/api/generate-itinerary/route.ts:1671-1692`. Regen unconditionally clears `build_credits_charged_at` then re-claims; two interleaved regens can both pass → **double 10-credit charge** on a double-click. **Fix:** fold the clear into one conditional UPDATE.
 
-- [ ] **11. Partial build charges full price, then regen double-charges (NEW).** `generate-itinerary/route.ts:2736-2746`. A 3-of-7 build charges 25 credits; the only recovery (Regenerate) charges again. **Fix:** don't charge on a short build, or make regenerate-after-partial free.
+- [ ] **11. Partial build charges full price, then regen double-charges (NEW). — TODO (needs product decision):** should a truncated/partial build charge at all, and should the regen-to-finish be free? Holding for Brandon's call on refund/charge policy before implementing. `generate-itinerary/route.ts:2736-2746`. A 3-of-7 build charges 25 credits; the only recovery (Regenerate) charges again. **Fix:** don't charge on a short build, or make regenerate-after-partial free.
 
-- [ ] **12. `add-day` forces `day.city` to the base city → excursion days fail the gate (NEW).** `src/app/api/trips/[id]/add-day/route.ts:198`. A Versailles day-trip gets `city="Paris"`, so verify-before-show rejects the correct Versailles venues. **Fix:** let the model set `city`, fall back to base only when absent.
+- [x] **12. `add-day` forces `day.city` to the base city → excursion days fail the gate (NEW). — DONE 2026-06-01** (normalize the model's city to its core but keep a genuine excursion city; fall back to base only when absent). `src/app/api/trips/[id]/add-day/route.ts:198`. A Versailles day-trip gets `city="Paris"`, so verify-before-show rejects the correct Versailles venues. **Fix:** let the model set `city`, fall back to base only when absent.
 
 - [x] **13. Continuation prompt drops per-day city + weekday map (NEW). — DONE 2026-06-01** (continuation pass now includes a weekday-calendar slice for the remaining days — restoring the closed-hours safeguard — and, for multi-city, an explicit day→city map so tail days get the right city and pass the verify gate). `generate-itinerary/route.ts:2492-2557`. A truncated multi-city tail can get the wrong city assigned to remaining days (then the gate rejects them, burning slots) and loses the closed-on-Monday safeguard. **Fix:** pass the explicit remaining day→city range + weekday slice into the continuation prompt.
 
@@ -55,13 +60,13 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 - [ ] **19. Day-count math duplicated, ceil vs round (NEW).** `TripCard.tsx:184` + `dashboard/Client.tsx:310` use `Math.ceil`; `dashboard:370` uses noon-anchored `Math.round` (the batch-2 fix). `computeStatus` is copy-pasted in `dashboard:52`, `trips/Client.tsx:32`, `TripCard.tsx`. Same "N-day trip shows N+1d" class. **Fix:** centralize `daysUntil()`/`tripDayCount()`/`computeStatus()` in `src/lib/tripDates.ts`.
 
-- [ ] **20. `Math.random()` in a render-path state initializer (NEW).** `src/components/ParseTransportModal.tsx:193` → server/client hydration mismatch on the example placeholder. **Fix:** pick after mount in `useEffect`.
+- [x] **20. `Math.random()` in a render-path state initializer (NEW). — DONE 2026-06-01** (ParseTransportModal picks the example in a `useEffect` after mount). `src/components/ParseTransportModal.tsx:193` → server/client hydration mismatch on the example placeholder. **Fix:** pick after mount in `useEffect`.
 
 - [ ] **21. No rate-limit on server fetch proxies (NEW).** `og-preview`, `fetch-reference`, `google/resolve`, `unsplash/photo` make outbound fetches with auth-only (no `consumeRateLimit`) → one logged-in account can drain quota / the Unsplash demo key. **Fix:** add the existing `consumeRateLimit` helper per-user/IP.
 
 - [ ] **22. No size cap on base64 uploads (NEW).** `parse-receipt/route.ts:59` (`imageBase64`), `parse-itinerary/route.ts:78` (`pdfBase64`) — no byte cap → cost amplification / OOM risk. **Fix:** reject blobs over ~5–10 MB (mirror the avatar `MAX_BYTES`).
 
-- [ ] **23. `[day-swap]` `console.log` ships to production (NEW).** `src/app/trip/[id]/itinerary/Client.tsx:3648` fires on every drag/reorder. **Fix:** delete.
+- [x] **23. `[day-swap]` `console.log` ships to production (NEW). — DONE 2026-06-01** (removed). `src/app/trip/[id]/itinerary/Client.tsx:3648` fires on every drag/reorder. **Fix:** delete.
 
 - [ ] **24. Vote-cast errors are generic (NEW).** `src/app/trip/[id]/group/Client.tsx:885-908` throws a generic "try again" and discards the server's specific 400s ("This poll is closed", max-picks). **Fix:** read `data.error` and surface it (like the add-day caller does).
 
@@ -79,7 +84,8 @@ Off-palette usages vs the CLAUDE.md "Brand color discipline" ruling. Concentrate
 - **Other off-palette:** `Sidebar.tsx:33` Nomad badge orange (inconsistent with sky trip_pass/explorer), `Sidebar.tsx:128,136` green active nav, `ParseTransportModal:29-32` indigo + `:154` amber warning icon, `prep:1831-1836` blue SIM-card info (→ zinc FYI), `world:781` purple-50 gradient, `page.tsx:41-512` blue-50/100 on hero.
 - Correctly sanctioned (no change): Track B = amber, AI-Pick = violet, paid/upsell amber, emerald "Best value".
 
-### 26. CLAUDE.md staleness (NEW)
+### 26. CLAUDE.md staleness (NEW) — MOSTLY DONE 2026-06-01
+_Fixed: middleware line 11→15, empty-state count, property-access note (no `trips.destinations[]`), `AI_CREDIT_COSTS` comment (250→200), members-route tier-cap comment (8/15→6/12). Still open: (a) page.tsx-vs-Client.tsx Project-Structure/Key-File pointers, (d) icon-assets go-live bullet (mark done)._
 - (a) "Project Structure" + "Key File Reference" point at `*/page.tsx`, but real code lives in sibling `Client.tsx` (page files are thin shells — e.g. `itinerary/page.tsx` is ~15 lines, the 4000-line core is `itinerary/Client.tsx`).
 - (b) Middleware "line 11" → actually **line 15**.
 - (c) Empty-state "three surfaces (chat/expenses/packing)" → now 8 files / 12 usages.
@@ -88,11 +94,13 @@ Off-palette usages vs the CLAUDE.md "Brand color discipline" ruling. Concentrate
 - (f) `members/route.ts:285-288` comment says "explorer→8 / nomad→15" (code is correct via `TIER_LIMITS`).
 - (g) "TypeScript Property Access" note references `trips.itinerary_data` / `destinations[]` columns that don't exist (days live in `itineraries.days`; `trips.destination` is singular; multi-city comes from `preferences.destinations`).
 
-### 27. Stale magic literals (NEW)
+### 27. Stale magic literals (NEW) — PARTLY DONE 2026-06-01
+_members route trip-pass base `6` → `PRICING.trip_pass.baseGroupSize`. Still open: the `+$4/person … up to 12` hardcoded strings on the pricing page (interpolate `PRICING`); the `: 4` free-cap fallback left as-is (dead safety net)._
 - `members/route.ts:308,311` — literal `6` (trip-pass base) and `4` (free) instead of `PRICING.trip_pass.baseGroupSize` / `TIER_LIMITS.free.travelersPerTrip`.
 - `pricing/Client.tsx:387,526` + FAQ `:66` — `+$4/person … up to 12` hardcoded instead of interpolating `PRICING` (drift risk under the MONETIZATION repricing plan).
 
-### 28. Stale `trip_cities` rpc cast (NEW)
+### 28. Stale `trip_cities` rpc cast (NEW) — DONE 2026-06-01
+_Dropped the `as unknown` cast; calling `supabase.rpc('trip_cities', …)` directly now that the RPC is in the generated types._
 `api/trips/route.ts:111` casts through `unknown` "because the typed client doesn't know the RPC" — it does now (present in `database.types.ts`). Drop the cast.
 
 ### 29. `generate-hotels` / `generate-discover` emit AI venues with no Tier-1 check (NEW)

@@ -104,17 +104,10 @@ export async function GET() {
       // homescreen is very slow." For a user with 20+ trips the old SELECT
       // days approach pulled 1MB+ of payload per dashboard load; the RPC
       // returns just trip_id + cities[].
-      // Cast through unknown because the typed Supabase client doesn't yet
-      // know about the new trip_cities RPC. Regenerate database.types.ts to
-      // pick it up; until then, the cast keeps the route compiling without
-      // disturbing the typed surface elsewhere.
-      (supabase.rpc as unknown as (
-        fn: string,
-        args: Record<string, unknown>,
-      ) => Promise<{ data: Array<{ trip_id: string; cities: string[] | null }> | null; error: unknown }>)(
-        'trip_cities',
-        { trip_ids: allTripIds },
-      ),
+      // trip_cities RPC — now in the generated types, so call it directly
+      // (the prior `as unknown` cast was needed before the types were
+      // regenerated; it bypassed the real return type, so drop it).
+      supabase.rpc('trip_cities', { trip_ids: allTripIds }),
     ]);
 
     const membersByTrip = new Map<string, Array<{ name?: string | null; email?: string | null }>>();

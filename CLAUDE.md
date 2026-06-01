@@ -206,7 +206,7 @@ Claude cannot set these — Brandon must add them manually.
 | `GOOGLE_MAPS_KEY` | ✅ Set | Server-side Places API |
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | ✅ Set | Client-side Maps embed |
 | `NEXT_PUBLIC_APP_URL` | ✅ Set | https://www.tripcoord.ai |
-| `PREVIEW_SECRET` | ⚠️ Optional (pre-launch) | Coming-soon bypass — `?preview=<value>` sets a 90-day cookie. **Middleware falls back to the literal `tc2026` when this env var is unset** (re-introduced 2026-05-13 to unblock pre-launch testers). Anyone who reads the bundled middleware JS can see the fallback, so it's a speedbump not real access control. **Before public launch:** set this to a strong value in Vercel AND remove the `?? 'tc2026'` fallback in `src/middleware.ts` line 11. Do BOTH — env var alone is not enough while the fallback is in source. |
+| `PREVIEW_SECRET` | ⚠️ Optional (pre-launch) | Coming-soon bypass — `?preview=<value>` sets a 90-day cookie. **Middleware falls back to the literal `tc2026` when this env var is unset** (re-introduced 2026-05-13 to unblock pre-launch testers). Anyone who reads the bundled middleware JS can see the fallback, so it's a speedbump not real access control. **Before public launch:** set this to a strong value in Vercel AND remove the `?? 'tc2026'` fallback in `src/middleware.ts` (line 15). Do BOTH — env var alone is not enough while the fallback is in source. |
 | `UNSPLASH_ACCESS_KEY` | ✅ Set | Dynamic trip card photos (#78 — shipped; cover photos render live) |
 | `TICKETMASTER_API_KEY` | ❌ Missing | Real events data (#69) |
 | `VIATOR_AFFILIATE_ID` | ❌ Missing | Affiliate booking links (#70) |
@@ -298,7 +298,7 @@ This file is 4000+ lines. `useCallback` and `useMemo` must come **after** all th
 ### TypeScript Property Access
 Always check `src/lib/types.ts` before accessing a property on a typed object. Common traps:
 - `aiMeta.preferences?.priorities` (nested under `preferences`, NOT `aiMeta.priorities`)
-- `aiMeta.destination` (singular, NOT `.destinations[0]` — use `tripRow?.destinations?.[0]` for multi-city)
+- `aiMeta.destination` (singular). There is **no** `trips.destinations[]` column — `trips.destination` is a single string. Multi-city destinations live in `trips.preferences.destinations` (and per-day `itineraries.days[].city`), not a top-level column.
 
 ### Design Mockup Rule
 **Before making any font/color/layout change, show an HTML mockup to Brandon first.** Do not touch source files for visual design changes without prior approval.
@@ -347,7 +347,7 @@ Use `<EmptyState>` from `src/components/EmptyState.tsx` for any list/grid/tab th
 />
 ```
 
-The component renders: white `rounded-2xl border-zinc-100` card, centered icon in a `zinc-100` chip, semibold `zinc-700` title, `zinc-500` description, optional `bg-sky-800 rounded-full` CTA. Hand-coding the same shape per surface was how we ended up with 6 different empty-state patterns across the app pre-2026-05-29. Three are now using the component (chat / expenses / packing); other surfaces can migrate incrementally.
+The component renders: white `rounded-2xl border-zinc-100` card, centered icon in a `zinc-100` chip, semibold `zinc-700` title, `zinc-500` description, optional `bg-sky-800 rounded-full` CTA. Hand-coding the same shape per surface was how we ended up with 6 different empty-state patterns across the app pre-2026-05-29. It's now adopted across most list/grid surfaces (discover, prep, dashboard, memories, itinerary, notifications, group, chat/expenses/packing); other surfaces can migrate incrementally.
 
 The Group Votes "starter prompts" empty state (with clickable question chips) is a deliberate richer variant — leave it alone. `<EmptyState>` is for the simple icon-title-description-CTA case.
 

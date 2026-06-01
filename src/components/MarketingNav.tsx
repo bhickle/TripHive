@@ -27,7 +27,7 @@ export function MarketingNav({ showAnchors = true }: MarketingNavProps) {
     <nav className="sticky top-0 z-50 bg-parchment/80 backdrop-blur-md border-b border-zinc-100">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center" onClick={() => setMenuOpen(false)}>
-          <Image src="/tripcoord-wordmark.svg" alt="tripcoord" width={140} height={32} priority className="h-7 w-auto" />
+          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} priority className="h-9 w-auto" />
         </Link>
 
         {/* Center nav links — desktop */}

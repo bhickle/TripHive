@@ -3671,7 +3671,6 @@ function ItineraryPageContent() {
             return true;
           };
           const swapDayContent = (a: number, b: number) => {
-            console.log('[day-swap] requested', { a, b, canSwap: canSwap(a, b) });
             if (!canSwap(a, b)) return;
             // Swap-safe fields — everything that conceptually describes "what
             // happens on this day" rather than "which calendar day this is".

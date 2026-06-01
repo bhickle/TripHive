@@ -298,6 +298,19 @@ export async function PATCH(
         console.error('Itinerary days update error:', JSON.stringify(error));
         return NextResponse.json({ error: 'Failed to update itinerary' }, { status: 500 });
       }
+
+      // Keep trips.trip_length in sync with the itinerary's day count so any
+      // surface that reads trip_length — notably the trip-card "Nd" cover badge
+      // — reflects added/removed days. Without this, adding a day left the
+      // cover count stale (QA — reported). Idempotent on a vote/edit that
+      // doesn't change the count; best-effort so it can't fail the days save.
+      if (days.length > 0) {
+        const { error: lenErr } = await supabase
+          .from('trips')
+          .update({ trip_length: days.length })
+          .eq('id', params.id);
+        if (lenErr) console.warn('[trips PATCH] trip_length sync failed:', JSON.stringify(lenErr));
+      }
     }
 
     // ── Merge-patch itinerary meta (e.g. add isCruise/cruiseLine after upload) ─

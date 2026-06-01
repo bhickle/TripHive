@@ -193,9 +193,16 @@ Rules:
         return NextResponse.json({ error: 'PARSE_ERROR', raw }, { status: 500 });
       }
 
-      // Force the stored city to the normalized core regardless of what the
-      // model echoed, so an added day's eyebrow matches the build's days.
-      if (day && typeof day === 'object') day.city = cityForDay;
+      // Normalize the model's city to its core (drop a trailing ", Country") so
+      // a normal added day's eyebrow matches the build's days — but KEEP a
+      // genuine excursion city (e.g. a Versailles day-trip on a Paris trip)
+      // rather than forcing it to the base city. Forcing it (the old behavior)
+      // mislabeled excursions AND made the verify gate reject their correct
+      // venues (QA #12). Fall back to the base city only when none was returned.
+      if (day && typeof day === 'object') {
+        const modelCity = typeof day.city === 'string' ? day.city.split(',')[0].trim() : '';
+        day.city = modelCity || cityForDay;
+      }
 
       // Verify-before-return. Same Tier 1 + Tier 2 gate as
       // /generate-itinerary uses on every streamed day. Hard fail

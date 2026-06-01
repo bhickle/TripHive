@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/lib/supabase/database.types';
 import { getTripRole, requireTripAccess } from '@/lib/supabase/tripAccess';
 import { TIER_LIMITS } from '@/lib/types';
+import { PRICING } from '@/hooks/useEntitlements';
 
 /**
  * GET /api/trips/[id]/members
@@ -284,8 +285,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Cap by tier:
     //   free      → 4 travelers   (organizer + 3)
     //   trip_pass → 6 base + extras (varies per pass purchase)
-    //   explorer  → 8 travelers
-    //   nomad     → 15 travelers
+    //   explorer  → 6 travelers
+    //   nomad     → 12 travelers
+    // (Actual caps come from TIER_LIMITS / PRICING below — this is just a map.)
     try {
       const { data: orgProfile } = await supabase
         .from('profiles')
@@ -305,7 +307,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           .gt('expires_at', new Date().toISOString())
           .order('purchased_at', { ascending: false })
           .maybeSingle();
-        cap = 6 + (pass?.extra_people ?? 0);
+        cap = PRICING.trip_pass.baseGroupSize + (pass?.extra_people ?? 0);
       } else {
         const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
         cap = typeof tierCap === 'number' ? tierCap : 4;
