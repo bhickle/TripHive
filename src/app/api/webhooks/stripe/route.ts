@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe, PRICE_TO_TIER } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { nextCreditResetAt } from '@/lib/supabase/aiCredits';
 import { PRICING } from '@/hooks/useEntitlements';
 import { TIER_LIMITS } from '@/lib/types';
 
@@ -101,7 +102,10 @@ async function setTier(
     .update({
       subscription_tier: tier,
       ai_credits_used: nextUsed,
-      ai_credits_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      // Calendar-month boundary, single-sourced with the cron + reset-on-read
+      // path. Previously a rolling +30d here disagreed with those two and let
+      // the monthly cron re-zero a paid user's credits mid-cycle (MONEY-3 / #8).
+      ai_credits_reset_at: nextCreditResetAt(),
       // Any tier transition (paid->paid, paid->free, free->paid) clears the
       // scheduled-cancel intent — it only makes sense while a paid sub is
       // pending cancellation. Reactivating to a paid tier wipes the prior
@@ -154,6 +158,28 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[stripe/webhook] signature verification failed:', err);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  // ── Idempotency: dedupe on event.id ──────────────────────────────────────────
+  // Stripe delivers each event at-least-once (automatic retries on a non-2xx,
+  // network blips, or a manual resend). Record every event id; a unique-
+  // violation (23505) means we've already processed it, so ack with 200 and
+  // skip the handlers — otherwise a replay could re-zero credits or re-flip a
+  // tier mid-cycle (QA #9). Insert BEFORE handling so a retry of an event whose
+  // first handling half-failed is still caught. Any other insert error: log and
+  // process anyway (favor processing a real event over dropping it).
+  {
+    const dedupeAdmin = createAdminClient();
+    const { error: dedupeErr } = await dedupeAdmin
+      .from('stripe_events')
+      .insert({ event_id: event.id, type: event.type });
+    if (dedupeErr) {
+      if (dedupeErr.code === '23505') {
+        console.log(`[stripe/webhook] duplicate event ${event.id} (${event.type}) — skipping`);
+        return NextResponse.json({ received: true, duplicate: true });
+      }
+      console.warn(`[stripe/webhook] stripe_events insert failed (${dedupeErr.code ?? '?'}): ${dedupeErr.message} — processing anyway`);
+    }
   }
 
   // ── Route events ───────────────────────────────────────────────────────────
@@ -322,14 +348,13 @@ export async function POST(req: NextRequest) {
             break;
           }
 
-          // subscription_tier is a string column; narrow before lookup so
-          // tierCredits stays type-safe. Unknown tier strings (legacy/manual
-          // rows) fall through with 0 credits — operator action required.
-          const t = profile.subscription_tier as 'free' | 'explorer' | 'nomad';
-          const credits = tierCredits(t);
+          // Renewal: zero the used counter and roll the reset boundary to the
+          // calendar-month value (single-sourced with the cron + reset-on-read
+          // path — see MONEY-3 / #8). The per-tier limit is read from
+          // TIER_LIMITS at gate time, so no per-tier total is written here.
           await supabaseAdmin.from('profiles').update({
             ai_credits_used: 0,
-            ai_credits_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            ai_credits_reset_at: nextCreditResetAt(),
           }).eq('id', userId);
         }
         break;

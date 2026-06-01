@@ -1115,6 +1115,24 @@ export type Database = {
           },
         ]
       }
+      stripe_events: {
+        Row: {
+          event_id: string
+          received_at: string
+          type: string | null
+        }
+        Insert: {
+          event_id: string
+          received_at?: string
+          type?: string | null
+        }
+        Update: {
+          event_id?: string
+          received_at?: string
+          type?: string | null
+        }
+        Relationships: []
+      }
       support_tickets: {
         Row: {
           admin_notes: string | null
