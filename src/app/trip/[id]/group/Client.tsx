@@ -3058,9 +3058,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                               }),
                             });
                             if (!res.ok) throw new Error(`vote create failed: ${res.status}`);
-                            // Refresh votes to get real IDs
-                            const fresh = await fetch(`/api/trips/${params.id}/group-votes`).then(r => r.json());
-                            if (fresh.votes) setVotes(fresh.votes);
+                            // Refresh votes to get real IDs. Guard res.ok and
+                            // require a non-empty array — a transient 500 returns
+                            // { votes: [] } (truthy), which would otherwise wipe
+                            // the just-created poll from the UI (QA #6).
+                            const fresh = await fetch(`/api/trips/${params.id}/group-votes`).then(r => r.ok ? r.json() : null);
+                            if (fresh?.votes?.length) setVotes(fresh.votes);
                           } catch {
                             // Rollback: drop the optimistic vote and tell the user
                             setVotes(prev => prev.filter(v => v.id !== optimisticVote.id));

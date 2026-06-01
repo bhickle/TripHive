@@ -89,6 +89,38 @@ async function resolvedHostIsSafe(hostname: string): Promise<boolean> {
   }
 }
 
+/**
+ * Fetch with redirects followed MANUALLY, re-running the SSRF guard on every
+ * hop. The default `redirect: 'follow'` only validates the original hostname —
+ * a public, allow-listed URL could 30x-redirect to 169.254.169.254 / an
+ * internal host and bypass the guard (QA #5). Mirrors og-preview's approach.
+ * Returns null on an unsafe hop, too many redirects, or a missing Location.
+ */
+async function safeFetch(startUrl: string, init: RequestInit, maxHops = 4): Promise<Response | null> {
+  let current = startUrl;
+  for (let hop = 0; hop <= maxHops; hop++) {
+    let parsed: URL;
+    try { parsed = new URL(current); } catch { return null; }
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    if (isUnsafeHost(parsed.hostname)) return null;
+    if (!(await resolvedHostIsSafe(parsed.hostname))) return null;
+
+    const res = await fetch(current, { ...init, redirect: 'manual' });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) return res; // redirect with no target — treat as terminal
+      try {
+        current = new URL(loc, current).toString();
+      } catch {
+        return null;
+      }
+      continue; // re-validate the next hop's host before fetching it
+    }
+    return res;
+  }
+  return null; // too many redirects
+}
+
 function htmlToText(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -149,11 +181,11 @@ async function fetchOne(rawUrl: string): Promise<string> {
     if (isReddit) {
       try {
         const jsonUrl = `${parsed.origin}${parsed.pathname.replace(/\/$/, '')}.json`;
-        const res = await fetch(jsonUrl, {
+        const res = await safeFetch(jsonUrl, {
           signal: controller.signal,
           headers: { 'User-Agent': UA, Accept: 'application/json' },
         });
-        if (res.ok) {
+        if (res && res.ok) {
           const text = redditText(await res.json());
           if (text) return text.slice(0, PER_LINK_CHARS);
         }
@@ -162,11 +194,11 @@ async function fetchOne(rawUrl: string): Promise<string> {
       }
     }
 
-    const res = await fetch(parsed.toString(), {
+    const res = await safeFetch(parsed.toString(), {
       signal: controller.signal,
       headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
     });
-    if (!res.ok) return '';
+    if (!res || !res.ok) return '';
     if (!(res.headers.get('content-type') ?? '').includes('text/html')) return '';
     const html = (await res.text()).slice(0, 512 * 1024);
     return htmlToText(html).slice(0, PER_LINK_CHARS);

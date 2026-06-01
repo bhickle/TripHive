@@ -1053,12 +1053,38 @@ function ItineraryPageContent() {
       // (~10-13K output tokens/day on Sonnet 4.6). Worst case ~3.5 minutes.
       const CHUNK_SIZE = 3;
 
-      if (destinations && destinations.length > 1 && daysPerDest) {
+      if (destinations && destinations.filter(c => c && c.trim()).length > 1) {
         // Multi-city: one (or more) chunks per city. A long city (>3 days)
         // gets sub-chunked the same way a long single-city trip does.
+        //
+        // The per-city allocation MUST cover the whole trip. If
+        // daysPerDestination is empty/short (the builder default unless the
+        // Step-2 night allocator ran), the old code produced ZERO segments and
+        // fell through to a single un-chunked request for the entire trip —
+        // which hits the 300s timeout and silently drops days (QA #1, the
+        // multi-city truncation). So always synthesize a complete allocation:
+        // use the explicit one when present, top it up if it falls short of the
+        // trip length, otherwise split the trip length evenly across cities.
+        const cities = destinations.filter(c => c && c.trim());
+        const tripLen = Math.max(cities.length, (payload.tripLength as number) || 0);
+        const hasExplicit = !!daysPerDest && cities.some(c => (daysPerDest[c] ?? 0) > 0);
+        const alloc: Record<string, number> = {};
+        if (hasExplicit) {
+          let assigned = 0;
+          for (const c of cities) { alloc[c] = Math.max(0, daysPerDest![c] ?? 0); assigned += alloc[c]; }
+          // Explicit allocation short of the trip length → top up the last city
+          // so segments still cover every day.
+          if (assigned < tripLen) alloc[cities[cities.length - 1]] += tripLen - assigned;
+        } else {
+          // Even split, remainder distributed to the leading cities.
+          const base = Math.floor(tripLen / cities.length);
+          let rem = tripLen - base * cities.length;
+          for (const c of cities) { alloc[c] = base + (rem > 0 ? 1 : 0); if (rem > 0) rem--; }
+        }
+
         let dayStart = 1;
-        for (const cityName of destinations) {
-          const cityDays = daysPerDest[cityName] ?? 0;
+        for (const cityName of cities) {
+          const cityDays = alloc[cityName] ?? 0;
           if (cityDays <= 0) continue;
           let chunkStart = dayStart;
           let cityRemaining = cityDays;

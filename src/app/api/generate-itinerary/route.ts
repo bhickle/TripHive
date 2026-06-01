@@ -2180,6 +2180,10 @@ export async function POST(request: NextRequest) {
         return false;
       };
 
+      // Hoisted above the try so the catch block can read it — the claim-revert
+      // on a mid-stream throw needs to know whether any day was emitted (QA #2).
+      let dayIndex = 0;
+
       try {
         // Open the first-pass stream with retry-with-backoff for connection-time
         // overloaded_error / 5xx. Without this, a single 529 from Anthropic kills
@@ -2221,7 +2225,7 @@ export async function POST(request: NextRequest) {
         let inString = false;
         let escape = false;
         let objStart = -1;
-        let dayIndex = 0;
+        dayIndex = 0;
         const collectedDays: Record<string, unknown>[] = [];
         let firstPassStopReason: string | null = null;
 
@@ -2800,6 +2804,21 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         console.error('[generate-itinerary] stream error:', message);
+        // If we won the build-credit claim but threw before emitting (and
+        // charging for) any day, revert the claim — otherwise the trip is
+        // permanently marked "already paid" and a retry is treated as a free
+        // continuation that never rebuilds day 1 (QA #2). The normal zero-day
+        // revert lives in the try above; this covers the exception path.
+        if (dayIndex === 0 && claimedThisRequest && requestBodyTripId) {
+          try {
+            await createAdminClient()
+              .from('trips')
+              .update({ build_credits_charged_at: null })
+              .eq('id', requestBodyTripId);
+          } catch (revertErr) {
+            console.warn('[generate-itinerary] claim revert (stream error) failed:', revertErr);
+          }
+        }
         send({ type: 'error', message });
       } finally {
         controller.close();

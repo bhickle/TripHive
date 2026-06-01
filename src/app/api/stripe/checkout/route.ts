@@ -23,6 +23,23 @@ export const dynamic = 'force-dynamic';
 // success_url interpolation.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Allow-list of prices a client may check out, split by Stripe mode so a caller
+// can't (a) pass an arbitrary / old / $0 price, or (b) buy a subscription price
+// in one-time mode (or vice-versa). `extra_person` is NEVER a standalone
+// checkout price — it's appended server-side as an additional line item.
+// (QA #3 / SEC-2: priceId was previously trusted verbatim.)
+const SUBSCRIPTION_PRICE_IDS = new Set<string>([
+  STRIPE_PRICES.explorer.monthly,
+  STRIPE_PRICES.explorer.annual,
+  STRIPE_PRICES.nomad.monthly,
+  STRIPE_PRICES.nomad.annual,
+]);
+const PAYMENT_PRICE_IDS = new Set<string>([
+  STRIPE_PRICES.trip_pass.base,
+]);
+// Trip Pass base covers 6 travelers; hard cap is 12, so extras clamp to 0–6.
+const MAX_EXTRA_PEOPLE = 6;
+
 export async function POST(req: NextRequest) {
   try {
     const { priceId, mode, extraPeople = 0, tripId } = await req.json();
@@ -30,6 +47,18 @@ export async function POST(req: NextRequest) {
     if (!priceId || !mode) {
       return NextResponse.json({ error: 'Missing priceId or mode' }, { status: 400 });
     }
+
+    // Validate mode + allow-list priceId against the mode's permitted set.
+    if (mode !== 'subscription' && mode !== 'payment') {
+      return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
+    }
+    const allowedPrices = mode === 'subscription' ? SUBSCRIPTION_PRICE_IDS : PAYMENT_PRICE_IDS;
+    if (typeof priceId !== 'string' || !allowedPrices.has(priceId)) {
+      return NextResponse.json({ error: 'Invalid priceId for this mode' }, { status: 400 });
+    }
+    // Clamp extra-person quantity to a whole number in [0, MAX_EXTRA_PEOPLE]
+    // before it ever reaches Stripe (or the success metadata → trip_passes).
+    const extra = Math.min(MAX_EXTRA_PEOPLE, Math.max(0, Math.floor(Number(extraPeople) || 0)));
 
     // ── Get the logged-in user ──────────────────────────────────────────────
     // Use the shared @/lib/supabase/server singleton instead of inlining
@@ -116,10 +145,10 @@ export async function POST(req: NextRequest) {
     ];
 
     // For Trip Pass with extra people, add extra-person line items
-    if (mode === 'payment' && extraPeople > 0) {
+    if (mode === 'payment' && extra > 0) {
       lineItems.push({
         price: STRIPE_PRICES.trip_pass.extra_person,
-        quantity: extraPeople,
+        quantity: extra,
       });
     }
 
@@ -140,7 +169,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         supabase_user_id: user.id,
         ...(tripId ? { trip_id: tripId } : {}),
-        ...(extraPeople > 0 ? { extra_people: String(extraPeople) } : {}),
+        ...(extra > 0 ? { extra_people: String(extra) } : {}),
       },
       // For subscriptions, allow the customer to switch plans
       ...(mode === 'subscription' ? {
