@@ -219,6 +219,11 @@ async function lookupPlacesAddressDetailed(
   if (!apiKey) return { kind: 'error' };
   const query = `${venueName} ${dayCity}`;
   try {
+    // Hard per-lookup timeout. Without it a hung Places call could stall a
+    // whole build chunk until the 300s function limit, truncating the trip
+    // (QA #25 — long builds timing out). A timeout surfaces as 'error', which
+    // fails OPEN (the day is kept, Tier 1 already passed), so this only ever
+    // trades a slow verification for a fast pass-through — never a dropped day.
     const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
       headers: {
@@ -227,6 +232,7 @@ async function lookupPlacesAddressDetailed(
         'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
       },
       body: JSON.stringify({ textQuery: query, maxResultCount: 1 }),
+      signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return { kind: 'error' };
     const data = await res.json() as { places?: PlacesTextSearchResult[] };

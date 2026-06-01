@@ -1597,12 +1597,17 @@ function ItineraryPageContent() {
       }
 
       // If after retries we still don't have every day the user asked for,
-      // surface a soft warning. The trip page's regenerate button can fill
-      // the gaps. Better than a hard "Generation failed" wall.
+      // this is an INCOMPLETE build (e.g. a city segment timed out) — NEVER
+      // present it as finished (QA #25). The prior soft 8s toast let a 4-of-7
+      // multi-city build read as complete. Keep the partial days so progress
+      // isn't lost, but set a PERSISTENT banner that says it's short and how
+      // to finish it. Regenerate (Add "+" menu) does a clean full rebuild; the
+      // deeper fix is background-worker durability (CLAUDE.md Inngest item).
       if (finalDayCount < totalDays) {
         const missing = totalDays - finalDayCount;
-        setActionError(`We built ${finalDayCount} of ${totalDays} days. Tap Regenerate to fill the missing ${missing} ${missing === 1 ? 'day' : 'days'}.`);
-        setTimeout(() => setActionError(null), 8000);
+        setLiveBuildError(
+          `Only ${finalDayCount} of ${totalDays} days finished generating — ${missing} ${missing === 1 ? 'day is' : 'days are'} missing (a segment likely timed out). Open the “+” menu and tap “Regenerate itinerary” to rebuild the full trip.`,
+        );
       }
 
       // 5. Final PATCH — complete days + meta + stamp itinerary_generated_at

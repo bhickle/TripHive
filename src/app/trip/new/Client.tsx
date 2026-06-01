@@ -123,6 +123,19 @@ interface TripWizardState {
   dailyOutlines: string[];
 }
 
+// Default trip title. Multi-city trips read all cities ("Paris & Rome")
+// instead of just the first ("Paris, France Trip") — QA #27. City core only
+// (drop ", Country"). The AI may overwrite this with a richer title later.
+function defaultTripTitle(destinations: string[] | undefined, destination: string): string {
+  const cities = (destinations ?? []).map(d => d.split(',')[0].trim()).filter(Boolean);
+  if (cities.length >= 2) {
+    return cities.length === 2
+      ? `${cities[0]} & ${cities[1]}`
+      : `${cities.slice(0, -1).join(', ')} & ${cities[cities.length - 1]}`;
+  }
+  return `${destination} Trip`;
+}
+
 const priorityOptions = [
   { id: 'nature',       label: 'Nature',         icon: '🌿', tooltip: 'Parks, trails, wildlife & natural landscapes' },
   { id: 'food',         label: 'Food',           icon: '🍽️', tooltip: 'Local restaurants, markets, food tours & tastings' },
@@ -1001,7 +1014,7 @@ function TripBuilderPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tripMeta: { ...metaBase, title: `${state.destination} Trip`, tripLength: state.tripLength },
+          tripMeta: { ...metaBase, title: defaultTripTitle(state.destinations, state.destination), tripLength: state.tripLength },
           itinerary: null,
           skeleton: true,
         }),
@@ -1044,7 +1057,7 @@ function TripBuilderPage() {
       const canonicalDestination = canonicalDestinationFor(state);
       const meta = {
         destination: canonicalDestination,
-        title: `${state.destination} Trip`,
+        title: defaultTripTitle(state.destinations, state.destination),
         startDate: state.startDate || null,
         endDate: state.endDate || null,
         tripLength: state.tripLength,
@@ -1764,7 +1777,7 @@ function TripBuilderPage() {
                       )}
                       {state.destinations.length >= 2 && (
                         <p className="text-xs text-sky-700">
-                          Nights per city can be set in Step 3 after you choose your trip length.
+                          Days per city can be set in Step 3 after you choose your trip length.
                         </p>
                       )}
                     </div>
