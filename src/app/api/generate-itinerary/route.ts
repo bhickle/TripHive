@@ -1672,19 +1672,33 @@ export async function POST(request: NextRequest) {
   let claimedThisRequest = false;
   if (requestBodyTripId) {
     const adminClient = createAdminClient();
-    if (freshRebuild) {
-      await adminClient
-        .from('trips')
-        .update({ build_credits_charged_at: null })
-        .eq('id', requestBodyTripId);
-    }
-    const { data: claimed, error: claimErr } = await adminClient
+    const now = new Date().toISOString();
+    let claimQuery = adminClient
       .from('trips')
-      .update({ build_credits_charged_at: new Date().toISOString() })
-      .eq('id', requestBodyTripId)
-      .is('build_credits_charged_at', null)
-      .select('id')
-      .maybeSingle();
+      .update({ build_credits_charged_at: now })
+      .eq('id', requestBodyTripId);
+    if (freshRebuild) {
+      // Regenerate must re-claim over the prior build's stamp. Do it as a
+      // compare-and-swap against the value we just read — NOT an unconditional
+      // clear-then-claim. The old two-statement version could double-charge:
+      // two interleaved regens (e.g. a double-click) would each clear the
+      // other's just-won claim and both end up charging (QA #10). With CAS,
+      // Postgres re-checks the WHERE against the post-lock row, so exactly one
+      // concurrent regen wins.
+      const { data: row } = await adminClient
+        .from('trips')
+        .select('build_credits_charged_at')
+        .eq('id', requestBodyTripId)
+        .maybeSingle();
+      const prev = row?.build_credits_charged_at ?? null;
+      claimQuery = prev === null
+        ? claimQuery.is('build_credits_charged_at', null)
+        : claimQuery.eq('build_credits_charged_at', prev);
+    } else {
+      // Normal build / continuation chunk: claim only if unclaimed.
+      claimQuery = claimQuery.is('build_credits_charged_at', null);
+    }
+    const { data: claimed, error: claimErr } = await claimQuery.select('id').maybeSingle();
     if (claimErr) {
       console.warn('[generate-itinerary] build claim failed (treating as first chunk):', claimErr);
     }
@@ -2527,6 +2541,49 @@ export async function POST(request: NextRequest) {
               `Allocation: ${contDestinations.map(c => `${c}=${contDaysPerDest[c] ?? '?'}d`).join(', ')}. `
             : '';
 
+          // Weekday calendar for ONLY the remaining days. The first pass gets
+          // this (line ~1120) so the model honors per-weekday opening hours and
+          // doesn't schedule closed-on-Monday venues — but the continuation pass
+          // didn't, so recovered days lost that safeguard (QA #13).
+          const contWeekdayMap = buildWeekdayMap(contStartDate, remaining, contFromDay);
+
+          // Explicit day→city map for the remaining days (multi-city only). The
+          // continuation previously gave only the route + allocation, so it
+          // could assign the wrong city to a tail day — which then fails the
+          // verify-before-show gate (venues resolve to a different city),
+          // burning correction slots and shortening the build (QA #13). Build
+          // it from the allocation, synthesizing an even split if absent so the
+          // map always covers the whole trip (mirrors the client segmenter).
+          const contDayCityMap = (() => {
+            if (!isMultiCityCont) return '';
+            const cs = contDestinations.filter(c => c && c.trim());
+            if (cs.length < 2) return '';
+            const hasExplicit = cs.some(c => (contDaysPerDest[c] ?? 0) > 0);
+            const alloc: Record<string, number> = {};
+            if (hasExplicit) {
+              let sum = 0;
+              for (const c of cs) { alloc[c] = Math.max(0, contDaysPerDest[c] ?? 0); sum += alloc[c]; }
+              if (sum < resolvedTripLength) alloc[cs[cs.length - 1]] += resolvedTripLength - sum;
+            } else {
+              const base = Math.floor(resolvedTripLength / cs.length);
+              let rem = resolvedTripLength - base * cs.length;
+              for (const c of cs) { alloc[c] = base + (rem > 0 ? 1 : 0); if (rem > 0) rem--; }
+            }
+            const lines: string[] = [];
+            let d = 1;
+            for (const c of cs) {
+              const n = alloc[c] ?? 0;
+              if (n <= 0) continue;
+              const cityStart = d;
+              const cityEnd = d + n - 1;
+              d += n;
+              const from = Math.max(cityStart, contFromDay);
+              const to = Math.min(cityEnd, contToDay);
+              if (from <= to) lines.push(from === to ? `  - Day ${from}: ${c}` : `  - Days ${from}–${to}: ${c}`);
+            }
+            return lines.length ? `\nCITY PER REMAINING DAY (set each day's "city" to exactly this):\n${lines.join('\n')}` : '';
+          })();
+
           // ── Self-contained continuation prompt ────────────────────────────
           // CRITICAL: Do NOT append the full original prompt here.
           // The original prompt contains "generate a ${tripLength}-day itinerary
@@ -2553,6 +2610,10 @@ export async function POST(request: NextRequest) {
             generatedSummary,
             ``,
             lastCity ? `The group ended Day ${dayOffset + dayIndex} in ${lastCity}.` : '',
+            contDayCityMap,
+            contWeekdayMap
+              ? `\nDay-by-day calendar for the remaining days (use this to match each venue's per-weekday opening hours to the actual day — do NOT compute weekdays yourself):\n${contWeekdayMap}`
+              : '',
             placesHint,
             `YOUR TASK: Output ONLY day objects ${contFromDay} through ${contToDay} (${remaining} day${remaining === 1 ? '' : 's'}), starting from ${contStartDate}.`,
             `CRITICAL — DAY NUMBERING: The first day you emit MUST have "day": ${contFromDay}. Do NOT restart numbering at 1. Do NOT renumber. Days ${dayOffset + 1} through ${dayOffset + dayIndex} already exist and any day object with day < ${contFromDay} will be discarded as a duplicate.`,
@@ -2568,6 +2629,8 @@ export async function POST(request: NextRequest) {
             `- All activities go in shared track; track_a and track_b stay as empty arrays []`,
             `- transportToNext is null on the LAST activity of each day only`,
             `- Use REAL venue names and full street addresses in ${resolvedDestination}`,
+            contWeekdayMap ? `- Honor each venue's opening days/hours against the day-by-day calendar above — do NOT schedule a venue on a day it's closed` : '',
+            contDayCityMap ? `- Each day's "city" and all of its venues MUST match the "CITY PER REMAINING DAY" mapping above` : '',
             `- photoSpots: EXACTLY 2 per day, anchored to that day's neighborhoods`,
             contHasFood ? `- foodieTips: EXACTLY 2 per day, anchored to that day's neighborhoods, different from daily track restaurants` : '',
             contHasNightlife ? `- nightlifeHighlights: EXACTLY 2 per day, evening venues anchored to that day's neighborhoods, no recycled picks` : '',
