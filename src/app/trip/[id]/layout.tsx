@@ -93,7 +93,11 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   useEffect(() => {
     lockBodyScroll();
     const prevHeight = document.body.style.height;
-    document.body.style.height = '100vh';
+    // 100dvh (dynamic viewport height), NOT 100vh: on mobile 100vh is the
+    // LARGE viewport (counts the area behind the address bar + device nav),
+    // so the main column's internal scroll bottom landed off-screen and the
+    // last content (e.g. "Where to Stay") could never be scrolled into view.
+    document.body.style.height = '100dvh';
     return () => {
       unlockBodyScroll();
       document.body.style.height = prevHeight;
@@ -178,14 +182,14 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   const hasAccess = !!currentUser.id || currentUser.isDemo;
   if (authResolving || !hasAccess) {
     return (
-      <div className="flex h-screen items-center justify-center bg-parchment">
+      <div className="flex h-dvh items-center justify-center bg-parchment">
         <div className="text-sm text-zinc-500">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-parchment">
+    <div className="flex h-dvh bg-parchment">
       <Sidebar
         activeTrip={{
           id: trip.id,

@@ -372,7 +372,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex h-screen bg-parchment">
+    <div className="flex h-dvh bg-parchment">
       <Sidebar
         activePage="dashboard"
         user={{

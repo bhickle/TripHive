@@ -241,7 +241,7 @@ export default function TripsPage() {
     dateStr ? new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
 
   return (
-    <div className="flex h-screen bg-parchment">
+    <div className="flex h-dvh bg-parchment">
       <Sidebar activePage="trips" user={currentUser} />
 
       <main className="flex-1 overflow-auto">

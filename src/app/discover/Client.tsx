@@ -1383,7 +1383,7 @@ export default function DiscoverPage() {
   const isGuest = !currentUser.isLoading && !currentUser.id;
 
   return (
-    <div className={`bg-parchment ${isGuest ? 'min-h-screen' : 'flex h-screen'}`}>
+    <div className={`bg-parchment ${isGuest ? 'min-h-screen' : 'flex h-dvh'}`}>
       {isGuest ? (
         <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">

@@ -1432,7 +1432,7 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
       <div
         ref={cardRef}
         className="relative w-full max-w-[min(390px,calc(100vw-2rem))] rounded-3xl overflow-hidden shadow-2xl"
-        style={{ height: 'min(700px, calc(100vh - 80px))' }}
+        style={{ height: 'min(700px, calc(100dvh - 80px))' }}
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onTouchStart={() => setIsPaused(true)}

@@ -796,7 +796,7 @@ export default function SettingsPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-screen bg-parchment">
+    <div className="flex h-dvh bg-parchment">
       <Sidebar activePage="settings" user={currentUser} />
 
       <main className="flex-1 overflow-auto">

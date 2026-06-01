@@ -1189,7 +1189,7 @@ function TripBuilderPage() {
   // helpers from the old in-page overlay were removed along with it.)
 
   return (
-    <div className="flex h-screen bg-parchment">
+    <div className="flex h-dvh bg-parchment">
       <Sidebar
         activePage="trips"
         user={{

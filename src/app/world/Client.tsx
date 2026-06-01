@@ -284,7 +284,7 @@ export default function WorldClient() {
   const lockedBadges = data?.badges.filter(b => !b.earned) ?? [];
 
   return (
-    <div className="flex h-screen bg-parchment">
+    <div className="flex h-dvh bg-parchment">
       <Sidebar activePage="world" user={currentUser} />
 
       <main className="flex-1 overflow-auto">

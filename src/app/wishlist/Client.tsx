@@ -774,7 +774,7 @@ export default function WishlistPage() {
   if (!hasWishlist) {
     const prompt = getUpgradePrompt('feature_locked');
     return (
-      <div className="flex h-screen bg-parchment">
+      <div className="flex h-dvh bg-parchment">
         <Sidebar activePage="wishlist" user={currentUser} />
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-sm w-full text-center">
@@ -817,7 +817,7 @@ export default function WishlistPage() {
   }
 
   return (
-    <div className="flex h-screen bg-parchment">
+    <div className="flex h-dvh bg-parchment">
       <Sidebar activePage="wishlist" user={currentUser} />
 
       {showModal && (
