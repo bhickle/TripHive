@@ -10,6 +10,7 @@ import { TagCitiesModal } from '@/components/TagCitiesModal';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { trips } from '@/data/mock';
 import { destinationToCountry, countryToContinent } from '@/lib/world/countryLookup';
+import { computeStatus } from '@/lib/tripDates';
 import {
   Plus,
   Search,
@@ -29,19 +30,6 @@ type ViewMode = 'grid' | 'list';
  *  Noon-pad so YYYY-MM-DD doesn't parse as UTC midnight (which is the
  *  previous day in any timezone west of UTC, causing 'active' to flip
  *  one day early). */
-function computeStatus(startDate?: string, endDate?: string): 'planning' | 'active' | 'completed' {
-  if (!startDate) return 'planning';
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate + 'T12:00:00');
-  start.setHours(0, 0, 0, 0);
-  if (today < start) return 'planning';
-  if (!endDate) return 'active';
-  const end = new Date(endDate + 'T12:00:00');
-  end.setHours(0, 0, 0, 0);
-  return today <= end ? 'active' : 'completed';
-}
-
 export default function TripsPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();

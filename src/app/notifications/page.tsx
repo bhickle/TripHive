@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Bell, ArrowLeft, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
+import { relativeTime as timeAgo } from '@/lib/tripDates';
 
 // Server returns rows from the `notifications` table — see /api/notifications/route.ts.
 // `type` is typed loosely because the DB writes DB-side type names
@@ -45,19 +46,6 @@ const TYPE_META: Record<string, { label: string; color: string; icon: string }> 
   badge_earned:       { label: 'Badge',    color: 'bg-emerald-100 text-emerald-700', icon: '🏅' },
 };
 
-function timeAgo(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  const diff = Math.max(0, Math.round((now - then) / 1000));
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  // Explicit locale + options so dates read the same across en-US, en-GB,
-  // etc. Bare .toLocaleDateString() rendered "5/9/2026" or "09/05/2026"
-  // depending on locale — confusing for international users.
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 // Map a notification to the right destination tab. Keyed on the DB-side
 // type values written by the API routes (`new_message`, `new_vote`,

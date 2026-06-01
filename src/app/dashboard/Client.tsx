@@ -12,6 +12,7 @@ import { UpgradeModal } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { computeStatus, daysUntil } from '@/lib/tripDates';
 import { trips } from '@/data/mock';
 import {
   PlusCircle,
@@ -47,23 +48,6 @@ export default function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [wishlistPreview, setWishlistPreview] = useState<any[]>([]);
 
-  /** Derive trip status from dates so the counter stays accurate without
-   *  relying on the stored DB column (which may lag behind reality). */
-  function computeStatus(startDate?: string, endDate?: string): 'planning' | 'active' | 'completed' {
-    if (!startDate) return 'planning';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    // Noon-pad so YYYY-MM-DD doesn't parse as UTC midnight (which is the
-    // previous day in any timezone west of UTC, causing 'active' to flip
-    // a day early).
-    const start = new Date(startDate + 'T12:00:00');
-    start.setHours(0, 0, 0, 0);
-    if (today < start) return 'planning';
-    if (!endDate) return 'active';
-    const end = new Date(endDate + 'T12:00:00');
-    end.setHours(0, 0, 0, 0);
-    return today <= end ? 'active' : 'completed';
-  }
 
   const loadTrips = () => {
     if (!currentUser.id || currentUser.isDemo) return;
@@ -358,18 +342,6 @@ export default function DashboardPage() {
   // whose cover hasn't loaded yet OR for the unauth/demo path.
   const heroPhoto = nextTrip?.coverImage || photos[hashCode(dailySeed) % photos.length];
 
-  const calculateDaysUntil = (startDate: string) => {
-    // Compare date-to-date (both anchored at local noon) so the partial
-    // current day doesn't round up — subtracting the live `now` from noon of
-    // the start date made a 17-day gap read as "18 days away" any time of day
-    // past midnight. Noon-anchoring also dodges the UTC-midnight off-by-one
-    // west of UTC.
-    const start = new Date(startDate + 'T12:00:00');
-    const n = new Date();
-    const today = new Date(n.getFullYear(), n.getMonth(), n.getDate(), 12, 0, 0);
-    const days = Math.round((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return Math.max(0, days);
-  };
 
   return (
     <div className="flex h-dvh bg-parchment">
@@ -448,7 +420,7 @@ export default function DashboardPage() {
                   <div className="flex flex-col items-end gap-2 md:gap-3 flex-shrink-0">
                     {nextTrip.startDate && (
                       <div className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full text-zinc-900 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
-                        {calculateDaysUntil(nextTrip.startDate)} days away
+                        {daysUntil(nextTrip.startDate)} days away
                       </div>
                     )}
                     <Link
