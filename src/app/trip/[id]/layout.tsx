@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, notFound } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
 import { trips } from '@/data/mock';
@@ -66,6 +66,9 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
   // Always start null — avoids SSR/client hydration mismatch.
   // The useEffect below loads from Supabase (or localStorage fallback) after mount.
   const [aiMeta, setAiMeta] = useState<AiTripMeta | null>(null);
+  // Set when the trip ID resolves to no real trip (bogus / stale / guessed
+  // link) — drives a real 404 instead of a buildable empty shell (QA #34).
+  const [tripMissing, setTripMissing] = useState(false);
 
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -124,7 +127,18 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
             });
             return;
           }
-        } catch { /* fall through */ }
+          // A real-looking ID the server can't find is a bogus/stale link —
+          // 404 it instead of rendering an empty buildable shell (QA #34).
+          if (res.status === 404) {
+            setTripMissing(true);
+            return;
+          }
+        } catch { /* network blip — fall through to localStorage */ }
+      } else {
+        // Not a UUID and not one of our mock trips (handled above) → no such
+        // trip exists; real trip IDs are UUIDs.
+        setTripMissing(true);
+        return;
       }
 
       // localStorage fallback
@@ -187,6 +201,10 @@ export default function TripLayout({ children, params }: TripLayoutProps) {
       </div>
     );
   }
+
+  // Bogus / stale trip link — render the real "Off the map" 404 instead of an
+  // empty buildable shell (QA #34).
+  if (tripMissing) notFound();
 
   return (
     <div className="flex h-dvh bg-parchment">

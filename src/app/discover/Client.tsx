@@ -496,6 +496,7 @@ function TopSearchCard({
   // the entire body to the editorial preview page — proper URL, browser Back
   // works. Unmatched cards fall back to the in-page filter, but the parent's
   // onSearch also pushes ?q= so Back still undoes the click.
+  const router = useRouter();
   const wrapperClass = "relative bg-gradient-to-br from-sky-600 to-sky-800 rounded-2xl overflow-hidden cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 block";
   const wrapperContent = (
     <>
@@ -511,7 +512,7 @@ function TopSearchCard({
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onWishlist(); }}
             title={canWishlist ? (wishlisted ? 'Saved to On My Radar' : 'Save to On My Radar') : 'Explorer plan required to save destinations'}
             aria-label={canWishlist ? (wishlisted ? 'Remove from On My Radar' : 'Save to On My Radar') : 'Save (Explorer plan required)'}
-            className="w-7 h-7 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all"
+            className="relative z-10 w-7 h-7 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all"
           >
             {canWishlist
               ? <Heart className={`w-3.5 h-3.5 transition-colors ${wishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
@@ -586,10 +587,22 @@ function TopSearchCard({
   );
 
   if (featuredSlug) {
+    // div + onClick (not a <Link> wrapper) so the inner "See itinerary" link
+    // and wishlist/personalize buttons aren't nested inside an anchor — that's
+    // invalid HTML and a hydration-error source (QA #32/#33). Mirrors the
+    // non-featured branch below.
     return (
-      <Link href={`/discover/${featuredSlug}`} className={wrapperClass}>
+      <div
+        className={wrapperClass}
+        role="button"
+        tabIndex={0}
+        onClick={() => router.push(`/discover/${featuredSlug}`)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') { if (e.key === ' ') e.preventDefault(); router.push(`/discover/${featuredSlug}`); }
+        }}
+      >
         {wrapperContent}
-      </Link>
+      </div>
     );
   }
 

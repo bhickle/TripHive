@@ -1,58 +1,94 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Menu, X } from 'lucide-react';
 
-/**
- * Shared marketing header used on `/` and `/pricing`.
- *
- * Before this lived in two places: `/` had the full nav with anchor links,
- * `/pricing` had a stripped-down nav with just a Back arrow + Get Started.
- * Brandon's 2026-05-29 audit flagged the inconsistency — clicking Pricing
- * from the landing page dropped the user into a visually different shell.
- *
- * Anchor links use `/#id` so they navigate-and-scroll from `/pricing` and
- * just hash-scroll from `/`. The browser handles both natively; no JS
- * scroll callback needed.
- *
- * Branding: tripcoord wordmark left, anchor nav center (hidden on mobile),
- * Log In + Get Started right. Amber on the Get Started CTA is the
- * deliberate landing-hero exception in the brand palette (the rest of the
- * app uses sky-800 for primary actions).
- */
-export function MarketingNav() {
+interface MarketingNavProps {
+  /** When true, "How It Works" + "All In One Place" anchors scroll within the
+      page; otherwise they link back to the homepage sections. */
+  showAnchors?: boolean;
+}
+
+export function MarketingNav({ showAnchors = true }: MarketingNavProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // One source of truth for the link targets so the desktop row and the mobile
+  // sheet stay in sync. Anchors scroll in-page on the landing route, otherwise
+  // they hop back to the homepage section.
+  const links = [
+    { label: 'All In One Place', href: showAnchors ? '#all-in-one' : '/#all-in-one' },
+    { label: 'How It Works', href: showAnchors ? '#how-it-works' : '/#how-it-works' },
+    { label: 'Pricing', href: '/pricing' },
+  ];
+
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-200">
-      <nav className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center">
-          <Image src="/tripcoord_logo.png" alt="tripcoord" width={140} height={44} className="h-9 w-auto" priority />
+    <nav className="sticky top-0 z-50 bg-parchment/80 backdrop-blur-md border-b border-zinc-100">
+      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <Link href="/" className="flex items-center" onClick={() => setMenuOpen(false)}>
+          <Image src="/tripcoord-wordmark.svg" alt="tripcoord" width={140} height={32} priority className="h-7 w-auto" />
         </Link>
-        <div className="hidden md:flex items-center gap-7 text-sm font-semibold text-zinc-600">
-          <Link href="/#all-in-one" className="hover:text-zinc-900 transition">
-            All In One Place
-          </Link>
-          <Link href="/#how" className="hover:text-zinc-900 transition">
-            How It Works
-          </Link>
-          <Link href="/pricing" className="hover:text-zinc-900 transition">
-            Pricing
-          </Link>
+
+        {/* Center nav links — desktop */}
+        <div className="hidden md:flex items-center gap-8">
+          {links.map(l => (
+            <Link
+              key={l.label}
+              href={l.href}
+              className="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
+            >
+              {l.label}
+            </Link>
+          ))}
         </div>
+
+        {/* Right actions */}
         <div className="flex items-center gap-3">
-          <Link
-            href="/auth/login"
-            className="text-sm font-semibold text-zinc-500 hover:text-zinc-800 px-3 py-2 rounded-lg hover:bg-zinc-100 transition"
-          >
+          <Link href="/auth/login" className="hidden sm:inline-flex text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors">
             Log In
           </Link>
-          <Link
-            href="/auth/signup"
-            className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm hover:shadow-md transition"
-          >
+          <Link href="/auth/signup" className="px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors">
             Get Started
           </Link>
+          {/* Mobile menu toggle — the center links are hidden below md, so
+              without this the Pricing page was unreachable from the top nav. */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen(v => !v)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            className="md:hidden w-9 h-9 -mr-2 flex items-center justify-center rounded-lg text-zinc-700 hover:bg-zinc-100 transition-colors"
+          >
+            {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
-      </nav>
-    </header>
+      </div>
+
+      {/* Mobile dropdown sheet */}
+      {menuOpen && (
+        <div className="md:hidden border-t border-zinc-100 bg-parchment/95 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 py-3 flex flex-col">
+            {links.map(l => (
+              <Link
+                key={l.label}
+                href={l.href}
+                onClick={() => setMenuOpen(false)}
+                className="py-2.5 text-sm font-medium text-zinc-700 hover:text-zinc-900 transition-colors"
+              >
+                {l.label}
+              </Link>
+            ))}
+            <Link
+              href="/auth/login"
+              onClick={() => setMenuOpen(false)}
+              className="sm:hidden py-2.5 text-sm font-medium text-zinc-700 hover:text-zinc-900 transition-colors border-t border-zinc-100 mt-1 pt-3"
+            >
+              Log In
+            </Link>
+          </div>
+        </div>
+      )}
+    </nav>
   );
 }
