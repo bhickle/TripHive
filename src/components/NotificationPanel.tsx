@@ -156,31 +156,34 @@ export interface Notification {
 function NotifIcon({ type }: { type: NotifType }) {
   const base = 'w-4 h-4';
   switch (type) {
+    // Palette-disciplined: sky for the default informational types (icon shape
+    // differentiates them), emerald for money-positive, rose for member/billing,
+    // zinc for neutral reminders. (Was violet/amber/indigo/orange — off-palette.)
     case 'itinerary': return <MapPin className={`${base} text-sky-600`} />;
-    case 'chat': return <MessageSquare className={`${base} text-violet-600`} />;
+    case 'chat': return <MessageSquare className={`${base} text-sky-600`} />;
     case 'expense': return <DollarSign className={`${base} text-emerald-600`} />;
-    case 'vote': return <ThumbsUp className={`${base} text-amber-600`} />;
+    case 'vote': return <ThumbsUp className={`${base} text-sky-600`} />;
     case 'member': return <UserPlus className={`${base} text-rose-600`} />;
     case 'ai': return <Sparkles className={`${base} text-sky-600`} />;
-    case 'transport': return <Route className={`${base} text-indigo-600`} />;
-    case 'reminder': return <Calendar className={`${base} text-orange-600`} />;
+    case 'transport': return <Route className={`${base} text-sky-600`} />;
+    case 'reminder': return <Calendar className={`${base} text-zinc-500`} />;
     case 'billing': return <CreditCard className={`${base} text-rose-700`} />;
-    default: return <Bell className={`${base} text-slate-500`} />;
+    default: return <Bell className={`${base} text-zinc-500`} />;
   }
 }
 
 function notifTypeBg(type: NotifType) {
   switch (type) {
     case 'itinerary': return 'bg-sky-50';
-    case 'chat': return 'bg-violet-50';
+    case 'chat': return 'bg-sky-50';
     case 'expense': return 'bg-emerald-50';
-    case 'vote': return 'bg-amber-50';
+    case 'vote': return 'bg-sky-50';
     case 'member': return 'bg-rose-50';
     case 'ai': return 'bg-sky-50';
-    case 'transport': return 'bg-indigo-50';
-    case 'reminder': return 'bg-orange-50';
+    case 'transport': return 'bg-sky-50';
+    case 'reminder': return 'bg-zinc-100';
     case 'billing': return 'bg-rose-50';
-    default: return 'bg-slate-50';
+    default: return 'bg-zinc-100';
   }
 }
 

@@ -74,7 +74,9 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 ## 🟡 Low — palette, docs, polish
 
-### 25. Brand-color cleanup (NEW, themed batch)
+### 25. Brand-color cleanup (NEW, themed batch) — PARTLY DONE 2026-06-01
+_DONE: NotificationPanel + notifications/page per-type color maps remapped to the sanctioned palette (sky for informational types, emerald for money/achievement, rose for member/billing, zinc for neutral reminders) — the audit's #1 palette spot. **Note:** collapsing several types to `sky` is a deliberate call (icon shape differentiates them) — flag if you want more color variety here.
+REMAINING (mechanical, low-impact tail, ready to grind on request):_
 Off-palette usages vs the CLAUDE.md "Brand color discipline" ruling. Concentrated spots:
 - **NotificationPanel.tsx + notifications/page.tsx** — per-type color maps use violet/amber/indigo/orange/teal (chat=violet, vote=amber, transport=indigo, reminder=orange, trip_invite=teal, badge=indigo). → sky/zinc/emerald per role.
 - **layover/Client.tsx:770-774** — category map (orange food, pink shopping, purple lounge, green relax, blue sightseeing) + `:609` violet "Long layover" + `:318` amber over-budget warning (should be rose).

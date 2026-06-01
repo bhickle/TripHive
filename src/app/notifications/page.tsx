@@ -25,21 +25,24 @@ interface NotificationRow {
 }
 
 const TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
+  // Palette-disciplined (mirrors NotificationPanel): sky for informational
+  // types, emerald for money/achievement, rose for group/member, zinc for
+  // neutral reminders. (Was violet/amber/indigo/orange/teal — off-palette.)
   activity:           { label: 'Activity', color: 'bg-sky-100 text-sky-700',         icon: '📍' },
   // DB-side aliases written by /api/messages and chat/vote routes.
-  new_message:        { label: 'Chat',     color: 'bg-violet-100 text-violet-700',   icon: '💬' },
-  chat:               { label: 'Chat',     color: 'bg-violet-100 text-violet-700',   icon: '💬' },
+  new_message:        { label: 'Chat',     color: 'bg-sky-100 text-sky-700',         icon: '💬' },
+  chat:               { label: 'Chat',     color: 'bg-sky-100 text-sky-700',         icon: '💬' },
   expense:            { label: 'Expense',  color: 'bg-emerald-100 text-emerald-700', icon: '💸' },
-  new_vote:           { label: 'Vote',     color: 'bg-amber-100 text-amber-700',     icon: '🗳️' },
-  vote:               { label: 'Vote',     color: 'bg-amber-100 text-amber-700',     icon: '🗳️' },
+  new_vote:           { label: 'Vote',     color: 'bg-sky-100 text-sky-700',         icon: '🗳️' },
+  vote:               { label: 'Vote',     color: 'bg-sky-100 text-sky-700',         icon: '🗳️' },
   member_joined:      { label: 'Group',    color: 'bg-rose-100 text-rose-700',       icon: '👥' },
   member:             { label: 'Group',    color: 'bg-rose-100 text-rose-700',       icon: '👥' },
-  ai:                 { label: 'AI',       color: 'bg-indigo-100 text-indigo-700',   icon: '✦' },
-  prep:               { label: 'Prep',     color: 'bg-orange-100 text-orange-700',   icon: '📋' },
-  trip_invite:        { label: 'Invite',   color: 'bg-teal-100 text-teal-700',       icon: '✉️' },
+  ai:                 { label: 'AI',       color: 'bg-sky-100 text-sky-700',         icon: '✦' },
+  prep:               { label: 'Prep',     color: 'bg-zinc-100 text-zinc-600',       icon: '📋' },
+  trip_invite:        { label: 'Invite',   color: 'bg-sky-100 text-sky-700',         icon: '✉️' },
   partner_added:      { label: 'Added',    color: 'bg-rose-100 text-rose-700',       icon: '👥' },
-  pass_pending_prefs: { label: 'Reminder', color: 'bg-orange-100 text-orange-700',   icon: '📋' },
-  badge_earned:       { label: 'Badge',    color: 'bg-indigo-100 text-indigo-700',   icon: '🏅' },
+  pass_pending_prefs: { label: 'Reminder', color: 'bg-zinc-100 text-zinc-600',       icon: '📋' },
+  badge_earned:       { label: 'Badge',    color: 'bg-emerald-100 text-emerald-700', icon: '🏅' },
 };
 
 function timeAgo(iso: string): string {
