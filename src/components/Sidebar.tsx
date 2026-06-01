@@ -256,7 +256,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
 
       <aside
         style={{ background: '#2c2826', borderRight: '1px solid rgba(255,255,255,0.06)' }}
-        className={`fixed top-0 left-0 w-64 h-screen z-40 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex-shrink-0 ${
+        className={`fixed top-0 left-0 w-64 h-dvh z-40 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex-shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

@@ -61,6 +61,12 @@ export async function POST(request: NextRequest) {
     if (!imageBase64) {
       return NextResponse.json({ error: 'imageBase64 is required' }, { status: 400 });
     }
+    // Cap the payload so an oversized upload can't run up vision-token cost or
+    // pressure function memory. base64 is ~4/3 the byte size; ~10 MB decoded
+    // ≈ 14M chars (QA #22).
+    if (typeof imageBase64 !== 'string' || imageBase64.length > 14_000_000) {
+      return NextResponse.json({ error: 'IMAGE_TOO_LARGE', message: 'Image is too large — please use one under ~10 MB.' }, { status: 413 });
+    }
 
     const message = await client.messages.create({
       // Receipt OCR + structured extract (line items + total). Haiku 4.5

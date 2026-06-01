@@ -882,7 +882,12 @@ export default function GroupPage({ params }: { params: { id: string } }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error('Vote failed');
+        if (!res.ok) {
+          // Surface the server's specific reason (e.g. "This poll is closed",
+          // max-picks) instead of a generic retry message (QA #24).
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.error || 'Vote failed');
+        }
         // Reconcile against the server's canonical counts. Catches
         // concurrent votes from other members that our local +1/-1
         // arithmetic missed — without this we'd show stale numbers
@@ -900,11 +905,15 @@ export default function GroupPage({ params }: { params: { id: string } }) {
             };
           }));
         }
-      } catch {
-        // Rollback optimistic update on failure + surface the error
+      } catch (err) {
+        // Rollback optimistic update on failure + surface the server's specific
+        // reason when it gave one.
         setVotes(prevVotes);
         setUserVotes(prevUserVotes);
-        setActionError("Couldn't save your vote. Please try again.");
+        const msg = err instanceof Error && err.message && err.message !== 'Vote failed'
+          ? err.message
+          : "Couldn't save your vote. Please try again.";
+        setActionError(msg);
         setTimeout(() => setActionError(null), 4000);
       }
     }

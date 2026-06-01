@@ -80,6 +80,12 @@ export async function POST(req: NextRequest) {
 
   const isPdf = !!pdfBase64;
 
+  // Cap the PDF payload (~10 MB decoded ≈ 14M base64 chars) to bound
+  // document-token cost / function memory (QA #22).
+  if (isPdf && (typeof pdfBase64 !== 'string' || pdfBase64.length > 14_000_000)) {
+    return NextResponse.json({ error: 'PDF_TOO_LARGE', message: 'PDF is too large — please use one under ~10 MB.' }, { status: 413 });
+  }
+
   if (!isPdf && (!text || text.trim().length < 50 || text === '__PDF__')) {
     return NextResponse.json({ error: 'TOO_SHORT', message: 'Not enough text to parse an itinerary.' }, { status: 400 });
   }
