@@ -179,7 +179,11 @@ export async function POST(req: NextRequest) {
           // Otherwise an Explorer/Nomad user buying a Trip Pass for a
           // friend/group would be downgraded.
           const tripId = session.metadata?.trip_id;
-          const extraPeople = parseInt(session.metadata?.extra_people ?? '0', 10);
+          // Clamp to a whole number in [0, 6] (base Trip Pass = 6 travelers,
+          // hard cap 12). The checkout route already clamps, but this is the
+          // value that lands in trip_passes.extra_people → the traveler cap, so
+          // clamp here too as defense-in-depth (QA #3).
+          const extraPeople = Math.min(6, Math.max(0, parseInt(session.metadata?.extra_people ?? '0', 10) || 0));
           const now = new Date();
           const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
           const supabaseAdmin = createAdminClient();

@@ -206,12 +206,30 @@ export async function PATCH(
       if (!canEditTrip) {
         return NextResponse.json({ error: 'Only organizers and co-organizers can edit trip details' }, { status: 403 });
       }
+      // Allow-list the patchable columns. `tripPatch` is TS-typed, but types are
+      // erased at runtime — spreading it straight into .update() would let a
+      // crafted body write protected columns (organizer_id, is_founder_featured,
+      // build_credits_charged_at, fork_source_id, …). Pick only the documented
+      // fields. (QA #7 — mass-assignment via the admin client, which bypasses RLS.)
+      const TRIP_PATCHABLE = [
+        'destination', 'title', 'start_date', 'end_date', 'trip_length',
+        'itinerary_generated_at', 'booked_hotels', 'booked_flight', 'is_private',
+        'is_public_template', 'cover_image', 'cover_image_meta', 'visited_cities',
+      ] as const;
+      const src = tripPatch as Record<string, unknown>;
+      const safeTripPatch: Record<string, unknown> = {};
+      for (const k of TRIP_PATCHABLE) {
+        if (src[k] !== undefined) safeTripPatch[k] = src[k];
+      }
+      if (Object.keys(safeTripPatch).length === 0) {
+        return NextResponse.json({ error: 'No editable trip fields in request' }, { status: 400 });
+      }
       // Return the updated row so the caller can reconcile against the
       // canonical server state — any future server-side normalization
       // (defaults, validation, triggers) won't drift the UI silently.
       const { data, error } = await supabase
         .from('trips')
-        .update(tripPatch)
+        .update(safeTripPatch as NonNullable<typeof tripPatch>)
         .eq('id', params.id)
         .select()
         .single();
