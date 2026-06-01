@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { consumeRateLimit } from '@/lib/supabase/rateLimit';
 import dns from 'node:dns/promises';
 
 /**
@@ -212,6 +213,10 @@ async function fetchOne(rawUrl: string): Promise<string> {
 export async function POST(req: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+  // Per-user rate limit — fans out to several outbound fetches; bound abuse (QA #21).
+  if (!(await consumeRateLimit(`fetch_reference:user:${auth.ctx.userId}`, 20, 60))) {
+    return NextResponse.json({ error: 'RATE_LIMITED', content: '' }, { status: 429 });
+  }
 
   let urls: string[] = [];
   try {

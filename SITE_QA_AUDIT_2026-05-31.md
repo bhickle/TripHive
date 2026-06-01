@@ -62,7 +62,7 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 - [x] **20. `Math.random()` in a render-path state initializer (NEW). — DONE 2026-06-01** (ParseTransportModal picks the example in a `useEffect` after mount). `src/components/ParseTransportModal.tsx:193` → server/client hydration mismatch on the example placeholder. **Fix:** pick after mount in `useEffect`.
 
-- [ ] **21. No rate-limit on server fetch proxies (NEW).** `og-preview`, `fetch-reference`, `google/resolve`, `unsplash/photo` make outbound fetches with auth-only (no `consumeRateLimit`) → one logged-in account can drain quota / the Unsplash demo key. **Fix:** add the existing `consumeRateLimit` helper per-user/IP.
+- [x] **21. No rate-limit on server fetch proxies (NEW). — DONE 2026-06-01** (per-user `consumeRateLimit` on og-preview 30/min, fetch-reference 20/min, google/resolve 30/min, unsplash/photo 60/min — generous enough for normal use, friction for a loop). `og-preview`, `fetch-reference`, `google/resolve`, `unsplash/photo` make outbound fetches with auth-only (no `consumeRateLimit`) → one logged-in account can drain quota / the Unsplash demo key. **Fix:** add the existing `consumeRateLimit` helper per-user/IP.
 
 - [ ] **22. No size cap on base64 uploads (NEW).** `parse-receipt/route.ts:59` (`imageBase64`), `parse-itinerary/route.ts:78` (`pdfBase64`) — no byte cap → cost amplification / OOM risk. **Fix:** reject blobs over ~5–10 MB (mirror the avatar `MAX_BYTES`).
 

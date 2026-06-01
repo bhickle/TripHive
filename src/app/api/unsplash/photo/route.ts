@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { consumeRateLimit } from '@/lib/supabase/rateLimit';
 
 /**
  * GET /api/unsplash/photo?q=<destination>   [auth required]
@@ -21,6 +22,12 @@ import { requireAuth } from '@/lib/supabase/requireAuth';
 export async function GET(req: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+  // Per-user rate limit. Called once per trip-card cover, so allow a generous
+  // burst for a multi-trip dashboard; the 7-day fetch cache + curated photos
+  // mean only the long tail reaches Unsplash. Bounds a runaway loop (QA #21).
+  if (!(await consumeRateLimit(`unsplash_photo:user:${auth.ctx.userId}`, 60, 60))) {
+    return NextResponse.json({ photo: null }, { status: 429 });
+  }
 
   const url = new URL(req.url);
   const query = (url.searchParams.get('q') ?? '').trim();

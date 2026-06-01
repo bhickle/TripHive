@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { consumeRateLimit } from '@/lib/supabase/rateLimit';
 import dns from 'node:dns/promises';
 
 export const runtime = 'nodejs';
@@ -75,6 +76,11 @@ async function resolvedHostIsSafe(hostname: string): Promise<boolean> {
 export async function POST(req: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+  // Per-user rate limit — this is an outbound-fetch proxy; bound one account
+  // from looping it (QA #21).
+  if (!(await consumeRateLimit(`og_preview:user:${auth.ctx.userId}`, 30, 60))) {
+    return NextResponse.json({ error: 'RATE_LIMITED', message: 'Too many requests — please slow down.' }, { status: 429 });
+  }
 
   try {
     const { url } = await req.json();

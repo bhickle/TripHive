@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isGoogleMapsUrl } from '@/lib/google/parseMapsUrl';
 import { requireAuth } from '@/lib/supabase/requireAuth';
+import { consumeRateLimit } from '@/lib/supabase/rateLimit';
 
 /**
  * POST /api/google/resolve
@@ -38,6 +39,10 @@ const MAX_REDIRECTS = 5;
 export async function POST(request: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+  // Per-user rate limit — follows a redirect chain server-side; bound abuse (QA #21).
+  if (!(await consumeRateLimit(`google_resolve:user:${auth.ctx.userId}`, 30, 60))) {
+    return NextResponse.json({ error: 'RATE_LIMITED', message: 'Too many requests — please slow down.' }, { status: 429 });
+  }
 
   let url: string;
   try {
