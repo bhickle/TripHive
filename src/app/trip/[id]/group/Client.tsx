@@ -70,6 +70,7 @@ import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { EmptyState } from '@/components/EmptyState';
 import type { ItineraryDay, Activity } from '@/lib/types';
+import { normalizeDays } from '@/lib/itinerary/normalizeDay';
 
 type TabType = 'overview' | 'expenses' | 'chat' | 'votes';
 
@@ -187,7 +188,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         }
         if (tripRes.status === 'fulfilled' && tripRes.value?.itinerary?.days) {
           const days: ItineraryDay[] = tripRes.value.itinerary.days;
-          setItineraryDaysData(days);
+          setItineraryDaysData(normalizeDays(days));
           // Find all activities where downVotes > upVotes
           const nays: NayActivity[] = [];
           for (const day of days) {
@@ -446,7 +447,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
         if (res.ok) {
           const data = await res.json();
           days = data.itinerary?.days ?? [];
-          setItineraryDaysData(days);
+          setItineraryDaysData(normalizeDays(days));
         }
       }
       const dayIndex = days.findIndex(d => d.day === dayNumber);

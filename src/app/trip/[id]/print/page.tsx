@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import type { ItineraryDay, Activity, PhotoSpot } from '@/lib/types';
+import { normalizeDays } from '@/lib/itinerary/normalizeDay';
 
 // Types specific to the print view's local read of the itinerary blob.
 // `meta` is the itinerary.meta JSON column — only the fields the print
@@ -53,7 +54,7 @@ export default function PrintItineraryPage() {
           if (res.ok) {
             const { itinerary } = await res.json();
             if (itinerary?.days?.length) {
-              setDays(itinerary.days);
+              setDays(normalizeDays(itinerary.days));
               setMeta(itinerary.meta ?? null);
               setLoading(false);
               return;
@@ -70,7 +71,7 @@ export default function PrintItineraryPage() {
       // Non-UUID id (demo path): localStorage IS the source of truth.
       try {
         const stored = localStorage.getItem('generatedItinerary');
-        if (stored) setDays(JSON.parse(stored));
+        if (stored) setDays(normalizeDays(JSON.parse(stored)));
         const storedMeta = localStorage.getItem('generatedTripMeta');
         if (storedMeta) setMeta(JSON.parse(storedMeta));
       } catch {}

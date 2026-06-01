@@ -4,6 +4,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { itineraryDays, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
+import type { Database } from '@/lib/supabase/database.types';
+
+type TripRow = Database['public']['Tables']['trips']['Row'];
 import { normalizeVenueKey } from '@/lib/places/verifyVenues';
 import { usePlacesSearch, PlaceDetails } from '@/hooks/usePlacesSearch';
 import { parseGoogleMapsUrl, isGoogleMapsUrl } from '@/lib/google/parseMapsUrl';
@@ -493,7 +496,7 @@ function ItineraryPageContent() {
 
   // Group input / regenerate state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [tripRow, setTripRow] = useState<Record<string, any> | null>(null);
+  const [tripRow, setTripRow] = useState<TripRow | null>(null);
   // Public-to-community toggle saving flag (small spinner overlay on the
   // header globe button). The actual is_public_template value is read
   // directly from tripRow so it stays in sync with any other writes.
@@ -2168,7 +2171,7 @@ function ItineraryPageContent() {
       status: ((tripRow?.status as string) ?? 'planning') as 'planning' | 'active' | 'completed',
       budgetTotal: aiMeta?.budget ?? (tripRow?.budget_total as number) ?? 0,
       budgetBreakdown: (aiMeta?.budgetBreakdown as unknown as typeof trips[0]['budgetBreakdown'])
-        ?? (tripRow?.budget_breakdown as typeof trips[0]['budgetBreakdown'])
+        ?? (tripRow?.budget_breakdown as unknown as typeof trips[0]['budgetBreakdown'])
         ?? { flights: 0, hotel: 0, food: 0, experiences: 0, transport: 0 },
       memberCount: (tripRow?.group_size as number) ?? 1,
       guestCount: 0,
