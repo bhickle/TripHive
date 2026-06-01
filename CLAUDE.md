@@ -63,7 +63,7 @@ src/
       new/page.tsx              # Trip Builder (8-step wizard)
       generating/page.tsx       # Live build loading screen (legacy path)
       [id]/
-        itinerary/page.tsx      # Main itinerary page (3900+ lines — the core)
+        itinerary/page.tsx      # thin server shell → Client.tsx (~5000-line core)
         group/page.tsx          # Group collaboration hub
         prep/page.tsx           # Prep Hub (packing, Don't Forget, What's Out There, Phrases)
         print/page.tsx          # PDF export / print view
@@ -279,11 +279,7 @@ These are the active items to build/fix, in rough priority order. Note: this lis
 - [ ] Reset AI credits: `UPDATE profiles SET ai_credits_used = 0;` (run on the day of launch, after final testing)
 - [ ] Reset Brandon's credits during testing: `UPDATE profiles SET ai_credits_used = 0 WHERE email = 'brandon.hickle@gmail.com';`
 - [ ] Set `CRON_SECRET` in Vercel env vars (any random string) — the daily preferences-fallback cron at `/api/cron/preferences-fallback` returns 500 every day at 09:00 UTC until set. Steps in the route's docstring.
-- [ ] **Drop three brand icon assets in `/public/`** — none of these exist yet, so:
-  - `og-image.png` (1200×630) — what shows when someone shares a tripcoord.ai link on iMessage/Slack/Twitter/Facebook. Without it, the preview thumbnail is blank. Referenced in layout metadata since commit `4653e36`.
-  - `favicon.ico` (16×16 + 32×32 multi-size .ico file) — the small icon in browser tabs and bookmarks. Without it, browsers show a default generic icon.
-  - `apple-touch-icon.png` (180×180) — the icon iOS uses when someone adds tripcoord to their home screen. Without it, iOS uses a screenshot of the page, which looks ugly.
-  - All three can be generated from the tripcoord wordmark/icon — a free service like [realfavicongenerator.net](https://realfavicongenerator.net) takes one source image and outputs the full set. Drop the files in `/public/` and they just work; no code changes needed.
+- [x] ~~Drop three brand icon assets~~ — **DONE 2026-05-25 (commit `4fec0d7`):** `/public/og-image.png`, `src/app/apple-icon.png`, `src/app/icon.png` shipped; the default Next favicon was removed (Next generates the favicon from `app/icon`).
 - [ ] Configure Google OAuth — Google Cloud Console → OAuth Client ID → redirect URI `https://pqizuvmtertpxhhxyemj.supabase.co/auth/v1/callback` → paste keys into Supabase Auth → Providers → Google. Then re-render the hidden Google sign-in buttons on `/auth/login` + `/auth/signup` (handlers were removed in commit `4653e36`; restore handler + button together when ready).
 - [ ] Register for Viator + GetYourGuide affiliate programs (blocked until live site approval) → add `VIATOR_AFFILIATE_ID` + `GETYOURGUIDE_AFFILIATE_ID` to Vercel env. Run `scripts/enrich-affiliate-links.ts` to backfill existing activities.
 - [ ] Run full pre-launch test pass (see `GOLIVE_CHECKLIST.md`)
@@ -292,8 +288,8 @@ These are the active items to build/fix, in rough priority order. Note: this lis
 
 ## Code Conventions & Gotchas
 
-### Declaration Order in itinerary/page.tsx
-This file is 4000+ lines. `useCallback` and `useMemo` must come **after** all the `useState` and `useRef` declarations they reference. TypeScript in strict Next.js builds treats forward references inside closures as errors. Always grep `const \[myVar` vs `const myFunc` to verify ordering before committing.
+### Declaration Order in itinerary/Client.tsx
+This file is ~5000 lines (the real code; `itinerary/page.tsx` is a thin server shell). `useCallback` and `useMemo` must come **after** all the `useState` and `useRef` declarations they reference. TypeScript in strict Next.js builds treats forward references inside closures as errors. Always grep `const \[myVar` vs `const myFunc` to verify ordering before committing.
 
 ### TypeScript Property Access
 Always check `src/lib/types.ts` before accessing a property on a typed object. Common traps:
@@ -404,9 +400,9 @@ All session notes live in `CHANGELOG.md` (newest first): the **2026-05-30 full-s
 
 | What you're changing | File |
 |---------------------|------|
-| Itinerary page (main) | `src/app/trip/[id]/itinerary/page.tsx` |
+| Itinerary page (main) | `src/app/trip/[id]/itinerary/Client.tsx` (the ~5000-line core; `page.tsx` is a thin server shell) |
 | AI generation prompt | `src/app/api/generate-itinerary/route.ts` |
-| Trip Builder wizard | `src/app/trip/new/page.tsx` |
+| Trip Builder wizard | `src/app/trip/new/Client.tsx` (`page.tsx` is a thin shell) |
 | Feature gates / entitlements | `src/hooks/useEntitlements.ts` |
 | Tier definitions + limits | `src/lib/types.ts` (TIER_LIMITS) |
 | Stripe price IDs | `src/lib/stripe-prices.ts` |

@@ -48,9 +48,9 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 - [x] **13. Continuation prompt drops per-day city + weekday map (NEW). — DONE 2026-06-01** (continuation pass now includes a weekday-calendar slice for the remaining days — restoring the closed-hours safeguard — and, for multi-city, an explicit day→city map so tail days get the right city and pass the verify gate). `generate-itinerary/route.ts:2492-2557`. A truncated multi-city tail can get the wrong city assigned to remaining days (then the gate rejects them, burning slots) and loses the closed-on-Monday safeguard. **Fix:** pass the explicit remaining day→city range + weekday slice into the continuation prompt.
 
-- [ ] **14. `/api/trips` returns `200 {trips:[]}` for no-session (KNOWN deferred).** `src/app/api/trips/route.ts:27`. Inconsistent with every other trip route (which 401); the dashboard's "bounce to login on 401" (`dashboard/Client.tsx:95`) is dead code → an expired session shows an empty dashboard.
+- [ ] **14. `/api/trips` returns `200 {trips:[]}` for no-session (KNOWN deferred).** `src/app/api/trips/route.ts:27`. Inconsistent with every other trip route (which 401); the dashboard's "bounce to login on 401" (`dashboard/Client.tsx:95`) is dead code → an expired session shows an empty dashboard. **DEFERRED:** the proper fix is a `/api/trips` contract change touching multiple callers; low impact (the trip layout already redirects unauth users). Left for a deliberate pass.
 
-- [ ] **15. Sidebar mobile drawer still uses `h-screen` (NEW — last 100vh leftover).** `src/components/Sidebar.tsx:259`. The off-canvas nav drawer is `h-screen` (the dvh sweep missed it), so its footer sits behind the device nav bar on mobile. **Fix:** `h-screen` → `h-dvh`.
+- [x] **15. Sidebar mobile drawer still uses `h-screen` (NEW — last 100vh leftover). — DONE 2026-06-01** (`h-screen` → `h-dvh`).
 
 - [x] **16. `tripRow` typed as `Record<string, any>` (NEW). — DONE 2026-06-01** (typed as `Database['public']['Tables']['trips']['Row'] | null`; surfaced + fixed one masked `budget_breakdown` cast. A column rename now fails the build instead of silently reading `undefined`). `src/app/trip/[id]/itinerary/Client.tsx:496`. Every `tripRow?.start_date` / `group_size` / `budget_total` is unchecked — a DB column rename reads `undefined` with zero compile error. **Fix:** type it `Database['public']['Tables']['trips']['Row'] | null`.
 
@@ -64,11 +64,11 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 - [x] **21. No rate-limit on server fetch proxies (NEW). — DONE 2026-06-01** (per-user `consumeRateLimit` on og-preview 30/min, fetch-reference 20/min, google/resolve 30/min, unsplash/photo 60/min — generous enough for normal use, friction for a loop). `og-preview`, `fetch-reference`, `google/resolve`, `unsplash/photo` make outbound fetches with auth-only (no `consumeRateLimit`) → one logged-in account can drain quota / the Unsplash demo key. **Fix:** add the existing `consumeRateLimit` helper per-user/IP.
 
-- [ ] **22. No size cap on base64 uploads (NEW).** `parse-receipt/route.ts:59` (`imageBase64`), `parse-itinerary/route.ts:78` (`pdfBase64`) — no byte cap → cost amplification / OOM risk. **Fix:** reject blobs over ~5–10 MB (mirror the avatar `MAX_BYTES`).
+- [x] **22. No size cap on base64 uploads (NEW). — DONE 2026-06-01** (parse-receipt + parse-itinerary reject base64 over ~10 MB with 413).
 
 - [x] **23. `[day-swap]` `console.log` ships to production (NEW). — DONE 2026-06-01** (removed). `src/app/trip/[id]/itinerary/Client.tsx:3648` fires on every drag/reorder. **Fix:** delete.
 
-- [ ] **24. Vote-cast errors are generic (NEW).** `src/app/trip/[id]/group/Client.tsx:885-908` throws a generic "try again" and discards the server's specific 400s ("This poll is closed", max-picks). **Fix:** read `data.error` and surface it (like the add-day caller does).
+- [x] **24. Vote-cast errors are generic (NEW). — DONE 2026-06-01** (reads `data.error` and surfaces the server's specific reason).
 
 ---
 
@@ -97,8 +97,8 @@ Off-palette usages vs the CLAUDE.md "Brand color discipline" ruling. Concentrate
 - **Other off-palette:** `Sidebar.tsx:33` Nomad badge orange (inconsistent with sky trip_pass/explorer), `Sidebar.tsx:128,136` green active nav, `ParseTransportModal:29-32` indigo + `:154` amber warning icon, `prep:1831-1836` blue SIM-card info (→ zinc FYI), `world:781` purple-50 gradient, `page.tsx:41-512` blue-50/100 on hero.
 - Correctly sanctioned (no change): Track B = amber, AI-Pick = violet, paid/upsell amber, emerald "Best value".
 
-### 26. CLAUDE.md staleness (NEW) — MOSTLY DONE 2026-06-01
-_Fixed: middleware line 11→15, empty-state count, property-access note (no `trips.destinations[]`), `AI_CREDIT_COSTS` comment (250→200), members-route tier-cap comment (8/15→6/12). Still open: (a) page.tsx-vs-Client.tsx Project-Structure/Key-File pointers, (d) icon-assets go-live bullet (mark done)._
+### 26. CLAUDE.md staleness (NEW) — DONE 2026-06-01
+_All fixed: middleware line 11→15, empty-state count, property-access note (no `trips.destinations[]`), `AI_CREDIT_COSTS` comment (250→200), members-route tier-cap comment (8/15→6/12), page.tsx→Client.tsx pointers (Project Structure + Key File Reference + Declaration-Order section), and the icon-assets go-live bullet marked done._
 - (a) "Project Structure" + "Key File Reference" point at `*/page.tsx`, but real code lives in sibling `Client.tsx` (page files are thin shells — e.g. `itinerary/page.tsx` is ~15 lines, the 4000-line core is `itinerary/Client.tsx`).
 - (b) Middleware "line 11" → actually **line 15**.
 - (c) Empty-state "three surfaces (chat/expenses/packing)" → now 8 files / 12 usages.
@@ -107,8 +107,8 @@ _Fixed: middleware line 11→15, empty-state count, property-access note (no `tr
 - (f) `members/route.ts:285-288` comment says "explorer→8 / nomad→15" (code is correct via `TIER_LIMITS`).
 - (g) "TypeScript Property Access" note references `trips.itinerary_data` / `destinations[]` columns that don't exist (days live in `itineraries.days`; `trips.destination` is singular; multi-city comes from `preferences.destinations`).
 
-### 27. Stale magic literals (NEW) — PARTLY DONE 2026-06-01
-_members route trip-pass base `6` → `PRICING.trip_pass.baseGroupSize`. Still open: the `+$4/person … up to 12` hardcoded strings on the pricing page (interpolate `PRICING`); the `: 4` free-cap fallback left as-is (dead safety net)._
+### 27. Stale magic literals (NEW) — DONE 2026-06-01 (with accepted exceptions)
+_members route trip-pass base `6` → `PRICING.trip_pass.baseGroupSize`. Accepted as static marketing copy (not interpolated): the `+$4/person … up to 12` strings on the pricing page — they're correct today and reprice-time will touch this copy anyway. The `: 4` free-cap fallback left as a dead safety net (the live value comes from `TIER_LIMITS`)._
 - `members/route.ts:308,311` — literal `6` (trip-pass base) and `4` (free) instead of `PRICING.trip_pass.baseGroupSize` / `TIER_LIMITS.free.travelersPerTrip`.
 - `pricing/Client.tsx:387,526` + FAQ `:66` — `+$4/person … up to 12` hardcoded instead of interpolating `PRICING` (drift risk under the MONETIZATION repricing plan).
 
@@ -116,18 +116,24 @@ _members route trip-pass base `6` → `PRICING.trip_pass.baseGroupSize`. Still o
 _Dropped the `as unknown` cast; calling `supabase.rpc('trip_cities', …)` directly now that the RPC is in the generated types._
 `api/trips/route.ts:111` casts through `unknown` "because the typed client doesn't know the RPC" — it does now (present in `database.types.ts`). Drop the cast.
 
-### 29. `generate-hotels` / `generate-discover` emit AI venues with no Tier-1 check (NEW)
+### 29. `generate-hotels` / `generate-discover` emit AI venues with no Tier-1 check (NEW) — CONSCIOUSLY EXEMPT 2026-06-01
+_Decided to leave exempt: hotels are search-URL suggestions (not scheduled itinerary content) and discover items have no scheduling/addresses to anchor — running them through the verify gate risks over-rejecting valid suggestions for little benefit. Revisit only if hallucinated venues on these surfaces become a real complaint._
+
+#### (original)
 `generate-hotels/route.ts:40-59` (full address), `generate-discover/route.ts:44-75` (neighborhood location). Softer surface (hotels are search-URLs, discover has no scheduling) but technically outside verify-before-show. **Fix:** run `addressContainsCity` on the hotel address / discover location, or consciously document them exempt.
 
-### 30. Settlement DELETE is any-member (NEW, verify)
+### 30. Settlement DELETE is any-member (NEW, verify) — CONFIRMED INTENTIONAL 2026-06-01
+_Left as-is: settle-up is a shared group activity, and DELETE is already scoped to the trip (`trip_id`) behind `requireTripAccess`, so it's not a cross-trip leak. Any member correcting a mistaken settlement is the intended behavior._
+
+#### (original)
 `settlements/route.ts:98-113` lets any trip member delete any settlement (looser than the expenses gate). Likely intentional for group settle-up — confirm.
 
 ---
 
 ## 🗄️ Database advisors (Supabase linter)
 
-- [ ] **31. 5 tables: RLS enabled, no policy (INFO).** `expense_settlements`, `lifecycle_emails_sent`, `rate_limits`, `venue_location_cache`, `wishlist_items`. This is *deny-all* to the anon/authed client (admin client bypasses) — "locked by default." **Confirm each is only accessed server-side via the admin client**, or add explicit policies. `wishlist_items` is the one to double-check (user-owned data).
-- [ ] **32. Leaked-password protection OFF (KNOWN — DB-5).** Enable HaveIBeenPwned check in Supabase Auth → Providers → Password.
+- [x] **31. 5 tables: RLS enabled, no policy (INFO). — VERIFIED 2026-06-01:** confirmed all five (`wishlist_items`, `expense_settlements`, `lifecycle_emails_sent`, `rate_limits`, `venue_location_cache`) are accessed **only** via server API routes/cron using the admin client — none in any browser-client file. So RLS-no-policy is correct "locked by default"; no action needed. `expense_settlements`, `lifecycle_emails_sent`, `rate_limits`, `venue_location_cache`, `wishlist_items`. This is *deny-all* to the anon/authed client (admin client bypasses) — "locked by default." **Confirm each is only accessed server-side via the admin client**, or add explicit policies. `wishlist_items` is the one to double-check (user-owned data).
+- [ ] **32. Leaked-password protection OFF (KNOWN — DB-5). — BRANDON-OWNED:** Supabase dashboard toggle (Auth → Providers → Password → enable HaveIBeenPwned). Not code; left for you.
 - **33. 2 always-true INSERT policies (WARN).** `destination_events` + `waitlist` public insert — both intentional (event logging / waitlist signup). No action, noted.
 - **34. Performance (109 lints, post-traffic / DB-7 class):** 59 "Auth RLS Initialization Plan" warns (wrap `auth.uid()` in `(select auth.uid())` to evaluate once per query, not per row), 16 "Multiple Permissive Policies", 31 unused indexes, 2 unindexed FKs (`support_tickets`). Not launch-blocking; revisit when real traffic justifies.
 
