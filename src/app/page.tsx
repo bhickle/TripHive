@@ -38,11 +38,11 @@ export default function HomePage() {
           <h1 className="font-script italic text-5xl sm:text-6xl lg:text-7xl font-semibold leading-tight mb-6">
             Plan it together. Pull it off as a group.
           </h1>
-          <p className="text-xl sm:text-2xl text-blue-50 mb-8 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl sm:text-2xl text-sky-50 mb-8 max-w-3xl mx-auto leading-relaxed">
             Vote on activities, split costs, run two tracks on the same day, and meet for dinner.
             tripcoord runs your trip — not just your itinerary.
           </p>
-          <p className="text-base text-blue-100 mb-10 max-w-2xl mx-auto">
+          <p className="text-base text-sky-100 mb-10 max-w-2xl mx-auto">
             On your own, or with the whole crew.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -59,7 +59,7 @@ export default function HomePage() {
               See How It Works
             </Link>
           </div>
-          <p className="text-blue-100 text-sm mt-8">No credit card to start • Solo or group</p>
+          <p className="text-sky-100 text-sm mt-8">No credit card to start • Solo or group</p>
         </div>
       </section>
 
@@ -509,7 +509,7 @@ export default function HomePage() {
           >
             Start planning — free <ArrowRight className="w-5 h-5" />
           </Link>
-          <p className="text-blue-100 text-sm mt-4">No credit card to start • Solo or group</p>
+          <p className="text-sky-100 text-sm mt-4">No credit card to start • Solo or group</p>
         </div>
       </section>
 

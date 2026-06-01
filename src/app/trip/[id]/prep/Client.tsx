@@ -1828,12 +1828,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
 
         {isMockTrip ? (
           <>
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-4">
               <div className="flex gap-3">
-                <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <Briefcase className="w-5 h-5 text-zinc-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-blue-900 mb-1">SIM Card & Data Plan</h3>
-                  <p className="text-sm text-blue-700">Iceland has excellent 4G coverage. Consider buying a local SIM at Keflavik Airport (cheaper than roaming). Providers: Nova, Siminn, Vodafone.</p>
+                  <h3 className="font-semibold text-zinc-700 mb-1">SIM Card & Data Plan</h3>
+                  <p className="text-sm text-zinc-600">Iceland has excellent 4G coverage. Consider buying a local SIM at Keflavik Airport (cheaper than roaming). Providers: Nova, Siminn, Vodafone.</p>
                 </div>
               </div>
             </div>
@@ -1856,12 +1856,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
             </div>
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
               <div className="flex gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-red-900 mb-1">Emergency Information</h3>
-                  <ul className="text-sm text-red-700 space-y-1 mt-2">
+                  <h3 className="font-semibold text-rose-900 mb-1">Emergency Information</h3>
+                  <ul className="text-sm text-rose-700 space-y-1 mt-2">
                     <li><span className="font-semibold">Emergency Number:</span> 112</li>
                     <li><span className="font-semibold">Nearest Hospital:</span> Landspítali University Hospital, Reykjavik</li>
                     <li><span className="font-semibold">US Embassy:</span> +354 595-2100, Reykjavik</li>
@@ -1873,12 +1873,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
         ) : (
           <>
             {!isDomesticUS && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+              <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-4">
                 <div className="flex gap-3">
-                  <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <Briefcase className="w-5 h-5 text-zinc-500 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-blue-900 mb-1">SIM Card & Data Plan</h3>
-                    <p className="text-sm text-blue-700">Research local SIM options for {tripDestination} before you fly. Airport SIMs are convenient but often pricier — compare at a local carrier store on arrival if you have time.</p>
+                    <h3 className="font-semibold text-zinc-700 mb-1">SIM Card & Data Plan</h3>
+                    <p className="text-sm text-zinc-600">Research local SIM options for {tripDestination} before you fly. Airport SIMs are convenient but often pricier — compare at a local carrier store on arrival if you have time.</p>
                   </div>
                 </div>
               </div>
@@ -1894,12 +1894,12 @@ export default function PrepPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
             )}
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
               <div className="flex gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-red-900 mb-1">Emergency Information</h3>
-                  <ul className="text-sm text-red-700 space-y-1 mt-2">
+                  <h3 className="font-semibold text-rose-900 mb-1">Emergency Information</h3>
+                  <ul className="text-sm text-rose-700 space-y-1 mt-2">
                     <li><span className="font-semibold">Emergency Number:</span> 911</li>
                     {!isDomesticUS && (
                       <li><span className="font-semibold">US Embassy:</span> Find the nearest embassy at <a href="https://www.usembassy.gov" target="_blank" rel="noopener noreferrer" className="underline">usembassy.gov</a></li>

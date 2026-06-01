@@ -45,9 +45,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
       const label = this.props.context ?? 'page';
       return (
         <div className="flex items-center justify-center min-h-[60vh] p-8">
-          <div className="bg-white border border-red-200 rounded-2xl shadow-sm p-8 max-w-md w-full text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-6 h-6 text-red-600" />
+          <div className="bg-white border border-rose-200 rounded-2xl shadow-sm p-8 max-w-md w-full text-center">
+            <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-6 h-6 text-rose-600" />
             </div>
             <h2 className="text-lg font-semibold text-slate-900 mb-2">
               Something went wrong

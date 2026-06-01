@@ -604,7 +604,7 @@ export default function LayoverPlannerPage() {
 
   // Tier label for display
   function getTierLabel(hrs: number): { label: string; color: string } {
-    if (hrs < 3) return { label: 'Short · Airport only', color: 'bg-green-100 text-green-700' };
+    if (hrs < 3) return { label: 'Short · Airport only', color: 'bg-emerald-100 text-emerald-700' };
     if (hrs < 6) return { label: 'Medium · Airport + terminal', color: 'bg-sky-100 text-sky-700' };
     return { label: 'Long · City + hotel options', color: 'bg-violet-100 text-violet-700' };
   }
@@ -766,12 +766,15 @@ export default function LayoverPlannerPage() {
     }
   };
 
+  // Neutral zinc for all categories (matches the wishlist chips decision) —
+  // the label text distinguishes them; the prior orange/pink/purple/blue map
+  // was off-palette.
   const categoryColors: Record<string, string> = {
-    food: 'bg-orange-100 text-orange-700',
-    shopping: 'bg-pink-100 text-pink-700',
-    lounge: 'bg-purple-100 text-purple-700',
-    sightseeing: 'bg-blue-100 text-blue-700',
-    relax: 'bg-green-100 text-green-700',
+    food: 'bg-zinc-100 text-zinc-700',
+    shopping: 'bg-zinc-100 text-zinc-700',
+    lounge: 'bg-zinc-100 text-zinc-700',
+    sightseeing: 'bg-zinc-100 text-zinc-700',
+    relax: 'bg-zinc-100 text-zinc-700',
   };
 
   return (
@@ -1109,7 +1112,7 @@ export default function LayoverPlannerPage() {
                             onClick={() => isInBasket(item.id) ? removeFromBasket(item.id) : addToBasket(item)}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                               isInBasket(item.id)
-                                ? 'bg-green-100 text-green-700'
+                                ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-sky-100 text-sky-800 hover:bg-sky-200'
                             }`}
                           >
@@ -1208,7 +1211,7 @@ export default function LayoverPlannerPage() {
                                 }}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                                   isInBasket(`hotel-${hotel.name}`)
-                                    ? 'bg-green-100 text-green-700'
+                                    ? 'bg-emerald-100 text-emerald-700'
                                     : 'bg-sky-100 text-sky-800 hover:bg-sky-200'
                                 }`}
                               >

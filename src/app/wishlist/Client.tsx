@@ -335,7 +335,7 @@ function AddDestinationModal({
                   autoFocus
                   className={`flex-1 min-w-0 px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent ${
                     socialExtractError
-                      ? 'border-red-300 focus:ring-red-400'
+                      ? 'border-rose-300 focus:ring-rose-400'
                       : 'border-slate-200 focus:ring-sky-600'
                   }`}
                 />
@@ -360,7 +360,7 @@ function AddDestinationModal({
                 </button>
               </div>
               {socialExtractError ? (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-rose-500">
                   Couldn&apos;t detect a place from that link — that&apos;s fine, just type a name below. The URL is still saved on the card.
                 </p>
               ) : (
@@ -791,7 +791,7 @@ export default function WishlistPage() {
               </div>
               {/* Lock overlay */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-800 to-green-700 flex items-center justify-center shadow-xl">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-800 to-emerald-700 flex items-center justify-center shadow-xl">
                   <Lock className="w-6 h-6 text-white" />
                 </div>
               </div>

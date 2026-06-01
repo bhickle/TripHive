@@ -752,7 +752,7 @@ function ShareSlide({ trip, onDownload, coverPhoto }: { trip: Trip; onDownload: 
   return (
     <div className="relative w-full h-full overflow-hidden">
       <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover scale-110" />
-      <div className="absolute inset-0 bg-gradient-to-br from-sky-900/90 via-zinc-900/85 to-green-900/90" />
+      <div className="absolute inset-0 bg-gradient-to-br from-sky-900/90 via-zinc-900/85 to-emerald-900/90" />
       <div className="relative z-10 flex flex-col items-center justify-center h-full p-8 text-center">
         <div className="w-14 h-14 bg-sky-800 rounded-2xl flex items-center justify-center mb-6 shadow-xl">
           <span className="text-white font-black text-2xl">t</span>
@@ -1084,7 +1084,7 @@ function SlideEditor({ mode, enabledIds, onToggle, onStart, onClose, slideCount 
           <button
             onClick={onStart}
             disabled={slideCount < 2}
-            className="w-full py-3.5 bg-gradient-to-r from-sky-800 to-green-700 hover:from-sky-700 hover:to-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-full text-sm transition-all shadow-lg"
+            className="w-full py-3.5 bg-gradient-to-r from-sky-800 to-emerald-700 hover:from-sky-700 hover:to-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-full text-sm transition-all shadow-lg"
           >
             Watch Story → ({slideCount} slides)
           </button>

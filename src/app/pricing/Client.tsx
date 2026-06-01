@@ -619,7 +619,7 @@ function PricingPageInner() {
       </section>
 
       {/* CTA footer */}
-      <section className="bg-gradient-to-br from-sky-900 via-zinc-900 to-green-900 py-20 px-4 text-center">
+      <section className="bg-gradient-to-br from-sky-900 via-zinc-900 to-emerald-900 py-20 px-4 text-center">
         <h2 className="font-script italic text-4xl font-semibold text-white mb-4">Ready to actually enjoy planning?</h2>
         <p className="text-sky-200 mb-10 max-w-lg mx-auto">
           Start free. Upgrade when you need it. No pressure, no tricks.

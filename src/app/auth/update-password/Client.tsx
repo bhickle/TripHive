@@ -76,8 +76,8 @@ export default function UpdatePasswordPage() {
         <div className="card p-8 sm:p-10">
           {done ? (
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
-                <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
+                <CheckCircle className="w-8 h-8 text-emerald-600" />
               </div>
               <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
                 Password updated!

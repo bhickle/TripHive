@@ -615,7 +615,7 @@ export default function DashboardPage() {
               className="mb-12 relative overflow-hidden rounded-2xl cursor-pointer group shadow-sm"
               onClick={() => hasYearInReview ? setShowYearlyReview(true) : setShowYearInReviewUpgrade(true)}
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-sky-900 via-sky-800 to-green-800" />
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-900 via-sky-800 to-emerald-800" />
               <div className="absolute inset-0 opacity-10"
                 style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }}
               />

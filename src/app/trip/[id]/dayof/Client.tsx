@@ -127,8 +127,8 @@ function TransportCardDayOf({ leg, status }: { leg: TransportLeg; status: 'done'
               {cfg.label}
             </span>
             {status === 'now' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />NOW
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />NOW
               </span>
             )}
             {status === 'soon' && (
@@ -227,8 +227,8 @@ function ActivityCardDayOf({ activity, status, trackLabel }: { activity: Activit
                 {formatTimeRange(activity.timeSlot)}
               </span>
               {status === 'now' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />NOW
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />NOW
                 </span>
               )}
               {status === 'soon' && (
@@ -542,7 +542,7 @@ export default function DayOfPage() {
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-2">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/20 rounded-full text-xs font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Happening Now
                 </span>
                 <span className="text-sky-200 text-xs">
@@ -589,11 +589,11 @@ export default function DayOfPage() {
         </div>
 
         {/* Emergency */}
-        <div className="flex items-start gap-3 p-4 bg-red-50 rounded-2xl border border-red-200">
-          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 p-4 bg-rose-50 rounded-2xl border border-rose-200">
+          <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-900">Emergency</p>
-            <p className="text-xs text-red-700 mt-0.5">
+            <p className="text-sm font-semibold text-rose-900">Emergency</p>
+            <p className="text-xs text-rose-700 mt-0.5">
               <strong>911 (US)</strong> &middot; <strong>112 (Europe/International)</strong> &middot; <strong>999 (UK)</strong>
             </p>
           </div>

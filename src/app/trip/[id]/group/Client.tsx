@@ -1742,7 +1742,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                     <div key={member.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 flex flex-col items-center text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                       <div className="relative mb-3 group/avatar">
                         <Avatar src={avatarSrc ?? undefined} name={member.name} size="lg" />
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
                         {/* Upload button — only on own card */}
                         {isMe && (
                           <button
@@ -2945,7 +2945,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                           {voteOptions.length > 2 && (
                             <button
                               onClick={() => setVoteOptions(voteOptions.filter((_, i) => i !== idx))}
-                              className="text-red-400 hover:text-red-600 text-sm"
+                              className="text-rose-400 hover:text-rose-600 text-sm"
                             >
                               ✕
                             </button>

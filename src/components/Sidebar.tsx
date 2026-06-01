@@ -30,7 +30,7 @@ const tierConfig = {
   free:      { label: 'Free',        className: 'bg-white/10 text-parchment/70' },
   trip_pass: { label: 'Trip Pass ✦', className: 'bg-sky-500/20 text-sky-300' },
   explorer:  { label: 'Explorer ✦',  className: 'bg-sky-500/20 text-sky-300' },
-  nomad:     { label: 'Nomad ✦✦',    className: 'bg-orange-500/20 text-orange-300' },
+  nomad:     { label: 'Nomad ✦✦',    className: 'bg-sky-500/20 text-sky-300' },
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dashboard', user }) => {
@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
               onClick={() => setIsOpen(false)}
               className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group border-l-2 ${
                 isActive
-                  ? 'border-green-500'
+                  ? 'border-emerald-500'
                   : 'border-transparent'
               }`}
               style={{
@@ -133,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dash
                 color: isActive ? '#f5f1e8' : 'rgba(245,241,232,0.55)',
               }}
             >
-              <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-green-400' : 'text-parchment/30 group-hover:text-parchment/60'}`}
+              <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-emerald-400' : 'text-parchment/30 group-hover:text-parchment/60'}`}
                 style={{ color: isActive ? '#4ade80' : undefined }} />
               <span className="font-semibold text-sm">{item.label}</span>
               {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto" style={{ color: '#4ade80' }} />}

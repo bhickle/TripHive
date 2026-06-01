@@ -25,7 +25,7 @@ const statusDotSize = {
 };
 
 const statusColors = {
-  online: 'bg-green-500',
+  online: 'bg-emerald-500',
   offline: 'bg-slate-400',
   away: 'bg-sky-800',
 };

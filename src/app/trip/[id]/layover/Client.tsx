@@ -297,7 +297,7 @@ export default function LayoverPlannerPage() {
             onClick={() => setActiveMode('cruise')}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
               activeMode === 'cruise'
-                ? 'bg-green-800 text-white shadow-md'
+                ? 'bg-emerald-800 text-white shadow-md'
                 : 'bg-white border border-stone-200 text-stone-700 hover:bg-parchment'
             }`}
           >
@@ -510,14 +510,14 @@ export default function LayoverPlannerPage() {
             </div>
 
             {/* All-Aboard Warning */}
-            <div className="card p-6 border-2 border-red-200 bg-red-50">
+            <div className="card p-6 border-2 border-rose-200 bg-rose-50">
               <div className="flex gap-4">
-                <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+                <AlertCircle className="w-6 h-6 text-rose-600 flex-shrink-0 mt-1" />
                 <div>
-                  <h3 className="font-semibold text-red-900 mb-2">
+                  <h3 className="font-semibold text-rose-900 mb-2">
                     All-Aboard: {portStop.allAboardTime}
                   </h3>
-                  <p className="text-red-800 text-sm">
+                  <p className="text-rose-800 text-sm">
                     Don't be late! Ship departs promptly. Plan to be back with {Math.ceil((actualShoreTime / 4))} hours to spare.
                   </p>
                 </div>
@@ -618,8 +618,8 @@ export default function LayoverPlannerPage() {
               {/* Guided Excursions */}
               <div className="card p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Ship className="w-5 h-5 text-green-600" />
+                  <div className="p-2 bg-emerald-100 rounded-lg">
+                    <Ship className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
                     <h3 className="font-script italic text-xl font-semibold text-slate-900">
@@ -630,11 +630,11 @@ export default function LayoverPlannerPage() {
                 </div>
                 <div className="space-y-4">
                   {guidedExcursions.map((exc) => (
-                    <div key={exc.id} className="p-4 border border-green-200 bg-green-50 rounded-lg">
+                    <div key={exc.id} className="p-4 border border-emerald-200 bg-emerald-50 rounded-lg">
                       <div className="flex justify-between items-start gap-4 mb-2">
                         <h4 className="font-semibold text-slate-900">{exc.name}</h4>
                         {exc.viator && (
-                          <span className="badge bg-green-100 text-green-700 text-xs font-semibold">
+                          <span className="badge bg-emerald-100 text-emerald-700 text-xs font-semibold">
                             Viator
                           </span>
                         )}
@@ -648,7 +648,7 @@ export default function LayoverPlannerPage() {
                           <DollarSign className="w-4 h-4" /> {exc.cost}
                         </span>
                       </div>
-                      <button className="w-full px-4 py-2 bg-green-800 text-white rounded-lg hover:bg-green-800 transition-all font-semibold">
+                      <button className="w-full px-4 py-2 bg-emerald-800 text-white rounded-lg hover:bg-emerald-800 transition-all font-semibold">
                         Book Shore Excursion
                       </button>
                     </div>

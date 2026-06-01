@@ -530,10 +530,10 @@ export default function GeneratingPage() {
           )}
 
           {phase === 'error' && errorType === 'generic' && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
-              <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
-              <p className="font-semibold text-red-800 mb-1">Something went wrong</p>
-              <p className="text-sm text-red-600 mb-4">{errorMsg}</p>
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center">
+              <AlertCircle className="w-8 h-8 text-rose-400 mx-auto mb-3" />
+              <p className="font-semibold text-rose-800 mb-1">Something went wrong</p>
+              <p className="text-sm text-rose-600 mb-4">{errorMsg}</p>
               <button
                 onClick={() => {
                   // Regenerate flow includes existingTripId in the payload
@@ -552,7 +552,7 @@ export default function GeneratingPage() {
                   } catch { /* fall through to Trip Builder */ }
                   router.push('/trip/new');
                 }}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl transition-colors"
               >
                 ← Go back and try again
               </button>

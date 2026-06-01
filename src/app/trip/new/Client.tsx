@@ -1226,8 +1226,8 @@ function TripBuilderPage() {
 
             {/* First-trip welcome banner */}
             {isFirstTrip && welcomeName && (
-              <div className="mb-6 p-4 bg-gradient-to-r from-sky-50 to-green-50 border border-sky-100 rounded-2xl flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-700 to-green-700 flex items-center justify-center text-white text-lg flex-shrink-0">
+              <div className="mb-6 p-4 bg-gradient-to-r from-sky-50 to-emerald-50 border border-sky-100 rounded-2xl flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-700 to-emerald-700 flex items-center justify-center text-white text-lg flex-shrink-0">
                   🎉
                 </div>
                 <div>
@@ -1275,7 +1275,7 @@ function TripBuilderPage() {
                       key={s.n}
                       className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
                         s.n < currentStep
-                          ? 'bg-green-700'
+                          ? 'bg-emerald-700'
                           : s.n === currentStep
                           ? 'bg-sky-700'
                           : 'bg-zinc-200'
@@ -1294,7 +1294,7 @@ function TripBuilderPage() {
                     >
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
                         s.n < currentStep
-                          ? 'bg-green-700 text-white group-hover:bg-green-800'
+                          ? 'bg-emerald-700 text-white group-hover:bg-emerald-800'
                           : s.n === currentStep
                           ? 'bg-sky-800 text-white ring-2 ring-sky-200'
                           : 'bg-zinc-200 text-zinc-400'
@@ -1302,7 +1302,7 @@ function TripBuilderPage() {
                         {s.n < currentStep ? '✓' : s.n}
                       </div>
                       <span className={`text-[10px] font-medium whitespace-nowrap transition-colors ${
-                        s.n === currentStep ? 'text-sky-700' : s.n < currentStep ? 'text-green-700' : 'text-zinc-400'
+                        s.n === currentStep ? 'text-sky-700' : s.n < currentStep ? 'text-emerald-700' : 'text-zinc-400'
                       }`}>
                         {s.label}
                       </span>
@@ -1385,7 +1385,7 @@ function TripBuilderPage() {
                         </p>
                         {isSelected && (
                           <div className="mt-3 flex justify-center">
-                            <div className="w-5 h-5 bg-green-800 rounded-full flex items-center justify-center">
+                            <div className="w-5 h-5 bg-emerald-800 rounded-full flex items-center justify-center">
                               <Check className="w-3 h-3 text-white" />
                             </div>
                           </div>
@@ -1837,7 +1837,7 @@ function TripBuilderPage() {
                                   isLocked
                                     ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
                                     : state.tripLength === days
-                                      ? 'border-green-700 bg-green-50 text-green-800'
+                                      ? 'border-emerald-700 bg-emerald-50 text-emerald-800'
                                       : 'border-slate-200 text-zinc-700 hover:border-sky-300'
                                 }`}
                               >
@@ -1915,14 +1915,14 @@ function TripBuilderPage() {
                             ? 'bg-rose-50 border-rose-200'
                             : entitlementsReady && state.tripLength > maxTripDays
                             ? 'bg-rose-50 border-rose-200'
-                            : 'bg-green-50 border-green-200'
+                            : 'bg-emerald-50 border-emerald-200'
                         }`}>
                           <p className={`text-sm font-semibold ${
                             state.tripLength < 2
                               ? 'text-rose-800'
                               : entitlementsReady && state.tripLength > maxTripDays
                               ? 'text-rose-800'
-                              : 'text-green-800'
+                              : 'text-emerald-800'
                           }`}>
                             {state.tripLength < 2
                               ? `⚠️ Only ${state.tripLength} day${state.tripLength === 1 ? '' : 's'} — check your dates`
@@ -1931,7 +1931,7 @@ function TripBuilderPage() {
                               : `✓ ${state.tripLength}-day trip`}
                           </p>
                           {(state.tripLength >= 2 && (!entitlementsReady || state.tripLength <= maxTripDays)) && (
-                            <p className="text-xs text-green-700 mt-0.5">
+                            <p className="text-xs text-emerald-700 mt-0.5">
                               {new Date(state.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {new Date(state.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </p>
                           )}
@@ -2094,7 +2094,7 @@ function TripBuilderPage() {
                                       );
                                     }
                                     if (total > 0 && total === state.tripLength) {
-                                      return <p className="text-xs text-green-700 mt-1">All {state.tripLength} days accounted for.</p>;
+                                      return <p className="text-xs text-emerald-700 mt-1">All {state.tripLength} days accounted for.</p>;
                                     }
                                     return null;
                                   })()}
@@ -2721,7 +2721,7 @@ function TripBuilderPage() {
                     </label>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       state.priorities.length >= 3
-                        ? 'bg-green-100 text-green-700'
+                        ? 'bg-emerald-100 text-emerald-700'
                         : 'bg-slate-100 text-zinc-500'
                     }`}>
                       {state.priorities.length}/8 selected

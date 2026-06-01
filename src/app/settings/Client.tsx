@@ -864,7 +864,7 @@ export default function SettingsPage() {
                               {avatarUploading ? 'Uploading…' : 'Upload Photo'}
                             </button>
                             {avatarError && (
-                              <p className="text-xs text-red-600">{avatarError}</p>
+                              <p className="text-xs text-rose-600">{avatarError}</p>
                             )}
                           </div>
                         </div>
@@ -917,7 +917,7 @@ export default function SettingsPage() {
                         <button
                           onClick={saveProfile}
                           disabled={profileSaving}
-                          className={`px-6 py-2 rounded-full transition-all font-semibold disabled:opacity-60 ${profileSaved ? 'bg-green-600 text-white' : profileSaveError ? 'bg-rose-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                          className={`px-6 py-2 rounded-full transition-all font-semibold disabled:opacity-60 ${profileSaved ? 'bg-emerald-600 text-white' : profileSaveError ? 'bg-rose-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                         >
                           {profileSaved ? '✓ Saved!' : profileSaving ? 'Saving…' : profileSaveError ? '✕ Save failed' : 'Save Changes'}
                         </button>
@@ -979,7 +979,7 @@ export default function SettingsPage() {
                           disabled={pwResetSending || pwResetSent}
                           className={`px-4 py-2 border rounded-lg transition-all font-medium text-sm disabled:cursor-not-allowed ${
                             pwResetSent
-                              ? 'border-green-300 bg-green-50 text-green-700'
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                               : 'border-slate-300 hover:bg-slate-50 text-slate-700'
                           }`}
                         >
@@ -1050,7 +1050,7 @@ export default function SettingsPage() {
                           <label className="block text-sm font-semibold text-slate-900">Top Priorities</label>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                             persona.priorities.length >= 1
-                              ? 'bg-green-100 text-green-700'
+                              ? 'bg-emerald-100 text-emerald-700'
                               : 'bg-slate-100 text-slate-500'
                           }`}>
                             {persona.priorities.length}/8 selected
@@ -1086,7 +1086,7 @@ export default function SettingsPage() {
                           onClick={savePersona}
                           className={`px-6 py-2 rounded-lg transition-all font-semibold ${
                             personaSaved
-                              ? 'bg-green-600 text-white'
+                              ? 'bg-emerald-600 text-white'
                               : personaSaveError
                                 ? 'bg-rose-600 text-white'
                                 : 'bg-sky-800 text-white hover:bg-sky-900'
@@ -1286,7 +1286,7 @@ export default function SettingsPage() {
                   <button
                     onClick={saveNotifications}
                     disabled={notifSaving}
-                    className={`mt-6 px-6 py-2 rounded-full transition-all font-semibold disabled:opacity-60 ${notifError ? 'bg-rose-600 text-white' : notifSaved ? 'bg-green-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
+                    className={`mt-6 px-6 py-2 rounded-full transition-all font-semibold disabled:opacity-60 ${notifError ? 'bg-rose-600 text-white' : notifSaved ? 'bg-emerald-600 text-white' : 'bg-sky-800 text-white hover:bg-sky-900'}`}
                   >
                     {notifError ? 'Couldn’t save — try again' : notifSaved ? '✓ Saved!' : notifSaving ? 'Saving…' : 'Save Changes'}
                   </button>
@@ -1388,16 +1388,16 @@ export default function SettingsPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="p-4 border border-red-200 rounded-lg bg-red-50">
+                    <div className="p-4 border border-rose-200 rounded-lg bg-rose-50">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="font-semibold text-red-900">Delete Account</p>
-                          <p className="text-sm text-red-700 mt-1">Permanently delete your account and all associated data. This cannot be undone.</p>
+                          <p className="font-semibold text-rose-900">Delete Account</p>
+                          <p className="text-sm text-rose-700 mt-1">Permanently delete your account and all associated data. This cannot be undone.</p>
                         </div>
                         {!showDeleteConfirm && (
                           <button
                             onClick={() => setShowDeleteConfirm(true)}
-                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all font-medium flex-shrink-0 ml-4"
+                            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all font-medium flex-shrink-0 ml-4"
                           >
                             <Trash2 className="w-4 h-4 inline mr-2" />Delete
                           </button>
@@ -1405,26 +1405,26 @@ export default function SettingsPage() {
                       </div>
                       {showDeleteConfirm && (
                         <div className="mt-3 space-y-3">
-                          <p className="text-sm text-red-800 font-medium">Type <strong>DELETE</strong> to confirm:</p>
+                          <p className="text-sm text-rose-800 font-medium">Type <strong>DELETE</strong> to confirm:</p>
                           <input
                             type="text"
                             value={deleteConfirmText}
                             onChange={e => setDeleteConfirmText(e.target.value)}
                             placeholder="DELETE"
-                            className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
+                            className="w-full px-3 py-2 border border-rose-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 bg-white"
                           />
-                          {deleteError && <p className="text-xs text-red-700">{deleteError}</p>}
+                          {deleteError && <p className="text-xs text-rose-700">{deleteError}</p>}
                           <div className="flex gap-2">
                             <button
                               onClick={handleDeleteAccount}
                               disabled={deleteConfirmText !== 'DELETE' || deleting}
-                              className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition-all"
+                              className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition-all"
                             >
                               {deleting ? 'Deleting…' : 'Permanently Delete My Account'}
                             </button>
                             <button
                               onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeleteError(''); }}
-                              className="px-4 py-2 border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-all"
+                              className="px-4 py-2 border border-rose-200 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 transition-all"
                             >
                               Cancel
                             </button>
@@ -1548,7 +1548,7 @@ export default function SettingsPage() {
                       </div>
 
                       {supportError && (
-                        <p className="text-sm text-red-600">{supportError}</p>
+                        <p className="text-sm text-rose-600">{supportError}</p>
                       )}
 
                       <button

@@ -5364,12 +5364,12 @@ function ItineraryPageContent() {
                       type="time"
                       value={newActivityEndTime}
                       onChange={e => { setNewActivityEndTime(e.target.value); setNewActivityTimeError(null); }}
-                      className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent ${newActivityTimeError ? 'border-red-400' : 'border-zinc-200'}`}
+                      className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-700 focus:border-transparent ${newActivityTimeError ? 'border-rose-400' : 'border-zinc-200'}`}
                     />
                   </div>
                 </div>
                 {newActivityTimeError && (
-                  <p className="mt-1.5 text-xs text-red-600 font-medium">{newActivityTimeError}</p>
+                  <p className="mt-1.5 text-xs text-rose-600 font-medium">{newActivityTimeError}</p>
                 )}
               </div>
 

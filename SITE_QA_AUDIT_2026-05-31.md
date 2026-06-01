@@ -74,9 +74,20 @@ Status tags: **NEW** = surfaced by this audit · **KNOWN** = already tracked (SE
 
 ## 🟡 Low — palette, docs, polish
 
-### 25. Brand-color cleanup (NEW, themed batch) — PARTLY DONE 2026-06-01
-_DONE: NotificationPanel + notifications/page per-type color maps remapped to the sanctioned palette (sky for informational types, emerald for money/achievement, rose for member/billing, zinc for neutral reminders) — the audit's #1 palette spot. **Note:** collapsing several types to `sky` is a deliberate call (icon shape differentiates them) — flag if you want more color variety here.
-REMAINING (mechanical, low-impact tail, ready to grind on request):_
+### 25. Brand-color cleanup (NEW, themed batch) — DONE 2026-06-01 (with deliberate exceptions)
+**DONE:**
+- Global **green→emerald** (all success/online/step states) and **red→rose** (all error/warning/destructive banners) across 24 files (word-boundary anchored).
+- NotificationPanel + notifications/page per-type color maps → sanctioned (sky informational / emerald money+achievement / rose member+billing / zinc reminder). _Several types collapse to `sky` — icon shape differentiates; flag if you want more variety._
+- Layover category map → neutral zinc (matches the wishlist decision).
+- Sidebar Nomad tier badge orange → sky (matches the other tier badges).
+- Trip-scoped Discover mock-card gradients → brand `ocean→earth` gradient.
+- Prep "SIM Card & Data Plan" info cards (blue) → zinc neutral FYI.
+- Landing hero subtitle text (blue-50/100) → sky.
+
+**Deliberately LEFT (functional legends / per your calls) — not bugs:**
+- **Trip Story modal** colorful slide rotation — per your decision, stays colorful.
+- **Functional color legends** where multi-color aids differentiation (same rationale as Trip Story): `MapView` price/transport pin colors, `ParseTransportModal` transport-mode colors, world passport-stamp colors, Discover season/time-of-day pills, itinerary Photo/Cable-Car category accents. Forcing these to 2–3 sanctioned colors would make legend entries indistinguishable. The genuine **AI-Pick violet** badge is correctly kept.
+- Minor secondary-surface accents (trip-scoped layover blue/yellow cards, admin-support internal category/status colors) — low-visibility, left for a later pass if desired.
 Off-palette usages vs the CLAUDE.md "Brand color discipline" ruling. Concentrated spots:
 - **NotificationPanel.tsx + notifications/page.tsx** — per-type color maps use violet/amber/indigo/orange/teal (chat=violet, vote=amber, transport=indigo, reminder=orange, trip_invite=teal, badge=indigo). → sky/zinc/emerald per role.
 - **layover/Client.tsx:770-774** — category map (orange food, pink shopping, purple lounge, green relax, blue sightseeing) + `:609` violet "Long layover" + `:318` amber over-budget warning (should be rose).

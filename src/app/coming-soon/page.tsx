@@ -95,18 +95,18 @@ export default function ComingSoonPage() {
             </button>
           </form>
         ) : (
-          <div className="w-full max-w-md py-4 px-6 bg-green-50 border border-green-200 rounded-xl">
-            <p className="text-green-800 font-semibold text-sm">
+          <div className="w-full max-w-md py-4 px-6 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <p className="text-emerald-800 font-semibold text-sm">
               You're on the list! 🎉
             </p>
-            <p className="text-green-600 text-xs mt-0.5">
+            <p className="text-emerald-600 text-xs mt-0.5">
               We'll reach out as soon as we launch.
             </p>
           </div>
         )}
 
         {error && (
-          <p className="text-xs text-red-500 mt-2">{error}</p>
+          <p className="text-xs text-rose-500 mt-2">{error}</p>
         )}
         <p className="text-xs text-slate-400 mt-4">
           No spam. Just one email when we go live.
@@ -121,8 +121,8 @@ export default function ComingSoonPage() {
             <span className="text-[11px] font-medium">AI Itineraries</span>
           </div>
           <div className="flex flex-col items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center">
-              <Users className="w-5 h-5 text-green-600" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+              <Users className="w-5 h-5 text-emerald-600" />
             </div>
             <span className="text-[11px] font-medium">Group Planning</span>
           </div>

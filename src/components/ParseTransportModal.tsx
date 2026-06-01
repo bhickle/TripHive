@@ -346,7 +346,7 @@ export function ParseTransportModal({ dayNumber, dayDate, tripId, onAdd, onClose
               </button>
               <button
                 onClick={handleConfirm}
-                className="flex-1 py-3 bg-gradient-to-r from-sky-800 to-green-700 hover:from-sky-700 hover:to-green-600 text-white font-bold rounded-full text-sm transition-all shadow-md"
+                className="flex-1 py-3 bg-gradient-to-r from-sky-800 to-emerald-700 hover:from-sky-700 hover:to-emerald-600 text-white font-bold rounded-full text-sm transition-all shadow-md"
               >
                 Add to Day {dayNumber} ✓
               </button>
@@ -362,7 +362,7 @@ export function ParseTransportModal({ dayNumber, dayDate, tripId, onAdd, onClose
               <button
                 onClick={handleParse}
                 disabled={parseState === 'parsing' || emailText.trim().length < 20}
-                className="flex-1 py-3 bg-gradient-to-r from-sky-800 to-green-700 hover:from-sky-700 hover:to-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-full text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-gradient-to-r from-sky-800 to-emerald-700 hover:from-sky-700 hover:to-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-full text-sm transition-all shadow-md flex items-center justify-center gap-2"
               >
                 {parseState === 'parsing' ? (
                   <>

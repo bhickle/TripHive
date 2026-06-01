@@ -707,7 +707,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                   </Link>
                 </div>
               ) : (
-                <div className="bg-gradient-to-br from-sky-50 to-green-50 rounded-lg p-6 mb-6 border border-sky-200">
+                <div className="bg-gradient-to-br from-sky-50 to-emerald-50 rounded-lg p-6 mb-6 border border-sky-200">
                   <div className="flex items-start gap-3 mb-3">
                     <Lock className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
                     <h4 className="font-semibold text-zinc-900">Get more from this trip</h4>

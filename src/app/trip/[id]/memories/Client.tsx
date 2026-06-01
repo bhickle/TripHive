@@ -699,7 +699,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
                   }}
                   className={`px-4 py-2 rounded font-medium transition-all ${
                     linkCopied
-                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                       : 'bg-sky-800 text-white hover:bg-sky-900'
                   }`}
                 >
@@ -968,7 +968,7 @@ export default function MemoriesPage({ params }: { params: { id: string } }) {
           <button
             onClick={() => photoInputRef.current?.click()}
             disabled={isUploading || !photoDay || !photoLocation.trim()}
-            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-sky-800 to-green-800 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-sky-800 to-emerald-800 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             title={!photoDay || !photoLocation.trim() ? 'Pick a day and add a location first' : undefined}
           >
             <Camera className="w-5 h-5" />

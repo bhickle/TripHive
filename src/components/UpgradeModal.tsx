@@ -85,7 +85,7 @@ export function UpgradeModal({ prompt, onClose, tripId, tripGroupSize }: Upgrade
         </button>
 
         {/* Icon */}
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-800 to-green-700 flex items-center justify-center mb-5 shadow-md">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-800 to-emerald-700 flex items-center justify-center mb-5 shadow-md">
           <Lock className="w-6 h-6 text-white" />
         </div>
 
