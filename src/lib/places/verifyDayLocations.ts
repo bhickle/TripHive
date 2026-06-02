@@ -37,20 +37,46 @@ import type { createAdminClient } from '@/lib/supabase/admin';
 // ─── Normalization helpers ──────────────────────────────────────────────────
 
 /**
- * Canonical form for city/address comparison. Strips accents, lowercases,
- * normalizes punctuation, and expands the most common abbreviations the
- * AI tends to use ("St." → "Saint", "Mt." → "Mount").
+ * Standalone Latin letters that NFKD does NOT decompose into a base ASCII
+ * letter + combining mark, so the diacritic-strip below misses them — and the
+ * `[^a-z0-9\s]` cleanup then turns each into a SPACE. That silently broke the
+ * verify gate for every city whose NAME carries one of these letters: e.g.
+ * "København" (Copenhagen) normalized to "k benhavn", which can't match the
+ * "kobenhavn" alias, so EVERY Copenhagen venue failed Tier 2 and every Denmark
+ * build hard-failed to zero days (reported by users 2026-06-02). These map to
+ * the spelling the alias table + AI use. Keys are lowercase (we transliterate
+ * after toLowerCase).
+ */
+const TRANSLITERATE: Record<string, string> = {
+  ø: 'o',  // Danish/Norwegian — København, Tromsø, Helsingør
+  æ: 'ae', // Danish/Norwegian — Ærøskøbing
+  œ: 'oe',
+  å: 'a',  // usually decomposes, but belt-and-suspenders
+  ß: 'ss', // German
+  ł: 'l',  // Polish — Łódź, Wrocław
+  đ: 'd', ð: 'd', þ: 'th', // Croatian / Icelandic
+  ħ: 'h',  // Maltese
+  ı: 'i',  // Turkish dotless i
+};
+
+/**
+ * Canonical form for city/address comparison. Strips accents, transliterates
+ * the standalone non-ASCII Latin letters NFKD leaves intact (ø, æ, ł, …),
+ * lowercases, normalizes punctuation, and expands the most common
+ * abbreviations the AI tends to use ("St." → "Saint", "Mt." → "Mount").
  *
  * Examples:
  *   "Saint-André"  → "saint andre"
  *   "St.-André"    → "saint andre"
  *   "75006 PARIS"  → "75006 paris"
+ *   "København K"  → "kobenhavn k"
  */
 function normalize(input: string): string {
   return (input ?? '')
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '') // strip diacritics
     .toLowerCase()
+    .replace(/[øæœåßłđðþħı]/g, (ch) => TRANSLITERATE[ch] ?? ch)
     .replace(/\bst\.?\b/g, 'saint')
     .replace(/\bmt\.?\b/g, 'mount')
     .replace(/[^a-z0-9\s]/g, ' ')
