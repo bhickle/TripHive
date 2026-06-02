@@ -138,6 +138,15 @@ const CITY_ALIASES: Record<string, string[]> = {
  * day's city name (or a known local-language variant of it)? Returns true
  * if any accepted spelling of the city is present in the address.
  */
+/**
+ * Letters from non-Latin scripts (Greek, Cyrillic, Hebrew, Arabic, Thai,
+ * Devanagari, Hiragana/Katakana, CJK, Hangul). normalize() can't romanize
+ * these — it strips them — so the city token they encode is unreadable to a
+ * substring check. Used to decide when a "city not found" result is real
+ * vs. simply unverifiable.
+ */
+const NON_LATIN_SCRIPT = /[Ͱ-Ͽἀ-῿Ѐ-ԯ֐-׿؀-ۿݐ-ݿऀ-ॿ฀-๿぀-ヿ㐀-䶿一-鿿가-힯ᄀ-ᇿ]/;
+
 export function addressContainsCity(address: string | undefined, dayCity: string | undefined): boolean {
   if (!address || !dayCity) return true; // can't validate without both — fail open
   const normAddress = normalize(address);
@@ -147,7 +156,22 @@ export function addressContainsCity(address: string | undefined, dayCity: string
   const cityCore = normalize(dayCity.split(',')[0]);
   if (!cityCore) return true;
   const candidates = [cityCore, ...(CITY_ALIASES[cityCore] ?? [])];
-  return candidates.some(c => normAddress.includes(c));
+  if (candidates.some(c => normAddress.includes(c))) return true;
+
+  // No match. Before treating that as a wrong-city failure, check whether the
+  // address carries non-Latin script (Japanese, Greek, Cyrillic, Arabic, Thai…)
+  // — including the partially-romanized case where Google returns the city in
+  // local script but the country in English ("Αθήνα 105 55, Greece"). If so,
+  // the city token is in a script normalize() can't read, so a "no match" is
+  // unverifiable, not wrong → fail OPEN. Without this, every venue in a
+  // non-Latin city fails and the whole build zeroes out — the same failure mode
+  // the Denmark "København"→"k benhavn" bug caused for Europe. We also request
+  // languageCode=en from Places (below) to romanize output and keep real
+  // coverage; this is the safety net for whatever still comes back localized.
+  // A pure Latin address with no match (a Paris venue on a Versailles day) has
+  // no non-Latin script, so the wrong-city catch still fires as before.
+  if (NON_LATIN_SCRIPT.test(address)) return true;
+  return false;
 }
 
 // ─── Collect addressable items from a day ───────────────────────────────────
@@ -257,7 +281,12 @@ async function lookupPlacesAddressDetailed(
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
       },
-      body: JSON.stringify({ textQuery: query, maxResultCount: 1 }),
+      // languageCode: 'en' asks Places to return the address romanized / in
+      // English where available ("Athens, Greece" not "Αθήνα", "Tokyo" not
+      // "東京都"), so the city-match check has Latin text to compare against the
+      // AI's English day.city. Without it, every non-Latin-script destination's
+      // venues fail the city check and the build zeroes out.
+      body: JSON.stringify({ textQuery: query, maxResultCount: 1, languageCode: 'en' }),
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return { kind: 'error' };
