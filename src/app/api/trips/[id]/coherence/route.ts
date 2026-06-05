@@ -17,12 +17,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { requireTripAiRole } from '@/lib/supabase/tripAccess';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { runCoherencePass } from '@/lib/coherence/coherencePass';
-import type { ItineraryDay } from '@/lib/types';
+import { applyCoherenceToTrip } from '@/lib/coherence/applyCoherenceToTrip';
 
 // Makes AI calls (replacement generation) + Places verification + a Haiku
 // quality pass — can exceed Vercel's default. Pin to the build-class ceiling.
@@ -44,42 +41,18 @@ export async function POST(
   }
 
   try {
-    const admin = createAdminClient();
+    const result = await applyCoherenceToTrip(params.id);
 
-    // Load the assembled itinerary.
-    const { data: itinerary } = await admin
-      .from('itineraries')
-      .select('days')
-      .eq('trip_id', params.id)
-      .maybeSingle();
-
-    const days = (itinerary?.days ?? []) as unknown as ItineraryDay[];
-    if (!Array.isArray(days) || days.length === 0) {
+    if (!result.found) {
       return NextResponse.json({ error: 'NO_ITINERARY', message: 'This trip has no itinerary to check yet.' }, { status: 400 });
     }
-
-    const result = await runCoherencePass(days, {
-      anthropic: new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
-      placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
-      supabase: admin,
-    });
-
-    // Persist only if the dedupe pass actually changed something.
-    const applied = result.changes.filter(c => c.kind === 'dedupe_replaced').length;
-    if (applied > 0) {
-      const { error: saveErr } = await admin
-        .from('itineraries')
-        .update({ days: result.days as unknown as never })
-        .eq('trip_id', params.id);
-      if (saveErr) {
-        console.error('[coherence] save failed:', saveErr.message);
-        return NextResponse.json({ error: 'SAVE_FAILED', message: 'Coherence pass ran but the result could not be saved.' }, { status: 500 });
-      }
+    if (!result.ok) {
+      return NextResponse.json({ error: 'SAVE_FAILED', message: 'Coherence pass ran but the result could not be saved.' }, { status: 500 });
     }
 
     return NextResponse.json({
       ok: result.ok,
-      appliedReplacements: applied,
+      appliedReplacements: result.appliedReplacements,
       changes: result.changes,
       qualityFindings: result.qualityFindings,
     });
