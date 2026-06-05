@@ -24,8 +24,8 @@ Update the status emoji as you complete each item. CLAUDE.md links here for the 
 
 **Steps:**
 1. In Stripe Dashboard, switch to live mode
-2. Recreate products (Trip Pass $30, Explorer $7.99/mo, Nomad $14.99/mo) in live mode — note the new price IDs
-3. Update `src/lib/stripe-prices.ts` with the live price IDs
+2. Recreate products (Trip Pass $36 one-time, Travel Pro $14.99/mo + $149/yr) in live mode — note the new price IDs. NOTE: test-mode price IDs are still PLACEHOLDERS in `stripe-prices.ts` (`price_REPLACE_ME_*`) — create the test-mode prices first for pre-launch testing, then the live ones here.
+3. Update `src/lib/stripe-prices.ts` with the live price IDs (replace both the placeholders and the `legacy` block once no legacy subs remain)
 4. Update Vercel env vars:
    - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` → live publishable key
    - `STRIPE_SECRET_KEY` → live secret key
@@ -201,9 +201,9 @@ Quick audit before launch — one missing key silently degrades a feature:
 - [ ] **Wishlist heart toggle on /discover and /wishlist** — toggle off, refresh, confirm gone; toggle on, refresh, confirm saved
 - [ ] **On My Radar source icons** — Globe (has links) vs Pencil (manual) renders correctly per card
 - [ ] Click a Seasonal Collection card on Discover, grid filters correctly (or shows quick-plan chips when catalog is missing)
-- [ ] Generate AI packing list (Nomad), AI phrasebook (Nomad)
+- [ ] Generate AI packing list (Travel Pro), AI phrasebook (Travel Pro)
 - [ ] Buy a Trip Pass with a real card (after Stripe live keys are in)
-- [ ] Subscribe to Explorer with a real card
+- [ ] Subscribe to Travel Pro with a real card
 - [ ] Cancel the subscription via the customer portal
 - [ ] Trigger the password reset flow end-to-end
 - [ ] Sign out, sign back in, dashboard reloads correctly

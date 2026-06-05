@@ -26,7 +26,7 @@ export function UpgradeModal({ prompt, onClose, tripId, tripGroupSize }: Upgrade
 
   useEscapeKey(onClose);
 
-  // Trip Pass pricing math — base $30 + $4 per traveler beyond the first 6,
+  // Trip Pass pricing math — base $36 + $4 per traveler beyond the first 6,
   // capped at maxGroupSize (12). Extra-people line items are added by the
   // checkout route based on the same `extraPeople` count we send here.
   const basePrice = PRICING.trip_pass.base;

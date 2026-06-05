@@ -160,12 +160,15 @@ ItineraryDay {
 
 ## Subscription Tiers
 
+**3-tier model since 2026-06-05** (collapsed from 4 — Explorer + Nomad merged into `travel_pro`). See `MIGRATION_THREE_TIER.md` + memory `project_three_tier_travel_pro`.
+
 | Tier | Key Feature Limits |
 |------|--------------------|
 | `free` | 25 AI credits/mo (= 1 build), 4 travelers, 7-day max trip |
-| `trip_pass` | 50 credits per pass (1 build + 1 regen + 5 small tweaks), 6 base travelers (extras purchasable), 7-day max |
-| `explorer` | 100 credits/mo (~4 builds), 6 travelers, 10-day max, split tracks + co-organizer |
-| `nomad` | 200 credits/mo (~8 builds), 12 travelers, 14-day max, all features |
+| `trip_pass` | 50 credits per pass (1 build + 1 regen + 5 small tweaks), 6 base travelers (extras purchasable to 12), 7-day max — base $36 |
+| `travel_pro` | 150 credits/mo (~6 builds), 8 travelers, 14-day max, **all features** (split tracks, co-organizer, AI packing/phrasebook/receipt-scan, Year in Review, priority support) — $14.99/mo or $149/yr |
+
+The DB column `profiles.subscription_tier` is text with a CHECK constraint (now allows `free`/`trip_pass`/`travel_pro` plus legacy `explorer`/`nomad` during transition). **`normalizeTier()` in `lib/types.ts` maps legacy `explorer`/`nomad` → `travel_pro` at every DB read** — don't remove it until all legacy rows are migrated. **Stripe price IDs for `travel_pro` + the $36 Trip Pass are still PLACEHOLDERS** in `stripe-prices.ts` (checkout is non-functional until Brandon pastes the real IDs).
 
 Gates live in `useEntitlements` hook → checked against `profile.subscription_tier` from Supabase.  
 `UpgradeModal` + `LockBadge` components handle the UI gating.
@@ -231,7 +234,7 @@ These are the active items to build/fix, in rough priority order. Note: this lis
   - [ ] Once the domain is live, apply to affiliate programs: Travelpayouts (~24h auto-approve; also the path to GetYourGuide), Stay22 (~instant, hotels), Viator (direct, ~a few days, no traffic minimum).
   - [ ] Before enabling, confirm each partner's exact deep-link param format against their dashboard (Viator `pid/mcid`, Stay22 `allez`, Booking `aid`) — flagged in `src/lib/affiliate.ts`.
   - [ ] Turn it on by setting `NEXT_PUBLIC_VIATOR_PARTNER_ID` / `_GETYOURGUIDE_PARTNER_ID` / `_STAY22_AID` / `_BOOKING_AID` in Vercel, then eyeball the live placement of the gated links (built without seeing them rendered).
-  - [ ] **Pricing decision (launch-time, not strictly post-launch):** reprice subscriptions per Model A — collapse Explorer+Nomad into one Pro (~$39/yr), drop Trip Pass to ~$19, make group collab + expense-split free; update `src/lib/stripe-prices.ts` + `TIER_LIMITS`. Then converge toward free + booking commissions (Model B) as commission revenue proves out.
+  - ~~**Pricing decision — collapse to 3 tiers**~~ — **SHIPPED 2026-06-05** (commit `d321a5c`). Explorer + Nomad → single `travel_pro` ($14.99/mo, $149/yr); Trip Pass raised $30→$36; 150 credits / 8 travelers. Differs from the old Model A sketch (kept paid group collab/expense-split; priced higher than $39/yr). See `MIGRATION_THREE_TIER.md` + memory `project_three_tier_travel_pro`. **Outstanding:** real Stripe price IDs (placeholders in `stripe-prices.ts`); optional DB migration of the 7 legacy test rows. The further Model B (free + booking commissions) convergence is still future.
 - ~~Invite-token system Phase 2 (privacy gate)~~ — **Shipped 2026-05-08, commit `8e575cb`.**
 - ~~Trip Story real-data implementation~~ — **Shipped 2026-05-08.**
 - ~~Per-priority difficulty UI~~ — **Closed 2026-05-08, won't build.**
@@ -321,7 +324,7 @@ The product runs on a tight palette — don't introduce new accent families ad-h
 
 - **Primary action color: sky-800 / sky-900.** Used for `.btn-primary`, every Settings save button, every itinerary action, every Group hub CTA. The `.btn-primary` global was amber until 2026-05-29; flipping it to sky was a one-line cascade across auth.
 - **Amber-500 / amber-600**: reserved for **Trip Pass marketing** (Trip Pass tier card, the "Most popular" badge on landing+pricing) AND the landing-page hero CTA. Anywhere else, amber reads as "Trip Pass / paid hero." Do NOT use amber for generic primary actions.
-- **Emerald-600**: the "Best value" badge (Explorer). Reserved for that single role.
+- **Emerald-600**: the "Best value" badge (Travel Pro). Reserved for that single role.
 - **Track A = sky-500, Track B = amber-500**. Was violet/rose pre-2026-05-29; both colors are now reused for other purposes ("AI Pick" badge = violet pill; error states = rose) so don't reintroduce violet/rose for tier or track identification.
 - **Warning / notice banners (ruling 2026-05-30, "Treatment B"):** `rose` (bg-rose-50, border-rose-200, text-rose-700, rose-500 icon) for **problems / failures / cautions / needs-action** (couldn't-load, "this will overwrite," validation warnings). `zinc` (bg-zinc-100, border-zinc-200, text-zinc-600, zinc-400 Info icon) for **neutral FYIs** (travel advisories, feature explainers, "do X first" hints). Do NOT use amber for warnings — amber stays reserved for **paid moments** (Trip Pass marketing, hero, credits-paywall / upgrade upsells, which legitimately stay amber).
 - **Neutrals: text-zinc-900 for headings, text-zinc-500-700 for body, text-slate-500-700 for form labels.** Mix them carefully — pages that mix zinc + slate without intent feel inconsistent. The Day-Of page used to live in a parallel slate palette; reconciling it to zinc fixed the "different product" feel.
