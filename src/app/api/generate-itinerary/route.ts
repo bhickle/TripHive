@@ -67,8 +67,8 @@ interface BookedFlight {
   arrivalTime?: string;
   returnDepartureTime?: string;
   returnArrivalTime?: string;
-  returnDepartureAirport?: string; // open-jaw: different return departure airport (Nomad)
-  returnArrivalAirport?: string;   // open-jaw: different return arrival airport (Nomad)
+  returnDepartureAirport?: string; // open-jaw: different return departure airport (Travel Pro)
+  returnArrivalAirport?: string;   // open-jaw: different return arrival airport (Travel Pro)
 }
 
 interface BookedHotel {

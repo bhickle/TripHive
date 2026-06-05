@@ -127,7 +127,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   const currentUser = useCurrentUser();
 
   // Show the Trip Pass CTA on the "done" step ONLY for free-tier users —
-  // paid users (trip_pass / explorer / nomad) already have what they need
+  // paid users (trip_pass / travel_pro) already have what they need
   // and we don't want to upsell at the moment they're trying to view their
   // imported itinerary.
   const isFreeTier = currentUser.subscriptionTier === 'free';

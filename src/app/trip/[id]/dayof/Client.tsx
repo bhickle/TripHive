@@ -365,7 +365,7 @@ export default function DayOfPage() {
   const transportLegs = currentDay.transportLegs || [];
 
   // Merged + sorted timeline. Include all three tracks — a split-track trip
-  // (Explorer/Nomad) keeps activities on track_a/track_b, and the day-of guide
+  // (Travel Pro) keeps activities on track_a/track_b, and the day-of guide
   // previously rendered only `shared`, silently dropping them from the
   // schedule, "Happening Now," and the done/total counters. Activities on a
   // split track carry the day's track label so the parallel options stay

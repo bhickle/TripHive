@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
 
   try {
     // Find trips starting in the upcoming window. We deliberately don't
-    // filter by tier here — Trip Pass is the primary use case, but Explorer/
-    // Nomad organizers benefit from the same heads-up if their group hasn't
+    // filter by tier here — Trip Pass is the primary use case, but Travel Pro
+    // organizers benefit from the same heads-up if their group hasn't
     // submitted. The feature is harmless for solo trips (no members → no
     // pending → no notification fires).
     const { data: trips, error: tripsErr } = await supabase

@@ -123,7 +123,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
   // isTripPassTrip drives the Trip Pass overlay in useEntitlements: when this
   // specific trip has an active trip_passes purchase, every invitee — regardless
   // of their own tier — gets the Trip Pass trip-scoped features (expenses,
-  // co-organizer, split tracks, transport parser) on this trip. Explorer/Nomad
+  // co-organizer, split tracks, transport parser) on this trip. Travel Pro
   // organizers' personal subscriptions do NOT trigger the overlay.
   const [isTripPassTrip, setIsTripPassTrip] = useState<boolean>(false);
 
@@ -321,7 +321,7 @@ export default function GroupPage({ params }: { params: { id: string } }) {
       });
       if (!res.ok) {
         // Parse the server's error reason if it's JSON (e.g. "Co-organizer
-        // roles require a Nomad subscription"). Without this, the user clicks
+        // roles require a Travel Pro subscription"). Without this, the user clicks
         // and sees no change — they don't know if they hit a tier gate, a
         // permission error, or a network issue.
         let detail = `request failed (${res.status})`;
@@ -2230,14 +2230,14 @@ export default function GroupPage({ params }: { params: { id: string } }) {
                       <span className="text-sm font-semibold text-zinc-700">AI Receipt Scan</span>
                       {hasAIReceiptScan
                         ? <span className="text-xs text-zinc-400 ml-auto">Optional</span>
-                        : <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5"><Crown className="w-3 h-3" />Nomad</span>
+                        : <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5"><Crown className="w-3 h-3" />Travel Pro</span>
                       }
                     </div>
                     {!hasAIReceiptScan ? (
                       <div className="border-2 border-dashed border-zinc-200 rounded-xl p-5 text-center opacity-60">
                         <Lock className="w-5 h-5 text-zinc-300 mx-auto mb-2" />
-                        <p className="text-sm text-zinc-400">AI receipt scanning is a Nomad feature</p>
-                        <a href="/pricing" className="text-xs text-sky-700 underline mt-1 inline-block">Upgrade to Nomad →</a>
+                        <p className="text-sm text-zinc-400">AI receipt scanning is a Travel Pro feature</p>
+                        <a href="/pricing" className="text-xs text-sky-700 underline mt-1 inline-block">Upgrade to Travel Pro →</a>
                       </div>
                     ) : !uploadedReceipt ? (
                       <div

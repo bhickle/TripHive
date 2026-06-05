@@ -13,7 +13,7 @@
 
 import { useAuth } from '@/context/AuthContext';
 import { currentUser as mockUser } from '@/data/mock';
-import { TIER_LIMITS } from '@/lib/types';
+import { TIER_LIMITS, normalizeTier } from '@/lib/types';
 import type { SubscriptionTier } from '@/lib/types';
 
 /** Safe blank shape returned while auth is loading or user is not logged in. */
@@ -46,14 +46,16 @@ const BLANK_USER = {
 
 /** 24h max staleness for the localStorage tier cache. Long enough to
  *  cover normal multi-day sessions, short enough that a Stripe-driven
- *  downgrade (Nomad → Free at end-of-cycle) is reflected on next visit
+ *  downgrade (Travel Pro → Free at end-of-cycle) is reflected on next visit
  *  even if the profile fetch is slow. */
 const TIER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-/** Allowed tier strings — guards against a corrupted cache returning
- *  something we'd pass through to UI consumers. */
-const VALID_TIERS: ReadonlySet<SubscriptionTier> = new Set<SubscriptionTier>([
-  'free', 'trip_pass', 'explorer', 'nomad',
+/** Recognized raw tier strings — guards against a corrupted cache returning
+ *  something we'd pass through to UI consumers. Includes the legacy
+ *  'explorer'/'nomad' values so a pre-migration cache still resolves (via
+ *  normalizeTier) to 'travel_pro' instead of flashing free. */
+const KNOWN_RAW_TIERS: ReadonlySet<string> = new Set<string>([
+  'free', 'trip_pass', 'travel_pro', 'explorer', 'nomad',
 ]);
 
 /** Read + TTL-check the tier cache for a given user ID. Returns null on
@@ -72,8 +74,8 @@ function readCachedTier(userId: string): SubscriptionTier | null {
     const parsed = JSON.parse(raw) as { tier?: string; ts?: number };
     if (typeof parsed.ts !== 'number') return null;
     if (Date.now() - parsed.ts > TIER_CACHE_TTL_MS) return null;
-    if (!parsed.tier || !VALID_TIERS.has(parsed.tier as SubscriptionTier)) return null;
-    return parsed.tier as SubscriptionTier;
+    if (!parsed.tier || !KNOWN_RAW_TIERS.has(parsed.tier)) return null;
+    return normalizeTier(parsed.tier);
   } catch {
     return null;
   }

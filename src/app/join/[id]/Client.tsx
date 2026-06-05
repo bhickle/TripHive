@@ -713,7 +713,7 @@ export default function JoinTripPage({ params }: { params: { id: string } }) {
                     <h4 className="font-semibold text-zinc-900">Get more from this trip</h4>
                   </div>
                   <p className="text-sm text-zinc-700 mb-4">
-                    Your preferences have been submitted. But the trip really comes alive once you sign up. For $7.99/month (Explorer plan), you get:
+                    Your preferences have been submitted. But the trip really comes alive once you sign up — it&apos;s free. With a free tripcoord account, you get:
                   </p>
                   <ul className="space-y-2 text-sm text-zinc-700 mb-4">
                     <li className="flex items-center space-x-2">

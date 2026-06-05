@@ -6,6 +6,8 @@ import React, {
 import type { User, Session } from '@supabase/supabase-js';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { DEMO_USER_EMAIL } from '@/lib/demo';
+import { normalizeTier } from '@/lib/types';
+import type { SubscriptionTier } from '@/lib/types';
 
 // ─── Profile shape ────────────────────────────────────────────────────────────
 
@@ -14,7 +16,7 @@ export interface UserProfile {
   name: string | null;
   email: string | null;
   avatar_url: string | null;
-  subscription_tier: 'free' | 'trip_pass' | 'explorer' | 'nomad';
+  subscription_tier: SubscriptionTier;
   ai_credits_used: number;
   ai_credits_reset_at: string | null;
   home_country: string | null;
@@ -123,18 +125,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
         if (data) {
           // DB schema has subscription_tier: string but our app narrows it to
-          // a union — coerce here. Anything outside the union we treat as 'free'.
-          const tier = (
-            ['free', 'trip_pass', 'explorer', 'nomad'].includes(data.subscription_tier)
-              ? data.subscription_tier
-              : 'free'
-          ) as UserProfile['subscription_tier'];
+          // a union — coerce via normalizeTier. Legacy 'explorer'/'nomad' map
+          // to 'travel_pro'; anything unrecognized fails safe to 'free'.
+          const tier = normalizeTier(data.subscription_tier);
           const profile: UserProfile = { ...data, subscription_tier: tier };
           setProfile(profile);
           // Cache the full profile for instant hydration on next page load,
           // and also cache the tier separately for the existing tier-only fallback.
           writeCachedProfile(profile);
-          // Tier cache is timestamped so a downgraded user (Nomad → Free)
+          // Tier cache is timestamped so a downgraded user (Travel Pro → Free)
           // doesn't see stale "paid" UI flash on the next session via a
           // months-old cache. useCurrentUser ignores entries older than
           // TIER_CACHE_TTL_MS. Cache the tier separately from the profile

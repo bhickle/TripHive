@@ -2,7 +2,7 @@
  * POST /api/stripe/checkout
  *
  * Creates a Stripe Checkout Session for:
- *   - Explorer / Nomad subscriptions (mode: 'subscription')
+ *   - Travel Pro subscription (mode: 'subscription')
  *   - Trip Pass one-time purchase (mode: 'payment')
  *
  * Body shape:
@@ -29,10 +29,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // checkout price — it's appended server-side as an additional line item.
 // (QA #3 / SEC-2: priceId was previously trusted verbatim.)
 const SUBSCRIPTION_PRICE_IDS = new Set<string>([
-  STRIPE_PRICES.explorer.monthly,
-  STRIPE_PRICES.explorer.annual,
-  STRIPE_PRICES.nomad.monthly,
-  STRIPE_PRICES.nomad.annual,
+  STRIPE_PRICES.travel_pro.monthly,
+  STRIPE_PRICES.travel_pro.annual,
 ]);
 const PAYMENT_PRICE_IDS = new Set<string>([
   STRIPE_PRICES.trip_pass.base,

@@ -22,36 +22,35 @@ const featureRows: {
   icon: React.ReactNode;
   free: string | boolean;
   trip_pass: string | boolean;
-  explorer: string | boolean;
-  nomad: string | boolean;
-  nomadHighlight?: boolean;
+  travel_pro: string | boolean;
+  proHighlight?: boolean;
 }[] = [
   // Planning
-  { label: 'Active trips', icon: <Map className="w-4 h-4" />, free: 'Unlimited', trip_pass: '1 trip (pass)', explorer: 'Unlimited', nomad: 'Unlimited' },
-  { label: 'Travelers per trip', icon: <Users className="w-4 h-4" />, free: 'Up to 4', trip_pass: 'Up to 6 (+add-ons)', explorer: 'Up to 6', nomad: 'Up to 12' },
-  { label: 'Manual itinerary builder', icon: <CalendarDays className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Packing & prep checklists', icon: <CheckCircle className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Activity voting', icon: <Star className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Group invite & member management', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
+  { label: 'Active trips', icon: <Map className="w-4 h-4" />, free: 'Unlimited', trip_pass: '1 trip (pass)', travel_pro: 'Unlimited' },
+  { label: 'Travelers per trip', icon: <Users className="w-4 h-4" />, free: 'Up to 4', trip_pass: 'Up to 6 (+add-ons)', travel_pro: 'Up to 8' },
+  { label: 'Manual itinerary builder', icon: <CalendarDays className="w-4 h-4" />, free: true, trip_pass: true, travel_pro: true },
+  { label: 'Packing & prep checklists', icon: <CheckCircle className="w-4 h-4" />, free: true, trip_pass: true, travel_pro: true },
+  { label: 'Activity voting', icon: <Star className="w-4 h-4" />, free: true, trip_pass: true, travel_pro: true },
+  { label: 'Group invite & member management', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, travel_pro: true },
+  { label: 'Trip Story', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, travel_pro: true },
   // AI
-  { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', explorer: 'Up to 10 days', nomad: 'Up to 14 days', nomadHighlight: true },
-  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '25 / month (~1 build)', trip_pass: '50 per pass (1 build + 1 regen + tweaks)', explorer: '100 / month (~4 builds)', nomad: '200 / month (~8 builds)', nomadHighlight: true },
-  { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
-  { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
+  { label: 'AI itinerary generation', icon: <Sparkles className="w-4 h-4" />, free: '7 days, 1/month', trip_pass: 'Up to 7 days', travel_pro: 'Up to 14 days', proHighlight: true },
+  { label: 'AI credits', icon: <Zap className="w-4 h-4" />, free: '25 / month (~1 build)', trip_pass: '50 per pass (1 build + 1 regen + tweaks)', travel_pro: '150 / month (~6 builds)', proHighlight: true },
+  { label: 'Transport confirmation parser', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: true, travel_pro: true },
+  { label: 'AI packing list', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, travel_pro: true, proHighlight: true },
+  { label: 'AI travel phrasebook', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, travel_pro: true, proHighlight: true },
   // Group & trips
-  { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Group chat', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Group expense tracking', icon: <Receipt className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'AI receipt scanning', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
-  { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: true, explorer: true, nomad: true },
-  { label: 'Wishlist & destination discovery', icon: <Globe className="w-4 h-4" />, free: 'Save only', trip_pass: false, explorer: true, nomad: true },
-  { label: 'Year in Review', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, explorer: true, nomad: true },
+  { label: 'Photo gallery', icon: <Camera className="w-4 h-4" />, free: true, trip_pass: true, travel_pro: true },
+  { label: 'Group chat', icon: <Users className="w-4 h-4" />, free: true, trip_pass: true, travel_pro: true },
+  { label: 'Group expense tracking', icon: <Receipt className="w-4 h-4" />, free: false, trip_pass: true, travel_pro: true },
+  { label: 'AI receipt scanning', icon: <Sparkles className="w-4 h-4" />, free: false, trip_pass: false, travel_pro: true, proHighlight: true },
+  { label: 'Split-track itineraries', icon: <Map className="w-4 h-4" />, free: false, trip_pass: true, travel_pro: true },
+  { label: 'Co-organizer role', icon: <Users className="w-4 h-4" />, free: false, trip_pass: true, travel_pro: true },
+  { label: 'Wishlist & destination discovery', icon: <Globe className="w-4 h-4" />, free: 'Save only', trip_pass: false, travel_pro: true },
+  { label: 'Year in Review', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, travel_pro: true },
   // Support
-  { label: 'Early access to new features', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, explorer: false, nomad: true, nomadHighlight: true },
-  { label: 'Support', icon: <Shield className="w-4 h-4" />, free: 'Community', trip_pass: 'Email', explorer: 'Email', nomad: 'Priority' },
+  { label: 'Early access to new features', icon: <Star className="w-4 h-4" />, free: false, trip_pass: false, travel_pro: true, proHighlight: true },
+  { label: 'Support', icon: <Shield className="w-4 h-4" />, free: 'Community', trip_pass: 'Email', travel_pro: 'Priority' },
 ];
 
 // ─── FAQ ─────────────────────────────────────────────────────────────────────
@@ -59,19 +58,19 @@ const featureRows: {
 const faqs = [
   {
     q: 'What exactly is a Trip Pass?',
-    a: "A Trip Pass is a one-time $30 purchase tied to a single trip. It unlocks AI itinerary generation, the transport parser, photo gallery, and more for up to 6 travelers. It's perfect if you travel once or twice a year and don't want a monthly subscription. The pass is active for your trip duration plus 30 days after.",
+    a: "A Trip Pass is a one-time $36 purchase tied to a single trip. It unlocks AI itinerary generation, the transport parser, photo gallery, and more for up to 6 travelers. It's perfect if you travel once or twice a year and don't want a monthly subscription. The pass is active for your trip duration plus 30 days after.",
   },
   {
     q: 'Can I add more people to a Trip Pass?',
-    a: "Yes — you can add travelers beyond the base 6 for $4 per person, up to 12 total. So a group of 10 would be $30 + $16 = $46 for the whole trip.",
+    a: "Yes — you can add travelers beyond the base 6 for $4 per person, up to 12 total. So a group of 10 would be $36 + $16 = $52 for the whole trip.",
   },
   {
     q: 'What are AI credits and what do they cost?',
-    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 25 credits. Regenerating an existing trip costs 10 (cheaper because we reuse the venue verification cache). Adding a single day costs 3. Lightweight actions like browsing Discover, generating hotel ideas, or parsing a transport confirmation cost 1 credit each. Free tier (25 credits/mo) covers 1 build. Trip Pass (50 per pass) covers 1 build + 1 regen + tweaks. Explorer (100/mo) covers about 4 builds. Nomad (200/mo) covers about 8 builds. Only the trip organizer or co-organizer can trigger AI changes — other members can still vote, chat, and submit preferences. Credits refresh on the first of each month.",
+    a: "AI credits are how we keep AI features sustainable. Generating a full itinerary costs 25 credits. Regenerating an existing trip costs 10 (cheaper because we reuse the venue verification cache). Adding a single day costs 3. Lightweight actions like browsing Discover, generating hotel ideas, or parsing a transport confirmation cost 1 credit each. Free tier (25 credits/mo) covers 1 build. Trip Pass (50 per pass) covers 1 build + 1 regen + tweaks. Travel Pro (150/mo) covers about 6 builds. Only the trip organizer or co-organizer can trigger AI changes — other members can still vote, chat, and submit preferences. Credits refresh on the first of each month.",
   },
   {
     q: 'What happens if I use all my AI credits?',
-    a: "Your credits refresh on your next billing date. You'll see a heads-up before you're close so it's never a surprise. If you need more immediately, upgrading to Nomad gives you enough credits for about 8 full builds a month — plenty for even the most enthusiastic planner.",
+    a: "Your credits refresh on the first of each month. You'll see a heads-up before you're close so it's never a surprise. Travel Pro's 150 credits cover about 6 full builds a month — plenty for even the most enthusiastic planner — and you can always grab a Trip Pass for a one-off trip in the meantime.",
   },
   {
     q: 'Can I switch plans?',
@@ -79,7 +78,7 @@ const faqs = [
   },
   {
     q: 'Do you offer annual billing?',
-    a: "Yes — pay annually and save ~20%. Explorer drops to $6.42/mo ($76.99/year) and Nomad to ~$12/mo ($143.99/year). No subscription renews without a reminder.",
+    a: "Yes — pay annually for Travel Pro and get 2 months free: $149/year instead of $179.88. No subscription renews without a reminder.",
   },
   {
     q: 'What happens to my data if I cancel?',
@@ -273,10 +272,8 @@ function PricingPageInner() {
     }
   }
 
-  const explorerPrice = billing === 'annual' ? (PRICING.explorer.annual / 12).toFixed(2) : PRICING.explorer.monthly.toFixed(2);
-  const nomadPrice = billing === 'annual' ? (PRICING.nomad.annual / 12).toFixed(2) : PRICING.nomad.monthly.toFixed(2);
-  const explorerBilled = billing === 'annual' ? `$${PRICING.explorer.annual}/year` : null;
-  const nomadBilled = billing === 'annual' ? `$${PRICING.nomad.annual}/year` : null;
+  const travelProPrice = billing === 'annual' ? (PRICING.travel_pro.annual / 12).toFixed(2) : PRICING.travel_pro.monthly.toFixed(2);
+  const travelProBilled = billing === 'annual' ? `$${PRICING.travel_pro.annual}/year` : null;
 
   return (
     <div className="min-h-screen bg-parchment">
@@ -308,7 +305,7 @@ function PricingPageInner() {
             className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${billing === 'annual' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-600 hover:text-zinc-800'}`}
           >
             Annual
-            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">Save 20%</span>
+            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">2 months free</span>
           </button>
         </div>
       </section>
@@ -317,7 +314,7 @@ function PricingPageInner() {
       <section className="max-w-7xl mx-auto px-4 pb-16">
         {billing === 'annual' && (
           <p className="text-center text-xs text-zinc-400 mb-4">
-            Annual billing is available for Explorer and Nomad subscriptions only.
+            Annual billing is available for the Travel Pro subscription.
           </p>
         )}
         {checkoutError && (
@@ -333,7 +330,7 @@ function PricingPageInner() {
             </button>
           </div>
         )}
-        <div className={`grid gap-5 max-w-6xl mx-auto ${billing === 'annual' ? 'grid-cols-1 sm:grid-cols-2 max-w-2xl' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'}`}>
+        <div className={`grid gap-5 mx-auto ${billing === 'annual' ? 'grid-cols-1 max-w-sm' : 'grid-cols-1 sm:grid-cols-3 max-w-5xl'}`}>
 
           {/* Free */}
           {billing === 'monthly' && (
@@ -416,105 +413,55 @@ function PricingPageInner() {
           </div>
           )}
 
-          {/* Explorer — Best value */}
-          <div id="explorer" className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20 scroll-mt-24">
+          {/* Travel Pro — Best value (single paid subscription) */}
+          <div id="travel_pro" className="bg-sky-900 border border-sky-800 rounded-3xl p-7 flex flex-col relative shadow-xl shadow-sky-900/20 scroll-mt-24">
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wide bg-emerald-600 text-white px-3 py-1 rounded-full whitespace-nowrap">
               Best value
             </span>
             <div className="mb-5 mt-2">
-              <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mb-1.5">Explorer</p>
-              <p className="text-sky-100/70 text-sm leading-snug">Your whole travel year, covered.</p>
+              <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mb-1.5">Travel Pro</p>
+              <p className="text-sky-100/70 text-sm leading-snug">Every tool, all year. For the always-planning.</p>
             </div>
             <div className="mb-1">
-              <span className="font-script italic text-4xl font-semibold text-white">${explorerPrice}</span>
+              <span className="font-script italic text-4xl font-semibold text-white">${travelProPrice}</span>
               <span className="text-sky-300 text-sm ml-1">/ month</span>
             </div>
-            {explorerBilled
-              ? <p className="text-xs text-sky-300 font-medium mb-6">Billed {explorerBilled} · 2 months free</p>
+            {travelProBilled
+              ? <p className="text-xs text-sky-300 font-medium mb-6">Billed {travelProBilled} · 2 months free</p>
               : <p className="text-xs text-sky-400 mb-6">Billed monthly · cancel anytime</p>
             }
             <button
               onClick={() => startCheckout(
-                billing === 'annual' ? STRIPE_PRICES.explorer.annual : STRIPE_PRICES.explorer.monthly,
+                billing === 'annual' ? STRIPE_PRICES.travel_pro.annual : STRIPE_PRICES.travel_pro.monthly,
                 'subscription'
               )}
               disabled={!!checkingOut}
               className="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-sky-50 text-sky-900 font-bold rounded-full text-sm transition-all mb-7 shadow-sm disabled:opacity-70"
             >
-              {checkingOut === (billing === 'annual' ? STRIPE_PRICES.explorer.annual : STRIPE_PRICES.explorer.monthly)
+              {checkingOut === (billing === 'annual' ? STRIPE_PRICES.travel_pro.annual : STRIPE_PRICES.travel_pro.monthly)
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
-                : 'Get Explorer'
+                : 'Get Travel Pro'
               }
             </button>
             <ul className="space-y-3 flex-1">
               {[
-                'Plan trips all year long',
-                'Up to 6 travelers per trip',
-                '100 AI credits / month (~4 full builds)',
-                'AI itinerary generation — up to 10 days',
-                'Transport confirmation parser',
-                'Group expense tracking (manual splits)',
-                'Split-track itineraries (Track A/B)',
-                'Co-organizer role — share edit access',
-                'Wishlist & destination discovery',
-                'Year in Review',
-                'Trip Story for every trip',
-                'Packing & prep checklists',
-                'Email support',
-              ].map(f => (
-                <li key={f} className="flex items-start gap-2.5 text-sm text-sky-100">
-                  <CheckCircle className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Nomad */}
-          <div id="nomad" className="bg-white border border-zinc-200 rounded-3xl p-7 flex flex-col relative scroll-mt-24">
-            <div className="absolute top-6 right-6">
-              <Crown className="w-5 h-5 text-amber-400" />
-            </div>
-            <div className="mb-5">
-              <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1.5">Nomad</p>
-              <p className="text-zinc-500 text-sm leading-snug">For the organizer everyone counts on.</p>
-            </div>
-            <div className="mb-1">
-              <span className="font-script italic text-4xl font-semibold text-zinc-900">${nomadPrice}</span>
-              <span className="text-zinc-400 text-sm ml-1">/ month</span>
-            </div>
-            {nomadBilled
-              ? <p className="text-xs text-zinc-500 font-medium mb-6">Billed {nomadBilled} · 2 months free</p>
-              : <p className="text-xs text-zinc-400 mb-6">Billed monthly · cancel anytime</p>
-            }
-            <button
-              onClick={() => startCheckout(
-                billing === 'annual' ? STRIPE_PRICES.nomad.annual : STRIPE_PRICES.nomad.monthly,
-                'subscription'
-              )}
-              disabled={!!checkingOut}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-zinc-900 hover:bg-zinc-700 text-white font-bold rounded-full text-sm transition-all mb-7 shadow-sm disabled:opacity-70"
-            >
-              {checkingOut === (billing === 'annual' ? STRIPE_PRICES.nomad.annual : STRIPE_PRICES.nomad.monthly)
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
-                : 'Get Nomad'
-              }
-            </button>
-            <ul className="space-y-3 flex-1">
-              {[
-                { text: 'Everything in Explorer', highlight: false },
-                { text: 'Up to 12 travelers per trip', highlight: false },
-                { text: 'AI itineraries up to 14 days', highlight: true },
-                { text: '200 AI credits / month (~8 full builds)', highlight: true },
-                { text: 'AI receipt scanning (scan to split)', highlight: true },
-                { text: 'AI packing list (destination-specific)', highlight: true },
-                { text: 'AI travel phrasebook', highlight: true },
+                { text: 'Plan trips all year long', highlight: false },
+                { text: 'Up to 8 travelers per trip', highlight: false },
+                { text: '150 AI credits / month (~6 full builds)', highlight: true },
+                { text: 'AI itinerary generation — up to 14 days', highlight: true },
+                { text: 'Transport confirmation parser', highlight: false },
+                { text: 'Group expense tracking + AI receipt scanning', highlight: true },
+                { text: 'Split-track itineraries (Track A/B)', highlight: false },
+                { text: 'Co-organizer role — share edit access', highlight: false },
+                { text: 'AI packing list & travel phrasebook', highlight: true },
+                { text: 'Wishlist & destination discovery', highlight: false },
+                { text: 'Year in Review + Trip Story', highlight: false },
                 { text: 'Early access to new features', highlight: true },
                 { text: 'Priority support', highlight: false },
               ].map(f => (
                 <li key={f.text} className="flex items-start gap-2.5 text-sm">
-                  <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${f.highlight ? 'text-amber-400' : 'text-zinc-300'}`} />
-                  <span className={f.highlight ? 'text-zinc-900 font-semibold' : 'text-zinc-600'}>{f.text}</span>
+                  <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${f.highlight ? 'text-amber-300' : 'text-sky-400'}`} />
+                  <span className={f.highlight ? 'text-white font-semibold' : 'text-sky-100'}>{f.text}</span>
                 </li>
               ))}
             </ul>
@@ -568,8 +515,7 @@ function PricingPageInner() {
                 {[
                   { label: 'Free', color: 'text-zinc-500' },
                   { label: 'Trip Pass', color: 'text-amber-600' },
-                  { label: 'Explorer', color: 'text-sky-700' },
-                  { label: 'Nomad', color: 'text-zinc-900' },
+                  { label: 'Travel Pro', color: 'text-sky-700' },
                 ].map(col => (
                   <th key={col.label} className={`text-center py-3 px-4 font-bold text-sm ${col.color}`}>{col.label}</th>
                 ))}
@@ -584,8 +530,7 @@ function PricingPageInner() {
                   </td>
                   <td className="py-3 px-4 text-center"><FeatureCell value={row.free} /></td>
                   <td className="py-3 px-4 text-center"><FeatureCell value={row.trip_pass} /></td>
-                  <td className="py-3 px-4 text-center"><FeatureCell value={row.explorer} /></td>
-                  <td className="py-3 px-4 text-center"><FeatureCell value={row.nomad} highlight={row.nomadHighlight} /></td>
+                  <td className="py-3 px-4 text-center"><FeatureCell value={row.travel_pro} highlight={row.proHighlight} /></td>
                 </tr>
               ))}
             </tbody>
@@ -597,9 +542,9 @@ function PricingPageInner() {
       <section className="bg-zinc-900 py-12 px-4">
         <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8">
           {[
-            { quote: "Bought the Trip Pass for our Iceland trip. Easiest $30 I've ever spent — had the whole week planned in 20 minutes.", name: 'Maya R.', tag: 'Trip Pass user' },
-            { quote: "The co-organizer feature on Nomad is genuinely a game changer. My partner and I can both edit without stepping on each other.", name: 'James T.', tag: 'Nomad subscriber' },
-            { quote: "I was skeptical about the AI credits thing but I've never come close to the limit. Explorer is totally worth it.", name: 'Priya S.', tag: 'Explorer subscriber' },
+            { quote: "Bought the Trip Pass for our Iceland trip. Easiest $36 I've ever spent — had the whole week planned in 20 minutes.", name: 'Maya R.', tag: 'Trip Pass user' },
+            { quote: "The co-organizer feature on Travel Pro is genuinely a game changer. My partner and I can both edit without stepping on each other.", name: 'James T.', tag: 'Travel Pro subscriber' },
+            { quote: "I was skeptical about the AI credits thing but I've never come close to the limit. Travel Pro is totally worth it.", name: 'Priya S.', tag: 'Travel Pro subscriber' },
           ].map(t => (
             <div key={t.name}>
               <p className="text-zinc-300 text-sm leading-relaxed mb-4 italic">&ldquo;{t.quote}&rdquo;</p>

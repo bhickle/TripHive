@@ -129,7 +129,7 @@ interface FeaturedItineraryCardProps {
   wishlisted: boolean;
   canWishlist: boolean;
   onWishlist: () => void;
-  /** Explorer/Nomad can build a fresh AI variation; others see a lock. */
+  /** Travel Pro can build a fresh AI variation; others see a lock. */
   canPersonalizeAI: boolean;
   /** Free copy of the cached itinerary into a new trip (all tiers). */
   onUseAsStartingPoint: () => void;
@@ -168,8 +168,8 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
 
         <button
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onWishlist(); }}
-          title={canWishlist ? (wishlisted ? 'Saved to On My Radar' : 'Save to On My Radar') : 'Explorer plan required to save destinations'}
-          aria-label={canWishlist ? (wishlisted ? 'Remove from On My Radar' : 'Save to On My Radar') : 'Save (Explorer plan required)'}
+          title={canWishlist ? (wishlisted ? 'Saved to On My Radar' : 'Save to On My Radar') : 'Saving destinations isn’t available on this plan'}
+          aria-label={canWishlist ? (wishlisted ? 'Remove from On My Radar' : 'Save to On My Radar') : 'Save (not available on this plan)'}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition-all"
         >
           {canWishlist
@@ -246,7 +246,7 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
         ) : null}
 
         {/* Footer CTAs — free "Use as starting point" (all tiers) + gated
-            "Personalize with AI" (Explorer/Nomad). */}
+            "Personalize with AI" (Travel Pro). */}
         {/* Tagline above the CTAs makes it visible that "Personalize with AI"
             doesn't throw the editorial picks away — the AI build uses them as
             anchors. Same prompt rule applies in generate-itinerary's
@@ -409,7 +409,7 @@ function DestinationCard({
         </div>
         <button
           onClick={() => onWishlist(dest.id)}
-          title={canWishlist ? 'Save to wishlist' : 'Explorer plan required to save destinations'}
+          title={canWishlist ? 'Save to wishlist' : 'Saving destinations isn’t available on this plan'}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition-all"
         >
           {canWishlist
@@ -510,8 +510,8 @@ function TopSearchCard({
           </span>
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onWishlist(); }}
-            title={canWishlist ? (wishlisted ? 'Saved to On My Radar' : 'Save to On My Radar') : 'Explorer plan required to save destinations'}
-            aria-label={canWishlist ? (wishlisted ? 'Remove from On My Radar' : 'Save to On My Radar') : 'Save (Explorer plan required)'}
+            title={canWishlist ? (wishlisted ? 'Saved to On My Radar' : 'Save to On My Radar') : 'Saving destinations isn’t available on this plan'}
+            aria-label={canWishlist ? (wishlisted ? 'Remove from On My Radar' : 'Save to On My Radar') : 'Save (not available on this plan)'}
             className="relative z-10 w-7 h-7 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all"
           >
             {canWishlist
@@ -883,11 +883,11 @@ export default function DiscoverPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // "Personalize with AI" (fresh AI build from a featured itinerary) is an
-  // Explorer/Nomad feature; Free + Trip Pass get the free "Use as starting
+  // "Personalize with AI" (fresh AI build from a featured itinerary) is a
+  // Travel Pro feature; Free + Trip Pass get the free "Use as starting
   // point" copy instead. Stay permissive while the tier is still resolving so
   // paid users don't see a lock flash on first paint.
-  const canPersonalizeAI = !tierResolved || tier === 'explorer' || tier === 'nomad';
+  const canPersonalizeAI = !tierResolved || tier === 'travel_pro';
 
   // ── State ──────────────────────────────────────────────────────────────
   const [destinations, setDestinations] = useState<DiscoverDestination[]>(mockDiscoverDestinations);
@@ -1430,7 +1430,7 @@ export default function DiscoverPage() {
                     <Lock className="w-4 h-4 text-sky-700" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-zinc-900">Explorer feature</p>
+                    <p className="text-sm font-semibold text-zinc-900">Travel Pro feature</p>
                     <p className="text-xs text-zinc-500">Upgrade to save destinations to your wishlist and unlock full discovery.</p>
                   </div>
                 </div>

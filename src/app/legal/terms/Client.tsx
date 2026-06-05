@@ -49,7 +49,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">3. Accounts &amp; Subscriptions</h2>
             <p>
-              tripcoord offers free and paid subscription tiers (Explorer, Nomad, and Trip Pass). Paid plans are billed
+              tripcoord offers free and paid subscription tiers (Travel Pro and Trip Pass). Paid plans are billed
               monthly or annually as selected at purchase. You may cancel at any time; cancellation takes effect at the
               end of your current billing period. We do not offer prorated refunds for partial periods except where
               required by law.

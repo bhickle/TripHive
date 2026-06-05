@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from './server';
 import { createAdminClient } from './admin';
-import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
+import { TIER_LIMITS, SubscriptionTier, normalizeTier } from '@/lib/types';
 
 /**
  * requireFeature — call after requireAuth to gate a feature by tier.
@@ -92,8 +92,10 @@ export async function requireAuth(): Promise<
         };
       }
 
-      // No row at all is genuinely a new account — default to free.
-      tier = (profile?.subscription_tier as SubscriptionTier | undefined) ?? 'free';
+      // Normalize the raw DB value: no row → free; legacy 'explorer'/'nomad'
+      // → 'travel_pro'; anything unrecognized → free. This is the single
+      // server-side chokepoint, so every API gate is legacy-safe.
+      tier = normalizeTier(profile?.subscription_tier);
     } catch (err) {
       console.error('[requireAuth] profile fetch threw for user', user.id, err);
       return {

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/lib/supabase/database.types';
 import { getTripRole, requireTripAccess } from '@/lib/supabase/tripAccess';
-import { TIER_LIMITS } from '@/lib/types';
+import { TIER_LIMITS, normalizeTier } from '@/lib/types';
 import { PRICING } from '@/hooks/useEntitlements';
 
 /**
@@ -283,10 +283,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // member would push the trip over.
     //
     // Cap by tier:
-    //   free      → 4 travelers   (organizer + 3)
-    //   trip_pass → 6 base + extras (varies per pass purchase)
-    //   explorer  → 6 travelers
-    //   nomad     → 12 travelers
+    //   free       → 4 travelers   (organizer + 3)
+    //   trip_pass  → 6 base + extras (varies per pass purchase)
+    //   travel_pro → 8 travelers
     // (Actual caps come from TIER_LIMITS / PRICING below — this is just a map.)
     try {
       const { data: orgProfile } = await supabase
@@ -440,10 +439,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
  * Authorization
  *   - Caller must be the trip organizer or a co-organizer (parity).
  *   - The trip organizer's subscription tier must include co-organizer
- *     entitlement (Trip Pass, Explorer, Nomad — see lib/types.ts
- *     TIER_LIMITS.canAddCoOrganizer). Earlier this gate was Nomad-only on
+ *     entitlement (Trip Pass or Travel Pro — see lib/types.ts
+ *     TIER_LIMITS.canAddCoOrganizer). Earlier this gate was top-tier-only on
  *     the CALLER's tier, which contradicted the entitlement table and
- *     blocked Trip Pass / Explorer organizers from promoting anyone even
+ *     blocked Trip Pass organizers from promoting anyone even
  *     though their UI showed the "+ Make co-organizer" button.
  *
  * Body: { memberId: string, role: 'member' | 'co_organizer' }
@@ -476,17 +475,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     // The trip organizer's tier governs whether co-organizer is unlocked
     // for this trip. Free tier doesn't include co-organizer; Trip Pass /
-    // Explorer / Nomad do.
+    // Travel Pro do.
     const { data: organizerProfile } = await supabase
       .from('profiles')
       .select('subscription_tier')
       .eq('id', trip.organizer_id)
       .single();
 
-    const organizerTier = organizerProfile?.subscription_tier ?? 'free';
+    const organizerTier = normalizeTier(organizerProfile?.subscription_tier);
     if (organizerTier === 'free') {
       return NextResponse.json(
-        { error: 'Co-organizer roles require Trip Pass, Explorer, or Nomad' },
+        { error: 'Co-organizer roles require Trip Pass or Travel Pro' },
         { status: 403 },
       );
     }

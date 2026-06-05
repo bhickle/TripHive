@@ -80,9 +80,9 @@ export const currentUser = {
     groupType: 'Friends',
     priorities: ['Food', 'Culture', 'Adventure'],
   },
-  subscriptionTier: 'nomad' as const,
+  subscriptionTier: 'travel_pro' as const,
   aiCredits: {
-    total: 300,
+    total: 150,
     used: 42,
     refreshAt: '2026-05-01T00:00:00Z',
   },

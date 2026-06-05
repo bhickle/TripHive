@@ -1,6 +1,32 @@
 // ─── Subscription / entitlements ──────────────────────────────────────────────
 
-export type SubscriptionTier = 'free' | 'trip_pass' | 'explorer' | 'nomad';
+export type SubscriptionTier = 'free' | 'trip_pass' | 'travel_pro';
+
+/**
+ * Legacy tier values that still exist in the database (and in Stripe price
+ * metadata) until every Explorer/Nomad subscriber has been migrated. Both
+ * collapsed into `travel_pro` on 2026-06-05 (4-tier → 3-tier change).
+ *
+ * Mapped here, not deleted, so a stray legacy row can never crash a
+ * `TIER_LIMITS[tier]` lookup or silently drop a paid user to free.
+ */
+const LEGACY_TIER_ALIASES: Record<string, SubscriptionTier> = {
+  explorer: 'travel_pro',
+  nomad: 'travel_pro',
+};
+
+/**
+ * Coerce any raw `subscription_tier` string (from Supabase, Stripe, or a
+ * cache) into a current SubscriptionTier. Legacy 'explorer'/'nomad' → 'travel_pro';
+ * anything unrecognized fails SAFE to 'free'. Use this at EVERY point where a
+ * tier value is read out of the DB and compared/keyed — it makes the app
+ * correct regardless of whether the data migration has run yet.
+ */
+export function normalizeTier(raw: string | null | undefined): SubscriptionTier {
+  if (raw === 'free' || raw === 'trip_pass' || raw === 'travel_pro') return raw;
+  if (raw && raw in LEGACY_TIER_ALIASES) return LEGACY_TIER_ALIASES[raw];
+  return 'free';
+}
 
 export interface TripPass {
   /** The trip ID this pass is valid for */
@@ -73,11 +99,10 @@ export interface AiCredits {
  * 25 credits per build (was 10, severely underpriced).
  *
  * Per-tier build counts at current credit caps (after this repricing):
- *   Free      —  25 cr →  1 build/mo (free tier was bumped 10→25 cr to
+ *   Free       —  25 cr →  1 build/mo (free tier was bumped 10→25 cr to
  *                          preserve the "1 build/mo" promise)
- *   Trip Pass —  50 cr →  1 build + 1 regen + 5 small tweaks per pass
- *   Explorer  — 100 cr →  4 builds/mo
- *   Nomad     — 200 cr →  8 builds/mo
+ *   Trip Pass  —  50 cr →  1 build + 1 regen + 5 small tweaks per pass
+ *   Travel Pro — 150 cr →  6 builds/mo
  *
  * Discover-style lookup actions (generate_discover, generate_hotels, etc.)
  * stay at 1 credit because they're lightweight Haiku calls that build on
@@ -115,9 +140,9 @@ export const AI_CREDIT_COSTS = {
   generate_discover: 1,
   // /api/generate-layover — Sonnet, 6000-token output (~$0.10).
   generate_layover: 2,
-  // /api/generate-packing — Haiku, 2048-token output (~$0.03). Nomad-only.
+  // /api/generate-packing — Haiku, 2048-token output (~$0.03). Travel Pro-only.
   generate_packing: 1,
-  // /api/generate-phrases — Sonnet, 8192-token output (~$0.15). Nomad-only.
+  // /api/generate-phrases — Sonnet, 8192-token output (~$0.15). Travel Pro-only.
   // Bumped 2→4 to match real cost.
   generate_phrases: 4,
   // /api/enrich-itinerary — Haiku, ~1500 output tokens/day (~$0.02). Cheap.
@@ -146,7 +171,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
   canUseAIPhrasebook: boolean;
   /** Manual group expense tracking (equal/custom splits, settlement calc) */
   canUseExpenses: boolean;
-  /** AI receipt scanning via vision API — Nomad only */
+  /** AI receipt scanning via vision API — Travel Pro only */
   canUseAIReceiptScan: boolean;
   supportLevel: 'community' | 'email' | 'priority';
   earlyAccess: boolean;
@@ -196,30 +221,14 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
     supportLevel: 'email',
     earlyAccess: false,
   },
-  explorer: {
+  // Travel Pro — the single paid subscription (collapsed Explorer + Nomad on
+  // 2026-06-05). Keeps Nomad's full feature set and 14-day trips at Nomad's
+  // $14.99 price, with caps trimmed: 150 credits (was 200) and 8 travelers
+  // (was 12), per the 4-tier → 3-tier decision.
+  travel_pro: {
     activeTrips: 999,          // unlimited in practice — AI credits are the constraint
-    travelersPerTrip: 6,       // dropped from 8 → 6 on 2026-05-29; group trips are almost always ≤6.
-    aiCreditsPerMonth: 100,
-    maxTripDays: 10,
-    maxBookedHotels: 3,
-    canUseAI: true,
-    canUseTripStory: true,
-    canUseYearInReview: true,
-    canUseSplitTracks: true,   // available from Trip Pass and up — group trips benefit
-    canAddCoOrganizer: true,   // available from Trip Pass and up; Co-organizer uses their own AI credit pool
-    canUseTransportParser: true,
-    canUseWishlist: true,
-    canUseAIPacking: false,
-    canUseAIPhrasebook: false,
-    canUseExpenses: true,
-    canUseAIReceiptScan: false,
-    supportLevel: 'email',
-    earlyAccess: false,
-  },
-  nomad: {
-    activeTrips: 999,          // unlimited in practice — AI credits are the constraint
-    travelersPerTrip: 12,      // dropped from 15 → 12 on 2026-05-29; "extended family/friends" range
-    aiCreditsPerMonth: 200,    // dropped from 250 → 200 on 2026-05-29; 8 builds is still very generous
+    travelersPerTrip: 8,       // single top tier; bigger groups use a Trip Pass (up to 12)
+    aiCreditsPerMonth: 150,    // ~6 builds/mo
     maxTripDays: 14,
     maxBookedHotels: 7,
     canUseAI: true,

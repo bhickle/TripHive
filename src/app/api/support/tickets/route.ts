@@ -1,7 +1,7 @@
 /**
  * POST /api/support/tickets
  *   User-facing: submit a support ticket from the Settings "Contact Support"
- *   card. Auto-tags Nomad users priority='high' (the pricing-page promise),
+ *   card. Auto-tags Travel Pro users priority='high' (the pricing-page promise),
  *   notifies every admin via the existing in-app notifications system.
  *
  * GET /api/support/tickets[?status=open|in_progress|resolved|closed]
@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/requireAuth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { normalizeTier } from '@/lib/types';
 
 const ALLOWED_CATEGORIES = ['general', 'bug', 'billing', 'feature', 'account'] as const;
 const ALLOWED_STATUSES = ['open', 'in_progress', 'resolved', 'closed'] as const;
@@ -43,18 +44,19 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Pull email + name + tier for the snapshot. Tier drives priority — Nomad
-  // users get priority='high' per the pricing-page promise. Trip Pass and
-  // Explorer both map to normal; their tickets aren't ignored, just not
-  // pre-flagged for the top of the queue.
+  // Pull email + name + tier for the snapshot. Tier drives priority — Travel
+  // Pro users get priority='high' per the pricing-page promise. Free and Trip
+  // Pass map to normal; their tickets aren't ignored, just not pre-flagged for
+  // the top of the queue.
   const { data: profile } = await admin
     .from('profiles')
     .select('email, name, subscription_tier')
     .eq('id', userId)
     .single();
 
-  const userTier = profile?.subscription_tier ?? 'free';
-  const priority: 'normal' | 'high' = userTier === 'nomad' ? 'high' : 'normal';
+  // Normalize so a legacy 'nomad'/'explorer' row still resolves to travel_pro.
+  const userTier = normalizeTier(profile?.subscription_tier);
+  const priority: 'normal' | 'high' = userTier === 'travel_pro' ? 'high' : 'normal';
 
   const { data: ticket, error: insertErr } = await admin
     .from('support_tickets')

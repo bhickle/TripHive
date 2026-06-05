@@ -8,7 +8,7 @@
  *     visited_cities so pins fan out geographically instead of
  *     clustering on one destination point.
  *   - Cover-image fallback for cities with no uploaded photos.
- *   - Nomad-tier only (gated at the UI layer; this module is tier-agnostic).
+ *   - Travel Pro-tier only (gated at the UI layer; this module is tier-agnostic).
  *
  * Algorithm summary:
  *   For each completed trip:

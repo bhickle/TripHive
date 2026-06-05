@@ -15,7 +15,7 @@ interface SidebarProps {
   user?: {
     name: string;
     avatarUrl?: string;
-    subscriptionTier: 'free' | 'trip_pass' | 'explorer' | 'nomad';
+    subscriptionTier: 'free' | 'trip_pass' | 'travel_pro';
     /** True only when the tier comes from a trusted source (DB profile
      *  or last-known-good cache). When false, the badge is hidden —
      *  otherwise a paid user whose tier hasn't resolved flashes the
@@ -27,10 +27,9 @@ interface SidebarProps {
 }
 
 const tierConfig = {
-  free:      { label: 'Free',        className: 'bg-white/10 text-parchment/70' },
-  trip_pass: { label: 'Trip Pass ✦', className: 'bg-sky-500/20 text-sky-300' },
-  explorer:  { label: 'Explorer ✦',  className: 'bg-sky-500/20 text-sky-300' },
-  nomad:     { label: 'Nomad ✦✦',    className: 'bg-sky-500/20 text-sky-300' },
+  free:       { label: 'Free',         className: 'bg-white/10 text-parchment/70' },
+  trip_pass:  { label: 'Trip Pass ✦',  className: 'bg-sky-500/20 text-sky-300' },
+  travel_pro: { label: 'Travel Pro ✦', className: 'bg-sky-500/20 text-sky-300' },
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTrip, activePage = 'dashboard', user }) => {

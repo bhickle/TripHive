@@ -447,7 +447,7 @@ function ItineraryPageContent() {
 
   // isTripPassTrip drives the Trip Pass overlay in useEntitlements: true when
   // this trip has an active trip_passes purchase. Populated by the trip-load
-  // effect once /api/trips/[id] returns. Explorer/Nomad organizers' personal
+  // effect once /api/trips/[id] returns. Travel Pro organizers' personal
   // subscriptions do NOT trigger the overlay.
   const [isTripPassTrip, setIsTripPassTrip] = useState<boolean>(false);
 
@@ -790,7 +790,7 @@ function ItineraryPageContent() {
     };
   } | null>(null);
 
-  // Rebuild the itinerary incorporating new member preferences (Explorer/Nomad)
+  // Rebuild the itinerary incorporating new member preferences (Travel Pro)
   // Declared after aiMeta so it can reference it without a forward-reference error
   const handleRegenerate = useCallback(() => {
     if (!aiMeta && !tripRow) return;
@@ -3525,10 +3525,10 @@ function ItineraryPageContent() {
         {/* Regenerate with group input banner — paid tiers only,
              organizer / co-organizer only. Trip Pass is the primary use
              case (per-member preferences mini-wizard drives this);
-             Explorer/Nomad keep access for legacy behaviour. */}
+             Travel Pro keeps access for legacy behaviour. */}
         {newPrefsCount > 0
           && tierResolved
-          && (tier === 'trip_pass' || tier === 'explorer' || tier === 'nomad')
+          && (tier === 'trip_pass' || tier === 'travel_pro')
           && currentUser.id
           && canTriggerAi
           && (

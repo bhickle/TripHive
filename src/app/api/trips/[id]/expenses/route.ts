@@ -75,12 +75,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!access.ok) return access.response;
     const { userId, supabase } = access.ctx;
 
-    // Tier gate: expenses is a paid feature (Trip Pass / Explorer / Nomad).
+    // Tier gate: expenses is a paid feature (Trip Pass / Travel Pro).
     // Trip Pass overlay grants this to every member of a pass trip too.
     const featureCheck = await hasTripFeatureAccess(supabase, params.id, userId, 'canUseExpenses');
     if (!featureCheck.allowed) {
       return NextResponse.json(
-        { error: 'FEATURE_LOCKED', message: 'Expense tracking is a paid feature. Upgrade to Explorer/Nomad or buy a Trip Pass to unlock it.' },
+        { error: 'FEATURE_LOCKED', message: 'Expense tracking is a paid feature. Upgrade to Travel Pro or buy a Trip Pass to unlock it.' },
         { status: 403 },
       );
     }
@@ -166,7 +166,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const featureCheck = await hasTripFeatureAccess(supabase, params.id, userId, 'canUseExpenses');
     if (!featureCheck.allowed) {
       return NextResponse.json(
-        { error: 'FEATURE_LOCKED', message: 'Expense tracking is a paid feature. Upgrade to Explorer/Nomad or buy a Trip Pass to unlock it.' },
+        { error: 'FEATURE_LOCKED', message: 'Expense tracking is a paid feature. Upgrade to Travel Pro or buy a Trip Pass to unlock it.' },
         { status: 403 },
       );
     }

@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  // Tier gate: AI receipt scanning is a Nomad-only feature. Without this
-  // check, Free/Explorer users could still hit the endpoint directly and
-  // burn vision-API credits on what's marketed as a Nomad perk.
+  // Tier gate: AI receipt scanning is a Travel Pro-only feature. Without this
+  // check, Free users could still hit the endpoint directly and burn
+  // vision-API credits on what's marketed as a Travel Pro perk.
   const denied = requireFeature(auth.ctx.tier, 'canUseAIReceiptScan');
   if (denied) return denied;
 

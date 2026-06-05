@@ -332,7 +332,7 @@ export default function HomePage() {
             <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-7">
               <p className="font-bold text-zinc-900 mb-1">Paid — Trip Pass or subscription</p>
               <p className="text-xs text-zinc-500 mb-4">
-                A Trip Pass unlocks these for everyone on one trip. Explorer &amp; Nomad keep them on for you all year.
+                A Trip Pass unlocks these for everyone on one trip. Travel Pro keeps them on for you all year.
               </p>
               <ul className="space-y-2.5 text-sm text-zinc-700">
                 {[
@@ -356,10 +356,10 @@ export default function HomePage() {
             </h3>
             <p className="text-zinc-600 text-lg max-w-2xl mx-auto">
               One big trip this year? Grab a Trip Pass — pay once, your whole group included.
-              Always planning the next one? Explorer and Nomad keep every tool unlocked, all year.
+              Always planning the next one? Travel Pro keeps every tool unlocked, all year.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start max-w-4xl mx-auto">
             {/* Free */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col">
               <p className="font-bold text-zinc-900 text-lg">Free</p>
@@ -394,39 +394,23 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Explorer (Best value) */}
+            {/* Travel Pro (Best value) */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col relative">
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wide bg-emerald-600 text-white px-3 py-1 rounded-full whitespace-nowrap">
                 Best value
               </span>
-              <p className="font-bold text-zinc-900 text-lg">Explorer</p>
-              <p className="text-sm text-zinc-500 mt-1 mb-1">For regular travelers.</p>
-              <p className="text-xs text-emerald-700 font-semibold mb-4">${PRICING.explorer.monthly} / month</p>
+              <p className="font-bold text-zinc-900 text-lg">Travel Pro</p>
+              <p className="text-sm text-zinc-500 mt-1 mb-1">For the always-planning.</p>
+              <p className="text-xs text-emerald-700 font-semibold mb-4">${PRICING.travel_pro.monthly} / month</p>
               <p className="text-sm text-zinc-600 leading-relaxed flex-1">
-                More trips, longer trips, split tracks, and a co-organizer — for people who take a few getaways a year and love planning them.
+                Every tool tripcoord makes — the most AI builds, longer trips, bigger groups, split tracks, and a co-organizer.
+                For people who are always plotting the next one.
               </p>
               <Link
                 href="/pricing"
                 className="mt-5 text-center bg-white border border-amber-400 text-amber-700 hover:bg-amber-50 font-semibold py-2.5 rounded-full text-sm transition"
               >
-                Go Explorer
-              </Link>
-            </div>
-
-            {/* Nomad */}
-            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col">
-              <p className="font-bold text-zinc-900 text-lg">Nomad</p>
-              <p className="text-sm text-zinc-500 mt-1 mb-1">For the always-planning.</p>
-              <p className="text-xs text-zinc-700 font-semibold mb-4">${PRICING.nomad.monthly} / month</p>
-              <p className="text-sm text-zinc-600 leading-relaxed flex-1">
-                The most trips, the longest itineraries, the biggest groups, and every tool tripcoord makes.
-                For people who are always plotting the next one.
-              </p>
-              <Link
-                href="/pricing"
-                className="mt-5 text-center bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-800 font-semibold py-2.5 rounded-full text-sm transition"
-              >
-                Go Nomad
+                Go Travel Pro
               </Link>
             </div>
           </div>
@@ -468,11 +452,11 @@ export default function HomePage() {
               },
               {
                 q: 'Is it free?',
-                a: 'Yes, to start. Plan a trip and invite your group on the free plan. A Trip Pass covers one big trip; Explorer and Nomad are subscriptions for people who travel more often.',
+                a: 'Yes, to start. Plan a trip and invite your group on the free plan. A Trip Pass covers one big trip; Travel Pro is a subscription for people who travel more often.',
               },
               {
                 q: 'Trip Pass or a subscription — which do I want?',
-                a: 'Taking one big trip this year? A Trip Pass is perfect — pay once, whole group included. Planning several trips a year? Explorer or Nomad keep everything unlocked all year and work out cheaper per trip.',
+                a: 'Taking one big trip this year? A Trip Pass is perfect — pay once, whole group included. Planning several trips a year? Travel Pro keeps everything unlocked all year and works out cheaper per trip.',
               },
               {
                 q: 'Do my friends need to pay?',

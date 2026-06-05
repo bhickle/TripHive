@@ -23,26 +23,22 @@ import {
 
 export const PRICING = {
   trip_pass: {
-    base: 30,
+    base: 36,               // raised 30→36 on 2026-06-05 (3-tier change)
     extraPersonFee: 4,      // per person beyond the base 6
     baseGroupSize: 6,
     maxGroupSize: 12,
     // 50 credits = 1 build (25) + 1 regen (10) + 5 add-days OR Suggest
     // Anothers (15). Sized to support the trip-organizing arc: generate,
-    // tweak once, swap a few activities. Bumped from 30 on 2026-05-16
-    // when build was repriced 10→25; price stays at $30.
+    // tweak once, swap a few activities.
     aiCredits: 50,
     validityDays: 30,       // days after trip end date
   },
-  explorer: {
-    monthly: 7.99,
-    annual: 76.99,          // ~$6.42/mo, 20% off
-    aiCreditsPerMonth: 100,
-  },
-  nomad: {
+  // Travel Pro — the single paid subscription (collapsed Explorer + Nomad on
+  // 2026-06-05). $149/yr ≈ 2 months free vs $14.99×12.
+  travel_pro: {
     monthly: 14.99,
-    annual: 143.99,         // ~$12/mo, 20% off
-    aiCreditsPerMonth: 200, // synced with TIER_LIMITS.nomad on 2026-05-29 (was 250).
+    annual: 149,
+    aiCreditsPerMonth: 150, // synced with TIER_LIMITS.travel_pro
   },
 } as const;
 
@@ -124,7 +120,7 @@ export interface UpgradePrompt {
   suggestedTier: SubscriptionTier;
   /** When true, the modal's primary CTA dismisses instead of linking to
    *  /pricing — used when the user is already on the top tier and there
-   *  is no upgrade path (e.g. Nomad out of credits this month). */
+   *  is no upgrade path (e.g. Travel Pro out of credits this month). */
   noUpgradePath?: boolean;
 }
 
@@ -132,7 +128,7 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
   no_ai: {
     reason: 'no_ai',
     headline: 'Want more AI itineraries?',
-    body: 'Free plans include one AI itinerary build per month. Upgrade to Explorer for 4 builds a month all year, or grab a Trip Pass just for this trip.',
+    body: 'Free plans include one AI itinerary build per month. Upgrade to Travel Pro for about 6 builds a month all year, or grab a Trip Pass just for this trip.',
     ctaLabel: 'See plans',
   },
   ai_credits_empty: {
@@ -140,25 +136,25 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
     // Body is overridden per-tier in getUpgradePrompt — this is the free-tier
     // fallback if the override isn't reached.
     headline: "You're out of AI credits for this month",
-    body: "Your credits refresh at the start of next month. Upgrade to Explorer for 4 builds a month, or Nomad for 8.",
+    body: 'Your credits refresh at the start of next month. Upgrade to Travel Pro for 150 credits a month — about 6 full builds.',
     ctaLabel: 'See plans',
   },
   ai_credits_low: {
     reason: 'ai_credits_low',
     headline: 'Running low on AI credits',
-    body: "You're getting close to your monthly limit. Nomad gives you enough credits for 8 builds a month — plenty for even the busiest planner.",
-    ctaLabel: 'See Nomad',
+    body: 'You’re getting close to your monthly limit. Travel Pro gives you 150 credits a month — about 6 full builds.',
+    ctaLabel: 'See Travel Pro',
   },
   trip_limit: {
     reason: 'trip_limit',
     headline: "You've reached your trip limit",
-    body: 'Upgrade to keep planning. Explorer covers your whole travel year.',
-    ctaLabel: 'Upgrade to Explorer',
+    body: 'Upgrade to keep planning. Travel Pro covers your whole travel year.',
+    ctaLabel: 'Upgrade to Travel Pro',
   },
   traveler_limit: {
     reason: 'traveler_limit',
     headline: 'Your group is growing',
-    body: 'A Trip Pass covers up to 12 travelers ($30 base for 6, +$4 each beyond that). Or compare full subscriptions for unlimited group support.',
+    body: 'A Trip Pass covers up to 12 travelers ($36 base for 6, +$4 each beyond that). Or go Travel Pro for up to 8 travelers on every trip.',
     ctaLabel: 'See options',
   },
   feature_locked: {
@@ -174,7 +170,7 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
 /**
  * @param tripId          Active trip context (enables Trip Pass overlay logic).
  * @param isTripPassTrip  True if this trip has an active trip_passes purchase
- *                        (someone paid $30 for THIS trip's group-coordination
+ *                        (someone paid $36 for THIS trip's group-coordination
  *                        features). When true, every invitee on the trip —
  *                        regardless of their own subscription — gets the Trip
  *                        Pass trip-scoped features (expenses, split tracks,
@@ -182,13 +178,13 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
  *                        trip.
  *
  *                        Critically: this is keyed on the per-trip purchase,
- *                        NOT on the organizer's subscription. An Explorer or
- *                        Nomad organizer's personal subscription does NOT
+ *                        NOT on the organizer's subscription. A Travel Pro
+ *                        organizer's personal subscription does NOT
  *                        extend to invitees — that's a personal benefit, not
- *                        a group-trip one. Free joinees on a Nomad organizer's
- *                        trip stay on free.
+ *                        a group-trip one. Free joinees on a Travel Pro
+ *                        organizer's trip stay on free.
  *
- *                        Higher-tier perks (Nomad's receipt scan, AI packing,
+ *                        Travel Pro-only perks (receipt scan, AI packing,
  *                        AI phrasebook) are NOT included in the overlay —
  *                        those stay strictly user-scoped on the joinee's tier.
  *
@@ -212,8 +208,8 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
   const tripPassFeatures = TIER_LIMITS.trip_pass;
 
   // True once we know the user's real tier. While the profile is still loading
-  // from Supabase, we must NOT gate features — otherwise paid users (like Nomad/
-  // Explorer) briefly see the free-tier locked UI every page load because the
+  // from Supabase, we must NOT gate features — otherwise paid users (Travel
+  // Pro) briefly see the free-tier locked UI every page load because the
   // session cookie resolves before the profile DB fetch completes.
   const entitlementsReady = !user.isLoading;
 
@@ -298,35 +294,21 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
 
   function getUpgradePrompt(reason: UpgradeReason): UpgradePrompt {
     const base = UPGRADE_PROMPTS[reason];
-    const suggestedTier: SubscriptionTier =
-      tier === 'free' ? 'explorer' :
-      tier === 'trip_pass' ? 'explorer' :
-      tier === 'explorer' ? 'nomad' : 'nomad';
+    // Single paid subscription now — everyone below Travel Pro upgrades to it.
+    const suggestedTier: SubscriptionTier = 'travel_pro';
 
     // Tier-aware override for "out of credits" — the default copy is
-    // free-tier-framed ("Your free credit refreshes…"), which reads wrong to
-    // a Nomad user. Explorer gets a Nomad upsell; Nomad gets a wait-for-reset
-    // message with no upsell (they're already on the top tier).
-    if (reason === 'ai_credits_empty') {
-      if (tier === 'nomad') {
-        return {
-          ...base,
-          headline: "You've used your Nomad credits for this month",
-          body: 'Your credits refresh at the start of next month. Until then, you can keep editing existing trips — only new AI builds are paused.',
-          ctaLabel: 'Got it',
-          suggestedTier,
-          noUpgradePath: true,
-        };
-      }
-      if (tier === 'explorer') {
-        return {
-          ...base,
-          headline: "You've used your Explorer credits for this month",
-          body: 'Your credits refresh at the start of next month. Nomad gets enough credits for ~10 builds a month if you want to keep building now.',
-          ctaLabel: 'See Nomad',
-          suggestedTier: 'nomad',
-        };
-      }
+    // free-tier-framed, which reads wrong to a Travel Pro user who's already on
+    // the top tier. They get a wait-for-reset message with no upsell path.
+    if (reason === 'ai_credits_empty' && tier === 'travel_pro') {
+      return {
+        ...base,
+        headline: "You've used your Travel Pro credits for this month",
+        body: 'Your credits refresh at the start of next month. Until then, you can keep editing existing trips — only new AI builds are paused.',
+        ctaLabel: 'Got it',
+        suggestedTier,
+        noUpgradePath: true,
+      };
     }
 
     return { ...base, suggestedTier };

@@ -1475,7 +1475,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
               </div>
               <p className="text-xs text-zinc-500">
                 <Crown className="w-3 h-3 inline text-amber-400 mr-1" />
-                AI packing lists are a <Link href="/pricing" className="text-sky-700 font-semibold hover:underline">Nomad</Link> feature
+                AI packing lists are a <Link href="/pricing" className="text-sky-700 font-semibold hover:underline">Travel Pro</Link> feature
               </p>
             </div>
           )}
@@ -1489,7 +1489,7 @@ export default function PrepPage({ params }: { params: { id: string } }) {
       return (
         <div className="flex justify-end">
           <button onClick={hasAIPacking ? onGenerate : undefined} disabled={generating || !hasAIPacking}
-            title={hasAIPacking ? undefined : 'AI packing list is a Nomad feature'}
+            title={hasAIPacking ? undefined : 'AI packing list is a Travel Pro feature'}
             className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border border-zinc-200 rounded-lg transition-colors ${hasAIPacking ? 'text-zinc-500 hover:bg-zinc-50 disabled:opacity-50' : 'text-zinc-300 cursor-not-allowed'}`}>
             {generating ? <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</> : <><RefreshCw className="w-3 h-3" /> Regenerate AI List</>}
           </button>
@@ -1917,23 +1917,23 @@ export default function PrepPage({ params }: { params: { id: string } }) {
   const phrasebook = phrasebooks[activePhrasebook] ?? null;
 
   const renderPhrasesTab = () => {
-    // Nomad gate — show upgrade prompt for non-Nomad users
+    // Travel Pro gate — show upgrade prompt for non-Travel Pro users
     if (!hasAIPhrasebook) {
       return (
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-12 text-center">
           <div className="w-16 h-16 bg-amber-50 border border-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Crown className="w-8 h-8 text-amber-400" />
           </div>
-          <h3 className="text-lg font-semibold text-zinc-900 mb-2">AI Phrasebook is a Nomad feature</h3>
+          <h3 className="text-lg font-semibold text-zinc-900 mb-2">AI Phrasebook is a Travel Pro feature</h3>
           <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto">
-            Upgrade to Nomad to generate a destination-specific phrasebook with pronunciation guides for greetings, dining, transport, emergencies, and more.
+            Upgrade to Travel Pro to generate a destination-specific phrasebook with pronunciation guides for greetings, dining, transport, emergencies, and more.
           </p>
           <Link
             href="/pricing"
             className="px-6 py-3 bg-zinc-900 hover:bg-zinc-700 text-white rounded-xl font-semibold transition-colors inline-flex items-center gap-2 text-sm"
           >
             <Crown className="w-4 h-4 text-amber-400" />
-            Upgrade to Nomad
+            Upgrade to Travel Pro
           </Link>
         </div>
       );

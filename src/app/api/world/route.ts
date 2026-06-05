@@ -85,7 +85,7 @@ export async function GET() {
 
     // Cities per trip — prefer user-tagged visited_cities, fall back to
     // destination's first segment. Track which trip each city came from
-    // so we can attach a representative photo (for the Nomad photo-pin
+    // so we can attach a representative photo (for the Travel Pro photo-pin
     // gallery) by joining trip_photos.
     const cityVisitCounts = new Map<string, { country: string | null; count: number; tripIds: string[] }>();
     for (const t of completed) {
@@ -112,7 +112,7 @@ export async function GET() {
     }));
     const coordsMap = await geocodeCities(supabase, cityList);
 
-    // Pull all completed-trip photos (Nomad photo-pin feature) — needs the
+    // Pull all completed-trip photos (Travel Pro photo-pin feature) — needs the
     // full list with day_number so selectPhotoPins can map photos to the
     // right city via the trip's itinerary. Lower tiers ignore pins[] in
     // the response, so the extra rows are wasted only for paid users that
@@ -179,7 +179,7 @@ export async function GET() {
       }
     }
 
-    // Compute Nomad photo pins. Pure helper; safe to call regardless of
+    // Compute Travel Pro photo pins. Pure helper; safe to call regardless of
     // viewer tier (lower tiers just won't render the result).
     const tripsForPins: TripForPins[] = completed.map(t => {
       const cityNames = extractTripCities(t);
@@ -208,7 +208,7 @@ export async function GET() {
           lat: coords.lat,
           country,
           visitCount: count,
-          // Nomad photo-pin uses this; lower tiers ignore it.
+          // Travel Pro photo-pin uses this; lower tiers ignore it.
           photoUrl: cityPhotos.get(name) ?? null,
           // Link target — clicking a photo pin opens the most recent
           // trip that visited this city.
@@ -367,7 +367,7 @@ export async function GET() {
       continents,
       badges: badgesWithTimestamps,
       stamps,
-      // Nomad-only render layer; lower tiers ignore this field.
+      // Travel Pro-only render layer; lower tiers ignore this field.
       pins: photoPins,
     });
   } catch (err) {

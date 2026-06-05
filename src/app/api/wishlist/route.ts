@@ -8,17 +8,17 @@ import { requireAuth, requireFeature } from '@/lib/supabase/requireAuth';
  * Returns the current user's wishlist items, including the saved-link
  * preview cards (links column).
  *
- * POST /api/wishlist  [Explorer+ required]
+ * POST /api/wishlist  [Travel Pro required]
  * Adds a wishlist item. Body: { destination, country?, coverImage?,
  *   bestSeason?, estimatedCost?, tags?, notes?, links? }
  *
- * PATCH /api/wishlist  [Explorer+ required]
+ * PATCH /api/wishlist  [Travel Pro required]
  * Adds or removes a single link from a wishlist item's links array.
  * Body: { itemId, action: 'add' | 'remove', link?: WishlistLink, url?: string }
  *   - action='add' → append `link` to links array
  *   - action='remove' → drop the entry whose url matches `url`
  *
- * DELETE /api/wishlist?id=<item_id>  [Explorer+ required]
+ * DELETE /api/wishlist?id=<item_id>  [Travel Pro required]
  * Removes a wishlist item.
  */
 

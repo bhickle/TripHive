@@ -41,9 +41,13 @@ export const stripe: Stripe = new Proxy({} as Stripe, {
 // ─── Tier lookup (Stripe price → subscription_tier) ───────────────────────────
 // Used by the webhook to map a price ID back to the DB tier value.
 
-export const PRICE_TO_TIER: Record<string, 'explorer' | 'nomad'> = {
-  [STRIPE_PRICES.explorer.monthly]: 'explorer',
-  [STRIPE_PRICES.explorer.annual]:  'explorer',
-  [STRIPE_PRICES.nomad.monthly]:    'nomad',
-  [STRIPE_PRICES.nomad.annual]:     'nomad',
+export const PRICE_TO_TIER: Record<string, 'travel_pro'> = {
+  [STRIPE_PRICES.travel_pro.monthly]: 'travel_pro',
+  [STRIPE_PRICES.travel_pro.annual]:  'travel_pro',
+  // Legacy Explorer/Nomad prices still map to travel_pro so existing
+  // subscribers' renewal webhooks resolve correctly until they migrate.
+  [STRIPE_PRICES.legacy.explorerMonthly]: 'travel_pro',
+  [STRIPE_PRICES.legacy.explorerAnnual]:  'travel_pro',
+  [STRIPE_PRICES.legacy.nomadMonthly]:    'travel_pro',
+  [STRIPE_PRICES.legacy.nomadAnnual]:     'travel_pro',
 };

@@ -68,10 +68,9 @@ const PRIORITY_OPTIONS = [
 // ─── Subscription display helpers ─────────────────────────────────────────────
 
 const PLAN_DISPLAY: Record<string, { name: string; price: string; per: string; gradient: string }> = {
-  free:      { name: 'Free',      price: '$0',    per: '',        gradient: 'bg-gradient-to-br from-slate-600 to-slate-800' },
-  explorer:  { name: 'Explorer',  price: `$${PRICING.explorer.monthly}`, per: '/month', gradient: 'bg-gradient-to-br from-sky-600 to-sky-800' },
-  nomad:     { name: 'Nomad',     price: `$${PRICING.nomad.monthly}`,    per: '/month', gradient: 'bg-gradient-to-br from-emerald-700 to-sky-800' },
-  trip_pass: { name: 'Trip Pass', price: `$${PRICING.trip_pass.base}`,   per: '/trip',  gradient: 'bg-gradient-to-br from-amber-600 to-rose-700' },
+  free:       { name: 'Free',       price: '$0',    per: '',        gradient: 'bg-gradient-to-br from-slate-600 to-slate-800' },
+  travel_pro: { name: 'Travel Pro', price: `$${PRICING.travel_pro.monthly}`, per: '/month', gradient: 'bg-gradient-to-br from-sky-600 to-sky-800' },
+  trip_pass:  { name: 'Trip Pass',  price: `$${PRICING.trip_pass.base}`,      per: '/trip',  gradient: 'bg-gradient-to-br from-amber-600 to-rose-700' },
 };
 
 // Subscription feature lists are derived from TIER_LIMITS via getTierFeatures()
@@ -98,7 +97,7 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   // Help & Support tab state — minimal form (subject, category, body).
-  // Submission posts to /api/support/tickets which auto-tags Nomad priority
+  // Submission posts to /api/support/tickets which auto-tags Travel Pro priority
   // and fan-outs an in-app notification to every admin.
   const [supportSubject, setSupportSubject] = useState('');
   const [supportCategory, setSupportCategory] = useState<'general' | 'bug' | 'billing' | 'feature' | 'account'>('general');
@@ -1181,8 +1180,8 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     {/* Skeleton placeholder until tier is trusted —
-                        otherwise a Nomad user briefly sees "Upgrade to
-                        Explorer or Nomad". aria-busy + sr-only label so
+                        otherwise a Travel Pro user briefly sees "Upgrade to
+                        Travel Pro". aria-busy + sr-only label so
                         screen readers announce the loading state instead
                         of jumping silently to the resolved CTA. */}
                     {!tierResolved ? (
@@ -1195,7 +1194,7 @@ export default function SettingsPage() {
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 hover:bg-slate-100 rounded-lg font-semibold text-sm transition-colors"
                       >
                         <Sparkles className="w-4 h-4 text-sky-600" />
-                        Upgrade to Explorer or Nomad
+                        Upgrade to Travel Pro
                       </a>
                     ) : (
                       <div className="flex flex-col items-end gap-2">
@@ -1245,7 +1244,7 @@ export default function SettingsPage() {
                     </ul>
                     {tierResolved && tier === 'free' && (
                       <a href="/pricing" className="inline-flex items-center gap-2 mt-5 text-sm font-semibold text-sky-700 hover:text-sky-900 transition-colors">
-                        See what Explorer &amp; Nomad unlock →
+                        See what Travel Pro unlocks →
                       </a>
                     )}
                   </div>
@@ -1489,8 +1488,8 @@ export default function SettingsPage() {
                   <h2 className="font-script italic text-2xl font-semibold text-slate-900 mb-2">Help & Support</h2>
                   <p className="text-sm text-slate-600 mb-6">
                     Stuck on something, found a bug, or need a hand? Send us a message — we typically reply within a couple of days.
-                    {tier === 'nomad' && (
-                      <span className="block mt-1 text-amber-700 font-medium">As a Nomad subscriber, your ticket is flagged priority.</span>
+                    {tier === 'travel_pro' && (
+                      <span className="block mt-1 text-amber-700 font-medium">As a Travel Pro subscriber, your ticket is flagged priority.</span>
                     )}
                   </p>
 

@@ -162,7 +162,7 @@ const MOCK_PHRASES = {
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
-// Auth + Nomad-tier required. Pre-launch QA flagged the prior
+// Auth + Travel Pro-tier required. Pre-launch QA flagged the prior
 // demo-passthrough pattern as a P0 — it let unauthenticated callers
 // burn Anthropic spend on 8K-token outputs.
 // Extend the serverless timeout — this route makes a blocking Haiku translation call
@@ -172,9 +172,9 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
-  if (auth.ctx.tier !== 'nomad') {
+  if (auth.ctx.tier !== 'travel_pro') {
     return NextResponse.json(
-      { error: 'NOMAD_REQUIRED', message: 'AI phrasebook is a Nomad feature' },
+      { error: 'TRAVEL_PRO_REQUIRED', message: 'AI phrasebook is a Travel Pro feature' },
       { status: 403 },
     );
   }

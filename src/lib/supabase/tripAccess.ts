@@ -219,7 +219,7 @@ export async function requireTripAiRole(tripId: string): Promise<
  *   - { allowed: false, reason: 'unknown' } — couldn't resolve tier
  *
  * Use for: canUseExpenses, canUseSplitTracks, canUseTransportParser,
- * canAddCoOrganizer. Don't use for user-scoped Nomad-only features
+ * canAddCoOrganizer. Don't use for user-scoped Travel Pro-only features
  * (canUseAIPacking, canUseAIPhrasebook, canUseAIReceiptScan) — those
  * stay on the caller's own tier; the overlay doesn't apply.
  */

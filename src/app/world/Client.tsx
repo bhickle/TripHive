@@ -32,7 +32,7 @@ interface WorldData {
     country: string | null;
     visitCount: number;
     /** Most-recent trip_photo public URL for any trip that visited
-     *  this city. Used by the Nomad photo-pin treatment; null when
+     *  this city. Used by the Travel Pro photo-pin treatment; null when
      *  there are no photos for those trips yet. */
     photoUrl: string | null;
     /** Trip ID to open when a pin is clicked (most recent trip that
@@ -50,7 +50,7 @@ interface WorldData {
     vibe: string;
     color: string;
   }>;
-  /** Nomad photo-pin layer: each pin = one photo (or cover-image fallback)
+  /** Travel Pro photo-pin layer: each pin = one photo (or cover-image fallback)
    *  placed on a visited city. Distributed via the adaptive budget in
    *  src/lib/world/photoPins.ts. Empty array for lower tiers (which see
    *  the existing one-dot-per-city renderer instead). */
@@ -128,10 +128,10 @@ export default function WorldClient() {
   const [error, setError] = useState(false);
   const [hoveredCountry, setHoveredCountry] = useState<{ id: string; name: string; count: number } | null>(null);
   const [hoveredCity, setHoveredCity] = useState<{ name: string; lon: number; lat: number; country: string | null; visitCount: number } | null>(null);
-  // Hovered photo pin (Nomad render path) — distinct from hoveredCity
+  // Hovered photo pin (Travel Pro render path) — distinct from hoveredCity
   // because pins carry trip context (title) that city dots don't.
   const [hoveredPin, setHoveredPin] = useState<PhotoPin | null>(null);
-  // Lightbox state — opens when a Nomad user taps a photo-pin. Contains
+  // Lightbox state — opens when a Travel Pro user taps a photo-pin. Contains
   // the city name + the photoUrl shown + a deep link to the trip.
   const [lightboxCity, setLightboxCity] = useState<{ name: string; photoUrl: string; tripId: string } | null>(null);
   useEscapeKey(() => setLightboxCity(null), !!lightboxCity);
@@ -140,14 +140,14 @@ export default function WorldClient() {
   // clipboard fallback on desktop. Composes a short brag-text from the
   // user's stats so the share has context, not just a bare URL.
   //
-  // Nomad-only feature. The shared URL is /share/world/[userId], a
+  // Travel Pro-only feature. The shared URL is /share/world/[userId], a
   // public landing page that previews with a rich rendered share-card
   // image (1200×630 PNG) on Twitter / iMessage / Slack / etc. Lower
-  // tiers don't see the share button at all — they see the Nomad
+  // tiers don't see the share button at all — they see the Travel Pro
   // upsell card lower on the page instead.
   const [shareToast, setShareToast] = useState<string | null>(null);
   const handleShareMap = useCallback(async () => {
-    if (!data || tier !== 'nomad' || !currentUser.id) return;
+    if (!data || tier !== 'travel_pro' || !currentUser.id) return;
     const { totalCountries, totalCities, totalContinents } = data.stats;
     const countriesLabel = totalCountries === 1 ? '1 country' : `${totalCountries} countries`;
     const citiesLabel = totalCities === 1 ? '1 city' : `${totalCities} cities`;
@@ -295,12 +295,12 @@ export default function WorldClient() {
             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">Your Travel Story</p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <h1 className="text-4xl font-script italic font-semibold tracking-tight text-zinc-900">My World</h1>
-              {/* Share my map — Nomad-only. The share URL points at a
+              {/* Share my map — Travel Pro-only. The share URL points at a
                   public landing page (/share/world/[userId]) that
                   previews with a rendered card image. Lower tiers
-                  don't get the button; they get the Nomad upsell
+                  don't get the button; they get the Travel Pro upsell
                   card lower on the page instead. */}
-              {tierResolved && tier === 'nomad' && (
+              {tierResolved && tier === 'travel_pro' && (
                 <button
                   onClick={handleShareMap}
                   disabled={!data}
@@ -408,17 +408,17 @@ export default function WorldClient() {
                       </Geographies>
                       {(() => {
                         // Two render paths for the marker layer:
-                        //   - Nomad + tier-resolved + pins available → render
-                        //     the photo-pin layer (each pin = one photo or
-                        //     cover-image fallback, distributed via the
+                        //   - Travel Pro + tier-resolved + pins available →
+                        //     render the photo-pin layer (each pin = one photo
+                        //     or cover-image fallback, distributed via the
                         //     adaptive budget in lib/world/photoPins.ts).
                         //   - Everyone else → render the legacy single-dot-
                         //     per-city layer (no photos).
                         // The two paths are visually distinct enough that
                         // mixing them on the same map would clutter, so we
                         // pick one based on viewer tier.
-                        const useNomadPins = tierResolved && tier === 'nomad' && data.pins.length > 0;
-                        if (useNomadPins) {
+                        const usePhotoPins = tierResolved && tier === 'travel_pro' && data.pins.length > 0;
+                        if (usePhotoPins) {
                           // Count pins per city so we can jitter overlapping
                           // pins (single-city trips with many photos, or one
                           // city visited on multiple trips).
@@ -770,25 +770,25 @@ export default function WorldClient() {
                 )}
               </section>
 
-              {/* Nomad upsell — photo pins on the live map + a richer
+              {/* Travel Pro upsell — photo pins on the live map + a richer
                   shareable OG card. Time-lapse animation is the v2 add
                   and is intentionally NOT mentioned here so the copy
                   matches what actually ships when a user upgrades.
                   Gated on tierResolved so paid users don't flash the
                   upsell during the auth-loading window (the silent-
                   downgrade bug). */}
-              {tierResolved && tier !== 'nomad' && (
+              {tierResolved && tier !== 'travel_pro' && (
                 <section className="mb-10 bg-gradient-to-br from-amber-50 via-rose-50 to-purple-50 border border-amber-200 rounded-2xl p-6">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>
                       <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-200 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
-                        <Crown className="w-2.5 h-2.5" /> Nomad
+                        <Crown className="w-2.5 h-2.5" /> Travel Pro
                       </span>
                       <h2 className="text-lg font-semibold text-zinc-900 mt-2">Bring your map to life</h2>
                       <p className="text-sm text-zinc-600 mt-1">Photo pins for every place you&apos;ve been · shareable map card</p>
                     </div>
-                    <Link href="/pricing#nomad" className="bg-zinc-900 hover:bg-zinc-800 text-white font-semibold px-5 py-2.5 rounded-full text-sm whitespace-nowrap">
-                      See Nomad
+                    <Link href="/pricing#travel_pro" className="bg-zinc-900 hover:bg-zinc-800 text-white font-semibold px-5 py-2.5 rounded-full text-sm whitespace-nowrap">
+                      See Travel Pro
                     </Link>
                   </div>
                 </section>
@@ -808,7 +808,7 @@ export default function WorldClient() {
         </div>
       )}
 
-      {/* Photo lightbox — Nomad photo-pin gallery. Click anywhere
+      {/* Photo lightbox — Travel Pro photo-pin gallery. Click anywhere
           outside the photo to dismiss. */}
       {lightboxCity && (
         <div

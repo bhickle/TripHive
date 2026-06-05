@@ -94,10 +94,10 @@ export async function GET(
     // ── isTripPassTrip ────────────────────────────────────────────────────────
     // Drives the "Trip Pass overlay" in useEntitlements. The activation key is
     // strictly "does this trip have an active trip_passes purchase?" — NOT the
-    // organizer's subscription tier. Trip Pass is a per-trip $30 purchase that
-    // unlocks group-coordination for everyone on the trip; an Explorer or
-    // Nomad organizer's personal subscription does NOT extend to invitees.
-    // Free joinees on an Explorer/Nomad trip stay on their own free tier.
+    // organizer's subscription tier. Trip Pass is a per-trip $36 purchase that
+    // unlocks group-coordination for everyone on the trip; a Travel Pro
+    // organizer's personal subscription does NOT extend to invitees.
+    // Free joinees on a Travel Pro organizer's trip stay on their own free tier.
     const nowIso = new Date().toISOString();
     const { count: activePassCount } = await supabase
       .from('trip_passes')

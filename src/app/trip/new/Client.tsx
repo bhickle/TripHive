@@ -42,9 +42,9 @@ interface BookedFlight {
   arrivalTime: string;
   returnDepartureTime: string;
   returnArrivalTime: string;
-  /** Nomad open-jaw: airport the return flight departs from (if different from arrivalAirport) */
+  /** Travel Pro open-jaw: airport the return flight departs from (if different from arrivalAirport) */
   returnDepartureAirport?: string;
-  /** Nomad open-jaw: airport the return flight arrives at (usually home airport) */
+  /** Travel Pro open-jaw: airport the return flight arrives at (usually home airport) */
   returnArrivalAirport?: string;
 }
 
@@ -98,11 +98,11 @@ interface TripWizardState {
   hasPreBookedFlight: boolean;
   hasPreBookedHotel: boolean;
   hasPreBookedCar: boolean;
-  /** Nomad only: return flight departs from a different airport */
+  /** Travel Pro only: return flight departs from a different airport */
   isOpenJaw: boolean;
   /** Places or experiences the user absolutely must have in the itinerary */
   mustHaves: string[];
-  /** Ordered city list for multi-city trips (Explorer/Nomad, no-hotel path) */
+  /** Ordered city list for multi-city trips (Travel Pro, no-hotel path) */
   destinations: string[];
   /** Optional day allocation per city, keyed by city name */
   daysPerDestination: Record<string, number>;
@@ -1434,8 +1434,7 @@ function TripBuilderPage() {
                           so paid users don't see "Free plan: 4 travelers"
                           flash when their tier hasn't loaded yet. */}
                       {tier === 'free' && `Free plan: up to ${TIER_LIMITS.free.travelersPerTrip} travelers. `}
-                      {tier === 'explorer' && `Explorer plan: up to ${TIER_LIMITS.explorer.travelersPerTrip} travelers. `}
-                      {tier === 'nomad' && `Nomad plan: up to ${TIER_LIMITS.nomad.travelersPerTrip} travelers. `}
+                      {tier === 'travel_pro' && `Travel Pro plan: up to ${TIER_LIMITS.travel_pro.travelersPerTrip} travelers. `}
                       {tier === 'trip_pass' && `Trip Pass: up to ${maxTravelersForTrip()} travelers. `}
                       {state.groupSize >= maxTravelersForTrip() && (
                         <button type="button" onClick={() => { setUpgradeReason('traveler_limit'); setShowUpgradeModal(true); }} className="text-sky-600 font-semibold hover:underline">Upgrade for larger groups →</button>
@@ -1826,7 +1825,7 @@ function TripBuilderPage() {
                           // Only lock buttons once we know the real tier — never
                           // lock during the loading window (entitlementsReady=false).
                           const isLocked = entitlementsReady && days > maxTripDays;
-                          const upgradeTo = maxTripDays <= 7 ? 'Explorer' : 'Nomad';
+                          const upgradeTo = 'Travel Pro';
                           return (
                             <div key={days} className="relative group">
                               <button
@@ -1937,7 +1936,7 @@ function TripBuilderPage() {
                           )}
                           {entitlementsReady && state.tripLength > maxTripDays && (
                             <p className="text-xs text-rose-700 mt-0.5">
-                              <Link href="/pricing" className="underline font-medium">Upgrade to {maxTripDays <= 7 ? 'Explorer' : 'Nomad'}</Link> to unlock longer trips.
+                              <Link href="/pricing" className="underline font-medium">Upgrade to Travel Pro</Link> to unlock longer trips.
                             </p>
                           )}
                           {state.tripLength < 2 && (
@@ -2156,7 +2155,7 @@ function TripBuilderPage() {
                       <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <span>
                         We plan your itinerary assuming your return flight departs from the same airport you arrive into.
-                        {tierResolved && tier === 'nomad' && ' Nomad users can override this in the Return section below.'}
+                        {tierResolved && tier === 'travel_pro' && ' Travel Pro users can override this in the Return section below.'}
                       </span>
                     </div>
                   )}
@@ -2211,13 +2210,13 @@ function TripBuilderPage() {
                       <div className="border-t border-sky-100 pt-4">
                         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Return (optional)</p>
 
-                        {/* Open-jaw toggle — Nomad only.
-                            Gated on tierResolved so a non-Nomad user
+                        {/* Open-jaw toggle — Travel Pro only.
+                            Gated on tierResolved so a non-Travel Pro user
                             doesn't briefly see the toggle render via
-                            a stale cached 'nomad' that later resolves
-                            down, and a Nomad user doesn't lose it via
+                            a stale cached 'travel_pro' that later resolves
+                            down, and a Travel Pro user doesn't lose it via
                             a 'free' default that later resolves up. */}
-                        {tierResolved && tier === 'nomad' && (
+                        {tierResolved && tier === 'travel_pro' && (
                           <div className="flex items-center gap-3 mb-4 p-3 bg-white border border-zinc-100 rounded-xl">
                             <button
                               onClick={() => setState(prev => ({
@@ -2242,8 +2241,8 @@ function TripBuilderPage() {
                           </div>
                         )}
 
-                        {/* Open-jaw airport fields — Nomad only, when toggled on */}
-                        {tierResolved && tier === 'nomad' && state.isOpenJaw && (
+                        {/* Open-jaw airport fields — Travel Pro only, when toggled on */}
+                        {tierResolved && tier === 'travel_pro' && state.isOpenJaw && (
                           <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Return Departs From</label>
@@ -2415,14 +2414,14 @@ function TripBuilderPage() {
 
                       {/* Add another hotel — tier-gated with progressive disclosure.
                           Cap pulled from TIER_LIMITS.maxBookedHotels.
-                          Gated on tierResolved so a Nomad user doesn't
+                          Gated on tierResolved so a Travel Pro user doesn't
                           flash a free-tier cap before their tier loads. */}
                       {tierResolved && (() => {
                         const maxHotels = TIER_LIMITS[tier]?.maxBookedHotels ?? 1;
                         const lastFilled = state.bookedHotels[state.bookedHotels.length - 1]?.name?.trim() !== '';
-                        // Explorer: progressive — only show when last slot has a name
-                        // Nomad: always show when under cap
-                        const canAdd = state.bookedHotels.length < maxHotels && (tier === 'nomad' ? true : lastFilled);
+                        // Trip Pass: progressive — only show when last slot has a name
+                        // Travel Pro: always show when under cap
+                        const canAdd = state.bookedHotels.length < maxHotels && (tier === 'travel_pro' ? true : lastFilled);
                         if (!canAdd) return null;
                         return (
                           <button
@@ -2434,7 +2433,7 @@ function TripBuilderPage() {
                           >
                             <Plus className="w-4 h-4" />
                             Add another hotel
-                            {tier === 'explorer' && state.bookedHotels.length < maxHotels && (
+                            {tier === 'travel_pro' && state.bookedHotels.length < maxHotels && (
                               <span className="text-xs text-zinc-400 font-normal">({state.bookedHotels.length}/{maxHotels})</span>
                             )}
                           </button>
@@ -2445,7 +2444,7 @@ function TripBuilderPage() {
                       {tierResolved && (tier === 'free' || tier === 'trip_pass') && state.bookedHotels.length >= 1 && (
                         <p className="text-xs text-zinc-400 flex items-center gap-1.5">
                           <Lock className="w-3 h-3" />
-                          Multiple hotels require Explorer or Nomad. <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade</Link>
+                          Multiple hotels require Travel Pro. <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade</Link>
                         </p>
                       )}
 

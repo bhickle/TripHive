@@ -7,7 +7,7 @@ import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 /**
- * POST /api/generate-packing   [auth + Nomad tier required]
+ * POST /api/generate-packing   [auth + Travel Pro tier required]
  * Generates an AI packing list for a trip and saves it to Supabase.
  * Body: { tripId, destination, startDate?, endDate? }
  *
@@ -24,9 +24,9 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
-  if (auth.ctx.tier !== 'nomad') {
+  if (auth.ctx.tier !== 'travel_pro') {
     return NextResponse.json(
-      { error: 'NOMAD_REQUIRED', message: 'AI packing list is a Nomad feature' },
+      { error: 'TRAVEL_PRO_REQUIRED', message: 'AI packing list is a Travel Pro feature' },
       { status: 403 },
     );
   }

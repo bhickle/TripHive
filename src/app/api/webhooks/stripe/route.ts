@@ -29,26 +29,28 @@ export const runtime = 'nodejs';
 
 // ─── AI credit allocations per tier ──────────────────────────────────────────
 // Sourced from TIER_LIMITS to keep webhook math in sync with the runtime gate
-// (lib/supabase/aiCredits.ts reads TIER_LIMITS for affordability checks). The
-// prior local constant drifted (Nomad=300 vs limits=250, Free=10 vs 25) which
-// made downgrade-cap math wrong and over-credited Nomad cycles.
-function tierCredits(tier: 'free' | 'explorer' | 'nomad'): number {
+// (lib/supabase/aiCredits.ts reads TIER_LIMITS for affordability checks).
+function tierCredits(tier: 'free' | 'travel_pro'): number {
   const raw = TIER_LIMITS[tier].aiCreditsPerMonth;
   return typeof raw === 'number' ? raw : 0;
 }
 
-// Tiers (ordered low → high) used to detect downgrade attempts when buying Trip Pass.
+// Tiers (ordered low → high) used to detect downgrade attempts when buying Trip
+// Pass. Legacy 'explorer'/'nomad' are retained (ranked as travel_pro) so an
+// un-migrated existing subscriber's row still ranks correctly until the data
+// migration runs.
 const SUBSCRIPTION_TIER_RANK: Record<string, number> = {
   free: 0,
   trip_pass: 1,
+  travel_pro: 2,
   explorer: 2,
-  nomad: 3,
+  nomad: 2,
 };
 
 // ─── Helper: update profile tier ─────────────────────────────────────────────
 async function setTier(
   userId: string,
-  tier: 'free' | 'explorer' | 'nomad',
+  tier: 'free' | 'travel_pro',
   subscriptionId?: string,
 ) {
   const supabaseAdmin = createAdminClient();
@@ -77,14 +79,13 @@ async function setTier(
   }
 
   // Downgrade credit-preservation: if the user is moving to a LOWER-rank
-  // tier mid-cycle (e.g. Nomad 250 → Explorer 100 with 180 already used),
-  // don't reset ai_credits_used to 0 — that would refund 180 cr of Nomad
-  // spend they already consumed. Carry the used count forward and cap it
-  // at the new tier's total so the gate behaves sensibly.
+  // tier mid-cycle (now only Travel Pro 150 → Free 25 with credits already
+  // used), don't reset ai_credits_used to 0 — that would refund spend they
+  // already consumed. Carry the used count forward and cap it at the new
+  // tier's total so the gate behaves sensibly.
   //
-  // Upgrades (Explorer → Nomad) and renewals (same tier, expired cycle)
-  // still zero out, which is the right behavior — user paid for fresh
-  // credits, give them fresh credits.
+  // Renewals (same tier, expired cycle) still zero out, which is the right
+  // behavior — user paid for fresh credits, give them fresh credits.
   const existingRank = SUBSCRIPTION_TIER_RANK[existing?.subscription_tier ?? 'free'] ?? 0;
   const newRank = SUBSCRIPTION_TIER_RANK[tier] ?? 0;
   const isDowngrade = newRank < existingRank;
@@ -202,7 +203,7 @@ export async function POST(req: NextRequest) {
         } else if (session.mode === 'payment') {
           // One-time Trip Pass — upsert the trip_passes row, but ONLY set
           // subscription_tier='trip_pass' if the user is currently on free.
-          // Otherwise an Explorer/Nomad user buying a Trip Pass for a
+          // Otherwise a Travel Pro user buying a Trip Pass for a
           // friend/group would be downgraded.
           const tripId = session.metadata?.trip_id;
           // Clamp to a whole number in [0, 6] (base Trip Pass = 6 travelers,
@@ -229,7 +230,7 @@ export async function POST(req: NextRequest) {
               subscription_tier: 'trip_pass',
             }).eq('id', userId);
           }
-          // else: user already has explorer/nomad — leave subscription_tier alone
+          // else: user already has travel_pro — leave subscription_tier alone
 
           if (tripId) {
             // Upsert the trip pass record (idempotent on user_id + trip_id).
