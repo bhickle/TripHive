@@ -179,6 +179,62 @@ Quick audit before launch — one missing key silently degrades a feature:
 
 ---
 
+## 🔒 Security / hardening
+
+> Added 2026-06-05. Context: the live site only exposes the **front-end** (minified client JS, HTML, copy, `NEXT_PUBLIC_*` vars) — server code, AI prompts, and secret keys are never sent to the browser. The bigger exposure is the **source repo** and **misconfigured data access**, which is what this section covers.
+
+### 🟥 Make the GitHub repo private — HIGHEST-VALUE ITEM
+**Why:** `github.com/bhickle/TripHive` is **public** (confirmed 2026-06-05 — anonymous API request returns 200, `"visibility": "public"`). That means anyone can read the *entire* codebase — server logic, the AI generation prompts (the real IP), the schema, everything — with no hacking. This is the actual "someone steals the code" risk, far more than the live site.
+
+**Steps:**
+1. GitHub → repo **Settings** → scroll to **Danger Zone** → **Change repository visibility** → **Private**
+2. Confirm Vercel deploys still fire (they will — the GitHub integration keeps working on private repos; no reconnect needed)
+3. Push a trivial commit and verify a new production deployment builds
+
+### 🟥 Scan git history for accidentally-committed secrets
+**Why:** Secrets currently live in Vercel env vars (not the repo), which is correct — but a key may have been committed at some point in history and never removed. A public repo makes any such leak readable; even after going private, leaked keys should be rotated.
+
+**Steps:**
+1. Run a scanner against full history — `gitleaks detect --source . --redact` or `trufflehog git file://.` (or ask Claude to scan)
+2. For any real hit: **rotate that key** at its provider (Anthropic/Stripe/Supabase/SendGrid/Twilio) — removing it from history is not enough once it's been public
+3. Going forward, keep all secrets in Vercel env vars only; never commit `.env*`
+
+### 🟥 Remove the `tc2026` coming-soon fallback + set a strong `PREVIEW_SECRET` (QA SEC-3)
+**Why:** `src/middleware.ts` falls back to the literal `?? 'tc2026'` when `PREVIEW_SECRET` is unset. Anyone who reads the bundled middleware JS can see it, so it's a speedbump, not access control. Do **both** halves — env var alone isn't enough while the fallback is in source.
+
+**Steps:**
+1. Vercel → Environment Variables → set `PREVIEW_SECRET` to a strong random value (`openssl rand -hex 24`)
+2. Edit `src/middleware.ts` (~line 15) — remove the `?? 'tc2026'` fallback so a missing secret fails closed
+3. Redeploy; confirm `?preview=tc2026` no longer bypasses the gate and `?preview=<strong value>` does
+
+### 🟥 Domain-restrict the public Google Maps key
+**Why:** `NEXT_PUBLIC_GOOGLE_MAPS_KEY` is shipped in the client bundle (unavoidable for Maps). Without restrictions, anyone can lift it and run up your bill on their own site.
+
+**Steps:**
+1. Google Cloud Console → APIs & Services → Credentials → the public Maps key
+2. **Application restrictions** → HTTP referrers → add `https://www.tripcoord.ai/*`, `https://tripcoord.ai/*` (+ a Vercel preview pattern if needed)
+3. **API restrictions** → limit to only the APIs actually used (Maps JS, Places, Static Maps)
+4. Keep the **server-side** `GOOGLE_MAPS_KEY` separate and unrestricted-by-referrer (it's called server-side); optionally restrict it by IP
+
+### 🟥 Supabase RLS audit (the real guard on user data)
+**Why:** The anon key is public by design, so **RLS policies are the only thing stopping a stranger from reading/writing other users' rows.** A missing or too-loose policy is the highest-impact data-leak risk at launch — bigger than any code exposure.
+
+**Steps:**
+1. Supabase → Database → **Advisors** → resolve every security advisory
+2. For every table holding user data (`profiles`, `trips`, `itineraries`, `trip_members`, `expenses`, `group_messages`, `trip_photos`, `votes`, wishlist, etc.): confirm RLS is **enabled** and each policy scopes rows to the owning user / trip member — not `using (true)`
+3. Spot-check with the anon key: confirm you cannot read another user's trip/profile rows
+4. Confirm the **service-role** key is used **only** in server code (`lib/supabase/admin`), never shipped to the client (ask Claude to grep)
+
+### 🟥 Confirm no secret is exposed client-side
+**Why:** The one way server secrets leak into the browser is being prefixed `NEXT_PUBLIC_` or returned by an API response.
+
+**Steps:**
+1. Audit that only genuinely-public values use `NEXT_PUBLIC_` (Supabase URL + anon key, Stripe publishable key, Maps key, app URL) — ask Claude to grep `NEXT_PUBLIC_`
+2. Confirm no API route returns a secret in its JSON (Anthropic/Stripe/service-role keys)
+3. Confirm security headers are sane (Vercel sets reasonable defaults; consider a strict `Content-Security-Policy` post-launch)
+
+---
+
 ## 🧪 Pre-launch test pass
 
 ### 🟥 Smoke test — core flows on production with a fresh account
