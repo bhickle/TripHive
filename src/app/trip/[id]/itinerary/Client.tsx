@@ -3012,7 +3012,7 @@ function ItineraryPageContent() {
   ].sort((a, b) => a.sortTime - b.sortTime);
 
   const trackConfig = {
-    shared: { badgeColor: 'bg-sky-500 text-white', label: 'Shared' },
+    shared: { badgeColor: 'bg-sky-800 text-white', label: 'Shared' },
     track_a: { badgeColor: 'bg-sky-500 text-white', label: currentDayData.trackALabel || 'Track A' },
     track_b: { badgeColor: 'bg-amber-500 text-white', label: currentDayData.trackBLabel || 'Track B' },
   };
@@ -3975,7 +3975,7 @@ function ItineraryPageContent() {
                         <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Today&apos;s tracks</p>
                         <div className="flex flex-wrap gap-3">
                           {[
-                            { color: 'bg-sky-500', label: 'Shared', show: !isSmallGroupTrip },
+                            { color: 'bg-sky-800', label: 'Shared', show: !isSmallGroupTrip },
                             { color: 'bg-sky-500', label: currentDayData.trackALabel || 'Track A', show: hasTrackA },
                             { color: 'bg-amber-500', label: currentDayData.trackBLabel || 'Track B', show: hasTrackB },
                           ].filter(t => t.show).map(t => (
@@ -4280,7 +4280,7 @@ function ItineraryPageContent() {
                       const trackDot =
                         activity.track === 'track_a' ? 'bg-sky-400' :
                         activity.track === 'track_b' ? 'bg-amber-400' :
-                        (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-400';
+                        (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-800';
                       return (
                         <div
                           key={activity.id}
@@ -4347,7 +4347,7 @@ function ItineraryPageContent() {
                             activity.track === 'track_a' ? 'bg-sky-400' :
                             activity.track === 'track_b' ? 'bg-amber-400' :
                             // Solo/couple trips: neutral dot — "Shared" concept doesn't apply
-                            (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-400'
+                            (aiMeta?.groupType === 'solo' || aiMeta?.groupType === 'couple') ? 'bg-zinc-300' : 'bg-sky-800'
                           }`} />
                           {!isLast && (
                             <div className="w-px flex-1 bg-zinc-100 mt-1.5 min-h-[4rem]" />
@@ -5498,7 +5498,7 @@ function ItineraryPageContent() {
                   </label>
                   <div className="flex gap-2">
                     {[
-                      { id: 'shared' as const, label: 'Shared', active: 'bg-sky-500 text-white', dot: 'bg-sky-500' },
+                      { id: 'shared' as const, label: 'Shared', active: 'bg-sky-800 text-white', dot: 'bg-sky-800' },
                       { id: 'track_a' as const, label: 'Track A', active: 'bg-sky-500 text-white', dot: 'bg-sky-500' },
                       { id: 'track_b' as const, label: 'Track B', active: 'bg-amber-500 text-white', dot: 'bg-amber-500' },
                     ].map(t => (
