@@ -9,6 +9,7 @@ import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
 import type { Json } from '@/lib/supabase/database.types';
 import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
 import { validateAndCorrectDay } from '@/lib/places/verifyDayLocations';
+import { correctDayOpeningHours } from '@/lib/places/openingHours';
 import type { ItineraryDay } from '@/lib/types';
 
 // Extend Vercel function timeout to 5 minutes (300s).
@@ -2167,8 +2168,16 @@ export async function POST(request: NextRequest) {
           supabase: verifyLocationCacheClient,
         });
         if (result.ok) {
-          // Either passed first try or was successfully corrected; emit.
-          send({ type: 'day', index: dayIndex, data: result.day as unknown as Record<string, unknown> });
+          // Deterministic opening-hours backstop: if the model scheduled the
+          // day's anchor activity (and meetup) before the venue actually opens
+          // — e.g. Tivoli "meet 09:30" but the park opens 11:00 — shift them to
+          // the real opening time from Google Places. Fail-open: returns the day
+          // unchanged on any lookup/parse issue, never blocks the emit.
+          const adjustedDay = await correctDayOpeningHours(result.day, {
+            placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
+            sendStatus: (message: string) => send({ type: 'status', message }),
+          });
+          send({ type: 'day', index: dayIndex, data: adjustedDay as unknown as Record<string, unknown> });
           return true;
         }
         // Hard fail: surface to the client. The trip persists with the

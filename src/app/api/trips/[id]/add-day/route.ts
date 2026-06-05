@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { TIER_LIMITS } from '@/lib/types';
 import type { ItineraryDay } from '@/lib/types';
 import { validateAndCorrectDay } from '@/lib/places/verifyDayLocations';
+import { correctDayOpeningHours } from '@/lib/places/openingHours';
 
 export const maxDuration = 60;
 
@@ -235,7 +236,14 @@ Rules:
       // we stand behind.
       await incrementAiCreditsUsed(auth.ctx.userId, credits.ctx);
 
-      return NextResponse.json({ day: verifyResult.day });
+      // Opening-hours backstop (same as /generate-itinerary): shift the day's
+      // anchor activity + meetup to the venue's real opening time if scheduled
+      // too early. Fail-open — returns the day unchanged on any issue.
+      const adjustedDay = await correctDayOpeningHours(verifyResult.day, {
+        placesApiKey: process.env.GOOGLE_MAPS_KEY ?? '',
+      });
+
+      return NextResponse.json({ day: adjustedDay });
     } catch (err) {
       lastErr = err;
       if (!isRetryableAnthropicError(err) || attempt === MAX_ATTEMPTS) break;

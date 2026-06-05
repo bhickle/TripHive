@@ -378,7 +378,7 @@ function ItineraryPageContent() {
   // Keep a ref to the latest aiDays so the vote handler can read current state
   // without causing stale-closure issues or side effects inside state updaters
   const aiDaysRef = useRef<ItineraryDay[] | null>(null);
-  const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | 'ai_credits_empty' | null>(null);
+  const [upgradePromptKey, setUpgradePromptKey] = useState<'feature_locked' | 'no_ai' | 'ai_credits_empty' | 'trip_pass_offer' | null>(null);
 
   // Edit destination / dates modal
   const [showEditTripModal, setShowEditTripModal] = useState(false);
@@ -3111,6 +3111,34 @@ function ItineraryPageContent() {
               className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 text-white text-xs font-bold rounded-full transition-colors whitespace-nowrap"
             >
               <Pencil className="w-3.5 h-3.5" /> Set dates
+            </button>
+          </div>
+        )}
+
+        {/* "Make it a Trip Pass" — convert this itinerary into a one-time
+            Trip Pass that covers the whole group. Shown to the organizer/
+            co-organizer when the trip has NO active pass (isTripPassTrip),
+            for any tier (Free + Travel Pro): a Trip Pass extends the group-
+            coordination features to every invitee on THIS trip, which a
+            personal subscription doesn't. Opens the existing UpgradeModal,
+            which (because tripId is passed) shows the "Buy a Trip Pass for
+            this trip — $X" CTA priced off the trip's group size, then routes
+            to Stripe. */}
+        {aiDays && !isLiveBuilding && !isTripPassTrip
+          && (viewerRole === 'organizer' || viewerRole === 'co_organizer') && (
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
+            <div className="flex items-center gap-3 min-w-0">
+              <Users className="w-5 h-5 flex-shrink-0 text-amber-600" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900">Make it a Trip Pass</p>
+                <p className="text-xs text-zinc-500">Unlock split-track days, expense splitting, and a co-organizer for everyone on this trip — pay once, whole crew included.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setUpgradePromptKey('trip_pass_offer')}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-full transition-colors whitespace-nowrap"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Get a Trip Pass
             </button>
           </div>
         )}

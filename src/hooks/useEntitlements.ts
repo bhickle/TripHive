@@ -110,6 +110,7 @@ export type UpgradeReason =
   | 'trip_limit'
   | 'traveler_limit'
   | 'feature_locked'
+  | 'trip_pass_offer'
   | 'no_ai';
 
 export interface UpgradePrompt {
@@ -162,6 +163,15 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
     headline: 'This feature is on paid plans',
     body: 'Upgrade to unlock the full tripcoord experience.',
     ctaLabel: 'See plans',
+  },
+  // Explicit "buy a Trip Pass for THIS trip" offer — triggered from a button on
+  // the itinerary. The modal shows the Trip Pass purchase CTA (price computed
+  // from the trip's group size) because a tripId is passed alongside it.
+  trip_pass_offer: {
+    reason: 'trip_pass_offer',
+    headline: 'Cover this whole trip with a Trip Pass',
+    body: 'One purchase unlocks split-track days, group expense splitting, a co-organizer, and AI builds for everyone on this trip — no subscription. Pay once; your whole crew is included.',
+    ctaLabel: 'See all plans',
   },
 };
 
