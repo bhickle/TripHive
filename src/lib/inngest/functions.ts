@@ -12,6 +12,7 @@
 
 import { inngest } from './client';
 import { applyCoherenceToTrip } from '@/lib/coherence/applyCoherenceToTrip';
+import { finishBackgroundBuild } from '@/lib/coherence/finishBackgroundBuild';
 
 /**
  * Run the whole-trip coherence + dedup pass on a trip's assembled itinerary.
@@ -42,5 +43,36 @@ export const coherencePassFn = inngest.createFunction(
   },
 );
 
+/**
+ * Finalize an itinerary build: run the coherence/dedup pass, mark the trip
+ * ready, and notify the organizer. Event: `itinerary/build.completed` with
+ * `{ data: { tripId } }`. This is the post-generation half of the background
+ * build; Part 2 (the generation orchestrator) will emit this event as its last
+ * step. Dormant until something fires the event — invoke manually to test.
+ */
+export const finalizeBuildFn = inngest.createFunction(
+  {
+    id: 'itinerary-finalize',
+    name: 'Finalize itinerary build (coherence + ready + notify)',
+    triggers: [{ event: 'itinerary/build.completed' }],
+  },
+  async ({ event, step }) => {
+    const tripId = typeof event.data?.tripId === 'string' ? event.data.tripId : undefined;
+    if (!tripId) {
+      return { skipped: true, reason: 'no tripId in event data' };
+    }
+
+    const result = await step.run('finish-build', () => finishBackgroundBuild(tripId));
+
+    return {
+      tripId,
+      found: result.found,
+      appliedReplacements: result.coherence.appliedReplacements,
+      qualityFindingsCount: result.coherence.qualityFindings.length,
+      notified: result.notified,
+    };
+  },
+);
+
 /** Every function the serve endpoint registers. */
-export const inngestFunctions = [coherencePassFn];
+export const inngestFunctions = [coherencePassFn, finalizeBuildFn];
