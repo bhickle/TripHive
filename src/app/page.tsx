@@ -33,17 +33,14 @@ export default function HomePage() {
         </div>
         <div className="relative max-w-4xl mx-auto px-5 py-24 sm:py-32 text-center">
           <div className="inline-block mb-6 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-            <p className="text-sm font-semibold">✦ The group trip&apos;s planning OS — solo welcome too</p>
+            <p className="text-sm font-semibold">✦ Your trips&apos; command center</p>
           </div>
           <h1 className="font-script italic text-5xl sm:text-6xl lg:text-7xl font-semibold leading-tight mb-6">
-            Plan it together. Pull it off as a group.
+            Every great trip starts somewhere. Start it here.
           </h1>
-          <p className="text-xl sm:text-2xl text-sky-50 mb-8 max-w-3xl mx-auto leading-relaxed">
-            Vote on activities, split costs, run two tracks on the same day, and meet for dinner.
-            tripcoord runs your trip — not just your itinerary.
-          </p>
-          <p className="text-base text-sky-100 mb-10 max-w-2xl mx-auto">
-            On your own, or with the whole crew.
+          <p className="text-xl sm:text-2xl text-sky-50 mb-10 max-w-3xl mx-auto leading-relaxed">
+            tripcoord turns a spark of an idea into a real, day-by-day trip — the plan, the people, and the
+            day-of. Build it solo or bring the crew to pull it off together.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -289,11 +286,11 @@ export default function HomePage() {
           <div className="text-center max-w-2xl mx-auto pt-4">
             <Sparkles className="w-8 h-8 text-sky-800 mx-auto" />
             <h3 className="font-script italic text-3xl font-semibold text-zinc-900 mt-2 mb-3">
-              A first draft in minutes. You make it yours.
+              A starting point, not a finish line.
             </h3>
             <p className="text-zinc-600 leading-relaxed">
-              tripcoord builds the first draft with real activity ideas, food spots, photo spots, and timing —
-              multi-city trips included. A starting point you shape, not a wall of text you have to untangle.
+              tripcoord drafts the trip — real stops, food, photo spots, timing — and you shape it into yours.
+              Multi-city trips included. A starting point you build on, not a wall of text you have to untangle.
             </p>
           </div>
 
@@ -483,9 +480,9 @@ export default function HomePage() {
       <section className="gradient-hero relative overflow-hidden">
         <div className="relative max-w-3xl mx-auto px-5 py-20 text-center text-white">
           <h2 className="font-script italic text-4xl md:text-5xl font-semibold mb-4 leading-tight">
-            Your next trip is waiting.
+            Every great trip starts somewhere.
             <br />
-            Let&apos;s get it organized.
+            Start yours here.
           </h2>
           <Link
             href="/auth/signup"
