@@ -279,8 +279,11 @@ function PricingPageInner() {
     <div className="min-h-screen bg-parchment">
 
       {/* Nav — shared MarketingNav so /pricing reads as part of the marketing
-          site (was a stripped-down Back + logo + CTA header until 2026-05-29). */}
-      <MarketingNav />
+          site (was a stripped-down Back + logo + CTA header until 2026-05-29).
+          showAnchors=false so the section links resolve to /#all-in-one etc.
+          (hop back to the homepage) instead of dead in-page anchors that left
+          the nav "stuck" on /pricing. */}
+      <MarketingNav showAnchors={false} />
 
       {/* Hero */}
       <section className="pt-20 pb-10 px-4 text-center">
@@ -460,7 +463,7 @@ function PricingPageInner() {
                 { text: 'Priority support', highlight: false },
               ].map(f => (
                 <li key={f.text} className="flex items-start gap-2.5 text-sm">
-                  <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${f.highlight ? 'text-amber-300' : 'text-sky-400'}`} />
+                  <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-sky-300" />
                   <span className={f.highlight ? 'text-white font-semibold' : 'text-sky-100'}>{f.text}</span>
                 </li>
               ))}

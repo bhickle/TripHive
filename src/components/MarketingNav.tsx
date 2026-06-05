@@ -19,7 +19,9 @@ export function MarketingNav({ showAnchors = true }: MarketingNavProps) {
   // they hop back to the homepage section.
   const links = [
     { label: 'All In One Place', href: showAnchors ? '#all-in-one' : '/#all-in-one' },
-    { label: 'How It Works', href: showAnchors ? '#how-it-works' : '/#how-it-works' },
+    // Section id on the landing page is "how" (not "how-it-works") — must match
+    // or the link scrolls nowhere.
+    { label: 'How It Works', href: showAnchors ? '#how' : '/#how' },
     { label: 'Pricing', href: '/pricing' },
   ];
 

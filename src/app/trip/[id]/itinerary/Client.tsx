@@ -2308,6 +2308,12 @@ function ItineraryPageContent() {
     const targetDay = (editingActivity || isSidebarAdd) ? newActivityDay : selectedDay;
 
     const savedActivity: Activity = {
+      // When EDITING, start from the existing activity so every field the edit
+      // form doesn't touch — notes/description, votes, lat/lng, placeId,
+      // category, transportToNext, photo/foodie tips, etc. — survives. The
+      // prior version rebuilt the object from scratch, which silently wiped
+      // all of those (reported: editing the time deleted the card's notes).
+      ...(editingActivity ?? ({} as Activity)),
       id: editingActivity?.id ?? `act_d${targetDay}_${Date.now()}`,
       dayNumber: targetDay,
       timeSlot,
@@ -2318,15 +2324,18 @@ function ItineraryPageContent() {
       isRestaurant: newActivityIsRestaurant,
       isPrivate: newActivityIsPrivate,
       track: newActivityTrack,
-      priceLevel: selectedPlace?.priceLevel ?? (newActivityIsRestaurant ? 2 : 1),
-      description: '',
-      costEstimate: 0,
-      confidence: 1,
-      verified: !!selectedPlace,
-      packingTips: [],
-      rating: selectedPlace?.rating,
-      reviewCount: selectedPlace?.reviewCount,
-      googleVerified: !!selectedPlace,
+      // selectedPlace present = user picked a fresh Google result, so refresh
+      // these from it; otherwise keep whatever the activity already had.
+      priceLevel: selectedPlace?.priceLevel ?? editingActivity?.priceLevel ?? (newActivityIsRestaurant ? 2 : 1),
+      rating: selectedPlace?.rating ?? editingActivity?.rating,
+      reviewCount: selectedPlace?.reviewCount ?? editingActivity?.reviewCount,
+      verified: selectedPlace ? true : (editingActivity?.verified ?? false),
+      googleVerified: selectedPlace ? true : (editingActivity?.googleVerified ?? false),
+      // New-activity defaults; preserved on edit via the spread above.
+      description: editingActivity?.description ?? '',
+      costEstimate: editingActivity?.costEstimate ?? 0,
+      confidence: editingActivity?.confidence ?? 1,
+      packingTips: editingActivity?.packingTips ?? [],
     };
 
     const isMoving = editingActivity && editingActivity.dayNumber !== targetDay;

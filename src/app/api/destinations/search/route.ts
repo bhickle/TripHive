@@ -55,13 +55,17 @@ export async function GET(request: NextRequest) {
 
   const apiKey = process.env.GOOGLE_MAPS_KEY;
 
-  // ── Google Places Autocomplete (cities) ──────────────────────────────────
+  // ── Google Places Autocomplete (cities + countries + regions) ─────────────
+  // `(regions)` returns localities (cities) AND countries + admin areas, so a
+  // user typing "Austria" gets a clickable "Austria" prediction at the top
+  // instead of only the manual "use Austria" free-text fallback. Matches the
+  // field's own "any city, country, or region" placeholder. (was '(cities)')
   if (apiKey) {
     try {
       const params = new URLSearchParams({
         input: q,
         key:   apiKey,
-        types: '(cities)',
+        types: '(regions)',
       });
 
       const res  = await fetch(
