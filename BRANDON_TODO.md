@@ -8,13 +8,13 @@ Status: ⬜ not started · 🔄 in progress · ✅ done
 
 ---
 
-## 1. Unblock deployments (do this FIRST — other items need to deploy)
+## 1. Deployments — ✅ RESOLVED 2026-06-08 (no action needed)
 
-- ⬜ **Get the current code live via a Deploy Hook.** Vercel → trip-hive → **Settings → Git → Deploy Hooks** → create one (branch `master`) → open the URL (or paste it to Claude). Builds the latest `master`.
-- ⬜ **Reconnect Git so pushes deploy again.** Vercel → **Settings → Git** → Disconnect → reconnect `bhickle/TripHive`. Then GitHub → repo **Settings → Webhooks** → confirm the `vercel.com` hook shows green Recent Deliveries.
-- ⬜ After it deploys, the Inngest `itinerary-finalize` function registers automatically (or **Claude runs** `curl -X PUT https://www.tripcoord.ai/api/inngest` once).
+- ✅ **Root cause found + fixed.** Deploys weren't broken at the webhook — Vercel was building every push but the builds were **failing** on a **cron plan-limit**. The auto-resync cron I added (`/api/cron/inngest-sync`) was set to every-6-hours; the Hobby plan only allows **once-per-day** crons, so it rejected every build since `f781285`. Changed it to daily (`0 3 * * *`) → builds resumed.
+- ⬜ **Just confirm it's flowing:** Vercel → trip-hive → Deployments — the latest commit should now show a green production build. (Claude verifies this after pushing the fix.)
+- ⬜ Nothing to do re: "On-Demand Concurrent Builds" — that was a red herring, you don't need the paid feature.
 
-> _Background: pushes stopped creating Vercel deployments (last good = `8353e91`). It's a webhook problem, not the paid "On-Demand Concurrent Builds" feature — you don't need that. **Live site is fine; undeployed code is dormant — no rush, just cleanup.**_
+> _Takeaway for future: on Hobby, every Vercel cron must run **once per day or less**. No `*/N` / hourly schedules._
 
 ---
 

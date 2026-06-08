@@ -7,20 +7,20 @@ Update the status emoji as you complete each item. CLAUDE.md links here for the 
 
 ---
 
-## 🚀 Deploy pipeline (CURRENT BLOCKER — added 2026-06-05)
+## 🚀 Deploy pipeline — RESOLVED 2026-06-08 (root cause: cron frequency limit)
 
-### 🟧 Vercel stopped deploying pushes — restore the Git trigger
-**Why:** As of 2026-06-05, pushes to `master` stop producing Vercel deployments. The last deployment that actually built is **`8353e91`** (the Inngest foundation). Two later commits — **`f781285`** (background-build finalize function + the `/api/cron/inngest-sync` auto-resync) and the empty re-trigger **`df67c53`** — are on GitHub's `master` but Vercel created **no deployment record at all** for either. Vercel → Settings → Git still **shows "connected."** "No deployment record created" points to a broken **GitHub→Vercel webhook**, not a build-capacity problem — so the paid "On-Demand Concurrent Builds" feature is **not** the fix and isn't needed.
+### 🟩 Why deploys stopped, and the fix
+**Symptom:** From 2026-06-05, pushes to `master` stopped producing successful Vercel deployments. The last good build was **`8353e91`** (Inngest Phase 2a). Everything after it "didn't deploy."
 
-**Not urgent:** the **live site is fine** on `8353e91`, and the only undeployed code is **dormant** (the finalize function + resync cron don't fire until something sends their events). No user impact. This is cleanup, not a fire.
+**Actual root cause (NOT a broken webhook):** The webhook was fine the whole time — Vercel *was* receiving every push and *was* building, but the builds were **failing**, so no READY deployment appeared. GitHub's commit-status API was the tell: `8353e91` = `Vercel: success`, every later commit = `Vercel: Deployment failed.` whose status link pointed at `vercel.com/docs/cron-jobs/usage-and-pricing`.
 
-**Steps (do #1 to get current code live, then #2 to fix it for good):**
-1. **Deploy Hook (free, any plan — unblocks immediately):** Vercel → trip-hive → **Settings → Git → Deploy Hooks** → create one (any name, branch `master`) → copy the URL. Open it in a browser (or paste it to Claude to fire) — it builds the latest `master` (`df67c53`), bypassing the broken webhook.
-2. **Reconnect Git (fixes the root cause):** Vercel → **Settings → Git** → **Disconnect** the repo → **Connect** it back to `bhickle/TripHive`. This re-registers the webhook so normal pushes deploy again. Sanity check: GitHub → repo **Settings → Webhooks** → the `vercel.com` hook → **Recent Deliveries** should show fresh green deliveries.
-3. **Confirm:** push a trivial commit (or have Claude do it) and verify a new production deployment builds within ~1 min.
-4. **After it deploys:** the `itinerary-finalize` Inngest function needs to register — run `curl -X PUT https://www.tripcoord.ai/api/inngest` once (or just wait for the 6-hourly `/api/cron/inngest-sync`, which does the same thing automatically — but that cron only exists once `f781285` is deployed).
+The failure was a **cron plan-limit**: commit `f781285` added a 6th cron, `/api/cron/inngest-sync`, on a **sub-daily** schedule (`0 */6 * * *`, every 6 hours). The Hobby plan only allows crons that run **once per day**. The five pre-existing crons are all daily, so they passed; the every-6-hours one made Vercel reject the build. Because every build compiles the whole tree, even doc-only commits after `f781285` failed too.
 
-> ⚠️ Note from Claude: this was likely triggered by me pushing 10+ deploys in rapid succession during the tier-change work. Going forward I'll batch changes into far fewer deploys.
+**Fix (shipped):** changed the schedule to once-daily (`0 3 * * *`). The Inngest Vercel integration already re-syncs functions on each deploy, so a daily safety-net resync is plenty. Builds resumed on the next push.
+
+**Lessons:**
+- "No READY deployment" ≠ "broken webhook." Check the **GitHub commit status** (`/repos/<owner>/<repo>/commits/<sha>/status`) — Vercel reports success/failure there even when the Vercel deployments list looks empty. A failure status that links to a `…/docs/…/pricing` page means a **plan limit**, not a code bug.
+- On **Hobby**, every Vercel cron must be **once-per-day or less frequent**. Don't add sub-daily crons (`*/N`, hourly) unless on Pro. (Claude note: I also over-deployed during the tier work — batching into fewer pushes going forward.)
 
 ---
 
@@ -364,5 +364,3 @@ For context — see `CLAUDE.md` "Recently Shipped" sections for the full chronol
 - Discover privacy (first-name-only) + auth-gate + login redirect
 - On My Radar source icons (globe vs pencil)
 - ~970 LOC of dead code removed (unused components, mock leftovers)
-
-<!-- deploy-pipeline webhook verified 2026-06-08 17:07 -->
