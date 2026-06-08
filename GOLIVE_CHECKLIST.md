@@ -364,3 +364,5 @@ For context — see `CLAUDE.md` "Recently Shipped" sections for the full chronol
 - Discover privacy (first-name-only) + auth-gate + login redirect
 - On My Radar source icons (globe vs pencil)
 - ~970 LOC of dead code removed (unused components, mock leftovers)
+
+<!-- deploy-pipeline webhook verified 2026-06-08 17:07 -->
