@@ -693,6 +693,15 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
             if (m === 'walking' || m === 'walk') {
               return `\n- PRIMARY TRANSPORT — WALKING (user-selected): The traveler wants to walk this trip. Cluster every day's activities within a walkable footprint (each consecutive activity ≤ 1.2 mi from the previous one) so transport legs are walk-only. Only fall back to metro/tram/rideshare when a single leg genuinely exceeds 1.5 mi or terrain makes walking unreasonable; explain the fallback in the transport note. This OVERRIDES the default MODE SELECTION RULES below.`;
             }
+            if (m.includes('car')) {
+              return `\n- PRIMARY TRANSPORT — CAR / RENTAL (user-selected): The traveler is self-driving (own car or a rental) this trip. Use car_rental as the DEFAULT for essentially every leg — inter-activity AND inter-city — and do NOT default to rideshare/taxi (they have a car). Only exceptions: walk between activities within ~0.5 mi of each other, or park once and explore a dense, parking-hostile core on foot. For venues where parking is non-trivial, add a short parking note (lot vs street, rough cost) in the transport note. Between cities the leg is a drive (car_rental) — give realistic drive time + distance. This OVERRIDES the default MODE SELECTION RULES below.`;
+            }
+            if (m.includes('uber') || m.includes('rideshare') || m.includes('taxi')) {
+              return `\n- PRIMARY TRANSPORT — RIDESHARE (user-selected): The traveler relies on rideshare/taxi. Use rideshare as the default for any leg beyond a short walk (~0.5 mi); do NOT assume they have a rental car or route long self-drives. For long inter-city hops, note in the transport note when a train/flight/rental would be more sensible than a 1-hour+ rideshare. This OVERRIDES the default MODE SELECTION RULES below.`;
+            }
+            if (m.includes('excursion') || m.includes('coach') || m.includes('bus')) {
+              return `\n- PRIMARY TRANSPORT — EXCURSION / COACH (user-selected): The traveler prefers organized excursions and coach day-trips. Favor guided/coach excursions for out-of-city sights (name the kind of tour + a typical meeting point); within a city default to walking + local transit. This OVERRIDES the default MODE SELECTION RULES below.`;
+            }
             return `\n- Primary transport: ${modality} — build routes and day plans around this mode. This preference overrides the default MODE SELECTION RULES below when they conflict.`;
           })()
         : '');
@@ -703,7 +712,7 @@ SPLIT TRACK SUGGESTION (group of ${groupSize}): With a group this size and diver
 
   // Sports-specific guidance (Item 12: no speculative event schedules)
   const sportsText = priorities.includes('sports')
-    ? `\n- SPORTS PRIORITY: This group loves sports. Include visits to major stadiums, arenas, and iconic sports venues in ${destination} — even if no game is scheduled, a stadium tour is a must. If the destination has a notable sports hall of fame (baseball, football, basketball, hockey, soccer, golf, etc.), include it as a dedicated stop. Include sports bars and fan zones where locals actually watch games, and any neighborhoods where sports culture runs deep. For any venue where a live game could be scheduled, mention the team(s) that play there and remind travelers to check the official team website for game dates — do NOT invent or speculate on specific fixture dates, as schedules change.`
+    ? `\n- SPORTS PRIORITY: This group loves sports — recommend it BROADLY, not just venue tours. (1) LIVE GAMES FIRST: if a notable local team (in whatever sport ${destination} is known for) could be playing at home during the trip, suggest attending a game as a featured activity — name the team(s) and venue and tell travelers to check/buy tickets on the team's official site or Ticketmaster. Do NOT invent or state specific fixture dates or opponents (schedules change) — frame it as "check if [team] is home during your dates." (2) When no game fits, a stadium/arena tour is the fallback, plus any notable sports hall of fame. (3) Go beyond the majors: include the sport the destination is actually famous for (e.g. surfing, motorsport, climbing, cycling, local football), interactive sports museums, sports bars / fan zones where locals watch, and neighborhoods where sports culture runs deep.`
     : '';
 
   // Food priority — elevated foodie experience throughout the entire itinerary
