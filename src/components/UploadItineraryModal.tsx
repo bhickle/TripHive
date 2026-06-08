@@ -132,6 +132,12 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   // imported itinerary.
   const isFreeTier = currentUser.subscriptionTier === 'free';
 
+  // AI import (the parser) is a paid feature — Free uses the manual "blank
+  // trip" path. Gated only once the tier is resolved so paid users never
+  // flash the locked state on load. Both paid tiers (trip_pass + travel_pro)
+  // get AI import.
+  const aiImportLocked = currentUser.tierResolved && isFreeTier;
+
   const [tripPassPurchasing, setTripPassPurchasing] = useState(false);
   const [tripPassError, setTripPassError] = useState<string | null>(null);
 
@@ -871,31 +877,65 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                 )}
               </div>
 
-              {/* CTA */}
-              <button
-                onClick={handleProcess}
-                disabled={!hasContent || (tripChoice === 'existing' && realTrips.length === 0)}
-                className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-full transition-all"
-              >
-                <Sparkles className="w-4 h-4" />
-                Parse with AI
-                <ChevronRight className="w-4 h-4" />
-              </button>
-
-              {/* Skip parsing — create a blank trip instead. The whole point
-                  of this entry point for free / group users who just want
-                  the collaboration features. */}
-              {tripChoice === 'new' && (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-px bg-zinc-100" />
+              {/* CTA — tier-aware. AI import (the parser) is a paid feature, so
+                  Free leads with the manual blank-trip path and sees an upsell;
+                  paid tiers (trip_pass + travel_pro) get the AI parse flow. */}
+              {aiImportLocked ? (
+                <>
                   <button
                     onClick={() => setStep('blank-form')}
-                    className="text-xs font-medium text-zinc-500 hover:text-sky-700 whitespace-nowrap transition-colors"
+                    className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black text-white font-semibold py-3.5 rounded-full transition-all"
                   >
-                    Or skip — create a blank trip and invite your group →
+                    <Users className="w-4 h-4" />
+                    Create a blank trip &amp; invite your group
+                    <ChevronRight className="w-4 h-4" />
                   </button>
-                  <div className="flex-1 h-px bg-zinc-100" />
-                </div>
+
+                  {/* AI import upsell — amber is the sanctioned paid-moment color */}
+                  <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-amber-900">Import with AI — a paid feature</p>
+                      <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                        Let AI read your PDF, email, or travel-agent doc and build the full day-by-day itinerary for you. Included with Trip&nbsp;Pass &amp; Travel&nbsp;Pro. On Free, create the trip above and add your days yourself.
+                      </p>
+                      <button
+                        onClick={() => { router.push('/pricing'); onClose(); }}
+                        className="text-xs font-semibold text-amber-700 hover:text-amber-900 mt-1.5 inline-flex items-center gap-1"
+                      >
+                        See plans <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleProcess}
+                    disabled={!hasContent || (tripChoice === 'existing' && realTrips.length === 0)}
+                    className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-black disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-full transition-all"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Parse with AI
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  {/* Skip parsing — create a blank trip instead. The whole point
+                      of this entry point for free / group users who just want
+                      the collaboration features. */}
+                  {tripChoice === 'new' && (
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-zinc-100" />
+                      <button
+                        onClick={() => setStep('blank-form')}
+                        className="text-xs font-medium text-zinc-500 hover:text-sky-700 whitespace-nowrap transition-colors"
+                      >
+                        Or skip — create a blank trip and invite your group →
+                      </button>
+                      <div className="flex-1 h-px bg-zinc-100" />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

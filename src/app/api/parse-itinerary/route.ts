@@ -74,6 +74,17 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
+  // AI import is a paid feature — Free uses the manual "blank trip" path.
+  // Buying a Trip Pass sets subscription_tier='trip_pass' (Stripe webhook), so
+  // this single check lets BOTH paid tiers through and blocks only pure Free.
+  // (The client gates this too; this is the can't-bypass server enforcement.)
+  if (auth.ctx.tier === 'free') {
+    return NextResponse.json({
+      error: 'AI_IMPORT_LOCKED',
+      message: 'AI import is on Trip Pass and Travel Pro. On Free, create the trip manually and add your days — your group can still collaborate.',
+    }, { status: 403 });
+  }
+
   const body = await req.json();
   const { text, pdfBase64, fileName } = body;
   const tripId = typeof body?.tripId === 'string' ? body.tripId : undefined;
