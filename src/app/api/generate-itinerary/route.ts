@@ -916,6 +916,25 @@ You MUST follow ALL of these rules:
 7. GEOGRAPHIC INTEGRITY — RESTAURANTS AND ACTIVITIES: Every restaurant and activity must ONLY appear on days when the group is physically in that city. Once the group has departed City A, ZERO restaurants or activities from City A may appear in the itinerary. If the group is in Budapest on Days 1–3 and Vienna on Days 4–6, then ALL restaurants on Days 4–6 must be in Vienna — not Budapest. This rule has no exceptions, even if a Budapest restaurant is excellent. The city sequence is ${cities.join(' → ')} — enforce it strictly for every single activity and restaurant slot.`;
   })();
 
+  // Region auto-routing — when the destination is a broad AREA (state, country,
+  // island group, multi-city region) and the traveler did NOT spell out cities,
+  // nights-per-city, or pin a hotel, let the model plan a sensible multi-stop
+  // route itself. Skipped when it's already an explicit multi-city trip
+  // (multiCityText handles that) or a pre-booked hotel pins a single home base.
+  // Available to ALL tiers — it's smarter handling of the destination they
+  // typed, not the explicit city-builder feature.
+  const regionRoutingText = (multiCityText === '' && !hasPreBookedHotel)
+    ? `
+REGION / LARGE-AREA TRIP — AUTO-ROUTE IF APPLICABLE:
+The destination is "${destination}". IF (and ONLY IF) this is a broad area — a state/province, a country, an island group, or a multi-city region — rather than a single city or town, do NOT spend the whole trip in one place. Plan a logical MULTI-STOP ROUTE:
+- Choose 2–4 well-known stops that form a sensible geographic line (no backtracking), scaled to the trip length. Spend only a COUPLE of nights per stop (≈2–3 nights each; never the entire trip in one place) unless one city clearly warrants more.
+- HONOR any route the traveler describes in their notes/priorities (e.g. "start in San Francisco, end in San Diego, stops along the way") — use their start, end, and any named stops, and fill in good intermediate stops yourself.
+- Set each day's "city" field to the ACTUAL stop the group is in that day (e.g. "Santa Barbara", not "California") — this drives weather, maps, and venue checks.
+- On every day the group changes stops, treat it as a TRANSITION DAY: a light morning near the departing stop → the inter-city travel leg → 1–2 arrival activities near the new stop. Schedule the inter-city travel as a VISIBLE item in the shared track with its real time + distance (e.g. "Drive to Santa Barbara — ~2 hrs / 95 mi via US-101") AND populate that day's transportLegs with the leg. NEVER omit the travel between stops — the traveler needs the drive/transit time.
+- GEOGRAPHIC INTEGRITY: once the group leaves a stop, no activities or restaurants from it appear again on later days.
+If "${destination}" is actually a SINGLE city or town, IGNORE all of the above and plan a normal single-city trip.`
+    : '';
+
   // Must-haves: hard-requirement text injected if user specified any
   const mustHaveText = mustHaves.length > 0
     ? `\n- MUST-HAVES (non-negotiable — each item below MUST appear as a named activity somewhere in the itinerary. Do not omit or replace any of them):\n${mustHaves.map(m => `    • ${m}`).join('\n')}\n  TRACK ASSIGNMENT FOR MUST-HAVES: Place each must-have on the most logical track. Examples: "Holiday Markets" → shopping/culture track; a hike or outdoor excursion → adventure/nature track; a specific restaurant → foodie/shared track; a museum or historical site → culture/history track. Never dump must-haves arbitrarily into shared — match the track to the activity type.`
@@ -1139,7 +1158,7 @@ ${startDate ? `- Day-by-day calendar (use this to match each venue's per-weekday
 - Priorities: ${priorityText}
 - Age ranges in group: ${ageRanges.length > 0 ? ageRanges.join(', ') : '18-35'}
 - Accessibility needs: ${accessibilityText}
-- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${referenceContent ? `\n- REFERENCE MATERIAL THE TRAVELER SAVED (from links they bookmarked for this trip — draw on the specific, practical ideas here (places, neighborhoods, dishes, local tips) where they fit the priorities and dates; treat it as inspiration, NOT fixed requirements, and ignore anything off-topic, promotional, or impractical): ${referenceContent}` : ''}${organizerPaceText}${personaText}${preBookingText}${multiCityText}${featuredSeedText}
+- Travel style / budget tier: ${travelStyleText}${groupTypeText}${seniorPaceText}${localModeText}${dateNightText}${flexibleDatesText}${modalityText}${accommodationText}${sportsText}${mustHaveText}${additionalContext ? `\n- ADDITIONAL NOTES FROM THE TRAVELER (treat these as high-priority preferences that should shape the itinerary): ${additionalContext}` : ''}${referenceContent ? `\n- REFERENCE MATERIAL THE TRAVELER SAVED (from links they bookmarked for this trip — draw on the specific, practical ideas here (places, neighborhoods, dishes, local tips) where they fit the priorities and dates; treat it as inspiration, NOT fixed requirements, and ignore anything off-topic, promotional, or impractical): ${referenceContent}` : ''}${organizerPaceText}${personaText}${preBookingText}${multiCityText}${regionRoutingText}${featuredSeedText}
 
 ${(() => {
     // Multi-city: inject per-city place sections
@@ -1630,7 +1649,7 @@ export async function POST(request: NextRequest) {
   if (isMultiCityRequest && planTier === 'free') {
     return NextResponse.json({
       error: 'MULTI_CITY_LOCKED',
-      message: 'Multi-city trips are available on Trip Pass and up. Upgrade or stick to one destination.',
+      message: 'Hand-picking specific cities is on Trip Pass and up. Tip: enter a whole region (a state or country) as your destination and your build will auto-route multiple stops for you — included on every plan.',
     }, { status: 403 });
   }
 

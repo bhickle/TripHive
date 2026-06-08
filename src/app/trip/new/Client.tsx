@@ -1550,6 +1550,7 @@ function TripBuilderPage() {
                       free-tier survivable accounting-wise — this gate makes it
                       a proper product boundary instead. */}
                   {!showMultiCity ? (
+                    <>
                     <button
                       type="button"
                       onClick={() => {
@@ -1572,6 +1573,12 @@ function TripBuilderPage() {
                       Add another destination (multi-city trip)
                       {tierResolved && tier === 'free' && <LockBadge />}
                     </button>
+                    {tierResolved && tier === 'free' && (
+                      <p className="mt-2 text-xs text-zinc-500">
+                        Traveling a whole region? Just enter the state or country above (e.g.&nbsp;&ldquo;California, USA&rdquo;) and your free build auto-routes a multi-stop trip with the travel between cities included. Hand-picking specific cities and setting nights per city is part of Trip&nbsp;Pass &amp; Travel&nbsp;Pro.
+                      </p>
+                    )}
+                    </>
                   ) : (
                     <div className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
                       <span className="text-sm font-medium text-sky-800">Multi-city trip</span>
