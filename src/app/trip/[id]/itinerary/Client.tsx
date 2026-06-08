@@ -1696,7 +1696,36 @@ function ItineraryPageContent() {
       setIsLiveBuilding(false);
       window.history.replaceState({}, '', window.location.pathname);
 
-      // 7. Post-gen venue verification. Runs in its own serverless
+      // 7. Post-gen coherence / dedup pass. The per-day verify-before-show
+      //    gate can't catch the SAME venue repeated across DIFFERENT days
+      //    (a whole-trip property), so this runs once over the complete
+      //    itinerary: it detects cross-day duplicate venues and swaps in an
+      //    AI-generated, verify-before-show'd replacement, persisting the
+      //    result server-side. The build is already visually complete (step 6),
+      //    so this is non-blocking — when it resolves we re-sync the deduped
+      //    days into the view (same pattern as verify-venues below). Fail-open:
+      //    any error leaves the itinerary exactly as built. Awaited before
+      //    verify-venues so the two don't race on the itinerary row and so
+      //    venues are verified on the FINAL (deduped) venue set.
+      if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+        try {
+          const cRes = await fetch(`/api/trips/${tripPageId}/coherence`, { method: 'POST' });
+          if (cRes.ok) {
+            const cData = await cRes.json().catch(() => null);
+            if (cData?.appliedReplacements > 0) {
+              const fresh = await fetch(`/api/trips/${tripPageId}`).then(r => (r.ok ? r.json() : null));
+              const freshDays = fresh?.itinerary?.days;
+              if (Array.isArray(freshDays) && freshDays.length > 0) {
+                syncAiDays(freshDays as ItineraryDay[]);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[live-build] coherence/dedup pass failed:', err);
+        }
+      }
+
+      // 8. Post-gen venue verification. Runs in its own serverless
       //    invocation (5-min budget); when it resolves we merge the
       //    verification map into aiMeta so "Verify open" badges appear
       //    in the same session without a page reload. If it fails or
