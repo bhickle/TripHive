@@ -669,6 +669,10 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
           {(step === 'upload' || step === 'error') && (
             <div className="space-y-5">
 
+              {/* Upload mechanics (drop zone, file warnings/list, paste, and the
+                  "where should this go?" routing) are hidden for Free — their
+                  path is the manual blank trip, surfaced in the CTA below. */}
+              {!aiImportLocked && (<>
               {/* File drop zone */}
               {!showPasteArea && (
                 <div
@@ -697,7 +701,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                       <FileText className="w-6 h-6 text-zinc-400" />
                     </div>
                     <p className="font-semibold text-zinc-700">Drop your itinerary files here</p>
-                    <p className="text-xs text-zinc-400">or click to browse · PDF, .txt, or .md · multiple files OK</p>
+                    <p className="text-xs text-zinc-400">or click to browse · PDF, .txt, or .md</p>
                   </div>
                 </div>
               )}
@@ -876,6 +880,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   </div>
                 )}
               </div>
+              </>)}
 
               {/* CTA — tier-aware. AI import (the parser) is a paid feature, so
                   Free leads with the manual blank-trip path and sees an upsell;
