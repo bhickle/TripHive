@@ -7,6 +7,23 @@ Update the status emoji as you complete each item. CLAUDE.md links here for the 
 
 ---
 
+## 🚀 Deploy pipeline (CURRENT BLOCKER — added 2026-06-05)
+
+### 🟧 Vercel stopped deploying pushes — restore the Git trigger
+**Why:** As of 2026-06-05, pushes to `master` stop producing Vercel deployments. The last deployment that actually built is **`8353e91`** (the Inngest foundation). Two later commits — **`f781285`** (background-build finalize function + the `/api/cron/inngest-sync` auto-resync) and the empty re-trigger **`df67c53`** — are on GitHub's `master` but Vercel created **no deployment record at all** for either. Vercel → Settings → Git still **shows "connected."** "No deployment record created" points to a broken **GitHub→Vercel webhook**, not a build-capacity problem — so the paid "On-Demand Concurrent Builds" feature is **not** the fix and isn't needed.
+
+**Not urgent:** the **live site is fine** on `8353e91`, and the only undeployed code is **dormant** (the finalize function + resync cron don't fire until something sends their events). No user impact. This is cleanup, not a fire.
+
+**Steps (do #1 to get current code live, then #2 to fix it for good):**
+1. **Deploy Hook (free, any plan — unblocks immediately):** Vercel → trip-hive → **Settings → Git → Deploy Hooks** → create one (any name, branch `master`) → copy the URL. Open it in a browser (or paste it to Claude to fire) — it builds the latest `master` (`df67c53`), bypassing the broken webhook.
+2. **Reconnect Git (fixes the root cause):** Vercel → **Settings → Git** → **Disconnect** the repo → **Connect** it back to `bhickle/TripHive`. This re-registers the webhook so normal pushes deploy again. Sanity check: GitHub → repo **Settings → Webhooks** → the `vercel.com` hook → **Recent Deliveries** should show fresh green deliveries.
+3. **Confirm:** push a trivial commit (or have Claude do it) and verify a new production deployment builds within ~1 min.
+4. **After it deploys:** the `itinerary-finalize` Inngest function needs to register — run `curl -X PUT https://www.tripcoord.ai/api/inngest` once (or just wait for the 6-hourly `/api/cron/inngest-sync`, which does the same thing automatically — but that cron only exists once `f781285` is deployed).
+
+> ⚠️ Note from Claude: this was likely triggered by me pushing 10+ deploys in rapid succession during the tier-change work. Going forward I'll batch changes into far fewer deploys.
+
+---
+
 ## 🔑 External services / API keys
 
 ### 🟥 Unsplash — create app, set demo key, then apply for Production
