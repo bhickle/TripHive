@@ -687,9 +687,23 @@ function CommunityTripCard({ trip, liked, forking, onLike, onFork, variant = 'gr
   // the bare gradient. Skips the fetch when a cover already exists.
   const dynamicCover = useUnsplashCover(trip.destination, !trip.coverImage);
   const photoSrc = trip.coverImage ?? dynamicCover?.url ?? null;
-  const cardCover = !trip.coverImage && dynamicCover?.photographer && dynamicCover.photographerUrl
-    ? dynamicCover
-    : null;
+  // Attribution for whichever Unsplash photo is actually shown — a SAVED cover
+  // (via coverImageMeta, like the dashboard TripCard) OR a dynamically-fetched
+  // one. Previously only dynamic covers were credited, so a founder/community
+  // card with a persisted Unsplash cover showed no photographer credit.
+  const savedMeta = trip.coverImageMeta;
+  const cardCover: UnsplashCover | null =
+    trip.coverImage && savedMeta?.photographer && savedMeta.photographerUrl
+      ? {
+          url: trip.coverImage,
+          photographer: savedMeta.photographer,
+          photographerUrl: savedMeta.photographerUrl,
+          photoUrl: savedMeta.photoUrl ?? null,
+          downloadLocation: null,
+        }
+      : !trip.coverImage && dynamicCover?.photographer && dynamicCover.photographerUrl
+        ? dynamicCover
+        : null;
 
   if (variant === 'rail') {
     return (
