@@ -1167,13 +1167,9 @@ function TripBuilderPage() {
     setState((prev) => {
       const newState = { ...prev, [type]: value };
 
-      // When start date is set and end date is empty, auto-fill end date from trip length
-      if (type === 'startDate' && value && !prev.endDate && prev.tripLength > 0) {
-        const startDate = new Date(value);
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + prev.tripLength - 1);
-        newState.endDate = endDate.toISOString().split('T')[0];
-      }
+      // Do NOT auto-fill the end date when a start date is picked — the user
+      // enters both dates themselves (the old auto-fill could land an end date
+      // before the start). Trip length is derived once both are set, below.
 
       // When both dates are set, recalculate trip length
       if (
@@ -2133,9 +2129,17 @@ function TripBuilderPage() {
                           ...prev,
                           hasPreBookedFlight: !prev.hasPreBookedFlight,
                           isOpenJaw: false,
+                          // Pre-fill outbound date from the trip start and return
+                          // date from the trip end (editable). datetime-local needs
+                          // a time component, so seed a neutral default time the user
+                          // can adjust; arrival times are left blank (they genuinely
+                          // vary — timezones, red-eyes, next-day arrivals).
                           bookedFlight: !prev.hasPreBookedFlight ? {
                             airline: '', flightNumber: '', departureAirport: '', arrivalAirport: '',
-                            departureTime: '', arrivalTime: '', returnDepartureTime: '', returnArrivalTime: '',
+                            departureTime: prev.startDate ? `${prev.startDate}T09:00` : '',
+                            arrivalTime: '',
+                            returnDepartureTime: prev.endDate ? `${prev.endDate}T18:00` : '',
+                            returnArrivalTime: '',
                           } : null,
                         }))}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -2293,8 +2297,11 @@ function TripBuilderPage() {
                         onClick={() => setState(prev => ({
                           ...prev,
                           hasPreBookedHotel: !prev.hasPreBookedHotel,
+                          // Pre-fill the first hotel's stay with the trip dates
+                          // (the common single-hotel case) — editable below; the
+                          // user only adjusts if their booking differs.
                           bookedHotels: !prev.hasPreBookedHotel
-                            ? [{ name: '', city: '', address: '', checkIn: '', checkOut: '' }]
+                            ? [{ name: '', city: '', address: '', checkIn: prev.startDate, checkOut: prev.endDate }]
                             : [],
                         }))}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
