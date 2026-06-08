@@ -7,7 +7,7 @@ import { getTripRole, getOrganizerTier } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
 import type { Json } from '@/lib/supabase/database.types';
-import { TIER_LIMITS, SubscriptionTier } from '@/lib/types';
+import { TIER_LIMITS, SubscriptionTier, normalizeTier } from '@/lib/types';
 import { validateAndCorrectDay } from '@/lib/places/verifyDayLocations';
 import { correctDayOpeningHours } from '@/lib/places/openingHours';
 import type { ItineraryDay } from '@/lib/types';
@@ -1525,9 +1525,9 @@ export async function POST(request: NextRequest) {
         .select('subscription_tier, travel_persona')
         .eq('id', user.id)
         .single();
-      if (profile?.subscription_tier) {
-        userTier = profile.subscription_tier as SubscriptionTier;
-      }
+      // normalizeTier: legacy 'explorer'/'nomad' rows would key TIER_LIMITS
+      // (via planTier below) to undefined and crash generation at day 0.
+      userTier = normalizeTier(profile?.subscription_tier);
       if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
         const p = profile.travel_persona as Record<string, unknown>;
         const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];

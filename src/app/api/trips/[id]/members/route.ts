@@ -293,7 +293,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .select('subscription_tier')
         .eq('id', trip.organizer_id ?? '')
         .maybeSingle();
-      const orgTier = (orgProfile?.subscription_tier as keyof typeof TIER_LIMITS | undefined) ?? 'free';
+      const orgTier = normalizeTier(orgProfile?.subscription_tier);
 
       let cap: number;
       if (orgTier === 'trip_pass') {

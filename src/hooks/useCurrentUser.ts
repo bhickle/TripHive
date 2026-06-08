@@ -138,7 +138,9 @@ export function useCurrentUser() {
   // Fall back to TTL-checked localStorage-cached tier if profile hasn't loaded yet (transient
   // Supabase failure) so paid users don't revert to free on every page load.
   const cachedTier = readCachedTier(user.id);
-  const tier = (profile?.subscription_tier ?? cachedTier ?? 'free') as SubscriptionTier;
+  // normalizeTier guards against a legacy 'explorer'/'nomad' value (from the DB
+  // row or a stale cached tier) keying TIER_LIMITS to undefined client-side.
+  const tier = normalizeTier(profile?.subscription_tier ?? cachedTier);
   const limits = TIER_LIMITS[tier];
   const aiTotal =
     typeof limits?.aiCreditsPerMonth === 'number' ? limits.aiCreditsPerMonth : 0;

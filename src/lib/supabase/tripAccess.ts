@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from './server';
 import { createAdminClient } from './admin';
-import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
+import { TIER_LIMITS, normalizeTier, type SubscriptionTier } from '@/lib/types';
 
 /**
  * Resolves the current user's ID from the Supabase session, or null if not signed in.
@@ -236,8 +236,10 @@ export async function hasTripFeatureAccess(
     .select('subscription_tier')
     .eq('id', userId)
     .maybeSingle();
-  const tier = (profile?.subscription_tier as SubscriptionTier | null) ?? null;
-  if (!tier) return { allowed: false, reason: 'unknown' };
+  // Preserve the "no tier at all" → unknown branch, but normalize legacy
+  // 'explorer'/'nomad' values so paid users aren't wrongly denied features.
+  if (profile?.subscription_tier == null) return { allowed: false, reason: 'unknown' };
+  const tier = normalizeTier(profile.subscription_tier);
 
   if (TIER_LIMITS[tier]?.[feature]) {
     return { allowed: true };
@@ -298,7 +300,7 @@ export async function getOrganizerTier(
     .select('subscription_tier')
     .eq('id', trip.organizer_id)
     .maybeSingle();
-  return (orgProfile?.subscription_tier as SubscriptionTier | null) ?? 'free';
+  return normalizeTier(orgProfile?.subscription_tier);
 }
 
 export async function getTripTravelerCap(
@@ -318,7 +320,7 @@ export async function getTripTravelerCap(
     .select('subscription_tier')
     .eq('id', organizerId)
     .maybeSingle();
-  const orgTier = (orgProfile?.subscription_tier as keyof typeof TIER_LIMITS | undefined) ?? 'free';
+  const orgTier = normalizeTier(orgProfile?.subscription_tier);
 
   let cap: number;
   if (orgTier === 'trip_pass') {

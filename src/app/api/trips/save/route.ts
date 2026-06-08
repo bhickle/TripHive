@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Database, Json } from '@/lib/supabase/database.types';
-import { TIER_LIMITS, type SubscriptionTier } from '@/lib/types';
+import { TIER_LIMITS, normalizeTier } from '@/lib/types';
 import { sendPartnerAddedEmail } from '@/lib/email/sendPartnerAddedEmail';
 
 type TripInsert = Database['public']['Tables']['trips']['Insert'];
@@ -85,7 +85,10 @@ export async function POST(request: NextRequest) {
       .select('subscription_tier')
       .eq('id', userId)
       .maybeSingle();
-    const callerTier = (callerProfile?.subscription_tier as SubscriptionTier | undefined) ?? 'free';
+    // normalizeTier: legacy 'explorer'/'nomad' rows (un-migrated after the
+    // 4→3 collapse) would otherwise key TIER_LIMITS to undefined and crash
+    // the whole save with "Cannot read properties of undefined".
+    const callerTier = normalizeTier(callerProfile?.subscription_tier);
     const hotelCap = TIER_LIMITS[callerTier].maxBookedHotels;
     if (Array.isArray(tripMeta.bookedHotels) && tripMeta.bookedHotels.length > hotelCap) {
       console.warn(

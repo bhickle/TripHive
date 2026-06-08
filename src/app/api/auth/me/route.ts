@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { TablesUpdate } from '@/lib/supabase/database.types';
+import { normalizeTier } from '@/lib/types';
 
 /**
  * DELETE /api/auth/me
@@ -186,7 +187,7 @@ export async function GET() {
       email: profile?.email ?? user.email,
       name,
       avatarUrl: profile?.avatar_url ?? null,
-      subscriptionTier: profile?.subscription_tier ?? 'free',
+      subscriptionTier: normalizeTier(profile?.subscription_tier),
       notificationPreferences: profile?.notification_preferences ?? null,
       travelPersona: profile?.travel_persona ?? null,
       homeCountry: profile?.home_country ?? null,
