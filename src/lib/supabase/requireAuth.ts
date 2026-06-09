@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from './server';
 import { createAdminClient } from './admin';
@@ -124,4 +125,93 @@ export async function requireAuth(): Promise<
       ),
     };
   }
+}
+
+/**
+ * Internal-call auth for the background-build worker.
+ *
+ * The Inngest worker can't carry the user's browser cookie session, so it
+ * authenticates with a server-only secret (`INTERNAL_BUILD_SECRET`) plus the
+ * acting user's id — both in request headers. It returns the SAME AuthContext
+ * shape as requireAuth so the route runs identically against that user (role
+ * gate, credit claim, generation all unchanged).
+ *
+ *   x-internal-build-secret: <INTERNAL_BUILD_SECRET>
+ *   x-internal-build-user:   <userId the build is for (the organizer)>
+ *
+ * Return contract (so callers can fall back to cookie auth):
+ *   - no secret header        → null  (not an internal call; use requireAuth)
+ *   - secret unset/mismatched  → { ok: false } 401  (someone tried + failed)
+ *   - valid but no user id     → { ok: false } 400
+ *   - valid                    → { ok: true, ctx }
+ *
+ * The secret is never sent to the browser; this path is dormant until
+ * INTERNAL_BUILD_SECRET is set in the server env.
+ */
+export async function resolveInternalBuildAuth(
+  req: Request,
+): Promise<
+  | { ok: true; ctx: AuthContext }
+  | { ok: false; response: NextResponse }
+  | null
+> {
+  const provided = req.headers.get('x-internal-build-secret');
+  if (!provided) return null; // not an internal call — fall through to requireAuth
+
+  const expected = process.env.INTERNAL_BUILD_SECRET;
+  const valid =
+    !!expected &&
+    provided.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  if (!valid) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: 'UNAUTHORIZED', message: 'Invalid internal credentials.' },
+        { status: 401 },
+      ),
+    };
+  }
+
+  const userId = req.headers.get('x-internal-build-user');
+  if (!userId) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: 'BAD_REQUEST', message: 'Internal build call missing acting user id.' },
+        { status: 400 },
+      ),
+    };
+  }
+
+  // Resolve the acting user's tier the same way requireAuth does.
+  let tier: SubscriptionTier;
+  try {
+    const admin = createAdminClient();
+    const { data: profile, error } = await admin
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .single();
+    if (error) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: 'PROFILE_LOOKUP_FAILED', message: 'Could not load the build user profile.' },
+          { status: 503 },
+        ),
+      };
+    }
+    tier = normalizeTier(profile?.subscription_tier);
+  } catch {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: 'PROFILE_LOOKUP_FAILED', message: 'Could not load the build user profile.' },
+        { status: 503 },
+      ),
+    };
+  }
+
+  return { ok: true, ctx: { userId, tier, tierLimits: TIER_LIMITS[tier] } };
 }

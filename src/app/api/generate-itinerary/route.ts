@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { requireAuth } from '@/lib/supabase/requireAuth';
+import { requireAuth, resolveInternalBuildAuth } from '@/lib/supabase/requireAuth';
 import { getTripRole, getOrganizerTier } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
@@ -1519,7 +1519,13 @@ function cleanJson(raw: string): string {
 
 export async function POST(request: NextRequest) {
   // ── Auth guard — must be logged in to generate itineraries ─────────────────
-  const auth = await requireAuth();
+  // The background-build worker (Inngest) can't carry a cookie session, so it
+  // authenticates via an internal secret + acting-user header instead. Cookie
+  // requests (the browser build) are unaffected: with no internal header,
+  // resolveInternalBuildAuth returns null and we fall through to requireAuth.
+  const internalAuth = await resolveInternalBuildAuth(request);
+  if (internalAuth?.ok === false) return internalAuth.response;
+  const auth = internalAuth?.ok ? internalAuth : await requireAuth();
   if (!auth.ok) return auth.response;
 
   // ── Parse body ──────────────────────────────────────────────────────────────
