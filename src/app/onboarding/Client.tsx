@@ -531,7 +531,7 @@ export default function OnboardingPage() {
 
           {step < 2 && (
             <p className="text-center text-sm text-slate-400 mt-4">
-              Step {step + 1} of 2 — {step === 0 ? 'Your Profile' : 'Travel Style'}
+              Step {step + 1} of 3 — {step === 0 ? 'Your Profile' : 'Travel Style'}
             </p>
           )}
         </div>

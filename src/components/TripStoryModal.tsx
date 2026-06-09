@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Printer, Share2, Pause, Play, Lock } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Printer, Share2, Pause, Play, Lock, Camera, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
   trips,
   itineraryDays as mockItineraryDays,
@@ -753,6 +754,38 @@ function PhotosSlide({ photos, reactions, onOpen }: PhotoGridProps) {
   );
 }
 
+// Shown in place of PhotosSlide when a real trip has no uploaded photos yet.
+// Rather than silently dropping the slide, invite the user to add photos —
+// it fills the gap, makes the recap better, and seeds the shareable artifact.
+// Amber is the reserved "premium moment" brand accent. onAddPhotos routes to
+// the trip's Memories page (the photo-upload home).
+function PhotosEmptyCTASlide({ onAddPhotos }: { onAddPhotos: () => void }) {
+  return (
+    <div className="relative w-full h-full overflow-hidden bg-gradient-to-b from-sky-900 via-teal-900 to-zinc-950">
+      <div className="absolute top-6 right-4 z-10 flex items-center gap-1.5 opacity-40">
+        <div className="w-5 h-5 bg-sky-800 rounded flex items-center justify-center">
+          <span className="text-white font-bold text-[9px]">t</span>
+        </div>
+        <span className="text-white text-xs font-bold">tripcoord</span>
+      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
+        <div className="w-16 h-16 rounded-full bg-white/10 border border-white/15 flex items-center justify-center mb-5">
+          <Camera className="w-8 h-8 text-amber-300" />
+        </div>
+        <p className="font-script italic text-3xl text-white leading-tight mb-2">Your recap is<br />waiting on photos</p>
+        <p className="text-sm text-zinc-300 leading-relaxed mb-7 max-w-[16rem]">Add a few shots from the trip and watch this story come to life — your crew can add theirs too.</p>
+        <button
+          onClick={onAddPhotos}
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-colors shadow-lg"
+        >
+          <Plus className="w-4 h-4" /> Add photos
+        </button>
+        <p className="text-[11px] text-zinc-400 mt-4">Jump back anytime — your story saves your place.</p>
+      </div>
+    </div>
+  );
+}
+
 function ShareSlide({ trip, onDownload, coverPhoto }: { trip: Trip; onDownload: () => void; coverPhoto: string }) {
   const photo = coverPhoto;
   return (
@@ -1234,6 +1267,15 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
     if (cardRef.current) window.print();
   };
 
+  // Empty-photos CTA → close the story and route to the trip's Memories page
+  // (the photo-upload home). Real trips only — mock/demo always has photos.
+  const router = useRouter();
+  const handleAddPhotos = useCallback(() => {
+    const tripId = trip?.id;
+    onClose();
+    if (tripId) router.push(`/trip/${tripId}/memories`);
+  }, [trip?.id, onClose, router]);
+
   // Build full slide render arrays
   const tripPhotosForSlide = effectivePhotos.slice(0, 7);
   // Cover/share photo: prefer a real uploaded trip photo, then the trip's
@@ -1257,7 +1299,9 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
     { id: 'cities',  render: () => <CitiesMapSlide bgPhoto={getBg(2)} cities={visitedCitiesForSlide} /> },
     { id: 'toppicks', render: () => <TopPicksSlide bgPhoto={getBg(3)} days={effectiveDays} /> },
     { id: 'laughs',  render: () => <LaughsSlide bgPhoto={getBg(4)} moments={laughMomentsForSlide} laughCount={laughCountForSlide} /> },
-    { id: 'photos',  render: () => <PhotosSlide photos={tripPhotosForSlide} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotosForSlide, idx)} /> },
+    { id: 'photos',  render: () => (tripPhotosForSlide.length > 0
+        ? <PhotosSlide photos={tripPhotosForSlide} reactions={photoReactions} onOpen={(idx) => openLightbox(tripPhotosForSlide, idx)} />
+        : <PhotosEmptyCTASlide onAddPhotos={handleAddPhotos} />) },
     { id: 'share',   render: () => <ShareSlide trip={activeTripData} onDownload={handleDownload} coverPhoto={tripCoverPhoto} /> },
   ];
 
@@ -1278,7 +1322,8 @@ export function TripStoryModal({ mode, trip, onClose, itineraryDays }: TripStory
   const slides = allSlides.filter(s => {
     if (!enabledIds.has(s.id)) return false;
     if (mode === 'trip' && !isMockData) {
-      if (s.id === 'photos' && effectivePhotos.length === 0) return false;
+      // The photos slide intentionally STAYS when empty — it renders the
+      // "add your photos" CTA (PhotosEmptyCTASlide) instead of dropping out.
       if (s.id === 'crew' && effectiveMembers.length === 0) return false;
       if (s.id === 'laughs' && laughMomentsForSlide.length === 0) return false;
       // Cities slide drops out unless the user has tagged at least one city.

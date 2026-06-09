@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trip Story — empty photos → upload CTA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Nunito', sans-serif; background: #1c1917; }
+    .font-script { font-family: 'Cormorant Garamond', serif; }
+    .story-card { aspect-ratio: 9/16; }
+    .ocean { background: linear-gradient(160deg, #0c4a6e 0%, #134e4a 50%, #1c1917 100%); }
+  </style>
+</head>
+<body class="p-6 sm:p-10 text-zinc-200">
+  <div class="max-w-5xl mx-auto">
+    <h1 class="font-script italic text-4xl text-white mb-1">Trip Story — empty photos becomes an invitation</h1>
+    <p class="text-sm text-zinc-400 mb-1">Today: a trip with no uploaded photos just <em>drops the photo slide</em> (silent). Proposed: show a warm "add your photos" slide instead — fills the gap, makes the recap better, and seeds the shareable artifact.</p>
+    <p class="text-xs text-zinc-500 mb-8">Two states shown: (A) the new empty-state CTA slide, and (B) what the same slide looks like once photos exist (unchanged from today). Deep-links to the trip's existing photo upload.</p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 items-start">
+
+      <!-- A: Empty-state CTA slide -->
+      <div>
+        <div class="story-card ocean rounded-3xl overflow-hidden relative shadow-2xl border border-white/5 max-w-xs mx-auto">
+          <!-- story progress bars -->
+          <div class="absolute top-3 left-3 right-3 flex gap-1 z-10">
+            <div class="h-0.5 flex-1 bg-white/30 rounded-full"></div>
+            <div class="h-0.5 flex-1 bg-white/30 rounded-full"></div>
+            <div class="h-0.5 flex-1 bg-white rounded-full"></div>
+            <div class="h-0.5 flex-1 bg-white/30 rounded-full"></div>
+          </div>
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center px-7">
+            <div class="w-16 h-16 rounded-full bg-white/10 border border-white/15 flex items-center justify-center mb-5">
+              <svg class="w-8 h-8 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>
+            </div>
+            <p class="font-script italic text-3xl text-white leading-tight mb-2">Your recap is<br/>waiting on photos</p>
+            <p class="text-sm text-zinc-300 leading-relaxed mb-7">Add a few shots from the trip and watch this story come to life — your crew can add theirs too.</p>
+            <button class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-colors shadow-lg">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Add photos
+            </button>
+            <p class="text-[11px] text-zinc-400 mt-4">Jump back anytime — your story saves your place.</p>
+          </div>
+        </div>
+        <p class="text-center text-xs font-bold text-zinc-400 mt-4">A — new empty-state slide (no photos yet)</p>
+      </div>
+
+      <!-- B: Populated slide (today's behavior) -->
+      <div>
+        <div class="story-card rounded-3xl overflow-hidden relative shadow-2xl border border-white/5 max-w-xs mx-auto bg-zinc-900">
+          <div class="absolute top-3 left-3 right-3 flex gap-1 z-10">
+            <div class="h-0.5 flex-1 bg-white/30 rounded-full"></div>
+            <div class="h-0.5 flex-1 bg-white/30 rounded-full"></div>
+            <div class="h-0.5 flex-1 bg-white rounded-full"></div>
+            <div class="h-0.5 flex-1 bg-white/30 rounded-full"></div>
+          </div>
+          <div class="absolute inset-0 p-5 pt-10 flex flex-col">
+            <p class="font-script italic text-2xl text-white mb-3">Trip Photos</p>
+            <div class="grid grid-cols-2 gap-2 flex-1">
+              <div class="rounded-xl bg-gradient-to-br from-sky-700 to-sky-900"></div>
+              <div class="rounded-xl bg-gradient-to-br from-amber-600 to-rose-800"></div>
+              <div class="rounded-xl bg-gradient-to-br from-emerald-700 to-teal-900"></div>
+              <div class="rounded-xl bg-gradient-to-br from-violet-700 to-indigo-900"></div>
+            </div>
+            <p class="text-zinc-400 text-xs text-center mt-3">7 photos · tap any to open · uploaded by the crew</p>
+          </div>
+        </div>
+        <p class="text-center text-xs font-bold text-zinc-400 mt-4">B — once photos exist (unchanged from today)</p>
+      </div>
+    </div>
+
+    <div class="mt-10 max-w-2xl mx-auto text-center">
+      <p class="text-xs text-zinc-500">Same idea would replace the silent "Coming soon" placeholder on the recap-not-ready screen. The CTA routes to the trip's existing photo upload, then drops the user back into the story.</p>
+    </div>
+  </div>
+</body>
+</html>
