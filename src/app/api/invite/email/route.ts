@@ -229,6 +229,13 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[invite/email] error:', msg);
+    // The trip_invites row was inserted before the send. On a send failure,
+    // remove it so a failed send doesn't leave an orphan "pending" invite
+    // counting against the traveler cap for 7 days (until expiry).
+    if (inviteToken) {
+      try { await supabase.from('trip_invites').delete().eq('token', inviteToken); }
+      catch { /* best-effort cleanup */ }
+    }
     return NextResponse.json({ error: 'Failed to send email', detail: msg }, { status: 500 });
   }
 }

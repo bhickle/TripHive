@@ -98,7 +98,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const access = await requireTripAccess(params.id);
   if (!access.ok) return access.response;
-  const { supabase } = access.ctx;
+  const { userId, supabase } = access.ctx;
+
+  // Same gate as POST — undoing a settle-up is part of the paid expenses
+  // feature; without this a free / expired-pass member could re-open any debt
+  // marked paid.
+  const featureCheck = await hasTripFeatureAccess(supabase, params.id, userId, 'canUseExpenses');
+  if (!featureCheck.allowed) {
+    return NextResponse.json(
+      { error: 'FEATURE_LOCKED', message: 'Expense tracking is a paid feature.' },
+      { status: 403 },
+    );
+  }
 
   const settlementId = new URL(req.url).searchParams.get('settlementId');
   if (!settlementId) {
