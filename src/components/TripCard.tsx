@@ -244,8 +244,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
             clicks open in a new tab and stop propagation so the parent
             Link doesn't navigate. */}
         {showAttribution && attribution && (
-          <div className="absolute bottom-2 right-3 text-[10px] text-white/70 z-10">
-            Photo by{' '}
+          <div className="absolute bottom-2 right-2 z-10 px-1.5 py-0.5 rounded-md bg-black/30 backdrop-blur-sm text-[9px] text-white/75">
             <a
               href={`${attribution.photographerUrl}${UTM}`}
               target="_blank"
@@ -255,7 +254,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
             >
               {attribution.photographer}
             </a>
-            {' '}on{' '}
+            {' / '}
             <a
               href={`${attribution.photoUrl ?? 'https://unsplash.com'}${UTM}`}
               target="_blank"
