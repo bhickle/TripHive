@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuth, resolveInternalBuildAuth } from '@/lib/supabase/requireAuth';
-import { getTripRole, getOrganizerTier } from '@/lib/supabase/tripAccess';
+import { getTripRole, getOrganizerTier, tripHasActivePass } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 import { persistGenerationDays } from '@/lib/supabase/persistGenerationDays';
 import type { Json } from '@/lib/supabase/database.types';
@@ -1636,6 +1636,16 @@ export async function POST(request: NextRequest) {
   if (requestBodyTripId) {
     try { planTier = await getOrganizerTier(createAdminClient(), requestBodyTripId); }
     catch { /* fall back to caller's tier */ }
+    // Option A: a Trip Pass is a per-trip PLAN overlay. If the organizer's
+    // account reads Free but THIS trip has an active pass, the trip's plan is
+    // the pass — so the plan-level gates below (length, multi-city) must read
+    // trip_pass, not Free. Without this a Free buyer who paid for a pass would
+    // be blocked from the multi-city build the pass includes (the credit pool
+    // already routes to the pass; this keeps the gate consistent with it).
+    if (planTier === 'free') {
+      try { if (await tripHasActivePass(requestBodyTripId)) planTier = 'trip_pass'; }
+      catch { /* leave as free on lookup error */ }
+    }
   }
   const tierLimits = TIER_LIMITS[planTier];
   const requestedLength = Number(body.tripLength) || 7;

@@ -261,6 +261,30 @@ export async function hasTripFeatureAccess(
 }
 
 /**
+ * True when `tripId` has an active (unexpired) Trip Pass purchase. Lighter
+ * than hasTripFeatureAccess — it answers "is this a pass trip?" without a
+ * caller-tier check or a specific feature key. Use for trip-scoped paid AI
+ * endpoints (e.g. AI import) where a Free buyer who bought a pass for THIS
+ * trip should be let through, even though their account stays Free under the
+ * Option-A per-trip-overlay model. Creates its own admin client so callers
+ * don't have to thread one. Fail-closed (returns false) on lookup error.
+ */
+export async function tripHasActivePass(tripId: string): Promise<boolean> {
+  try {
+    const admin = createAdminClient();
+    const { data: pass } = await admin
+      .from('trip_passes')
+      .select('id')
+      .eq('trip_id', tripId)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    return !!pass;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolves the traveler cap + current headcount + pending invites for a trip
  * so that invite-sending routes can refuse to send invites that would push
  * the trip over its cap on accept (dead-end UX, plus SendGrid/Twilio cost

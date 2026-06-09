@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/supabase/requireAuth';
-import { requireTripAiRole } from '@/lib/supabase/tripAccess';
+import { requireTripAiRole, tripHasActivePass } from '@/lib/supabase/tripAccess';
 import { checkAiCredits, incrementAiCreditsUsed } from '@/lib/supabase/aiCredits';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -74,20 +74,26 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  // AI import is a paid feature — Free uses the manual "blank trip" path.
-  // Buying a Trip Pass sets subscription_tier='trip_pass' (Stripe webhook), so
-  // this single check lets BOTH paid tiers through and blocks only pure Free.
-  // (The client gates this too; this is the can't-bypass server enforcement.)
-  if (auth.ctx.tier === 'free') {
-    return NextResponse.json({
-      error: 'AI_IMPORT_LOCKED',
-      message: 'AI import is on Trip Pass and Travel Pro. On Free, create the trip manually and add your days — your group can still collaborate.',
-    }, { status: 403 });
-  }
-
   const body = await req.json();
   const { text, pdfBase64, fileName } = body;
   const tripId = typeof body?.tripId === 'string' ? body.tripId : undefined;
+
+  // AI import is a paid feature — Free uses the manual "blank trip" path.
+  // Under the Option-A per-trip-overlay model a Trip Pass buyer's account
+  // STAYS Free (the webhook no longer swaps subscription_tier), so we can't
+  // gate on tier alone. Let a Free user through only when they're importing
+  // INTO a trip that has an active pass (their paid trip) — a new-trip import
+  // (no tripId) or a non-pass trip stays blocked. Paid accounts pass straight
+  // through. (The client gates this too; this is the can't-bypass server side.)
+  if (auth.ctx.tier === 'free') {
+    const passUnlocked = tripId ? await tripHasActivePass(tripId) : false;
+    if (!passUnlocked) {
+      return NextResponse.json({
+        error: 'AI_IMPORT_LOCKED',
+        message: 'AI import is on Trip Pass and Travel Pro. On Free, create the trip manually and add your days — your group can still collaborate.',
+      }, { status: 403 });
+    }
+  }
 
   const isPdf = !!pdfBase64;
 

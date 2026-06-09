@@ -1426,14 +1426,16 @@ function TripBuilderPage() {
                     <p className="text-xs text-zinc-400 mt-2">
                       {/* Pull traveler caps from TIER_LIMITS so a future
                           cap change doesn't require editing this copy
-                          alongside lib/types.ts. trip_pass is plan-based
-                          and resolves via maxTravelersForTrip().
+                          alongside lib/types.ts. Only free/travel_pro show
+                          here — under the Option-A overlay model a Trip Pass
+                          buyer's account stays Free (the pass is bought per
+                          built trip, not at builder time), so they read as
+                          Free + get the "larger groups" upsell below.
                           Gated on tierResolved (not just entitlementsReady)
                           so paid users don't see "Free plan: 4 travelers"
                           flash when their tier hasn't loaded yet. */}
                       {tier === 'free' && `Free plan: up to ${TIER_LIMITS.free.travelersPerTrip} travelers. `}
                       {tier === 'travel_pro' && `Travel Pro plan: up to ${TIER_LIMITS.travel_pro.travelersPerTrip} travelers. `}
-                      {tier === 'trip_pass' && `Trip Pass: up to ${maxTravelersForTrip()} travelers. `}
                       {state.groupSize >= maxTravelersForTrip() && (
                         <button type="button" onClick={() => { setUpgradeReason('traveler_limit'); setShowUpgradeModal(true); }} className="text-sky-600 font-semibold hover:underline">Upgrade for larger groups →</button>
                       )}
@@ -2456,8 +2458,12 @@ function TripBuilderPage() {
                         );
                       })()}
 
-                      {/* Tier cap hint for Free / Trip Pass */}
-                      {tierResolved && (tier === 'free' || tier === 'trip_pass') && state.bookedHotels.length >= 1 && (
+                      {/* Multiple booked hotels is a Travel Pro-only feature
+                          (not part of the Trip Pass overlay), so the hint shows
+                          to Free accounts. Under Option A a Trip Pass buyer's
+                          account is Free at builder time, so `tier === 'free'`
+                          already covers them. */}
+                      {tierResolved && tier === 'free' && state.bookedHotels.length >= 1 && (
                         <p className="text-xs text-zinc-400 flex items-center gap-1.5">
                           <Lock className="w-3 h-3" />
                           Multiple hotels require Travel Pro. <Link href="/pricing" className="text-sky-700 hover:underline">Upgrade</Link>
@@ -3387,9 +3393,14 @@ function TripBuilderPage() {
                   {/* CTA */}
                   <div className="pt-6 border-t border-slate-200">
                     {/* Trip Pass + group: invite-first nudge.
-                        Gated on tierResolved so a downgraded-from-paid user
-                        whose cache says trip_pass doesn't briefly see this
-                        banner before profile loads and corrects the tier. */}
+                        NOTE (Option A, 2026-06-09): this is gated on the
+                        account tier === 'trip_pass', which no longer occurs —
+                        a Trip Pass buyer's account stays Free (the pass is a
+                        per-trip overlay). So this nudge is currently DARK. It's
+                        left intact (not deleted) pending a product call: re-show
+                        it for ANY group build (state.groupSize >= 2) as a
+                        coordination nudge — needs a design sign-off before
+                        broadening visibility. Tracked in OPTION_A_TRIP_PASS_SCOPE.md. */}
                     {tierResolved && tier === 'trip_pass' && state.groupSize >= 2 && (
                       <div className="mb-5 p-4 bg-zinc-100 border border-zinc-200 rounded-xl">
                         <div className="flex items-start gap-3 mb-3">

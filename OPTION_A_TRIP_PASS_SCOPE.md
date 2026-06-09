@@ -34,6 +34,21 @@ The buyer's account is Free, but on their passed trip the UI must show the pass.
 - `aiCredits.ts:77-104` (pool routing when `tripId` has a pass). The `tier==='trip_pass'` fallback at `115` is for a user-scoped action with no `tripId`; moot once no account is `trip_pass` — review but low impact.
 - `trips/[id]/route.ts:103` (`isTripPassTrip` check). `group/Client.tsx:124` (members already inherit via the pass).
 
+## 4b. SHIPPED — Step 3 (UI + server-gate consistency, 2026-06-09)
+Steps 1 + 2 already shipped (`5373e7d`, `df83468`). Step 3 finished the overlay's read-side. **A codebase-wide sweep for `=== 'trip_pass'` found three server gates the original scope above missed** — all keyed on the buyer's ACCOUNT tier, so under Option A (buyer stays Free) they wrongly LOCKED a paying pass-buyer out of features the pass includes:
+- **`generate-itinerary` multi-city gate** — `planTier` came from the organizer's account tier; a Free buyer's multi-city build (a pass feature) hit `MULTI_CITY_LOCKED`. Fixed: after resolving `planTier`, if it's `free` and the trip has an active pass, bump it to `trip_pass` (trip length unaffected — both caps are 7d). New helper `tripHasActivePass(tripId)` in `tripAccess.ts`.
+- **`members` co-organizer gate** — `organizerTier === 'free'` blocked setting a co-organizer (a pass feature). Fixed: allow when the organizer's tier grants it OR `tripHasActivePass(params.id)` and the pass includes co-organizer.
+- **`parse-itinerary` AI-import gate** — `tier === 'free'` hard-403'd AI import; a Free buyer couldn't import into their PAID trip. Fixed: parse `tripId` first, then let a Free user through only when importing into a trip with an active pass (new-trip / non-pass imports stay blocked). This route already pools credits to the pass, so the gate now matches the charge.
+
+UI read-side:
+- **`itinerary/Client.tsx`** prefs-regenerate nudge — repointed `(tier === 'trip_pass' || tier === 'travel_pro')` → `(isTripPassTrip || tier === 'travel_pro')` so it fires on a passed trip for a Free buyer.
+- **`trip/new` builder** — removed the dead `tier === 'trip_pass'` traveler-copy line (1436) and the dead `|| tier === 'trip_pass'` hotel-hint disjunct (2462); both never render now (no account is trip_pass at builder time). The invite-first nudge (3393) is left intact but **DARK** — see below.
+
+**Deferred (need a product/design call, not blocking):**
+- **`trip/new` invite-first nudge (3393)** — was gated on a trip_pass account; now never renders. Left in place. Decision needed: re-show for ANY group build (`groupSize >= 2`)? Broadening visibility needs a design sign-off (mockup rule).
+- **Settings "Active Trip Passes" section** — a Free buyer's Settings still reads "Free plan" (account-accurate). Surfacing their purchased passes is NEW UI → needs a mockup before building. `settings/Client.tsx` 498/510 left as-is (harmless dead trip_pass branches).
+- **Builder client multi-city button** — still hidden for Free accounts; a Free buyer who already holds a pass for the skeleton trip can build multi-city via the server now, but the builder's client gate doesn't surface the option. Low priority (pass is normally bought against a built trip).
+
 ## 6. Leave alone
 - All `normalizeTier(subscription_tier)` reads (requireAuth, AuthContext, useCurrentUser, tripAccess, members, generate-itinerary) — they correctly read whatever the account tier is.
 - The `SubscriptionTier` type and **`TIER_LIMITS.trip_pass` entry stay** — it becomes the "what a pass unlocks for a trip" definition that the overlay reads (`tripPassFeatures = TIER_LIMITS.trip_pass`). Its `canUseWishlist:false` then becomes irrelevant (wishlist isn't a per-trip-overlaid feature).

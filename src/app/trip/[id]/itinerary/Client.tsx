@@ -3712,13 +3712,15 @@ function ItineraryPageContent() {
           </p>
         )}
 
-        {/* Regenerate with group input banner — paid tiers only,
-             organizer / co-organizer only. Trip Pass is the primary use
-             case (per-member preferences mini-wizard drives this);
-             Travel Pro keeps access for legacy behaviour. */}
+        {/* Regenerate with group input banner — paid trips only, organizer /
+             co-organizer only. Trip Pass is the primary use case (per-member
+             preferences mini-wizard drives this). Under Option A the pass is a
+             per-trip overlay, so gate on isTripPassTrip (this trip has a pass)
+             rather than the buyer's account tier — a Free buyer's account stays
+             Free. Travel Pro keeps access via their account tier. */}
         {newPrefsCount > 0
           && tierResolved
-          && (tier === 'trip_pass' || tier === 'travel_pro')
+          && (isTripPassTrip || tier === 'travel_pro')
           && currentUser.id
           && canTriggerAi
           && (

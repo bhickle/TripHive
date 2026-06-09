@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/lib/supabase/database.types';
-import { getTripRole, requireTripAccess } from '@/lib/supabase/tripAccess';
+import { getTripRole, requireTripAccess, tripHasActivePass } from '@/lib/supabase/tripAccess';
 import { TIER_LIMITS, normalizeTier } from '@/lib/types';
 import { PRICING } from '@/hooks/useEntitlements';
 
@@ -484,11 +484,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       .single();
 
     const organizerTier = normalizeTier(organizerProfile?.subscription_tier);
-    if (organizerTier === 'free') {
-      return NextResponse.json(
-        { error: 'Co-organizer roles require Trip Pass or Travel Pro' },
-        { status: 403 },
-      );
+    // Co-organizer is a trip-scoped feature. The organizer's own paid tier
+    // unlocks it; under Option A so does an active Trip Pass on THIS trip —
+    // a Free organizer who bought a pass (account stays Free) still gets the
+    // co-organizer the pass includes. Check the pass when the tier alone
+    // doesn't grant it.
+    if (!TIER_LIMITS[organizerTier]?.canAddCoOrganizer) {
+      const passUnlocked = TIER_LIMITS.trip_pass.canAddCoOrganizer && await tripHasActivePass(params.id);
+      if (!passUnlocked) {
+        return NextResponse.json(
+          { error: 'Co-organizer roles require Trip Pass or Travel Pro' },
+          { status: 403 },
+        );
+      }
     }
 
     const { memberId, role } = await req.json();
