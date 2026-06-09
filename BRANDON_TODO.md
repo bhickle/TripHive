@@ -40,6 +40,7 @@ Status: ⬜ not started · 🔄 in progress · ✅ done
 - ⬜ **`CRON_SECRET`** (`openssl rand -hex 32`). Without it the daily cron 500s every morning — and the new Inngest-resync cron needs it too.
 - ⬜ **Confirm `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY`** are set (Production + Preview) from your Inngest setup.
 - ⬜ **Verify `UNSPLASH_ACCESS_KEY`** is present (CLAUDE.md says set; go-live checklist still flags it — just confirm in Vercel).
+- ⬜ **`INTERNAL_BUILD_SECRET`** (`openssl rand -hex 32`) — for the background-build worker. Set it in **Vercel (Production)** AND give the **same value** to the **Inngest worker's environment**. The background-build worker can't run/test until this matches on both sides. Dormant + harmless until set (the browser build is unaffected). _(Added 2026-06-09 for the background build.)_
 
 ---
 
