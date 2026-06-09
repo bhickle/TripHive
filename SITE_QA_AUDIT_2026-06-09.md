@@ -6,6 +6,38 @@ Full-site audit (6 parallel deep reviews: recent-changes/regressions, auth/tier/
 
 ---
 
+## ✅ Remediation status (2026-06-09) — all fixes deployed green
+
+| Item | Status | Commit / reason |
+|---|---|---|
+| **A1** initial-build credit bypass (P0) | ✅ **Fixed** | `1962e6f` — `streamSegment` injects `body.tripId = tripPageId` |
+| **B1** Day-Of timeSlot crash | ✅ **Fixed** | `d8106d2` — guarded `formatTimeRange`/`parseEndTime` |
+| **B2** same-day trip stale length | ✅ **Fixed** | `d8106d2` — `<=` recompute → 1-day trip |
+| **B3** OG `metadataBase` | ✅ **Fixed** | `d8106d2` — set to `https://www.tripcoord.ai` |
+| **B4** `trip_length` clobber | ⏸ **Won't fix** | Working as intended — reflects real days; requested length safe in `preferences.tripLength`; changing it breaks intentional deletes |
+| **C1** settlement-undo gate | ✅ **Fixed** | `5787655` — DELETE now requires `canUseExpenses` |
+| **C2** duplicate-name custom split | ⏸ **Deferred** | Needs re-keying the name-based expense model to member id (storage+calc+display); rare edge case, risky |
+| **C3** removed-member custom share | ⏸ **Deferred** | Same name-keyed expense-math area as C2 |
+| **C4** orphan invite on send fail | ✅ **Fixed** | `5787655` — delete `trip_invites` row on SendGrid failure |
+| **D1** print page literal `"null"` | ✅ **Fixed** | `73e9b91` — header + day dates coerce `"null"` → `''` |
+| **D2** Day-Of `"null"` → wrong banner | ✅ **Fixed** | `d8106d2` — `dayDelta` guards `"null"`/empty |
+| **D3** add-day `"null"` date label | ✅ **Fixed** | `73e9b91` — guard → "Day N" |
+| **D4** Trip Story `getDayCount` NaN | ✅ **Fixed** | `73e9b91` — noon-pad + NaN guard |
+| **E1** fork end-before-start | ✅ **Fixed** | `f6e41ed` — modal disable/warn + both routes reject/derive |
+| **E2** featured fork `end_date` | ✅ **Fixed** | `f6e41ed` — derived from start + day count |
+| **E3** layover over-budget amber | ✅ **Fixed** | `f6e41ed` — → rose |
+| **E4** missing-`city` unverified emit | ✅ **Fixed** | `f6e41ed` — backfill `resolvedDestination` + verify |
+| **E5** hero emoji vs Lucide | ⏸ **Won't fix** | Cosmetic only |
+| **E6** trip-scoped discover route missing | ⏸ **Doc staleness** | No live link; CLAUDE.md reference only |
+| **F1** non-build credit-spend race | ⏸ **Deferred** | Post-launch hardening (documented; build path is claim-protected) |
+| **F2** AI endpoints rate-limited by credits only | ⏸ **Deferred** | Defensible; optional per-user limiter post-launch |
+| **F3** fetch-reference SSRF DNS-rebind | ⏸ **Deferred** | Theoretical (6s timeout, 4KB cap, body not returned) |
+| Known launch-blockers (middleware `tc2026`, share-card opt-in, Stripe placeholders) | ➖ **Unchanged** | Already tracked in GOLIVE / BRANDON_TODO |
+
+**Net: 1 P0 + all P1s + the safe P2s fixed and deployed; expense-math edge cases (C2/C3) and security hardening (F1–F3) deferred with reason.**
+
+---
+
 ## 🔴 Group A — P0 (fix first)
 
 ### A1 — Initial builds bypass the build-credit claim (charge 3×, free users 402 mid-build, no durability)
