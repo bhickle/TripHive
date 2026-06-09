@@ -142,13 +142,21 @@ interface FeaturedItineraryCardProps {
 function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlist, onWishlist, canPersonalizeAI, onUseAsStartingPoint, onLockedAI, forking }: FeaturedItineraryCardProps) {
   const previewDays = days.slice(0, 4);
 
+  // Resolve a credited, cached Unsplash cover by destination (shares the one
+  // cached pull with trip cards), falling back to the stored hero URL when the
+  // lookup is empty. The bare hero_image URL can't be credited; the cached
+  // photo carries the photographer + download-tracking Unsplash requires.
+  const dynamicCover = useUnsplashCover(item.destination, true);
+  const heroSrc = dynamicCover?.url ?? item.heroImage;
+  const featuredCover = dynamicCover?.photographer && dynamicCover.photographerUrl ? dynamicCover : null;
+
   return (
     <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
       {/* Hero */}
       <div className="relative h-52 overflow-hidden">
-        {item.heroImage ? (
+        {heroSrc ? (
           <Image
-            src={item.heroImage}
+            src={heroSrc}
             alt={item.destination}
             fill
             className="object-cover"
@@ -185,6 +193,7 @@ function FeaturedItineraryCard({ item, days, loadingDays, wishlisted, canWishlis
           </div>
           <h3 className="font-script italic text-2xl text-white font-bold leading-tight">{item.title}</h3>
         </div>
+        {featuredCover && <UnsplashAttribution cover={featuredCover} position="bottom-2 right-2" />}
       </div>
 
       {/* Stats — budget intentionally not displayed; it's collected on
@@ -379,6 +388,15 @@ function DestinationCard({
 }) {
   const [hovered, setHovered] = useState(false);
 
+  // Credited, cached Unsplash photo by destination (shares the cached pull with
+  // trip cards / featured heroes), falling back to the stored image URL. The
+  // bare stored URL can't be credited; the cached photo carries the
+  // photographer + the download-tracking Unsplash requires.
+  const destQuery = dest.country ? `${dest.name}, ${dest.country}` : dest.name;
+  const dynamicCover = useUnsplashCover(destQuery, true);
+  const destPhotoSrc = dynamicCover?.url ?? dest.image;
+  const destCover = dynamicCover?.photographer && dynamicCover.photographerUrl ? dynamicCover : null;
+
   return (
     <div
       className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col border border-zinc-100 cursor-pointer"
@@ -388,7 +406,7 @@ function DestinationCard({
     >
       <div className="relative h-40 sm:h-52 overflow-hidden flex-shrink-0">
         <Image
-          src={dest.image}
+          src={destPhotoSrc}
           alt={dest.name}
           fill
           className={`object-cover transition-transform duration-500 ${hovered ? 'scale-105' : 'scale-100'}`}
@@ -420,6 +438,7 @@ function DestinationCard({
         <div className="absolute bottom-3 left-3">
           <p className="font-script italic text-xl text-white leading-tight drop-shadow-md">{dest.name}, {dest.country}</p>
         </div>
+        {destCover && <UnsplashAttribution cover={destCover} position="bottom-2 right-2" />}
       </div>
 
       <div className="flex flex-col flex-1 p-5">
@@ -655,9 +674,9 @@ interface CommunityTripCardProps {
 // like-count badge owns top-left, the destination title owns the bottom) with a
 // subtle dark pill so it stays legible over a bright photo. Links stop
 // propagation so they open Unsplash without triggering the card's nav overlay.
-function UnsplashAttribution({ cover }: { cover: UnsplashCover }) {
+function UnsplashAttribution({ cover, position = 'top-2 right-2' }: { cover: UnsplashCover; position?: string }) {
   return (
-    <div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded-md bg-black/30 backdrop-blur-sm text-[9px] text-white/75">
+    <div className={`absolute ${position} z-10 px-1.5 py-0.5 rounded-md bg-black/30 backdrop-blur-sm text-[9px] text-white/75`}>
       <a
         href={`${cover.photographerUrl}${UNSPLASH_UTM}`}
         target="_blank"

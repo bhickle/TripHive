@@ -1686,6 +1686,36 @@ export type Database = {
           },
         ]
       }
+      unsplash_cache: {
+        Row: {
+          download_location: string | null
+          fetched_at: string
+          photo_url: string | null
+          photographer: string | null
+          photographer_url: string | null
+          query: string
+          url: string
+        }
+        Insert: {
+          download_location?: string | null
+          fetched_at?: string
+          photo_url?: string | null
+          photographer?: string | null
+          photographer_url?: string | null
+          query: string
+          url: string
+        }
+        Update: {
+          download_location?: string | null
+          fetched_at?: string
+          photo_url?: string | null
+          photographer?: string | null
+          photographer_url?: string | null
+          query?: string
+          url?: string
+        }
+        Relationships: []
+      }
       waitlist: {
         Row: {
           created_at: string
