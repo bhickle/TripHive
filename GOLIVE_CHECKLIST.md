@@ -36,19 +36,39 @@ The failure was a **cron plan-limit**: commit `f781285` added a 6th cron, `/api/
 4. Once live and traffic-verified, click **"Apply for Production"** in the Unsplash dashboard
 5. **Timing:** apply 1–2 weeks before any marketing push.
 
-### 🟥 Stripe — swap test keys for live
+### 🟥 Stripe — paste real price IDs, then swap test keys for live
+
+#### A. ⚠️ Paste the real price IDs — REQUIRED BEFORE ANY CHECKOUT WORKS (test OR live)
+**Why:** `src/lib/stripe-prices.ts` still ships three **placeholder** price IDs (`price_REPLACE_ME_*`). Until they're replaced with IDs from a real Stripe Price, **every checkout — Travel Pro subscribe AND Trip Pass purchase — fails** (Stripe rejects `price_REPLACE_ME_*` as an unknown price). This is true even in test mode, so it blocks pre-launch testing of the whole paywall, not just go-live.
+
+**Exactly 3 IDs to replace** in `src/lib/stripe-prices.ts` (the 4th, `trip_pass.extra_person` = `price_1TP9yx...`, is already real — leave it):
+
+| Constant | Product to create in Stripe | Notes |
+|----------|------------------------------|-------|
+| `STRIPE_PRICES.travel_pro.monthly` | Travel Pro — **$14.99 / month**, recurring | replaces `price_REPLACE_ME_travel_pro_monthly` |
+| `STRIPE_PRICES.travel_pro.annual` | Travel Pro — **$149 / year**, recurring | replaces `price_REPLACE_ME_travel_pro_annual` |
+| `STRIPE_PRICES.trip_pass.base` | Trip Pass — **$36 one-time** | replaces `price_REPLACE_ME_trip_pass_36`; the $4/extra-person price already exists |
+
+**Steps:**
+1. In the Stripe Dashboard (start in **test mode** for pre-launch testing), create a Product + Price for each of the three rows above. Copy each `price_…` ID.
+2. Paste the three IDs into `src/lib/stripe-prices.ts`, replacing the matching `price_REPLACE_ME_*` placeholder. _(Claude can do this edit once you provide the IDs — paste them in chat.)_
+3. `npx tsc --noEmit`, commit, push → Vercel redeploys.
+4. Smoke-test in test mode: subscribe to Travel Pro (monthly + annual) and buy a Trip Pass with a Stripe test card (`4242 4242 4242 4242`). Confirm the webhook fires and the Trip Pass badge appears on the trip (the badge stays dark until a pass row exists).
+5. When you create the **live-mode** prices in section B, repeat step 2 with the live IDs (the test-mode IDs only work with test keys).
+
+#### B. Swap test keys for live (at launch)
 **Why:** Currently using test-mode keys, so no real charges go through.
 
 **Steps:**
-1. In Stripe Dashboard, switch to live mode
-2. Recreate products (Trip Pass $36 one-time, Travel Pro $14.99/mo + $149/yr) in live mode — note the new price IDs. NOTE: test-mode price IDs are still PLACEHOLDERS in `stripe-prices.ts` (`price_REPLACE_ME_*`) — create the test-mode prices first for pre-launch testing, then the live ones here.
-3. Update `src/lib/stripe-prices.ts` with the live price IDs (replace both the placeholders and the `legacy` block once no legacy subs remain)
+1. In Stripe Dashboard, switch to **live mode**
+2. Recreate the same three products (and the $4 extra-person Trip Pass add-on) in live mode — note the new live `price_…` IDs
+3. Update `src/lib/stripe-prices.ts` with the **live** price IDs (replace the test IDs from section A; also drop the `legacy` block once no legacy Explorer/Nomad subs remain)
 4. Update Vercel env vars:
    - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` → live publishable key
    - `STRIPE_SECRET_KEY` → live secret key
    - `STRIPE_WEBHOOK_SECRET` → new webhook secret (create a new live-mode webhook endpoint pointed at the Vercel `/api/webhooks/stripe` URL)
 5. Redeploy
-6. Test one purchase end-to-end with a real card before announcing
+6. Test one purchase end-to-end with a **real card** before announcing
 
 ### 🟥 Twilio — leave trial mode
 **Why:** Trial accounts can only SMS pre-verified numbers. Real users will be silently blocked.
