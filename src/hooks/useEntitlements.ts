@@ -232,10 +232,13 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
     );
   }, [tripId, user.tripPasses]);
 
-  // AI credits remaining (subscription or trip pass)
+  // AI credits remaining (the active trip pass's pool, else the account).
   const aiCreditsRemaining = useMemo((): number => {
-    if (tier === 'trip_pass') {
-      if (!activeTripPass) return 0;
+    // On a trip that has an active pass, spend from the PASS pool — regardless
+    // of the user's account tier (Option A: the pass is a per-trip overlay, so
+    // a Free buyer sees the 50-credit pool here). The server's checkAiCredits
+    // routes the charge to the same pool, so the display matches the spend.
+    if (activeTripPass) {
       return Math.max(0, activeTripPass.aiCreditsTotal - activeTripPass.aiCreditsUsed);
     }
     if (!limits.canUseAI) return 0;
@@ -249,10 +252,10 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
   }, [tier, activeTripPass, limits, user.aiCredits]);
 
   const aiCreditsTotal = useMemo((): number => {
-    if (tier === 'trip_pass') return activeTripPass?.aiCreditsTotal ?? 0;
+    if (activeTripPass) return activeTripPass.aiCreditsTotal;
     if (!limits.canUseAI) return 0;
     return limits.aiCreditsPerMonth as number;
-  }, [tier, activeTripPass, limits]);
+  }, [activeTripPass, limits]);
 
   // ── Capability checks ──────────────────────────────────────────────────────
   // All checks return true while entitlements are still loading to prevent
@@ -261,7 +264,8 @@ export function useEntitlements(tripId?: string, isTripPassTrip?: boolean) {
   function canUseAI(): boolean {
     if (!entitlementsReady) return true;
     if (!limits.canUseAI) return false;
-    if (tier === 'trip_pass' && !activeTripPass) return false;
+    // No trip_pass-account special case: aiCreditsRemaining already reflects the
+    // pass pool on a passed trip (Option A) and the account credits otherwise.
     return aiCreditsRemaining > 0;
   }
 
