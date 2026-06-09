@@ -152,8 +152,14 @@ function getCoverPhoto(destination: string) {
 }
 
 function getDayCount(trip: Trip) {
-  const ms = new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime();
-  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+  // Noon-pad (avoid UTC-midnight off-by-one, matching formatDateRange) and guard
+  // missing / "null" dates so a date-less trip doesn't render "NaN days".
+  const clean = (v: string | null | undefined) =>
+    v && v !== 'null' ? new Date(v + 'T12:00:00') : null;
+  const start = clean(trip.startDate);
+  const end = clean(trip.endDate);
+  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+  return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function formatDateRange(trip: Trip) {

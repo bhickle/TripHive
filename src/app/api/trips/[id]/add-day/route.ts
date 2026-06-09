@@ -103,12 +103,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   // context the model needs to disambiguate.
   const cityForDay = destination.split(',')[0].trim();
   const dayNumber = (body.dayNumber as number) || 1;
-  const date = (body.date as string) || '';
+  // Treat the flexible-date "null" string (and empty) as no date so we label
+  // the day "Day N" instead of "Invalid Date".
+  const rawDate = (body.date as string) || '';
+  const date = rawDate && rawDate !== 'null' ? rawDate : '';
   const existingThemes = (body.existingThemes as string[]) || [];
   const priorities = (body.priorities as string[]) || [];
 
-  const dateLabel = date
-    ? new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const parsedDate = date ? new Date(date + 'T12:00:00') : null;
+  const dateLabel = parsedDate && !isNaN(parsedDate.getTime())
+    ? parsedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     : `Day ${dayNumber}`;
 
   const priorityNote = priorities.length

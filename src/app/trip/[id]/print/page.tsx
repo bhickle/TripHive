@@ -91,8 +91,11 @@ export default function PrintItineraryPage() {
 
   const title = meta?.title ?? 'Trip Itinerary';
   const destination = meta?.destination ?? '';
-  const startDate = meta?.startDate ?? days[0]?.date ?? '';
-  const endDate = meta?.endDate ?? '';
+  // Flexible-date trips can store the literal string "null" — treat it as no date.
+  const cleanDate = (v: unknown): string =>
+    typeof v === 'string' && v && v !== 'null' ? v : '';
+  const startDate = cleanDate(meta?.startDate) || cleanDate(days[0]?.date);
+  const endDate = cleanDate(meta?.endDate);
 
   return (
     <div className="print-container max-w-3xl mx-auto px-8 py-10 font-sans text-zinc-900">
@@ -192,7 +195,7 @@ export default function PrintItineraryPage() {
             )}
             <div className="mb-4">
               <h2 className="text-xl font-bold">Day {day.day} — {day.theme ?? ''}</h2>
-              {day.date && <p className="text-sm text-zinc-400">{day.date}</p>}
+              {day.date && day.date !== 'null' && <p className="text-sm text-zinc-400">{day.date}</p>}
               {day.destinationTip && (
                 <p className="text-sm text-zinc-600 mt-1 italic">💡 {day.destinationTip}</p>
               )}
