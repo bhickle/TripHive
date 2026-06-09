@@ -65,6 +65,7 @@ import {
   Share2,
   Hotel,
   Plane,
+  MoreHorizontal,
   type LucideIcon,
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -372,6 +373,10 @@ function ItineraryPageContent() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  // Mobile-only overflow menu for the secondary action bar (Compact/Route/
+  // Export/Share/Story) so the toolbar fits on one screen on phones.
+  const [showMobileActions, setShowMobileActions] = useState(false);
+  const mobileActionsRef = useRef<HTMLDivElement>(null);
   const dayTabScrollRef = useRef<HTMLDivElement>(null);
   const [dayTabCanScrollLeft, setDayTabCanScrollLeft] = useState(false);
   const [dayTabCanScrollRight, setDayTabCanScrollRight] = useState(false);
@@ -1986,6 +1991,9 @@ function ItineraryPageContent() {
       if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
         setShowAddMenu(false);
       }
+      if (mobileActionsRef.current && !mobileActionsRef.current.contains(e.target as Node)) {
+        setShowMobileActions(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -3372,6 +3380,19 @@ function ItineraryPageContent() {
           {(() => {
             const isTripCompleted = tripRow?.status === 'completed';
             if (!canEditItinerary) return null;
+            // Shared values for the mobile overflow menu (desktop keeps its
+            // inline pills below — this avoids re-plumbing that markup).
+            const routeAddrs = sortedActivities.map(a => a.address).filter(Boolean).slice(0, 10);
+            const dayRouteHref = routeAddrs.length === 0
+              ? '#'
+              : routeAddrs.length === 1
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(routeAddrs[0]!)}`
+                : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(routeAddrs[0]!)}&destination=${encodeURIComponent(routeAddrs[routeAddrs.length - 1]!)}${routeAddrs.slice(1, -1).length ? `&waypoints=${routeAddrs.slice(1, -1).map(a => encodeURIComponent(a!)).join('|')}` : ''}`;
+            const showRoute = sortedActivities.length > 0;
+            const storyEndDateStr = tripRow?.end_date || aiMeta?.endDate;
+            const tripEndedForStory = storyEndDateStr
+              ? new Date() > new Date(new Date(storyEndDateStr).getTime() + 24 * 60 * 60 * 1000)
+              : false;
             return (
           <div className="flex items-center gap-2 flex-shrink-0 mt-1 flex-wrap justify-end">
             {/* Combined + Add dropdown */}
@@ -3482,6 +3503,9 @@ function ItineraryPageContent() {
               )}
             </div>
 
+            {/* Secondary actions — inline on desktop, collapsed into the
+                overflow "⋯" menu on mobile (see below) so the bar fits. */}
+            <div className="hidden sm:flex items-center gap-2">
             <button
               onClick={() => {
                 const next = !isCompactView;
@@ -3592,6 +3616,79 @@ function ItineraryPageContent() {
                 </button>
               );
             })()}
+            </div>
+
+            {/* Mobile: secondary actions collapse into an overflow menu so the
+                bar fits on one screen. "+ Add" stays inline above. */}
+            <div className="relative sm:hidden" ref={mobileActionsRef}>
+              <button
+                onClick={() => setShowMobileActions(v => !v)}
+                aria-label="More actions"
+                className="flex items-center justify-center w-9 h-9 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 rounded-full shadow-sm transition-all"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              {showMobileActions && (
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-zinc-100 py-1.5 min-w-[180px] z-30">
+                  <button
+                    onClick={() => {
+                      const next = !isCompactView;
+                      setIsCompactView(next);
+                      try { localStorage.setItem(`compactView_${params.id}`, String(next)); } catch {}
+                      setShowMobileActions(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <AlignJustify className="w-4 h-4 text-sky-600" /> {isCompactView ? 'Full view' : 'Compact view'}
+                  </button>
+                  {showRoute && (
+                    <a
+                      href={dayRouteHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setShowMobileActions(false)}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                    >
+                      <Navigation className="w-4 h-4 text-sky-600" /> Route
+                    </a>
+                  )}
+                  <a
+                    href={`/trip/${params.id}/print`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowMobileActions(false)}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                  >
+                    <FileDown className="w-4 h-4 text-sky-600" /> Export
+                  </a>
+                  {!isMockTrip && (
+                    <button
+                      onClick={() => { setShowShareModal(true); setShowMobileActions(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                    >
+                      <Share2 className="w-4 h-4 text-sky-600" /> Share
+                    </button>
+                  )}
+                  {tripEndedForStory && (
+                    hasTripStory ? (
+                      <button
+                        onClick={() => { setShowStoryModal(true); setShowMobileActions(false); }}
+                        className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-2.5"
+                      >
+                        <BookOpen className="w-4 h-4 text-sky-600" /> Trip Story
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setUpgradePromptKey('feature_locked'); setShowMobileActions(false); }}
+                        className="w-full text-left px-4 py-2.5 text-sm font-medium text-zinc-400 hover:bg-zinc-50 flex items-center gap-2.5"
+                      >
+                        <BookOpen className="w-4 h-4 text-zinc-300" /> Trip Story <LockBadge />
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           );
         })()}
