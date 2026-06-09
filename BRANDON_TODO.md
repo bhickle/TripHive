@@ -67,4 +67,4 @@ Status: ⬜ not started · 🔄 in progress · ✅ done
 - Scan git history for leaked secrets + audit `NEXT_PUBLIC_` usage
 - Re-render the Google sign-in buttons (after OAuth is configured)
 - Run the Inngest resync after the deploy pipeline is restored
-- **Phase 2b** of background builds: move the generation loop server-side into the Inngest worker (the bigger code change — schedule when you want)
+- **Background build — PAUSED at the worker stage (2026-06-09), resume when you say.** Done + dormant: internal-auth path, shared orchestration lib, and the `itinerary-build` worker (all shipped, registered with Inngest, nothing triggers them — browser build untouched). **Remaining:** (1) you set `INTERNAL_BUILD_SECRET` (see §4); (2) parity-test the worker in isolation by firing `itinerary/build.requested` from the Inngest dashboard (real tripId/userId/payload) and comparing to a browser build; (3) emit `build.requested` from the trip-create flow; (4) the "building in the background" UI + Realtime; (5) flip to background-only. Full plan in memory `project_background_build_proposal`.
