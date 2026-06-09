@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Calendar, Users, ArrowRight, Trash2, X, CopyPlus } from 'lucide-react';
+import { Calendar, Users, ArrowRight, Trash2, X, CopyPlus, Ticket } from 'lucide-react';
 import { Trip } from '@/lib/types';
 
 // Photo metadata returned by /api/unsplash/photo. Photographer + links are
@@ -267,11 +267,21 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onCardClick, onDelete 
           </div>
         )}
 
-        {/* Status badge — Cormorant italic */}
-        <div className="absolute top-3 left-3">
+        {/* Status badge — Cormorant italic — plus the Trip Pass badge when
+            this trip has an active pass. A Trip Pass is a per-trip overlay
+            (Option A): the buyer's account stays Free, so the pass is shown
+            here on the trip, not via the account tier. Amber is the reserved
+            "Trip Pass / paid" brand color. */}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
           <span className={`inline-flex items-center px-3 py-1 rounded-full font-script italic text-sm backdrop-blur-sm ${status.className}`}>
             {status.label}
           </span>
+          {trip.hasTripPass && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-sm bg-amber-500/95 text-white shadow-sm">
+              <Ticket className="w-3 h-3" />
+              Trip Pass
+            </span>
+          )}
         </div>
 
         {/* Top-right cluster: hover-revealed edit/delete on the LEFT, duration

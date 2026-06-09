@@ -299,6 +299,11 @@ export interface Trip {
   /** User-tagged ground truth of cities visited (`trips.visited_cities`).
    *  Wins over `cities` for the dashboard count and Trip Story map slide. */
   visitedCities?: string[];
+  /** True when this trip currently has an active (unexpired) Trip Pass.
+   *  A Trip Pass is a per-trip overlay (the buyer's account stays Free), so
+   *  the pass is surfaced at the trip level — TripCard renders an amber
+   *  "Trip Pass" badge when set. Populated by GET /api/trips. */
+  hasTripPass?: boolean;
 }
 
 export interface BudgetBreakdown {

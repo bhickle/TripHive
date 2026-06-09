@@ -91,6 +91,7 @@ export default function DashboardPage() {
             budget_total?: number;
             cities?: string[];
             visited_cities?: string[];
+            hasTripPass?: boolean;
           };
           const rows: TripRow[] = trips;
           setUserTrips(rows.map(t => ({
@@ -113,6 +114,7 @@ export default function DashboardPage() {
             guestCount: 0,
             cities: t.cities ?? [],
             visitedCities: t.visited_cities ?? [],
+            hasTripPass: t.hasTripPass ?? false,
           })));
         }
       })

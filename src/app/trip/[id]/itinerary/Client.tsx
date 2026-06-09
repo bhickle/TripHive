@@ -66,6 +66,7 @@ import {
   Hotel,
   Plane,
   MoreHorizontal,
+  Ticket,
   type LucideIcon,
 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -3198,6 +3199,19 @@ function ItineraryPageContent() {
             >
               <Sparkles className="w-3.5 h-3.5" /> Get a Trip Pass
             </button>
+          </div>
+        )}
+
+        {/* "Trip Pass active" chip — the counterpart to the upsell banner
+            above, shown once THIS trip has an active pass. A Trip Pass is a
+            per-trip overlay (Option A): the buyer's account stays Free, so we
+            confirm the pass here on the trip. Amber = the reserved "Trip Pass /
+            paid" brand color. */}
+        {aiDays && !isLiveBuilding && isTripPassTrip && (
+          <div className="mb-4">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              <Ticket className="w-3.5 h-3.5" /> Trip Pass active
+            </span>
           </div>
         )}
 

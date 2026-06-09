@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trip Pass badge — per-trip, account stays Free</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Nunito', sans-serif; background: #f4f1ea; }
+    .font-script { font-family: 'Cormorant Garamond', serif; }
+    .card-img { background: linear-gradient(135deg, #155e75 0%, #0c4a6e 55%, #7c4a2d 100%); }
+  </style>
+</head>
+<body class="p-6 sm:p-10 text-zinc-800">
+  <div class="max-w-6xl mx-auto">
+    <h1 class="font-script italic text-4xl text-zinc-900 mb-1">Trip Pass badge</h1>
+    <p class="text-sm text-zinc-600 mb-1">Your idea: the account stays <strong>Free</strong> everywhere; the pass shows up <strong>on the trip</strong>. No Settings change.</p>
+    <p class="text-xs text-zinc-500 mb-8">Brand note: amber is the reserved "Trip Pass / paid" color, so an amber badge is exactly on-palette. Icon is a ticket. Pick a card placement (A / B / C) + confirm the itinerary chip + the Settings line.</p>
+
+    <!-- ───────────────────────── CARD PLACEMENTS ───────────────────────── -->
+    <h2 class="text-xs font-bold uppercase tracking-wide text-zinc-400 mb-4">On a trip card (My Trips / Dashboard)</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
+
+      <!-- Option A: beside the status badge, top-left -->
+      <div>
+        <div class="bg-white rounded-2xl overflow-hidden border border-zinc-100 shadow-sm">
+          <div class="relative h-52 card-img">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+            <!-- top-left cluster: status + trip pass -->
+            <div class="absolute top-3 left-3 flex items-center gap-1.5">
+              <span class="inline-flex items-center px-3 py-1 rounded-full font-script italic text-sm backdrop-blur-sm bg-sky-800/90 text-white">Planning</span>
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-sm bg-amber-500/95 text-white shadow-sm">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+                Trip Pass
+              </span>
+            </div>
+            <div class="absolute top-3 right-3">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">7d</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 p-4">
+              <p class="font-script italic text-xl text-white/90 leading-tight">Lisbon, Portugal</p>
+            </div>
+          </div>
+          <div class="p-5">
+            <h3 class="font-script italic text-lg text-zinc-900 mb-3">Crew trip to Lisbon</h3>
+            <div class="space-y-1 text-xs text-zinc-500">
+              <div>📅 May 12 – May 19</div>
+              <div>👥 6 travelers</div>
+            </div>
+          </div>
+        </div>
+        <p class="text-center text-xs font-bold text-zinc-500 mt-3">Option A — beside the status badge <span class="text-emerald-600">(recommended)</span></p>
+      </div>
+
+      <!-- Option B: top-right, next to duration -->
+      <div>
+        <div class="bg-white rounded-2xl overflow-hidden border border-zinc-100 shadow-sm">
+          <div class="relative h-52 card-img">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+            <div class="absolute top-3 left-3">
+              <span class="inline-flex items-center px-3 py-1 rounded-full font-script italic text-sm backdrop-blur-sm bg-sky-800/90 text-white">Planning</span>
+            </div>
+            <div class="absolute top-3 right-3 flex items-center gap-1.5">
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-sm bg-amber-500/95 text-white shadow-sm">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+                Trip Pass
+              </span>
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">7d</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 p-4">
+              <p class="font-script italic text-xl text-white/90 leading-tight">Lisbon, Portugal</p>
+            </div>
+          </div>
+          <div class="p-5">
+            <h3 class="font-script italic text-lg text-zinc-900 mb-3">Crew trip to Lisbon</h3>
+            <div class="space-y-1 text-xs text-zinc-500">
+              <div>📅 May 12 – May 19</div>
+              <div>👥 6 travelers</div>
+            </div>
+          </div>
+        </div>
+        <p class="text-center text-xs font-bold text-zinc-500 mt-3">Option B — top-right by the duration</p>
+      </div>
+
+      <!-- Option C: subtle text chip in the content area (no overlay) -->
+      <div>
+        <div class="bg-white rounded-2xl overflow-hidden border border-zinc-100 shadow-sm">
+          <div class="relative h-52 card-img">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+            <div class="absolute top-3 left-3">
+              <span class="inline-flex items-center px-3 py-1 rounded-full font-script italic text-sm backdrop-blur-sm bg-sky-800/90 text-white">Planning</span>
+            </div>
+            <div class="absolute top-3 right-3">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">7d</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 p-4">
+              <p class="font-script italic text-xl text-white/90 leading-tight">Lisbon, Portugal</p>
+            </div>
+          </div>
+          <div class="p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-script italic text-lg text-zinc-900">Crew trip to Lisbon</h3>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex-shrink-0">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
+                Trip Pass
+              </span>
+            </div>
+            <div class="space-y-1 text-xs text-zinc-500">
+              <div>📅 May 12 – May 19</div>
+              <div>👥 6 travelers</div>
+            </div>
+          </div>
+        </div>
+        <p class="text-center text-xs font-bold text-zinc-500 mt-3">Option C — quiet chip in the card body</p>
+      </div>
+    </div>
+
+    <!-- A non-pass card for contrast -->
+    <div class="mb-12">
+      <p class="text-xs text-zinc-500 mb-3">For contrast — a Free trip with <em>no</em> pass shows nothing extra (unchanged):</p>
+      <div class="w-full sm:w-64 bg-white rounded-2xl overflow-hidden border border-zinc-100 shadow-sm">
+        <div class="relative h-52 card-img">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+          <div class="absolute top-3 left-3"><span class="inline-flex items-center px-3 py-1 rounded-full font-script italic text-sm backdrop-blur-sm bg-sky-800/90 text-white">Planning</span></div>
+          <div class="absolute top-3 right-3"><span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-black/40 backdrop-blur-sm text-white">5d</span></div>
+          <div class="absolute bottom-0 left-0 right-0 p-4"><p class="font-script italic text-xl text-white/90">Solo weekend · Austin</p></div>
+        </div>
+        <div class="p-5">
+          <h3 class="font-script italic text-lg text-zinc-900 mb-3">Austin getaway</h3>
+          <div class="space-y-1 text-xs text-zinc-500"><div>📅 Jun 6 – Jun 11</div><div>👥 1 traveler</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────────────────── ITINERARY HEADER ───────────────────────── -->
+    <h2 class="text-xs font-bold uppercase tracking-wide text-zinc-400 mb-4">On the itinerary header (inside the trip)</h2>
+    <div class="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 mb-12 max-w-3xl">
+      <div class="flex items-center gap-3 flex-wrap mb-2">
+        <h3 class="font-script italic text-3xl text-zinc-900">Crew trip to Lisbon</h3>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+          Trip Pass active
+        </span>
+      </div>
+      <p class="text-sm text-zinc-500">Lisbon, Portugal · May 12 – May 19 · 6 travelers</p>
+      <p class="text-xs text-zinc-400 mt-3">Replaces today's amber "Make it a Trip Pass" upsell banner once a pass exists (that banner already hides when <code>isTripPassTrip</code> is true) — so this is the natural "you have it" counterpart.</p>
+    </div>
+
+    <!-- ───────────────────────── SETTINGS LINE ───────────────────────── -->
+    <h2 class="text-xs font-bold uppercase tracking-wide text-zinc-400 mb-4">Settings (account stays "Free" — optional one-liner)</h2>
+    <div class="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 max-w-lg">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm text-zinc-500">Your plan</span>
+        <span class="text-sm font-bold text-zinc-900">Free plan</span>
+      </div>
+      <div class="flex items-center justify-between pt-3 border-t border-zinc-100">
+        <span class="text-sm text-zinc-500">Active Trip Passes</span>
+        <a href="#" class="inline-flex items-center gap-1.5 text-sm font-bold text-amber-700 hover:underline">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
+          1 active · Lisbon
+        </a>
+      </div>
+      <p class="text-xs text-zinc-400 mt-3">Optional. If you'd rather skip Settings entirely and keep it badge-only, that's fine too — the badge on the trip is the source of truth.</p>
+    </div>
+
+  </div>
+</body>
+</html>

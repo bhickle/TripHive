@@ -87,7 +87,7 @@ export async function GET() {
       allTripRows.map(t => t.organizer_id).filter((id): id is string => !!id),
     ));
 
-    const [membersRes, organizersRes, citiesRes] = await Promise.all([
+    const [membersRes, organizersRes, citiesRes, passesRes] = await Promise.all([
       supabase
         .from('trip_members')
         .select('trip_id, name, email, role')
@@ -108,6 +108,16 @@ export async function GET() {
       // (the prior `as unknown` cast was needed before the types were
       // regenerated; it bypassed the real return type, so drop it).
       supabase.rpc('trip_cities', { trip_ids: allTripIds }),
+      // Active Trip Passes per trip — drives the amber "Trip Pass" badge on
+      // the card. A Trip Pass is a per-trip overlay (Option A): the buyer's
+      // account stays Free, so the pass can only be surfaced at the trip
+      // level, not from the account tier. Just the trip_id is needed; "active"
+      // = not yet expired.
+      supabase
+        .from('trip_passes')
+        .select('trip_id')
+        .in('trip_id', allTripIds)
+        .gt('expires_at', new Date().toISOString()),
     ]);
 
     const membersByTrip = new Map<string, Array<{ name?: string | null; email?: string | null }>>();
@@ -135,6 +145,10 @@ export async function GET() {
       }
     }
 
+    // Trip IDs that currently have an active pass → drives the card badge.
+    const passTripIds = new Set<string>();
+    for (const p of passesRes.data ?? []) passTripIds.add(p.trip_id);
+
     const trips = allTripRows.map(t => {
       const isOwner = t.organizer_id === userId;
       const role: 'organizer' | 'co_organizer' | 'member' = isOwner
@@ -153,6 +167,7 @@ export async function GET() {
         organizerEmail: organizer?.email ?? null,
         memberNames,
         cities: citiesByTrip.get(t.id) ?? [],
+        hasTripPass: passTripIds.has(t.id),
       };
     });
 

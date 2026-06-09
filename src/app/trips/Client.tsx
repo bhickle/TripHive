@@ -118,6 +118,7 @@ export default function TripsPage() {
               memberNames?: string;
               cities?: string[];
               visited_cities?: string[];
+              hasTripPass?: boolean;
             };
             const rows: TripRow[] = supaTrips;
             setUserTrips(rows.map(t => ({
@@ -140,6 +141,7 @@ export default function TripsPage() {
               memberNames: t.memberNames ?? '',
               cities: t.cities ?? [],
               visitedCities: t.visited_cities ?? [],
+              hasTripPass: t.hasTripPass ?? false,
             })));
           }
         })
