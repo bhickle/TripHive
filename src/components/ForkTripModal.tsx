@@ -127,6 +127,9 @@ export function ForkTripModal({
               <Calendar className="w-3 h-3" /> End auto-filled for the original {tripLength}-day length — adjust if you&apos;d like.
             </p>
           )}
+          {!!startDate && !!endDate && endDate < startDate && (
+            <p className="text-xs text-rose-600">End date can&apos;t be before the start date.</p>
+          )}
         </div>
 
         <div className="mt-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -142,7 +145,7 @@ export function ForkTripModal({
               startDate: startDate || null,
               endDate: endDate || null,
             })}
-            disabled={forking}
+            disabled={forking || (!!startDate && !!endDate && endDate < startDate)}
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-800 hover:bg-sky-900 disabled:bg-zinc-300 text-white text-sm font-semibold rounded-full transition-all"
           >
             <Sparkles className="w-4 h-4" />

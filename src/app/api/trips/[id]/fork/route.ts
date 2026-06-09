@@ -68,6 +68,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const startDate = typeof bodyDates.startDate === 'string' ? bodyDates.startDate : null;
     const endDate = typeof bodyDates.endDate === 'string' ? bodyDates.endDate : null;
 
+    // Reject an inverted range (the modal's min= is advisory only) so we don't
+    // persist a trip whose end_date precedes its start_date.
+    if (startDate && endDate && endDate < startDate) {
+      return NextResponse.json(
+        { error: 'INVALID_DATES', message: 'End date cannot be before the start date.' },
+        { status: 400 },
+      );
+    }
+
     const supabase = createAdminClient();
 
     // Source trip must exist + be a public template

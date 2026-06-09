@@ -315,7 +315,7 @@ function MyLayoverPanel({
         )}
       </div>
       {items.length > 0 && (
-        <p className={`text-[11px] mb-3 ${overBudget ? 'text-amber-600 font-medium' : 'text-zinc-400'}`}>
+        <p className={`text-[11px] mb-3 ${overBudget ? 'text-rose-600 font-medium' : 'text-zinc-400'}`}>
           {plannedHours > 0 ? `~${plannedHours.toFixed(1)} hr planned` : `${items.length} item${items.length !== 1 ? 's' : ''}`}
           {plannedHours > 0 && hours > 0 ? ` of ${hours}` : ''}{overBudget ? ' · over your layover' : ''}
         </p>

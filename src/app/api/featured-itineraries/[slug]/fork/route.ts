@@ -120,6 +120,18 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
     // doesn't have if the two ever drift.
     const tripLength = days.length;
 
+    // Derive end_date from the start + actual day count so it can't disagree
+    // with the per-day dates / trip_length (the modal's end field is advisory
+    // and could be edited before the start). No start → no end.
+    let endDateDerived: string | null = null;
+    if (startDate) {
+      const d = new Date(`${startDate}T00:00:00`);
+      if (!isNaN(d.getTime())) {
+        d.setDate(d.getDate() + Math.max(0, tripLength - 1));
+        endDateDerived = d.toISOString().slice(0, 10);
+      }
+    }
+
     // Create the new trip (organizer = caller). No fork_source_id — that column
     // references trips, and the source here is a featured itinerary, not a trip.
     const { data: newTrip, error: insertErr } = await supabase
@@ -128,8 +140,8 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
         organizer_id: user.id,
         title: featured.title || `${featured.destination} Trip`,
         destination,
-        start_date: startDate,
-        end_date: endDate,
+        start_date: startDate || null,
+        end_date: endDateDerived,
         trip_length: tripLength,
         group_size: 2,
         status: 'planning',

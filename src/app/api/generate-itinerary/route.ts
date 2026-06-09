@@ -2184,11 +2184,17 @@ export async function POST(request: NextRequest) {
         // the SSE pipeline are Record<string, unknown> (since the AI's
         // JSON is freshly parsed) but their shape matches ItineraryDay.
         const typedDay = dayObj as unknown as ItineraryDay;
+        // The prompt REQUIRES `city`, but if the model omitted it, backfill from
+        // resolvedDestination (the segment's city, or the base destination) so
+        // the day STILL runs through verify-before-show — rather than emitting it
+        // unverified (which contradicts "verify before it becomes an itinerary").
+        // Mutating typedDay also fixes the emitted day (shared dayObj reference).
+        if (!typedDay.city) {
+          typedDay.city = resolvedDestination || '';
+        }
         const dayCity = typedDay.city;
-        // No city → can't validate; pass through. The day's `city` field
-        // is REQUIRED by the prompt, but a defensive check protects
-        // against a model that ignores the schema.
         if (!dayCity) {
+          // Genuinely nothing to validate against — last-resort pass-through.
           send({ type: 'day', index: dayIndex, data: dayObj });
           return true;
         }
