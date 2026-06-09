@@ -20,6 +20,10 @@ const cormorantGaramond = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
+  // Resolve relative OG/Twitter image URLs against the real domain. Without
+  // this, Next 14 defaults to http://localhost:3000, so shared link previews
+  // (Slack/iMessage/X/FB) point at a localhost image and render broken.
+  metadataBase: new URL('https://www.tripcoord.ai'),
   // The %s slot is filled by per-page metadata.title; pages that don't set
   // one fall through to the default. Keeps "— tripcoord" suffix consistent
   // across browser tabs.

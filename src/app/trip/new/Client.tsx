@@ -1171,11 +1171,13 @@ function TripBuilderPage() {
       // enters both dates themselves (the old auto-fill could land an end date
       // before the start). Trip length is derived once both are set, below.
 
-      // When both dates are set, recalculate trip length
+      // When both dates are set, recalculate trip length. Use <= so a same-day
+      // trip (start === end) becomes a 1-day trip instead of advancing with a
+      // stale default length (which built a 7-day plan on a 1-day range).
       if (
         newState.startDate &&
         newState.endDate &&
-        new Date(newState.startDate) < new Date(newState.endDate)
+        new Date(newState.startDate) <= new Date(newState.endDate)
       ) {
         const start = new Date(newState.startDate);
         const end = new Date(newState.endDate);

@@ -81,12 +81,14 @@ function formatTime(t: string): string {
 }
 
 function formatTimeRange(slot: string): string {
+  if (!slot) return ''; // AI days can omit timeSlot \u2014 don't crash on .split
   const parts = slot.split('\u2013');
   if (parts.length !== 2) return slot;
   return `${formatTime(parts[0])} \u2013 ${formatTime(parts[1])}`;
 }
 
 function parseEndTime(timeSlot: string): number {
+  if (!timeSlot) return 0; // guard missing timeSlot (white-screened Day-Of)
   const parts = timeSlot.split('\u2013');
   if (parts.length < 2) return parseTime(timeSlot) + 90;
   return parseTime(parts[1]);
@@ -405,10 +407,16 @@ export default function DayOfPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
-  // Days until (positive) / since (negative) the displayed day.
-  const dayDelta = currentDay.date
-    ? Math.round((new Date(currentDay.date + 'T12:00:00').getTime() - new Date(todayStr + 'T12:00:00').getTime()) / 86400000)
-    : 0;
+  // Days until (positive) / since (negative) the displayed day. Guard the
+  // flexible-date "null"/empty case (truthy string "null" → Invalid Date → NaN,
+  // which made the page read "this trip has wrapped" for a future trip).
+  const dayDelta = (() => {
+    const d = currentDay.date && currentDay.date !== 'null'
+      ? new Date(currentDay.date + 'T12:00:00')
+      : null;
+    if (!d || isNaN(d.getTime())) return 0;
+    return Math.round((d.getTime() - new Date(todayStr + 'T12:00:00').getTime()) / 86400000);
+  })();
   // Live progress ("Happening Now", done/now badges, the clock-driven timeline
   // status) only makes sense when the day on screen is actually today. Mock
   // trips stay "live" so the demo shows the real-time experience. For a future
