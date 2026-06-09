@@ -1138,14 +1138,14 @@ If "${destination}" is actually a SINGLE city or town, IGNORE all of the above a
   // (e.g. 2026-09-15), not user-chosen. Without this hint, the model treats
   // those defaults as hard requirements and won't suggest better timing.
   const flexibleDatesText = flexibleDates
-    ? `\n- FLEXIBLE DATES: The traveler has not committed to specific dates — the dates above are placeholder defaults. Treat the trip length (${tripLength} days) as the firm constraint, and feel free to recommend a better season or month for ${destination} where it would meaningfully improve the experience (better weather, fewer crowds, key seasonal events). Note any timing recommendation prominently in the practicalNotes so the traveler can choose dates accordingly.`
+    ? `\n- FLEXIBLE DATES: The traveler has not committed to specific dates — the dates above are placeholder defaults. Treat the trip length (${tripLength} days) as the firm constraint, and feel free to recommend a better season or month for ${destination} where it would meaningfully improve the experience (better weather, fewer crowds, key seasonal events). Note any timing recommendation prominently in the practicalNotes so the traveler can choose dates accordingly. IMPORTANT: leave each day's "date" field as an empty string "" — do NOT invent or guess a calendar date. The app labels days as "Day 1", "Day 2" when dates are flexible.`
     : '';
 
   const userPrompt = `Generate a ${tripLength}-day travel itinerary for the following trip:
 
 TRIP DETAILS:
 - Destination: ${destinations.length >= 2 ? `Multi-city — ${destinations.join(' → ')}` : destination}
-- Dates: ${startDate} to ${endDate} (${tripLength} days)
+- Dates: ${startDate ? `${startDate} to ${endDate}` : 'Flexible — not yet chosen'} (${tripLength} days)
 ${startDate ? `- Day-by-day calendar (use this to match each venue's per-weekday opening hours to the actual day — do NOT rely on your own date arithmetic):\n${buildWeekdayMap(startDate, tripLength)}` : ''}
 - Group type: ${groupType || 'friends'}
 - Group size: ${groupSize ?? 1} ${(groupSize ?? 1) === 1 ? 'person' : 'people'}
@@ -1230,7 +1230,7 @@ IMPORTANT: The FIRST day object (day 1) must include these additional top-level 
         "pricePerNight": 150,
         "priceLevel": 2,
         "whyRecommended": "One sentence on why this is a great choice — location, reputation, amenities, or vibe",
-        "bookingUrl": "https://www.booking.com/searchresults.html?ss=PROPERTY+NAME+CITY&checkin=${startDate}&checkout=${endDate}"
+        "bookingUrl": "https://www.booking.com/searchresults.html?ss=PROPERTY+NAME+CITY${startDate ? `&checkin=${startDate}&checkout=${endDate}` : ''}"
       }
     ]
     Choose properties that are: (1) real and accurately named, (2) well-located — ideally central or near transport hubs, (3) highly regarded for their category.${destinations.length >= 2 ? ` For each city in the multi-city route, include 1-2 options — this helps the group plan where to base themselves in each leg of the trip.` : ' Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value.'} The bookingUrl should be a Booking.com search URL pre-filled with the property name and city.` : ''}${hasFoodPriority ? `
@@ -1302,7 +1302,7 @@ ${hasShoppingPriority ? `
     "nightlifeHighlights": [ ... (EVERY day — exactly 2 venues anchored to this day's neighborhoods) ],` : ''}${hasShoppingPriority ? `
     "shoppingGuide": [ ... (EVERY day — exactly 2 spots anchored to this day's neighborhoods) ],` : ''}
     "day": 1,
-    "date": "${startDate}",
+    "date": "${startDate || ''}",
     "city": "Physical city/town the group is in for this day (e.g. 'Paris', 'Versailles', 'Reykjavik'). Used for per-day weather AND to validate every activity's address. For day-trips away from the base city, set this to the EXCURSION city — on a Versailles excursion from a Paris-base trip, this is 'Versailles', not 'Paris'. Treat this field as the source of truth for where the group physically is all day.",
     "theme": "Evocative 3-5 word theme for the day",
     "photoSpots": [
