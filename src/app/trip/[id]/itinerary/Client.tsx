@@ -840,7 +840,15 @@ function ItineraryPageContent() {
 
     const payload = {
       destination,
-      tripLength: aiDaysRef.current?.length || tripRow?.trip_length || 7,
+      // Rebuild at the trip's intended length, not whatever's currently saved.
+      // A cut-off build leaves only the partial days AND syncs trips.trip_length
+      // DOWN to that partial count (the day-persist PATCH does this), so neither
+      // is trustworthy alone. Take the max of: the originally-requested length
+      // (stored in preferences at build time), the current day count, and the
+      // trip_length column — so a 7-day build cut off at 3 regenerates 7, while
+      // a trip the user manually extended still regenerates at the longer length.
+      tripLength:
+        Math.max(pickNum('tripLength') ?? 0, aiDaysRef.current?.length ?? 0, tripRow?.trip_length ?? 0) || 7,
       groupSize: tripRow?.group_size || 2,
       groupType: tripRow?.group_type || aiMeta?.groupType || 'friends',
       startDate: aiMeta?.startDate || tripRow?.start_date || null,
@@ -2663,13 +2671,16 @@ function ItineraryPageContent() {
       if (editStartDate) {
         const anchor = aiMeta?.startDate
           ?? ((activeDays as ItineraryDay[])[0]?.date);
-        if (anchor && anchor !== editStartDate) {
+        // Guard against flexible-date trips whose day.date is "" or the string
+        // "null": parsing those yields an Invalid Date and toISOString() throws.
+        if (anchor && anchor !== 'null' && anchor !== editStartDate) {
           const oldStart = new Date(anchor + 'T12:00:00');
           const newStart = new Date(editStartDate + 'T12:00:00');
           const diffDays = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays !== 0) {
+          if (!isNaN(oldStart.getTime()) && !isNaN(newStart.getTime()) && diffDays !== 0) {
             updatedDays = (activeDays as ItineraryDay[]).map(day => {
               const d = new Date(day.date + 'T12:00:00');
+              if (isNaN(d.getTime())) return day; // no real date — leave untouched
               d.setDate(d.getDate() + diffDays);
               return { ...day, date: d.toISOString().split('T')[0] };
             });
@@ -3332,11 +3343,17 @@ function ItineraryPageContent() {
               })()}
             </div>
             <h1 className="text-2xl font-script italic font-semibold text-zinc-900 mb-2">
-              {currentDayData.date
-                ? new Date(currentDayData.date + 'T12:00:00').toLocaleDateString('en-US', {
-                    weekday: 'long', month: 'long', day: 'numeric',
-                  })
-                : `Day ${currentDayData.day}`}
+              {(() => {
+                // Flexible-date trips store no real date (sometimes the literal
+                // string "null"), so guard on VALIDITY, not just truthiness —
+                // otherwise "null" parses to an Invalid Date. Fall back to "Day N".
+                const d = currentDayData.date && currentDayData.date !== 'null'
+                  ? new Date(currentDayData.date + 'T12:00:00')
+                  : null;
+                return d && !isNaN(d.getTime())
+                  ? d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+                  : `Day ${currentDayData.day}`;
+              })()}
             </h1>
             <p className="text-sm text-zinc-500">
               {sortedActivities.length} {sortedActivities.length === 1 ? 'activity' : 'activities'}
@@ -3822,7 +3839,12 @@ function ItineraryPageContent() {
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {activeDays.map((day: { day: number; date: string }, idx: number) => {
-              const dayDateStr = new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              // Flexible-date trips have no real date (sometimes the literal
+              // string "null") — show "Day N" alone, not "Day N · Invalid Date".
+              const dayDateObj = day.date && day.date !== 'null' ? new Date(day.date + 'T12:00:00') : null;
+              const dayDateStr = dayDateObj && !isNaN(dayDateObj.getTime())
+                ? dayDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : null;
               const locked = isLocked(day.day);
               const isDragging = draggingDay === day.day;
               const isValidDropTarget = draggingDay !== null && draggingDay !== day.day && canSwap(draggingDay, day.day);
@@ -3918,7 +3940,7 @@ function ItineraryPageContent() {
                         : 'bg-white border border-zinc-200 text-zinc-600 hover:border-zinc-300'
                     }`}
                   >
-                    Day {day.day} · {dayDateStr}
+                    Day {day.day}{dayDateStr ? ` · ${dayDateStr}` : ''}
                   </button>
                   {canEditItinerary && !locked && (
                     <button

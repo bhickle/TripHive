@@ -112,7 +112,14 @@ export async function POST(request: NextRequest) {
       budget_breakdown: tripMeta.budgetBreakdown ?? {},
       booked_hotels: tripMeta.bookedHotels ?? [],
       booked_flight: tripMeta.bookedFlight ?? null,
-      preferences: tripMeta.preferences ?? {},
+      // Stash the originally-requested trip length in preferences so it survives
+      // a cut-off build. trips.trip_length gets synced DOWN to the partial day
+      // count by the day-persist PATCH, so Regenerate can't trust it — it reads
+      // this instead to rebuild the full trip.
+      preferences: {
+        ...(tripMeta.preferences ?? {}),
+        ...(tripMeta.tripLength ? { tripLength: tripMeta.tripLength } : {}),
+      },
       status: isDraft ? 'draft' : (isSkeleton ? 'planning' : 'planning'),
       // Stamp the generation time when an itinerary is included (not for skeleton or draft)
       itinerary_generated_at: (!isDraft && !isSkeleton) ? new Date().toISOString() : null,
