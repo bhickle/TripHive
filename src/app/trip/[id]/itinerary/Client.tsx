@@ -1313,6 +1313,16 @@ function ItineraryPageContent() {
         prevContext: string | null,
       ): Promise<{ days: unknown[]; meta: Record<string, unknown> | null }> => {
         const body: Record<string, unknown> = { ...payload };
+        // The build-credit claim (1 build = 1 charge), per-day server
+        // persistence (resume/durability), Trip Pass pooling, and the AI role
+        // gate all key on body.tripId. Regenerate's payload includes it, but the
+        // INITIAL-build payload (from the Trip Builder) only carries
+        // existingTripId — so without this, every new multi-chunk build charged
+        // per chunk (3× a 7-day trip) and free users 402'd mid-build. tripPageId
+        // IS the trip id for this page (skeleton id on a fresh build).
+        if (tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId)) {
+          body.tripId = tripPageId;
+        }
         if (isFreshRebuild && !sentFreshRebuild) {
           // First chunk of a regenerate — server clears any prior build-
           // credits claim on this trip before re-claiming.
