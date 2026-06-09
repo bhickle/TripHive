@@ -201,10 +201,15 @@ export async function POST(req: NextRequest) {
             await setTier(userId, tier, sub.id);
           }
         } else if (session.mode === 'payment') {
-          // One-time Trip Pass — upsert the trip_passes row, but ONLY set
-          // subscription_tier='trip_pass' if the user is currently on free.
-          // Otherwise a Travel Pro user buying a Trip Pass for a
-          // friend/group would be downgraded.
+          // One-time Trip Pass — a PER-TRIP overlay (Option A). We deliberately
+          // do NOT change the buyer's account `subscription_tier`. The old swap
+          // (Free → 'trip_pass') had account-wide side effects: the buyer lost
+          // On My Radar everywhere AND got the paid trip-features on ALL their
+          // trips, not just the one they paid for. Now the pass lives purely as
+          // a trip_passes row; the trip's features, credit pool, and traveler
+          // cap resolve from THAT (hasTripFeatureAccess, checkAiCredits pooling,
+          // getTripTravelerCap) — exactly how invited members already work — so
+          // the buyer keeps their real tier (Free or Travel Pro).
           const tripId = session.metadata?.trip_id;
           // Clamp to a whole number in [0, 6] (base Trip Pass = 6 travelers,
           // hard cap 12). The checkout route already clamps, but this is the
@@ -214,23 +219,6 @@ export async function POST(req: NextRequest) {
           const now = new Date();
           const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
           const supabaseAdmin = createAdminClient();
-
-          const { data: existingProfile } = await supabaseAdmin
-            .from('profiles')
-            .select('subscription_tier')
-            .eq('id', userId)
-            .single();
-
-          const currentRank = SUBSCRIPTION_TIER_RANK[existingProfile?.subscription_tier ?? 'free'] ?? 0;
-          const tripPassRank = SUBSCRIPTION_TIER_RANK['trip_pass'];
-
-          if (currentRank < tripPassRank) {
-            // User was on free → upgrade to trip_pass
-            await supabaseAdmin.from('profiles').update({
-              subscription_tier: 'trip_pass',
-            }).eq('id', userId);
-          }
-          // else: user already has travel_pro — leave subscription_tier alone
 
           if (tripId) {
             // Upsert the trip pass record (idempotent on user_id + trip_id).

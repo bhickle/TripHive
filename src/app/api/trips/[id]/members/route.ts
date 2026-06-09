@@ -295,22 +295,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .maybeSingle();
       const orgTier = normalizeTier(orgProfile?.subscription_tier);
 
-      let cap: number;
-      if (orgTier === 'trip_pass') {
-        // Trip Pass: base 6 + the extras the buyer paid for. Look up the
-        // most recent active pass for this trip.
-        const { data: pass } = await supabase
-          .from('trip_passes')
-          .select('extra_people')
-          .eq('trip_id', params.id)
-          .gt('expires_at', new Date().toISOString())
-          .order('purchased_at', { ascending: false })
-          .maybeSingle();
-        cap = PRICING.trip_pass.baseGroupSize + (pass?.extra_people ?? 0);
-      } else {
-        const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
-        cap = typeof tierCap === 'number' ? tierCap : 4;
-      }
+      // A Trip Pass on THIS trip raises the cap to 6 base + the extras the buyer
+      // paid for — regardless of the organizer's account tier (Option A: the
+      // pass is a per-trip overlay, not an account-tier swap, so a Free
+      // organizer with a pass still gets the pass cap). Take the larger of the
+      // account cap and the pass cap so a pass can't lower a Pro organizer's cap.
+      const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
+      const accountCap = typeof tierCap === 'number' ? tierCap : 4;
+      const { data: pass } = await supabase
+        .from('trip_passes')
+        .select('extra_people')
+        .eq('trip_id', params.id)
+        .gt('expires_at', new Date().toISOString())
+        .order('purchased_at', { ascending: false })
+        .maybeSingle();
+      const cap = pass
+        ? Math.max(accountCap, PRICING.trip_pass.baseGroupSize + (pass.extra_people ?? 0))
+        : accountCap;
 
       // Members + 1 for the organizer themselves (organizer isn't in trip_members)
       const { count: memberCount } = await supabase

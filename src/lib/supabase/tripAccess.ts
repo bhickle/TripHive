@@ -322,20 +322,21 @@ export async function getTripTravelerCap(
     .maybeSingle();
   const orgTier = normalizeTier(orgProfile?.subscription_tier);
 
-  let cap: number;
-  if (orgTier === 'trip_pass') {
-    const { data: pass } = await supabase
-      .from('trip_passes')
-      .select('extra_people')
-      .eq('trip_id', tripId)
-      .gt('expires_at', new Date().toISOString())
-      .order('purchased_at', { ascending: false })
-      .maybeSingle();
-    cap = 6 + (pass?.extra_people ?? 0);
-  } else {
-    const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
-    cap = typeof tierCap === 'number' ? tierCap : 4;
-  }
+  // A Trip Pass on THIS trip sets the cap to 6 base + the extras purchased,
+  // regardless of the organizer's account tier (Option A: the pass is a
+  // per-trip overlay, not an account-tier swap — so a Free organizer with a
+  // pass still gets the pass cap). Take the larger of the account cap and the
+  // pass cap so a pass can never LOWER a Travel Pro organizer's own cap.
+  const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
+  const accountCap = typeof tierCap === 'number' ? tierCap : 4;
+  const { data: pass } = await supabase
+    .from('trip_passes')
+    .select('extra_people')
+    .eq('trip_id', tripId)
+    .gt('expires_at', new Date().toISOString())
+    .order('purchased_at', { ascending: false })
+    .maybeSingle();
+  const cap = pass ? Math.max(accountCap, 6 + (pass.extra_people ?? 0)) : accountCap;
 
   const { count: memberCount } = await supabase
     .from('trip_members')
