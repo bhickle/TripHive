@@ -13,6 +13,7 @@ import {
   MapPin, X, ArrowRight, Check, ChevronRight, Lock,
 } from 'lucide-react';
 import Image from 'next/image';
+import { useUnsplashCover, UNSPLASH_UTM } from '@/hooks/useUnsplashCover';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { WishlistLinksSection } from '@/components/WishlistLinksSection';
@@ -121,6 +122,51 @@ function getCoverImage(destination: string): string {
     if (word !== 'default' && key.includes(word)) return url;
   }
   return DESTINATION_COVERS.default;
+}
+
+// The wishlist cover's photo layer: resolves a credited, cached Unsplash photo
+// by destination (shares the one cached pull with trip + Discover cards) and
+// falls back to the stored/static cover. Renders the photographer credit chip
+// bottom-right — same treatment as the Trips page cards. A standalone component
+// so each card can call useUnsplashCover (a hook can't run inside the .map()).
+function WishlistCover({
+  destination, country, fallbackImage,
+}: { destination: string; country?: string | null; fallbackImage: string }) {
+  const query = country ? `${destination}, ${country}` : destination;
+  const cover = useUnsplashCover(query, true);
+  const src = cover?.url ?? fallbackImage;
+  const credit = cover?.photographer && cover.photographerUrl ? cover : null;
+  return (
+    <>
+      <Image
+        src={src}
+        alt={destination}
+        fill
+        className="object-cover group-hover:scale-105 transition-transform duration-300"
+      />
+      {credit && (
+        <div className="absolute bottom-2 right-2 z-10 px-1.5 py-0.5 rounded-md bg-black/30 backdrop-blur-sm text-[9px] text-white/75">
+          <a
+            href={`${credit.photographerUrl}${UNSPLASH_UTM}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline hover:text-white transition-colors"
+          >
+            {credit.photographer}
+          </a>
+          {' / '}
+          <a
+            href={`${credit.photoUrl ?? 'https://unsplash.com'}${UNSPLASH_UTM}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline hover:text-white transition-colors"
+          >
+            Unsplash
+          </a>
+        </div>
+      )}
+    </>
+  );
 }
 
 // Mock highlights for graceful fallback when no API key
@@ -906,11 +952,10 @@ export default function WishlistPage() {
               <div key={item.id} className="group rounded-2xl overflow-hidden bg-white border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                 {/* Cover */}
                 <div className="relative h-52 overflow-hidden bg-zinc-100">
-                  <Image
-                    src={item.coverImage}
-                    alt={item.destination}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  <WishlistCover
+                    destination={item.destination}
+                    country={item.country}
+                    fallbackImage={item.coverImage}
                   />
                   {/* z-10 keeps the heart above the gradient overlay below —
                       without it the inset-0 overlay (later in the DOM) paints
