@@ -110,6 +110,7 @@ export type UpgradeReason =
   | 'trip_limit'
   | 'traveler_limit'
   | 'feature_locked'
+  | 'multi_city'
   | 'trip_pass_offer'
   | 'no_ai';
 
@@ -162,6 +163,15 @@ const UPGRADE_PROMPTS: Record<UpgradeReason, Omit<UpgradePrompt, 'suggestedTier'
     reason: 'feature_locked',
     headline: 'This feature is on paid plans',
     body: 'Upgrade to unlock the full tripcoord experience.',
+    ctaLabel: 'See plans',
+  },
+  // Free user tapped "Add another destination" (hand-picked multi-city). This
+  // is a paid boundary, but free users still have a no-cost multi-stop path
+  // (region auto-routing), so the copy leads with that before the upsell.
+  multi_city: {
+    reason: 'multi_city',
+    headline: 'Plan a multi-city route',
+    body: 'Hand-picking specific cities and setting nights per city is part of Trip Pass and Travel Pro. On Free, you can still do a multi-stop trip — just enter a whole region (e.g. “Italy” or “California, USA”) as your destination and your build auto-routes the stops for you, travel between cities included.',
     ctaLabel: 'See plans',
   },
   // Explicit "buy a Trip Pass for THIS trip" offer — triggered from a button on

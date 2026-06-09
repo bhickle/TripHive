@@ -465,7 +465,7 @@ function TripBuilderPage() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'ai_credits_empty' | 'traveler_limit' | 'trip_limit' | 'feature_locked'>('no_ai');
+  const [upgradeReason, setUpgradeReason] = useState<'no_ai' | 'ai_credits_empty' | 'traveler_limit' | 'trip_limit' | 'feature_locked' | 'multi_city'>('no_ai');
   const { canAffordAction, getUpgradePrompt, maxTripDays, tier, tierResolved, entitlementsReady, maxTravelersForTrip } = useEntitlements();
   const [budgetInput, setBudgetInput] = useState('5000');
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
@@ -1559,7 +1559,7 @@ function TripBuilderPage() {
                       type="button"
                       onClick={() => {
                         if (tierResolved && tier === 'free') {
-                          setUpgradeReason('feature_locked');
+                          setUpgradeReason('multi_city');
                           setShowUpgradeModal(true);
                           return;
                         }
