@@ -1039,22 +1039,26 @@ If "${destination}" is actually a SINGLE city or town, IGNORE all of the above a
     : hotelBudgetPerNightPerRoom < 500
     ? 'upscale ($$$)'
     : 'luxury ($$$$)';
-  // Build lodging type instruction from accommodationType preference
+  // ── Lodging-type directive ───────────────────────────────────────────────
+  // The traveler's selected lodging types MUST be honored. Historically the
+  // model ignored them and returned hotels regardless — a build where the user
+  // selected "hostel" once surfaced the Ritz-Carlton, and every booking link
+  // went to Booking.com. Build explicit per-type guidance + a type-aware
+  // booking link. Airbnb is special: there are no real, stable listings to
+  // name, so steer to a neighborhood + rental style + an Airbnb search link
+  // rather than an invented property name.
   const accomTypes = (accommodationType ?? '').split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-  const accomTypeLabel = accomTypes.length > 0
-    ? (() => {
-        const map: Record<string, string> = {
-          hotel: 'hotels',
-          airbnb: 'Airbnb / vacation rentals',
-          hostel: 'hostels',
-          resort: 'resorts',
-        };
-        return accomTypes.map((t: string) => map[t] || t).join(' or ');
-      })()
-    : 'hotels';
-  const lodgingTypeInstruction = accomTypes.length > 0 && !(accomTypes.length === 1 && accomTypes[0] === 'hotel')
-    ? `matching the traveler's preferred lodging type (${accomTypeLabel}) at the ${hotelPriceTier} price tier`
-    : `matching the ${hotelPriceTier} price tier`;
+  const selectedLodgingTypes = accomTypes.length > 0 ? accomTypes : ['hotel'];
+  const lodgingTypeLabelMap: Record<string, string> = {
+    hotel: 'hotels', resort: 'resorts', hostel: 'hostels', airbnb: 'Airbnb / vacation rentals',
+  };
+  const selectedLodgingLabels = selectedLodgingTypes.map((t: string) => lodgingTypeLabelMap[t] || t).join(', ');
+  const lodgingPerTypeGuidance = selectedLodgingTypes.map((t: string) => {
+    if (t === 'airbnb') return `- Airbnb / vacation rentals: do NOT invent a specific listing name (they are not real, stable places). Instead pick a specific NEIGHBORHOOD + rental style, put that in "name" (e.g. "1-bedroom apartment in Trastevere"), set "lodgingType":"airbnb", and use the airbnb search bookingUrl below.`;
+    if (t === 'hostel') return `- Hostels: recommend REAL, well-regarded hostels by name — NOT hotels. Set "lodgingType":"hostel".`;
+    if (t === 'resort') return `- Resorts: recommend REAL resorts by name. Set "lodgingType":"resort".`;
+    return `- Hotels: recommend REAL, well-regarded hotels by name. Set "lodgingType":"hotel".`;
+  }).join('\n    ');
 
   // Per-day budget constraints
   const dailyFoodBudget = Math.round((budgetBreakdown.food ?? 0) / tripLength);
@@ -1219,21 +1223,23 @@ OUTPUT FORMAT — return a JSON array of exactly ${tripLength} day objects.
 IMPORTANT: The FIRST day object (day 1) must include these additional top-level fields before "day":
   "title" — a concise, evocative 3-6 word trip name incorporating the destination and top priority (e.g. "Venice Food & History Adventure", "Bangkok Nights & Street Food", "Kyoto Temples & Quiet Gardens"). This will display as the trip name throughout the app.
   "practicalNotes" — a one-time block of essential destination knowledge (only on day 1, omit from all other days):${needsHotelSuggestions ? `
-  "hotelSuggestions" — since no hotel has been pre-booked, include lodging suggestions ${lodgingTypeInstruction} (only on day 1, omit from all other days):${destinations.length >= 2 ? `
-    For this multi-city trip (${destinations.join(' → ')}), include 1-2 options per city so the group knows where to stay in each location. Structure the array with a "city" field on each entry so the app can group them:` : ''}
+  "hotelSuggestions" — since no lodging has been pre-booked, recommend where to stay (only on day 1, omit from all other days). The traveler selected these lodging types: ${selectedLodgingLabels}. Provide ONLY these types and honor the selection EXACTLY — do NOT default to hotels when hotels were not chosen (a "hostel" selection must return hostels, not hotels). Aim for the ${hotelPriceTier} price tier. Per-type rules:
+    ${lodgingPerTypeGuidance}${destinations.length >= 2 ? `
+    For this multi-city trip (${destinations.join(' → ')}), include 1-2 options per city so the group knows where to stay in each location. Add a "city" field on each entry so the app can group them:` : ''}
     [
       {
         ${destinations.length >= 2 ? '"city": "City name this lodging is in",' : ''}
-        "name": "Property name",
+        "lodgingType": "hotel | resort | hostel | airbnb — which of the selected types this entry is",
+        "name": "Property name (or neighborhood + rental style for airbnb)",
         "neighborhood": "Area/district name",
-        "address": "Full address",
+        "address": "Full address (for airbnb, the neighborhood/area is enough)",
         "pricePerNight": 150,
         "priceLevel": 2,
         "whyRecommended": "One sentence on why this is a great choice — location, reputation, amenities, or vibe",
-        "bookingUrl": "https://www.booking.com/searchresults.html?ss=PROPERTY+NAME+CITY${startDate ? `&checkin=${startDate}&checkout=${endDate}` : ''}"
+        "bookingUrl": "Match the host to lodgingType — hotel/resort: https://www.booking.com/searchresults.html?ss=PROPERTY+NAME+CITY${startDate ? `&checkin=${startDate}&checkout=${endDate}` : ''} · hostel: https://www.hostelworld.com/search?search_keywords=CITY · airbnb: https://www.airbnb.com/s/CITY/homes"
       }
     ]
-    Choose properties that are: (1) real and accurately named, (2) well-located — ideally central or near transport hubs, (3) highly regarded for their category.${destinations.length >= 2 ? ` For each city in the multi-city route, include 1-2 options — this helps the group plan where to base themselves in each leg of the trip.` : ' Vary the 3 suggestions slightly — e.g. one closer to the main sights, one in a quieter/hipper neighborhood, one that offers the best value.'} The bookingUrl should be a Booking.com search URL pre-filled with the property name and city.` : ''}${hasFoodPriority ? `
+    Include 3 suggestions total${destinations.length >= 2 ? ' (1-2 per city)' : ''}; if MULTIPLE lodging types were selected, cover each selected type at least once. Each entry must be (1) real and accurately named for its category — EXCEPT airbnb, which is neighborhood-based, not a named listing — (2) well-located (central or near transport), (3) highly regarded. The bookingUrl host MUST match the entry's lodgingType per the rules above.${destinations.length >= 2 ? '' : ' Vary the suggestions — e.g. one closer to the main sights, one in a quieter/hipper area, one best value.'}` : ''}${hasFoodPriority ? `
   "foodieTips" — since food is a top priority, include this array on EVERY day with EXACTLY 2 bonus finds specific to that day's neighborhoods. Schema:
     [
       {
