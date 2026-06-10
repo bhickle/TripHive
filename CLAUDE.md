@@ -170,6 +170,8 @@ ItineraryDay {
 
 The DB column `profiles.subscription_tier` is text with a CHECK constraint (now allows `free`/`trip_pass`/`travel_pro` plus legacy `explorer`/`nomad` during transition). **`normalizeTier()` in `lib/types.ts` maps legacy `explorer`/`nomad` → `travel_pro` at every DB read** — don't remove it until all legacy rows are migrated. **Stripe price IDs for `travel_pro` + the $36 Trip Pass are still PLACEHOLDERS** in `stripe-prices.ts` (checkout is non-functional until Brandon pastes the real IDs).
 
+**Trip Pass is a PER-TRIP OVERLAY, not an account tier (Option A, 2026-06-09).** Buying a Trip Pass does NOT change `subscription_tier` — a Free buyer's account stays `free`; the purchase writes a `trip_passes` row that unlocks THAT trip's coordination features + 50-credit pool + 6–12 traveler cap for the buyer AND everyone they add. The buyer keeps On My Radar/wishlist (account-level). All per-trip gating keys on "does this trip have an active pass?" (`tripHasActivePass(tripId)` / `hasTripFeatureAccess` / `checkAiCredits` pooling), NOT on the account tier. Surfaced to users as an amber **"Trip Pass" badge** on trip cards + a **"Trip Pass active" chip** on the itinerary (account label stays "Free"). **Don't re-introduce the account-tier swap.** Full map: `OPTION_A_TRIP_PASS_SCOPE.md` + memory `project_trip_pass_overlay_model`.
+
 Gates live in `useEntitlements` hook → checked against `profile.subscription_tier` from Supabase.  
 `UpgradeModal` + `LockBadge` components handle the UI gating.
 

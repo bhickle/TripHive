@@ -11,6 +11,22 @@
 
 ---
 
+## Recently Shipped (2026-06-09 — Trip Pass overlay (Option A) + Builder/lodging audit + polish)
+
+Session focused on completing the Trip Pass per-trip-overlay model, a data-grounded audit of what the Trip Builder inputs actually do, and a round of UX polish. All commits tsc-clean.
+
+**Trip Pass = per-trip overlay (Option A) — the headline work.** A Trip Pass purchase no longer swaps `subscription_tier`; the buyer stays Free and the `trip_passes` row is the overlay. Three steps: ① stop the webhook tier-swap + re-point traveler cap (`5373e7d`); ② credit display keys on the active pass (`df83468`); ③ read-side + closed **3 server-gate regressions** a `=== 'trip_pass'` sweep found — multi-city, co-organizer, AI import all gated on the buyer's *account* tier, so a Free pass-buyer was locked out of features they paid for (`1559325`). New shared helper `tripHasActivePass(tripId)` in `tripAccess.ts`. Surfaced as an amber **"Trip Pass" badge** on trip cards + **"Trip Pass active" chip** on the itinerary; Settings stays "Free plan" (`e420e58`). Multi-city now shows a specific upsell to Free users instead of a generic lock (`6d540d3`). Full map: `OPTION_A_TRIP_PASS_SCOPE.md`. **Lesson:** an overlay model breaks any gate keyed on account tier for a per-trip feature — grep ALL such gates, not just a scope-doc list.
+
+**Builder input audit (data-grounded).** Verified against prod what each Builder input actually does: **budget IS load-bearing** (dollar breakdown → hotel price tier + per-day food/experience budgets + restaurant price-level ceilings; the slider — confusingly named `curiosityLevel` — drives meal tiers + Michelin). **Lodging type was cosmetic:** picking Airbnb/Hostel still returned hotels with Booking.com links every time (a "hostel" pick once surfaced the Ritz-Carlton). Fixed (`ac1b6af`): the `hotelSuggestions` prompt now honors the selected type, treats Airbnb as neighborhood + search link (not invented names), adds a `lodgingType` field driving type-matched booking hosts (Booking/Hostelworld/Airbnb). Scope kept to suggestions only — **itinerary stays driven by budget + Top Priorities** (Brandon's ruling). Confirmed the **start/end-near-hotel anchoring** is correct (pre-booked home-base rules, lines 968–977) and left untouched. "No lodging suggestions when a hotel is pre-booked" is by design (verified).
+
+**Build-credit charging — diagnostic.** Traced a real build end-to-end: charging works correctly now (Copenhagen: claim → 3 days → 25 credits). But the earliest charge in the entire DB is 2026-06-09 00:02 — **builds were silently free before then** (the claim `UPDATE` errored on a not-yet-migrated column → swallowed → treated as exempt). Pre-launch, no revenue lost. Latent risk flagged: the claim-error path (route ~line 1747) fails *open to free* — harden before launch.
+
+**Polish + ops.** Trip Story empty-photos slide now shows an "add your photos" CTA → Memories page instead of silently dropping (`0551d22`); onboarding step counter fixed "of 2" → "of 3". GOLIVE_CHECKLIST: explicit 3-placeholder Stripe price-ID step (`7c561bc`). Reset Mallory's maxed Travel-Pro credits (founder testing); flagged her duplicate account. Confirmed per-trip recap already uses real photos (the mock-photo issue is Year-in-Review only).
+
+**New memories:** `project_trip_pass_overlay_model` (updated through badge), `project_builder_inputs_audit`, `project_build_credit_charging_live`.
+
+---
+
 ## Recently Shipped (2026-05-30 — full-site QA audit + remediation marathon)
 
 A multi-day marathon: an 11-agent read-only QA audit across the whole app + a live-database audit (Supabase advisors, RLS, RPC bodies), then remediation of ~30 findings. **~31 commits, 5 production migrations, all tsc-clean.** Full findings + status: `SITE_QA_AUDIT_2026-05-30.md`.
