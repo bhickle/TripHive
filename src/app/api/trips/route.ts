@@ -108,16 +108,15 @@ export async function GET() {
       // (the prior `as unknown` cast was needed before the types were
       // regenerated; it bypassed the real return type, so drop it).
       supabase.rpc('trip_cities', { trip_ids: allTripIds }),
-      // Active Trip Passes per trip — drives the amber "Trip Pass" badge on
-      // the card. A Trip Pass is a per-trip overlay (Option A): the buyer's
-      // account stays Free, so the pass can only be surfaced at the trip
-      // level, not from the account tier. Just the trip_id is needed; "active"
-      // = not yet expired.
+      // Trip Passes per trip — drives the amber "Trip Pass" badge on the card.
+      // A Trip Pass is a per-trip overlay (Option A): the buyer's account stays
+      // Free, so the pass can only be surfaced at the trip level, not from the
+      // account tier. A once-passed trip keeps the badge forever as a historic
+      // record (decision 2026-06-11) — no expiry filter.
       supabase
         .from('trip_passes')
         .select('trip_id')
-        .in('trip_id', allTripIds)
-        .gt('expires_at', new Date().toISOString()),
+        .in('trip_id', allTripIds),
     ]);
 
     const membersByTrip = new Map<string, Array<{ name?: string | null; email?: string | null }>>();

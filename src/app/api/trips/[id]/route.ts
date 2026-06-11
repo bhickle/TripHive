@@ -98,13 +98,14 @@ export async function GET(
     // unlocks group-coordination for everyone on the trip; a Travel Pro
     // organizer's personal subscription does NOT extend to invitees.
     // Free joinees on a Travel Pro organizer's trip stay on their own free tier.
-    const nowIso = new Date().toISOString();
-    const { count: activePassCount } = await supabase
+    // Keys on whether the trip has EVER had a pass, not on an expiry window: a
+    // once-passed trip stays unlocked forever as a historic record (decision
+    // 2026-06-11).
+    const { count: passCount } = await supabase
       .from('trip_passes')
       .select('*', { count: 'exact', head: true })
-      .eq('trip_id', params.id)
-      .gt('expires_at', nowIso);
-    const isTripPassTrip = (activePassCount ?? 0) > 0;
+      .eq('trip_id', params.id);
+    const isTripPassTrip = (passCount ?? 0) > 0;
 
     // hasOriginal: true iff this trip's itinerary has a non-null original_days
     // snapshot the user can revert to. Drives the visibility of the "Revert

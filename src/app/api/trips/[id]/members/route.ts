@@ -302,11 +302,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       // account cap and the pass cap so a pass can't lower a Pro organizer's cap.
       const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
       const accountCap = typeof tierCap === 'number' ? tierCap : 4;
+      // No expires_at filter: a once-passed trip keeps its pass traveler cap
+      // forever as a historic record (decision 2026-06-11).
       const { data: pass } = await supabase
         .from('trip_passes')
         .select('extra_people')
         .eq('trip_id', params.id)
-        .gt('expires_at', new Date().toISOString())
         .order('purchased_at', { ascending: false })
         .maybeSingle();
       const cap = pass

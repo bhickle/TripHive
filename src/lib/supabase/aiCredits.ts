@@ -72,12 +72,14 @@ export async function checkAiCredits(
   // the pass — regardless of the user's personal tier. The pass IS the
   // trip's AI budget.
   if (tripId) {
-    const now = new Date().toISOString();
+    // The pass pool is the trip's AI budget. A once-passed trip stays a pass
+    // trip forever (decision 2026-06-11), so charges keep routing to the pool
+    // regardless of the service window — no expires_at filter. The fixed
+    // 50-credit pool is the natural cap, not time.
     const { data: pass } = await admin
       .from('trip_passes')
-      .select('id, ai_credits_total, ai_credits_used, expires_at')
+      .select('id, ai_credits_total, ai_credits_used')
       .eq('trip_id', tripId)
-      .gt('expires_at', now)
       .order('purchased_at', { ascending: false })
       .maybeSingle();
 

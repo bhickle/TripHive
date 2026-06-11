@@ -245,13 +245,14 @@ export async function hasTripFeatureAccess(
     return { allowed: true };
   }
 
-  // Pass overlay: if this trip has an active pass, the feature unlocks
-  // for every member.
+  // Pass overlay: if this trip has EVER had a pass, the feature unlocks for
+  // every member — permanently. A once-passed trip stays fully unlocked as a
+  // historic record after the trip wraps (decision 2026-06-11), so we do NOT
+  // filter on expires_at here.
   const { data: pass } = await supabase
     .from('trip_passes')
     .select('id')
     .eq('trip_id', tripId)
-    .gt('expires_at', new Date().toISOString())
     .maybeSingle();
   if (pass && TIER_LIMITS.trip_pass[feature]) {
     return { allowed: true };
@@ -261,13 +262,21 @@ export async function hasTripFeatureAccess(
 }
 
 /**
- * True when `tripId` has an active (unexpired) Trip Pass purchase. Lighter
- * than hasTripFeatureAccess — it answers "is this a pass trip?" without a
+ * True when `tripId` has a Trip Pass purchase. Lighter than
+ * hasTripFeatureAccess — it answers "is this a pass trip?" without a
  * caller-tier check or a specific feature key. Use for trip-scoped paid AI
  * endpoints (e.g. AI import) where a Free buyer who bought a pass for THIS
  * trip should be let through, even though their account stays Free under the
- * Option-A per-trip-overlay model. Creates its own admin client so callers
- * don't have to thread one. Fail-closed (returns false) on lookup error.
+ * Option-A per-trip-overlay model.
+ *
+ * A pass NEVER expires for access purposes: once bought, the trip stays
+ * unlocked forever as a historic record (decision 2026-06-11), so this does
+ * NOT filter on expires_at. The `expires_at` column records the service
+ * window (purchase → trip wrap-up) for presentation only. "Active" in the
+ * name means "this trip has a pass," not "within a time window."
+ *
+ * Creates its own admin client so callers don't have to thread one.
+ * Fail-closed (returns false) on lookup error.
  */
 export async function tripHasActivePass(tripId: string): Promise<boolean> {
   try {
@@ -276,7 +285,6 @@ export async function tripHasActivePass(tripId: string): Promise<boolean> {
       .from('trip_passes')
       .select('id')
       .eq('trip_id', tripId)
-      .gt('expires_at', new Date().toISOString())
       .maybeSingle();
     return !!pass;
   } catch {
@@ -353,11 +361,12 @@ export async function getTripTravelerCap(
   // pass cap so a pass can never LOWER a Travel Pro organizer's own cap.
   const tierCap = TIER_LIMITS[orgTier].travelersPerTrip;
   const accountCap = typeof tierCap === 'number' ? tierCap : 4;
+  // No expires_at filter: a once-passed trip keeps its pass traveler cap
+  // forever as a historic record (decision 2026-06-11).
   const { data: pass } = await supabase
     .from('trip_passes')
     .select('extra_people')
     .eq('trip_id', tripId)
-    .gt('expires_at', new Date().toISOString())
     .order('purchased_at', { ascending: false })
     .maybeSingle();
   const cap = pass ? Math.max(accountCap, 6 + (pass.extra_people ?? 0)) : accountCap;

@@ -217,10 +217,38 @@ export async function POST(req: NextRequest) {
           // clamp here too as defense-in-depth (QA #3).
           const extraPeople = Math.min(6, Math.max(0, parseInt(session.metadata?.extra_people ?? '0', 10) || 0));
           const now = new Date();
-          const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
           const supabaseAdmin = createAdminClient();
 
           if (tripId) {
+            // Trip Pass service window = purchase → trip wrap-up (+ a grace
+            // buffer), NOT a flat 30 days from purchase. The old `now + 30d`
+            // could expire a pass before a trip that starts months out had even
+            // begun. Computed from the trip's dates here.
+            //
+            // NOTE: under the 2026-06-11 "historic record" decision, access and
+            // features no longer gate on expires_at at all — a once-passed trip
+            // stays unlocked forever (see tripAccess.ts / aiCredits.ts). This
+            // timestamp is the recorded service window, used for presentation,
+            // not as an access gate.
+            const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+            const DAY_MS = 24 * 60 * 60 * 1000;
+            const { data: tripRow } = await supabaseAdmin
+              .from('trips')
+              .select('start_date, end_date, trip_length')
+              .eq('id', tripId)
+              .maybeSingle();
+            let expiresAt: string;
+            if (tripRow?.end_date) {
+              expiresAt = new Date(new Date(`${tripRow.end_date}T23:59:59Z`).getTime() + GRACE_MS).toISOString();
+            } else if (tripRow?.start_date) {
+              const lengthDays = tripRow.trip_length ?? 7;
+              expiresAt = new Date(new Date(`${tripRow.start_date}T00:00:00Z`).getTime() + lengthDays * DAY_MS + GRACE_MS).toISOString();
+            } else {
+              // Date-less trip (dates chosen later). Access doesn't depend on
+              // this value; use a generous window so presentation reads "active".
+              expiresAt = new Date(now.getTime() + 365 * DAY_MS).toISOString();
+            }
+
             // Upsert the trip pass record (idempotent on user_id + trip_id).
             // Credit budget sourced from PRICING.trip_pass.aiCredits (50 as of
             // 2026-05-16, sized for 1 build + 1 regen + ~5 small tweaks).
