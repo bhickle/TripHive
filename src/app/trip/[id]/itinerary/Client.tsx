@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { itineraryDays, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
@@ -81,6 +81,48 @@ import { EmptyState } from '@/components/EmptyState';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useModalUX } from '@/hooks/useModalUX';
 import { WeatherWidget } from '@/components/WeatherWidget';
+import { addDays } from '@/lib/tripDates';
+
+// Shape a raw AI-generated day (from /api/trips/[id]/add-day) into a safe
+// ItineraryDay: pin the slot's day number + date, fill missing optional fields,
+// and backfill activity string fields so downstream .split()/render code can't
+// throw on an undefined. Shared by the Add Day and Fill-missing-day flows.
+function normaliseGeneratedDay(
+  generatedDay: ItineraryDay,
+  dayNumber: number,
+  date: string,
+  destination: string,
+): ItineraryDay {
+  const day: ItineraryDay = {
+    ...generatedDay,
+    day: dayNumber,
+    date,
+    theme: generatedDay.theme ?? 'Free Day',
+    city: generatedDay.city ?? destination,
+    tracks: {
+      shared: generatedDay.tracks?.shared ?? [],
+      track_a: generatedDay.tracks?.track_a ?? [],
+      track_b: generatedDay.tracks?.track_b ?? [],
+    },
+    meetupTime: generatedDay.meetupTime ?? '',
+    meetupLocation: generatedDay.meetupLocation ?? '',
+    photoSpots: generatedDay.photoSpots ?? [],
+    foodieTips: generatedDay.foodieTips ?? [],
+    transportLegs: generatedDay.transportLegs ?? [],
+  };
+  for (const track of ['shared', 'track_a', 'track_b'] as const) {
+    const acts = (day.tracks as Record<string, Activity[]>)[track];
+    if (!Array.isArray(acts)) continue;
+    for (const a of acts) {
+      a.timeSlot = a.timeSlot ?? '';
+      a.title = a.title ?? a.name ?? 'Activity';
+      a.description = a.description ?? '';
+      a.address = a.address ?? '';
+      a.track = (a.track as 'shared' | 'track_a' | 'track_b') ?? track;
+    }
+  }
+  return day;
+}
 
 // ─── Transport helpers ────────────────────────────────────────────────────────
 
@@ -415,6 +457,12 @@ function ItineraryPageContent() {
   const [addDayMode, setAddDayMode] = useState<'ai' | 'manual'>('ai');
   const [addDayGenerating, setAddDayGenerating] = useState(false);
   const [addDayError, setAddDayError] = useState<string | null>(null);
+
+  // "Fill missing day(s)" recovery (partial-build gap). Separate from addDay*
+  // so the gap-recovery banner has its own spinner/error independent of the
+  // Add Day modal.
+  const [fillingMissing, setFillingMissing] = useState(false);
+  const [fillError, setFillError] = useState<string | null>(null);
 
   // Add Hotel / Add Flight modals
   const [showAddHotelModal, setShowAddHotelModal] = useState(false);
@@ -2189,6 +2237,40 @@ function ItineraryPageContent() {
   const isMockTrip = MOCK_TRIP_IDS.has(params.id);
   const activeDays = aiDays ?? (isMockTrip ? itineraryDays : []);
 
+  // Missing-day detection. A build whose chunk timed out leaves the surviving
+  // days with their ORIGINAL day numbers, so the array has a hole (e.g. days
+  // [1,2,4,5,6] — day 3 missing). The intended length is the largest of the
+  // trip_length column (synced down on a cut-off build but still a useful
+  // floor), the highest day number present, and the day count. Any number in
+  // 1..plannedDayCount not present is a missing day. This is DATA-driven (not
+  // the session-only liveBuildError), so the recovery banner survives reload.
+  const missingDays = useMemo(() => {
+    const days = activeDays as ItineraryDay[];
+    if (!days.length) return [] as { day: number; date: string }[];
+    const present = new Set(days.map(d => d.day));
+    // Originally-requested length, persisted in preferences at build time. It's
+    // the only signal that survives a TRAILING loss (last chunk fully failed),
+    // where trip_length gets synced down to the partial count and the max-day
+    // present no longer reveals the gap.
+    const plannedFromPrefs = Number((aiMeta?.preferences as Record<string, unknown> | undefined)?.tripLength) || 0;
+    const plannedDayCount = Math.max(
+      tripRow?.trip_length ?? 0,
+      plannedFromPrefs,
+      ...days.map(d => d.day ?? 0),
+      days.length,
+    );
+    // Anchor date = any present day with a valid date; a missing day N then
+    // gets anchorDate + (N - anchorDay). Empty for a date-less trip.
+    const anchor = days.find(d => d.date && !isNaN(new Date(d.date + 'T12:00:00').getTime()));
+    const out: { day: number; date: string }[] = [];
+    for (let n = 1; n <= plannedDayCount; n++) {
+      if (!present.has(n)) {
+        out.push({ day: n, date: anchor ? addDays(anchor.date, n - (anchor.day ?? 1)) : '' });
+      }
+    }
+    return out;
+  }, [activeDays, tripRow?.trip_length, aiMeta]);
+
   // Build the `trip` object passed to TripStoryModal and read in a few places
   // for `destination`. Previously this spread `...trips[0]` (Iceland mock) for
   // EVERY trip with aiMeta set, then overrode destination/budget. That leaked
@@ -2823,8 +2905,22 @@ function ItineraryPageContent() {
     setAddDayGenerating(true);
     setAddDayError(null);
 
-    const days = activeDays as import('@/lib/types').ItineraryDay[];
+    const days = activeDays as ItineraryDay[];
     const totalDays = days.length;
+
+    // Guard: a gapped itinerary (a chunk timed out, leaving day numbers like
+    // [1,2,4,5,6]) breaks the +1 shift below — it would bump the surviving
+    // days' numbers AND dates, scrambling the calendar and opening a NEW hole
+    // instead of filling the old one. When days are missing, refuse the insert
+    // and steer the user to the recovery banner ("Fill missing day" /
+    // "Regenerate"), which fills the hole in place without shifting anything.
+    if (missingDays.length > 0) {
+      setAddDayError(
+        'This trip has a missing day from an interrupted build. Use “Fill missing day” (or Regenerate) at the top of the itinerary first — adding a day now would shift the dates.',
+      );
+      setAddDayGenerating(false);
+      return;
+    }
 
     // Determine insert index (0-based into the sorted array)
     let insertIndex: number;
@@ -2839,32 +2935,22 @@ function ItineraryPageContent() {
 
     const newDayNumber = insertIndex + 1; // 1-based day number at insertion point
 
-    // Safely offset an ISO date string by N days. Returns '' for an empty or
-    // invalid input — trips forked from a featured itinerary with no dates
-    // picked have date-less days, and `new Date('' + 'T12:00:00').toISOString()`
-    // throws RangeError, which previously crashed Add Day (and froze the modal).
-    const offsetDate = (dateStr: string | undefined, deltaDays: number): string => {
-      if (!dateStr) return '';
-      const d = new Date(dateStr + 'T12:00:00');
-      if (isNaN(d.getTime())) return '';
-      d.setDate(d.getDate() + deltaDays);
-      return d.toISOString().slice(0, 10);
-    };
-
-    // Compute new day's date by offsetting from the day before (if any).
-    // Stays '' for a date-less trip.
+    // Compute new day's date by offsetting from the day before (if any). Stays
+    // '' for a date-less trip. addDays is the shared, RangeError-safe offset
+    // helper — date-less forks have empty dates that used to crash here.
     const sortedDays = [...days].sort((a, b) => a.day - b.day);
     let newDate = '';
     if (sortedDays.length > 0) {
       newDate = insertIndex === 0
-        ? offsetDate(sortedDays[0].date, -1)
-        : offsetDate(sortedDays[Math.min(insertIndex - 1, sortedDays.length - 1)].date, 1);
+        ? addDays(sortedDays[0].date, -1)
+        : addDays(sortedDays[Math.min(insertIndex - 1, sortedDays.length - 1)].date, 1);
     }
 
     // Shift all days at or after newDayNumber up by 1 (day number + date).
+    // Safe here because the guard above guarantees contiguous day numbers.
     const shiftedDays = sortedDays.map(d => {
       if (d.day >= newDayNumber) {
-        return { ...d, day: d.day + 1, date: offsetDate(d.date, 1) };
+        return { ...d, day: d.day + 1, date: addDays(d.date, 1) };
       }
       return d;
     });
@@ -2898,7 +2984,14 @@ function ItineraryPageContent() {
       const res = await fetch(`/api/trips/${params.id}/add-day`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destination, dayNumber: newDayNumber, date: newDate, existingThemes, priorities }),
+        body: JSON.stringify({
+          destination, dayNumber: newDayNumber, date: newDate, existingThemes, priorities,
+          // Original-brief context so the new day matches the trip's character.
+          budget: (aiMeta?.budget as number) || tripRow?.budget_total || 0,
+          groupType: tripRow?.group_type || (aiMeta?.groupType as string) || '',
+          groupSize: tripRow?.group_size || 0,
+          organizerPace: ((aiMeta?.preferences as Record<string, unknown> | undefined)?.organizerPace as string) || '',
+        }),
       });
       if (!res.ok) {
         // Surface the server's message when it's a verification fail —
@@ -2915,41 +3008,11 @@ function ItineraryPageContent() {
         } catch { /* non-JSON body, keep generic */ }
         throw new Error(msg);
       }
-      const { day: generatedDay } = await res.json() as { day: import('@/lib/types').ItineraryDay };
+      const { day: generatedDay } = await res.json() as { day: ItineraryDay };
       // Normalise the AI's day so missing optional fields don't crash render
-      // paths that assume they're set. Multiple components read these fields
-      // (sidebar Day Highlights, MapView, Weather, etc.) and an unguarded
-      // .split() on a missing string field reproducibly broke this flow.
-      const normalisedDay: import('@/lib/types').ItineraryDay = {
-        ...generatedDay,
-        day: newDayNumber,
-        date: newDate,
-        theme: generatedDay.theme ?? 'Free Day',
-        city: generatedDay.city ?? destination,
-        tracks: {
-          shared: generatedDay.tracks?.shared ?? [],
-          track_a: generatedDay.tracks?.track_a ?? [],
-          track_b: generatedDay.tracks?.track_b ?? [],
-        },
-        meetupTime: generatedDay.meetupTime ?? '',
-        meetupLocation: generatedDay.meetupLocation ?? '',
-        photoSpots: generatedDay.photoSpots ?? [],
-        foodieTips: generatedDay.foodieTips ?? [],
-        transportLegs: generatedDay.transportLegs ?? [],
-      };
-      // Backfill any missing string fields on each activity so downstream
-      // .split() / display code never hits undefined.
-      for (const track of ['shared', 'track_a', 'track_b'] as const) {
-        const acts = (normalisedDay.tracks as Record<string, import('@/lib/types').Activity[]>)[track];
-        if (!Array.isArray(acts)) continue;
-        for (const a of acts) {
-          a.timeSlot = a.timeSlot ?? '';
-          a.title = a.title ?? a.name ?? 'Activity';
-          a.description = a.description ?? '';
-          a.address = a.address ?? '';
-          a.track = (a.track as 'shared' | 'track_a' | 'track_b') ?? track;
-        }
-      }
+      // paths that assume they're set (sidebar Day Highlights, MapView, Weather
+      // — an unguarded .split() on a missing string field broke this flow).
+      const normalisedDay = normaliseGeneratedDay(generatedDay, newDayNumber, newDate, destination);
       shiftedDays.splice(insertIndex, 0, normalisedDay);
       const finalDays = shiftedDays.sort((a, b) => a.day - b.day);
       persistDays(finalDays);
@@ -2966,7 +3029,75 @@ function ItineraryPageContent() {
     } finally {
       setAddDayGenerating(false);
     }
-  }, [activeDays, addDayPosition, addDayRelativeTo, addDayMode, aiMeta, trip, params.id, persistDays, setSelectedDay]);
+  }, [activeDays, addDayPosition, addDayRelativeTo, addDayMode, aiMeta, trip, tripRow, missingDays, params.id, persistDays, setSelectedDay]);
+
+  // ─── Fill missing day(s) — partial-build gap recovery ─────────────────────────
+  // Backfills each hole left by a timed-out build IN PLACE: generates only the
+  // missing day number(s), pins each to its correct number + date, and splices
+  // them in WITHOUT shifting the surviving days (the bug Add Day hits on a
+  // gapped trip). Each missing day is sent the full original brief (budget,
+  // group, pace, priorities) so it matches the rest of the trip. Sequential so
+  // the credit charges + theme-avoid list stay correct per day.
+  const handleFillMissingDays = useCallback(async () => {
+    if (missingDays.length === 0 || fillingMissing) return;
+    setFillingMissing(true);
+    setFillError(null);
+
+    const days = [...(activeDays as ItineraryDay[])];
+    const destination = aiMeta?.destination || trip.destination || 'the destination';
+    const priorities = (aiMeta?.preferences?.priorities as string[] | undefined) || [];
+    const briefBody = {
+      budget: (aiMeta?.budget as number) || tripRow?.budget_total || 0,
+      groupType: tripRow?.group_type || (aiMeta?.groupType as string) || '',
+      groupSize: tripRow?.group_size || 0,
+      organizerPace: ((aiMeta?.preferences as Record<string, unknown> | undefined)?.organizerPace as string) || '',
+    };
+
+    const filled: ItineraryDay[] = [];
+    try {
+      for (const missing of missingDays) {
+        const existingThemes = [...days, ...filled].map(d => d.theme).filter(Boolean);
+        const res = await fetch(`/api/trips/${params.id}/add-day`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            destination,
+            dayNumber: missing.day,
+            date: missing.date,
+            existingThemes,
+            priorities,
+            ...briefBody,
+          }),
+        });
+        if (!res.ok) {
+          let msg = `Couldn't generate Day ${missing.day}.`;
+          try {
+            const errBody = await res.json() as { error?: string; message?: string };
+            if (errBody?.message) msg = errBody.message;
+          } catch { /* non-JSON body, keep generic */ }
+          throw new Error(msg);
+        }
+        const { day: generatedDay } = await res.json() as { day: ItineraryDay };
+        filled.push(normaliseGeneratedDay(generatedDay, missing.day, missing.date, destination));
+      }
+
+      // Splice the backfilled days in and re-sort — surviving days keep their
+      // original numbers + dates (no shift), so the calendar stays intact.
+      const finalDays = [...days, ...filled].sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+      persistDays(finalDays);
+      if (filled.length > 0) setSelectedDay(filled[0].day);
+    } catch (err) {
+      // Persist whatever filled successfully before the failure so the user
+      // doesn't lose paid days; surface the error for the rest.
+      if (filled.length > 0) {
+        const partial = [...days, ...filled].sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+        persistDays(partial);
+      }
+      setFillError(err instanceof Error ? err.message : 'Could not fill the missing day. Please try again or Regenerate.');
+    } finally {
+      setFillingMissing(false);
+    }
+  }, [missingDays, fillingMissing, activeDays, aiMeta, trip, tripRow, params.id, persistDays, setSelectedDay]);
 
   const hasTrackA = (currentDayData.tracks?.track_a?.length ?? 0) > 0;
   const hasTrackB = (currentDayData.tracks?.track_b?.length ?? 0) > 0;
@@ -3149,6 +3280,58 @@ function ItineraryPageContent() {
             <span className="text-sm font-medium">{liveBuildError}</span>
           </div>
         )}
+
+        {/* Missing-day recovery banner — DATA-driven (survives reload, unlike
+            the session-only liveBuildError above), so it's here whenever a
+            timed-out build left a hole in the day numbers. Two paths: backfill
+            just the missing day(s) in place (cheap, keeps the rest intact), or
+            a full Regenerate. Rose = needs-action, per the warning-banner rule. */}
+        {aiDays && !isLiveBuilding && canEditItinerary && missingDays.length > 0 && (() => {
+          const fmtShort = (iso: string) => {
+            const d = new Date(iso + 'T12:00:00');
+            return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          };
+          const single = missingDays.length === 1;
+          const firstDate = fmtShort(missingDays[0].date);
+          const title = single
+            ? `Day ${missingDays[0].day}${firstDate ? ` (${firstDate})` : ''} is missing from this trip.`
+            : `${missingDays.length} days are missing from this trip (Days ${missingDays.map(m => m.day).join(', ')}).`;
+          return (
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 bg-rose-50 border border-rose-200 rounded-2xl">
+              <div className="flex items-start gap-3 min-w-0">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-500 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-rose-700">{title}</p>
+                  <p className="text-xs text-rose-600">
+                    {fillingMissing
+                      ? 'Filling the missing day(s) — this can take a moment per day…'
+                      : fillError
+                        ? fillError
+                        : 'A build segment likely timed out. Fill just the missing day, or rebuild the whole itinerary.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <button
+                  onClick={handleFillMissingDays}
+                  disabled={fillingMissing}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:opacity-60 text-white text-xs font-bold rounded-full transition-colors whitespace-nowrap"
+                >
+                  {fillingMissing
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Filling…</>
+                    : <><Sparkles className="w-3.5 h-3.5" /> {single ? 'Fill missing day' : 'Fill missing days'}</>}
+                </button>
+                <button
+                  onClick={() => setShowRegenerateConfirm(true)}
+                  disabled={fillingMissing}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-rose-200 hover:bg-rose-100 disabled:opacity-60 text-rose-700 text-xs font-bold rounded-full transition-colors whitespace-nowrap"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Regenerate all
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Missing-dates banner — shown when the trip has no start_date
             (e.g. forked from a community template with "Skip — I'll pick

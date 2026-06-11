@@ -109,6 +109,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const date = rawDate && rawDate !== 'null' ? rawDate : '';
   const existingThemes = (body.existingThemes as string[]) || [];
   const priorities = (body.priorities as string[]) || [];
+  // Original-brief context (load-bearing inputs: budget + group + pace). When a
+  // day is backfilled into a partial build via "Fill missing day," the client
+  // sends these so the new day matches the trip's established character instead
+  // of being planned from destination + priorities alone. All optional — a
+  // plain Add Day omits them and the prompt simply leaves those lines out.
+  const budget = typeof body.budget === 'number' ? body.budget : 0;
+  const groupType = (body.groupType as string) || '';
+  const groupSize = typeof body.groupSize === 'number' ? body.groupSize : 0;
+  const organizerPace = (body.organizerPace as string) || '';
 
   const parsedDate = date ? new Date(date + 'T12:00:00') : null;
   const dateLabel = parsedDate && !isNaN(parsedDate.getTime())
@@ -123,7 +132,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     ? `\nAvoid repeating these themes already used on other days: ${existingThemes.slice(0, 8).join('; ')}.`
     : '';
 
-  const prompt = `Generate a complete single day itinerary for Day ${dayNumber} (${dateLabel}) in ${destination}.${priorityNote}${themeNote}
+  // Mirror the load-bearing inputs the main build prompt uses, so a backfilled
+  // day reads like the rest of the trip (per the builder-inputs ruling: budget
+  // + priorities are what actually shape the itinerary).
+  const briefBits: string[] = [];
+  if (groupType) briefBits.push(`Group: ${groupType}${groupSize ? ` of ${groupSize}` : ''}.`);
+  if (budget > 0) briefBits.push(`Total trip budget: ~$${budget} — match that spending level when choosing venues and price points.`);
+  if (organizerPace) briefBits.push(`Preferred daily pace: ${organizerPace}.`);
+  const briefNote = briefBits.length ? `\n${briefBits.join(' ')}` : '';
+
+  const prompt = `Generate a complete single day itinerary for Day ${dayNumber} (${dateLabel}) in ${destination}.${priorityNote}${briefNote}${themeNote}
 
 Return EXACTLY this JSON object (no array wrapper, no markdown). Field names MUST match exactly — the rendering code keys off these specific names:
 {

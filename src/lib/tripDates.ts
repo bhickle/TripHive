@@ -33,6 +33,20 @@ export function daysUntil(startDate: string): number {
 }
 
 /**
+ * Offset a YYYY-MM-DD date string by `delta` days, returning YYYY-MM-DD.
+ * Noon-anchored so DST / timezone edges don't slip a day. Returns '' for an
+ * empty or unparseable input (date-less trips forked with no dates picked) —
+ * callers treat '' as "no date" and render "Day N" instead of a bad date.
+ */
+export function addDays(dateStr: string | undefined, delta: number): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * "Time ago" for a timestamp — minute/hour/day buckets (rounded), falling back
  * to an explicit "Mon D" past 7 days. One implementation so the notification
  * panel and the standalone notifications page render the same string (they
