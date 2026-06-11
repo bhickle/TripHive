@@ -3202,18 +3202,25 @@ function ItineraryPageContent() {
           </div>
         )}
 
-        {/* "Trip Pass active" chip — the counterpart to the upsell banner
-            above, shown once THIS trip has an active pass. A Trip Pass is a
-            per-trip overlay (Option A): the buyer's account stays Free, so we
-            confirm the pass here on the trip. Amber = the reserved "Trip Pass /
+        {/* Trip Pass chip — the counterpart to the upsell banner above, shown
+            once THIS trip has had a pass. A Trip Pass is a per-trip overlay
+            (Option A): the buyer's account stays Free, so we confirm the pass
+            here on the trip. Reads "Trip Pass active" during the trip and drops
+            to plain "Trip Pass" once the last day has passed — the pass never
+            expires for access, so a completed trip stays a Trip Pass trip as a
+            historic record (2026-06-11). Amber = the reserved "Trip Pass /
             paid" brand color. */}
-        {aiDays && !isLiveBuilding && isTripPassTrip && (
-          <div className="mb-4">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-              <Ticket className="w-3.5 h-3.5" /> Trip Pass active
-            </span>
-          </div>
-        )}
+        {aiDays && !isLiveBuilding && isTripPassTrip && (() => {
+          const lastDate = aiDays[aiDays.length - 1]?.date;
+          const tripEnded = !!lastDate && new Date(`${lastDate}T23:59:59`) < new Date();
+          return (
+            <div className="mb-4">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                <Ticket className="w-3.5 h-3.5" /> {tripEnded ? 'Trip Pass' : 'Trip Pass active'}
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Toasts */}
         {activityAdded && (
