@@ -660,7 +660,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
       const res = await fetch('/api/enrich-itinerary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tripId: savedTripId, includeRestaurants: true }),
+        body: JSON.stringify({ tripId: savedTripId, includeRestaurants: true, includeTransport: true }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1342,7 +1342,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                           {enrichResult.meals > 0
                             ? `Added meals to ${enrichResult.meals / 3} day${enrichResult.meals / 3 === 1 ? '' : 's'}, plus `
                             : 'Added '}
-                          photo spots &amp; local tips across {enrichResult.days} day{enrichResult.days === 1 ? '' : 's'}. Open your itinerary to see them.
+                          walking directions, photo spots &amp; local tips across {enrichResult.days} day{enrichResult.days === 1 ? '' : 's'}. Open your itinerary to see them.
                         </p>
                       </div>
                     </div>
@@ -1353,7 +1353,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-zinc-900 text-sm">Want the details filled in?</p>
                           <p className="text-xs text-sky-800 mt-0.5 leading-snug">
-                            Your plan came in exactly as you wrote it. We can add restaurants for any day missing meals, plus photo spots and local tips around your stops — your own venues stay untouched.
+                            Your plan came in exactly as you wrote it. We can add restaurants for any day missing meals, plus walking directions between your stops, photo spots, and local tips — your own venues stay untouched.
                           </p>
                           {enrichError && <p className="text-xs text-rose-600 mt-2">{enrichError}</p>}
                         </div>

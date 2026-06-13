@@ -46,6 +46,10 @@ interface ActivityLite {
   // are the common case).
   isRestaurant?: boolean;
   mealType?: 'breakfast' | 'lunch' | 'dinner' | null;
+  // timeSlot lets the transport backfill order the day's stops so it can
+  // estimate the hop from each stop to the next.
+  timeSlot?: string;
+  transportToNext?: unknown;
 }
 
 interface DayLite {
@@ -94,6 +98,19 @@ function summarizeDay(day: DayLite): string {
   return `${city}${theme}Activities: ${items.length > 0 ? items.join('; ') : '(none listed)'}`;
 }
 
+/** A day's stops in array order (shared → track_a → track_b), names + time.
+ *  This is the sequence the transport backfill estimates legs along. */
+function orderedStops(day: DayLite): { name: string; timeSlot?: string }[] {
+  const acts: ActivityLite[] = [
+    ...(day.tracks?.shared ?? []),
+    ...(day.tracks?.track_a ?? []),
+    ...(day.tracks?.track_b ?? []),
+  ];
+  return acts
+    .map(a => ({ name: (a.name || a.title || '').trim(), timeSlot: a.timeSlot }))
+    .filter(s => s.name.length > 0);
+}
+
 function buildEnrichmentPrompt(
   destination: string,
   priorities: string[],
@@ -104,6 +121,9 @@ function buildEnrichmentPrompt(
   /** budgetTierLevel from preferences. Drives priceLevel cap on restaurants.
    *  Defaults to 50 (MID-RANGE) when missing. */
   budgetTierLevel: number,
+  /** When true, also estimate the walking/transit leg from each stop to the
+   *  next (transportToNext). Parsed imports have none. */
+  includeTransport: boolean,
 ): string {
   const hasFood = priorities.includes('food');
   const hasNightlife = priorities.includes('nightlife');
@@ -140,7 +160,10 @@ function buildEnrichmentPrompt(
       const restaurantMark = daysNeedingRestaurants.has(d.day)
         ? ' [needs breakfast/lunch/dinner suggestions — day has no restaurants yet]'
         : '';
-      return `\n  Day ${d.day}${restaurantMark} — ${summarizeDay(d)}`;
+      const stopsLine = includeTransport
+        ? `\n    Stops in order: ${orderedStops(d).map((s, i) => `${i + 1}. ${s.name}${s.timeSlot ? ` (${s.timeSlot})` : ''}`).join(' → ') || '(none)'}`
+        : '';
+      return `\n  Day ${d.day}${restaurantMark} — ${summarizeDay(d)}${stopsLine}`;
     })
     .join('');
 
@@ -176,6 +199,9 @@ Return ONLY valid JSON — no markdown, no commentary — matching this shape:
       "destinationTip": "one punchy insider fact about this city or region tied to the day's theme/neighborhood"${restaurantDayList.length > 0 ? `,
       "restaurants": [
         { "name": "real restaurant name", "neighborhood": "district near today's activities", "mealType": "breakfast|lunch|dinner", "timeSlot": "HH:MM–HH:MM (en-dash)", "address": "full street address if known else null", "priceLevel": <0-${maxRestaurantPriceLevel}>, "description": "1-sentence why this spot — cite the source of its reputation (local institution, neighborhood favorite, etc.)" }
+      ]` : ''}${includeTransport ? `,
+      "transport": [
+        { "from": "<exact venue name from this day's Stops list>", "mode": "walk|transit|taxi|drive", "durationMins": <integer>, "distanceMiles": <number>, "notes": "<short hop note, e.g. '10-min walk along the river'>" }
       ]` : ''}
     }
   ]
@@ -190,7 +216,9 @@ ${discoveryPriorities.length > 0 ? `5. priorityHighlights: 1–2 per day coverin
 ${discoveryPriorities.length === 0 ? '5.' : '6.'} destinationTip: punchy, specific, tied to the day's location. Rotate the topic across days (food → tradition → quirky fact → etc.).
 ${discoveryPriorities.length === 0 ? '6.' : '7.'} All venues must be real and accurately named. Anchor to the neighborhoods the user is already visiting that day — don't send them across town.
 ${discoveryPriorities.length === 0 ? '7.' : '8.'} Return exactly ${days.length} day objects, one for each day above, in order.${restaurantDayList.length > 0 ? `
-${discoveryPriorities.length === 0 ? '8.' : '9.'} RESTAURANT BACKFILL — for ONLY these day numbers: ${restaurantDayList.join(', ')}, include the "restaurants" array with EXACTLY 3 entries: one breakfast, one lunch, one dinner. Each must be a REAL named restaurant in ${destination}, geographically anchored to the day's existing activities (no cross-town detours). Time slots: breakfast 07:30–09:00, lunch 12:30–14:00, dinner 19:00–21:00 (en-dash). Use mealType: "breakfast" | "lunch" | "dinner". priceLevel ceilings: breakfast ≤ ${mealPriceLevels.breakfast}, lunch ≤ ${mealPriceLevels.lunch}, dinner ≤ ${mealPriceLevels.dinner} (NEVER exceed ${maxRestaurantPriceLevel} on any meal). Address is best-effort — null is acceptable if you're not sure. Do NOT include restaurants for days NOT in that list, and do NOT re-suggest a restaurant the user already has in their day's activities. The description should cite the source of the restaurant's reputation, not invent a star rating.` : ''}`;
+${discoveryPriorities.length === 0 ? '8.' : '9.'} RESTAURANT BACKFILL — for ONLY these day numbers: ${restaurantDayList.join(', ')}, include the "restaurants" array with EXACTLY 3 entries: one breakfast, one lunch, one dinner. Each must be a REAL named restaurant in ${destination}, geographically anchored to the day's existing activities (no cross-town detours). Time slots: breakfast 07:30–09:00, lunch 12:30–14:00, dinner 19:00–21:00 (en-dash). Use mealType: "breakfast" | "lunch" | "dinner". priceLevel ceilings: breakfast ≤ ${mealPriceLevels.breakfast}, lunch ≤ ${mealPriceLevels.lunch}, dinner ≤ ${mealPriceLevels.dinner} (NEVER exceed ${maxRestaurantPriceLevel} on any meal). Address is best-effort — null is acceptable if you're not sure. Do NOT include restaurants for days NOT in that list, and do NOT re-suggest a restaurant the user already has in their day's activities. The description should cite the source of the restaurant's reputation, not invent a star rating.` : ''}${includeTransport ? `
+
+TRANSPORT BACKFILL: For each day, return a "transport" array with one leg FROM each stop TO the next stop, following the "Stops in order" list for that day (skip the LAST stop — it has no next). Use the exact stop name as "from". Estimate a realistic "mode" (walk for ≤ ~1 mi between adjacent stops, otherwise transit/taxi/drive), an integer "durationMins", and a "distanceMiles" number, for the real venues in ${destination}. Keep "notes" to a short phrase ("10-min walk through the old town"). Only produce legs between the stops listed — never invent new stops.` : ''}`;
 }
 
 // Extend the serverless timeout — this route makes a blocking Haiku call backfilling restaurants across a full itinerary
@@ -202,14 +230,14 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   // Parse body up-front so we can reach tripId for the access check.
-  let body: { tripId?: string; dayNumbers?: number[]; includeRestaurants?: boolean };
+  let body: { tripId?: string; dayNumbers?: number[]; includeRestaurants?: boolean; includeTransport?: boolean };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
 
-  const { tripId, dayNumbers, includeRestaurants } = body;
+  const { tripId, dayNumbers, includeRestaurants, includeTransport } = body;
   if (!tripId || typeof tripId !== 'string') {
     return NextResponse.json({ error: 'tripId required' }, { status: 400 });
   }
@@ -305,6 +333,7 @@ export async function POST(req: NextRequest) {
     targetDays,
     daysNeedingRestaurants,
     budgetTierLevel,
+    !!includeTransport,
   );
 
   let parsed: { days: Array<Record<string, unknown>> };
@@ -468,6 +497,41 @@ export async function POST(req: NextRequest) {
         shared: [...existingShared, ...newRestaurants],
         track_a: mergedTracks?.track_a,
         track_b: mergedTracks?.track_b,
+      };
+    }
+
+    // Transport backfill: set transportToNext on stops that don't already have
+    // one, matching the AI's legs to stops by venue name. Applies across all
+    // tracks. Runs AFTER restaurant backfill so a freshly-added meal is at
+    // least present in the track (it just won't carry its own leg this pass).
+    if (includeTransport && Array.isArray(enriched.transport) && enriched.transport.length > 0) {
+      const norm = (s: unknown) => (typeof s === 'string' ? s : '').trim().toLowerCase();
+      const legByName = new Map<string, { mode: string; durationMins: number; distanceMiles: number; notes: string | null }>();
+      for (const t of enriched.transport as Array<Record<string, unknown>>) {
+        const from = norm(t.from);
+        if (!from) continue;
+        legByName.set(from, {
+          mode: typeof t.mode === 'string' ? t.mode : 'walk',
+          durationMins: typeof t.durationMins === 'number' ? t.durationMins : 0,
+          distanceMiles: typeof t.distanceMiles === 'number' ? t.distanceMiles : 0,
+          notes: typeof t.notes === 'string' ? t.notes : null,
+        });
+      }
+      const base = mergedTracks ?? (existing.tracks as { shared?: unknown[]; track_a?: unknown[]; track_b?: unknown[] } | undefined);
+      const applyLegs = (acts: unknown): unknown[] | undefined => {
+        if (!Array.isArray(acts)) return acts as undefined;
+        return acts.map(a => {
+          if (!a || typeof a !== 'object') return a;
+          const act = a as Record<string, unknown>;
+          if (act.transportToNext) return act; // never overwrite an existing leg
+          const leg = legByName.get(norm(act.name ?? act.title));
+          return leg ? { ...act, transportToNext: leg } : act;
+        });
+      };
+      mergedTracks = {
+        shared: applyLegs(base?.shared),
+        track_a: applyLegs(base?.track_a),
+        track_b: applyLegs(base?.track_b),
       };
     }
 
