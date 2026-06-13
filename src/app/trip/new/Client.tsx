@@ -8,7 +8,7 @@ import { UpgradeModal, LockBadge } from '@/components/UpgradeModal';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePlacesSearch } from '@/hooks/usePlacesSearch';
-import type { PaceLevel } from '@/lib/types';
+import type { PaceLevel, ParsedPlan, ParsedDayPlan } from '@/lib/types';
 import { TIER_LIMITS } from '@/lib/types';
 import {
   ChevronLeft,
@@ -121,6 +121,10 @@ interface TripWizardState {
   /** Per-day outlines. Index N = day N+1. Empty strings are ignored. Length
    *  is kept in lock-step with tripLength; resized when the date range changes. */
   dailyOutlines: string[];
+  /** Structured split / cross-city signal per day, set when the user pastes a
+   *  plan on the "Where To" step (parse-plan). Carried into the build payload
+   *  so the generator honors explicit Track A/B (and Layer-2 cross-city). */
+  dayPlans: ParsedDayPlan[];
 }
 
 // Default trip title. Multi-city trips read all cities ("Paris & Rome")
@@ -508,7 +512,78 @@ function TripBuilderPage() {
     referenceContent: '',
     knowsDailyPlans: false,
     dailyOutlines: [],
+    dayPlans: [],
   });
+
+  // "Paste my plan" affordance on the Where-To step — parses free-text notes
+  // into builder fields via /api/parse-plan (Layer 1 of paste-to-plan).
+  const [showPlanPaste, setShowPlanPaste] = useState(false);
+  const [planPasteText, setPlanPasteText] = useState('');
+  const [planParsing, setPlanParsing] = useState(false);
+  const [planParseError, setPlanParseError] = useState<string | null>(null);
+  const [planParsedNote, setPlanParsedNote] = useState<string | null>(null);
+
+  const handleParsePlan = async () => {
+    const text = planPasteText.trim();
+    if (text.length < 30) {
+      setPlanParseError('Paste a bit more detail so we can pull out your plan.');
+      return;
+    }
+    setPlanParsing(true);
+    setPlanParseError(null);
+    setPlanParsedNote(null);
+    try {
+      const res = await fetch('/api/parse-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        let msg = 'Could not read a plan from that text.';
+        try { const e = await res.json() as { message?: string }; if (e?.message) msg = e.message; } catch { /* keep generic */ }
+        throw new Error(msg);
+      }
+      const { plan } = await res.json() as { plan: ParsedPlan };
+      setState(prev => {
+        const next = { ...prev };
+        if (plan.destination) next.destination = plan.destination;
+        if (plan.destinations && plan.destinations.length > 1) {
+          next.destinations = plan.destinations;
+          if (plan.daysPerDestination) next.daysPerDestination = plan.daysPerDestination;
+        }
+        if (plan.startDate) next.startDate = plan.startDate;
+        if (plan.endDate) next.endDate = plan.endDate;
+        if (plan.tripLength && plan.tripLength > 0) next.tripLength = plan.tripLength;
+        if (plan.groupType) next.groupType = plan.groupType;
+        if (plan.groupSize && plan.groupSize > 0) next.groupSize = plan.groupSize;
+        // Per-day outlines are the strongest signal — turn on the day-by-day
+        // branch so they actually flow to the build, and stash the structured
+        // split/cross-city signal. (Priorities are left for the user to pick on
+        // the Priorities step — the parser's free-text labels don't map 1:1 to
+        // the builder's priority IDs, so auto-setting them would mislead.)
+        if (plan.dailyOutlines && plan.dailyOutlines.some(o => o.trim())) {
+          next.knowsDailyPlans = true;
+          next.dailyOutlines = plan.dailyOutlines;
+        }
+        next.dayPlans = plan.dayPlans ?? [];
+        return next;
+      });
+      const dayCount = plan.dayPlans?.length ?? plan.dailyOutlines?.filter(o => o.trim()).length ?? 0;
+      const splitCount = (plan.dayPlans ?? []).filter(d => d.split).length;
+      const crossCount = (plan.dayPlans ?? []).filter(d => d.crossCity).length;
+      setPlanParsedNote(
+        `Pulled ${dayCount} day${dayCount === 1 ? '' : 's'} from your notes`
+        + (splitCount ? `, ${splitCount} with a Track A/B split` : '')
+        + (crossCount ? ` (${crossCount} cross-city)` : '')
+        + '. Step through and tweak anything before you build.',
+      );
+      setShowPlanPaste(false);
+    } catch (err) {
+      setPlanParseError(err instanceof Error ? err.message : 'Could not read a plan. Try again.');
+    } finally {
+      setPlanParsing(false);
+    }
+  };
 
   const [showDestinationSuggestions, setShowDestinationSuggestions] =
     useState(false);
@@ -933,6 +1008,9 @@ function TripBuilderPage() {
       dailyOutlines: state.knowsDailyPlans
         ? Array.from({ length: state.tripLength }, (_, i) => (state.dailyOutlines[i] ?? '').trim())
         : [],
+      // Structured split / cross-city signal from a pasted plan. The generator
+      // honors split:true days exactly and detects crossCity days (Layer 2).
+      dayPlans: state.dayPlans,
       // Featured Itinerary backbone (when user came from /discover/[slug]
       // → "Start planning this trip"). Forwards the slug so generate-
       // itinerary can fetch the editorial picks and inject them into the
@@ -997,6 +1075,7 @@ function TripBuilderPage() {
         referenceContent: state.referenceContent,
         knowsDailyPlans: state.knowsDailyPlans,
         dailyOutlines: state.dailyOutlines,
+        dayPlans: state.dayPlans,
         destinations: state.destinations,
         daysPerDestination: state.daysPerDestination,
         ...(state.hasPreBookedCar && state.bookedCar ? { bookedCar: state.bookedCar } : {}),
@@ -1451,6 +1530,62 @@ function TripBuilderPage() {
                 <h2 className="text-2xl font-script italic font-semibold text-zinc-900 mb-6">
                   Where to? 🌍
                 </h2>
+
+                {/* Paste-my-plan — parse free-text notes (a Word doc, an email,
+                    a day-by-day plan with Track A/B) into the builder fields so
+                    the user doesn't re-type it. Mirrors the "Or paste itinerary
+                    text" pattern from the Already-Planned import. */}
+                <div className="mb-6">
+                  {!showPlanPaste ? (
+                    <button
+                      type="button"
+                      onClick={() => { setShowPlanPaste(true); setPlanParsedNote(null); }}
+                      className="text-sm font-semibold text-sky-700 hover:text-sky-900 underline underline-offset-2"
+                    >
+                      Already have notes or a plan? Paste it and we&apos;ll fill this in →
+                    </button>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-300 bg-white p-4">
+                      <div className="flex items-baseline justify-between mb-2">
+                        <label className="text-sm font-semibold text-zinc-900">Paste your trip notes</label>
+                        <button
+                          type="button"
+                          onClick={() => { setShowPlanPaste(false); setPlanParseError(null); }}
+                          className="text-xs text-zinc-400 hover:text-zinc-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <p className="text-xs text-zinc-500 mb-2">
+                        From a Word doc, email, or your own outline. Include day-by-day plans, specific spots, times — even &ldquo;Track A / Track B&rdquo; if you&apos;re splitting the group. We&apos;ll fill in the steps for you to review.
+                      </p>
+                      <textarea
+                        value={planPasteText}
+                        onChange={(e) => setPlanPasteText(e.target.value)}
+                        rows={8}
+                        placeholder={'Saturday 6/20 — Arrive 3pm\nSunday 6/21 — Catacombs 11:30am\nWednesday 6/24 — Track A: Florence (train, Uffizi, Accademia)  Track B: Tivoli\n…'}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-100 resize-y"
+                      />
+                      {planParseError && (
+                        <p className="mt-2 text-xs font-medium text-rose-600">{planParseError}</p>
+                      )}
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleParsePlan}
+                          disabled={planParsing}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-800 hover:bg-sky-900 disabled:opacity-60 text-white text-xs font-bold rounded-full transition-colors"
+                        >
+                          {planParsing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading…</> : 'Pull out my plan'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {planParsedNote && !showPlanPaste && (
+                    <p className="mt-2 text-xs font-medium text-sky-700">{planParsedNote}</p>
+                  )}
+                </div>
+
                 <div className="space-y-6">
                   <div className="relative">
                     <div className="flex items-baseline justify-between mb-3">
