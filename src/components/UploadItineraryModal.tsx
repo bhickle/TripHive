@@ -141,6 +141,12 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   const [tripPassPurchasing, setTripPassPurchasing] = useState(false);
   const [tripPassError, setTripPassError] = useState<string | null>(null);
 
+  // Enrich-after-import: the parser transcribes the user's plan verbatim, so
+  // meals/tips are empty. This offers to fill them in around the saved trip.
+  const [enriching, setEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [enrichResult, setEnrichResult] = useState<{ days: number; meals: number } | null>(null);
+
   const [step, setStep] = useState<Step>('upload');
   const [tripChoice, setTripChoice] = useState<TripChoice>('new');
   const [selectedTripId, setSelectedTripId] = useState('');
@@ -635,6 +641,37 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
     } catch {
       setTripPassError('Could not start checkout. Please try again.');
       setTripPassPurchasing(false);
+    }
+  };
+
+  // ── Enrich the imported trip ──────────────────────────────────────────────
+  // Calls /api/enrich-itinerary with includeRestaurants:true. The route adds
+  // breakfast/lunch/dinner ONLY to days that have zero restaurants (the parsed-
+  // import case) and fills photo spots / foodie / nightlife / shopping /
+  // priority highlights + a destination tip — all anchored to the user's own
+  // venues, which it never rewrites. Charge routes to a Trip Pass pool when the
+  // trip has one. Persists server-side, so the result is live the moment the
+  // user opens the itinerary.
+  const handleEnrich = async () => {
+    if (!savedTripId || !/^[0-9a-f-]{36}$/i.test(savedTripId)) return;
+    setEnriching(true);
+    setEnrichError(null);
+    try {
+      const res = await fetch('/api/enrich-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId: savedTripId, includeRestaurants: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEnrichError(data.message ?? data.error ?? 'Could not fill in the details. Please try again.');
+        return;
+      }
+      setEnrichResult({ days: data.enrichedDayCount ?? 0, meals: data.restaurantsAddedCount ?? 0 });
+    } catch {
+      setEnrichError('Could not fill in the details. Please try again.');
+    } finally {
+      setEnriching(false);
     }
   };
 
@@ -1288,6 +1325,52 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                   <p className="text-xs text-zinc-400 mt-0.5">{loadedFiles.length} files merged and parsed.</p>
                 )}
               </div>
+
+              {/* Enrich-after-import — the parser transcribes the user's plan
+                  verbatim (no invented venues), so meals + tips come in empty.
+                  Offer to fill those in AROUND their plan without touching their
+                  own venues. Real imported itinerary only (not blank-form).
+                  Sky = helpful action (not amber/paid, not rose/warning). */}
+              {parsedItinerary && savedTripId && /^[0-9a-f-]{36}$/i.test(savedTripId) && (
+                <div className="w-full bg-sky-50 border border-sky-200 rounded-2xl p-4 text-left">
+                  {enrichResult ? (
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-zinc-900 text-sm">Details filled in</p>
+                        <p className="text-xs text-sky-800 mt-0.5 leading-snug">
+                          {enrichResult.meals > 0
+                            ? `Added meals to ${enrichResult.meals / 3} day${enrichResult.meals / 3 === 1 ? '' : 's'}, plus `
+                            : 'Added '}
+                          photo spots &amp; local tips across {enrichResult.days} day{enrichResult.days === 1 ? '' : 's'}. Open your itinerary to see them.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <Sparkles className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-zinc-900 text-sm">Want the details filled in?</p>
+                          <p className="text-xs text-sky-800 mt-0.5 leading-snug">
+                            Your plan came in exactly as you wrote it. We can add restaurants for any day missing meals, plus photo spots and local tips around your stops — your own venues stay untouched.
+                          </p>
+                          {enrichError && <p className="text-xs text-rose-600 mt-2">{enrichError}</p>}
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleEnrich}
+                        disabled={enriching}
+                        className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-800 hover:bg-sky-900 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {enriching
+                          ? <><Loader2 className="w-4 h-4 animate-spin" /> Filling in details…</>
+                          : <><Sparkles className="w-4 h-4" /> Fill in restaurants &amp; tips</>}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Group invite CTA — surfaced prominently on done because the
                   upload feature exists primarily so free / group users can
