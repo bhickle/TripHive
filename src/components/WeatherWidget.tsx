@@ -20,6 +20,12 @@ export interface WeatherWidgetProps {
   endDate?: string;
   /** Whether to show the packing nudge derived from the forecast. Default: true. */
   showPackingTip?: boolean;
+  /** Header title override. Defaults to "Weather Forecast". Used to label a
+   *  per-track card on a cross-city day (e.g. "Track A · Florence"). */
+  title?: string;
+  /** Optional tailwind bg-* class for a small dot before the title — the
+   *  track's color on a cross-city day (sky-500 for A, amber-500 for B). */
+  dotColor?: string;
 }
 
 /** WMO weather interpretation codes → display info. */
@@ -80,7 +86,7 @@ function primaryDest(dest: string | undefined | null): string {
 /** Open-Meteo forecast window: 16 days from today. */
 const MAX_FORECAST_DAYS = 16;
 
-export function WeatherWidget({ destination, startDate, endDate, showPackingTip = true }: WeatherWidgetProps) {
+export function WeatherWidget({ destination, startDate, endDate, showPackingTip = true, title, dotColor }: WeatherWidgetProps) {
   const [days, setDays] = useState<WeatherDay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,7 +191,10 @@ export function WeatherWidget({ destination, startDate, endDate, showPackingTip 
       <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-100">
         <span className="text-2xl flex-shrink-0">🌤️</span>
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-zinc-900 text-sm">Weather Forecast</h4>
+          <h4 className="font-semibold text-zinc-900 text-sm flex items-center gap-1.5">
+            {dotColor && <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dotColor}`} />}
+            {title ?? 'Weather Forecast'}
+          </h4>
           <p className="text-xs text-zinc-400 truncate">{locationName || dest}</p>
         </div>
         <a

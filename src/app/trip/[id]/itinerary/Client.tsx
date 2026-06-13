@@ -5152,17 +5152,49 @@ function ItineraryPageContent() {
 
           {/* Sidebar */}
           <aside className="w-full lg:w-72 flex flex-col gap-5">
-            {/* Weather Card — scoped to the day's city, falls back to trip destination */}
-            <WeatherWidget
-              destination={
-                currentDayData.city
+            {/* Weather Card — scoped to the day's city, falls back to trip
+                destination. On a CROSS-CITY split day (Track A and B in
+                different cities) we show one card per track, each labelled with
+                its track color + city, since one forecast can't cover both. */}
+            {(() => {
+              const fallbackCity = currentDayData.city
                 ?? aiMeta?.destination?.split(/[,&\/]|\s+and\s+/i)[0]?.trim()
-                ?? 'your destination'
+                ?? 'your destination';
+              const isCrossCity = !!currentDayData.trackBCity && currentDayData.trackBCity !== currentDayData.city;
+              if (!isCrossCity) {
+                return (
+                  <WeatherWidget
+                    destination={fallbackCity}
+                    startDate={currentDayData.date}
+                    endDate={currentDayData.date}
+                    showPackingTip={false}
+                  />
+                );
               }
-              startDate={currentDayData.date}
-              endDate={currentDayData.date}
-              showPackingTip={false}
-            />
+              const aCity = currentDayData.trackACity || currentDayData.city || fallbackCity;
+              const bCity = currentDayData.trackBCity as string;
+              const core = (c: string) => c.split(',')[0].trim();
+              return (
+                <>
+                  <WeatherWidget
+                    destination={aCity}
+                    title={`Track A · ${core(aCity)}`}
+                    dotColor="bg-sky-500"
+                    startDate={currentDayData.date}
+                    endDate={currentDayData.date}
+                    showPackingTip={false}
+                  />
+                  <WeatherWidget
+                    destination={bCity}
+                    title={`Track B · ${core(bCity)}`}
+                    dotColor="bg-amber-500"
+                    startDate={currentDayData.date}
+                    endDate={currentDayData.date}
+                    showPackingTip={false}
+                  />
+                </>
+              );
+            })()}
 
 
             {/* ── Day Highlights — unified discovery sidebar ──
