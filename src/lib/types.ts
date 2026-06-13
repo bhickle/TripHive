@@ -452,6 +452,47 @@ export interface ItineraryDay {
   dinnerMeetupLocation?: string | null;
 }
 
+/**
+ * Structured per-day intent parsed from a user's pasted free-text plan (the
+ * Trip Builder "Where To" paste, or Track A/B markers detected in a day's
+ * outline). Carries the explicit split / cross-city signal the generator keys
+ * off — and the per-track cities that Layer 2 (cross-city rendering) needs.
+ * `dayNumber` is 1-based. Kept deliberately small (the per-day venue/time text
+ * still rides on `dailyOutlines`); this is only the structural signal.
+ */
+export interface ParsedDayPlan {
+  dayNumber: number;
+  /** User explicitly divided the day into Track A and Track B. */
+  split: boolean;
+  /** Track A and Track B are in DIFFERENT cities that day. This flag IS the
+   *  opt-in for cross-city handling — set only when the user said so. */
+  crossCity: boolean;
+  trackACity?: string;
+  trackBCity?: string;
+}
+
+/**
+ * Result of `/api/parse-plan` — a free-text trip plan parsed into the shape the
+ * Trip Builder pre-fills from. The generator's existing strong daily-outline
+ * honoring consumes `dailyOutlines`; `dayPlans` adds the split/cross-city signal.
+ */
+export interface ParsedPlan {
+  destination?: string;
+  /** Ordered city list when the plan spans multiple cities. */
+  destinations?: string[];
+  daysPerDestination?: Record<string, number>;
+  startDate?: string;
+  endDate?: string;
+  tripLength?: number;
+  groupType?: string;
+  groupSize?: number;
+  priorities?: string[];
+  /** Per-day outline text, day-indexed (index = dayNumber - 1). */
+  dailyOutlines?: string[];
+  /** Structured split / cross-city signal per day. */
+  dayPlans?: ParsedDayPlan[];
+}
+
 export interface GroupMember {
   id: string;
   name: string;

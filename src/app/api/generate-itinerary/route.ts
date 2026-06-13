@@ -10,7 +10,7 @@ import type { Json } from '@/lib/supabase/database.types';
 import { TIER_LIMITS, SubscriptionTier, normalizeTier } from '@/lib/types';
 import { validateAndCorrectDay } from '@/lib/places/verifyDayLocations';
 import { correctDayOpeningHours } from '@/lib/places/openingHours';
-import type { ItineraryDay } from '@/lib/types';
+import type { ItineraryDay, ParsedDayPlan } from '@/lib/types';
 
 // Extend Vercel function timeout to 5 minutes (300s).
 // Itinerary generation streams 64K tokens per pass; a 10-day trip with two
@@ -398,6 +398,10 @@ function buildPrompt(params: {
    *  strings are ignored. The AI uses these as a strong steer for what to
    *  schedule on each day while still emitting the full schema. */
   dailyOutlines?: string[];
+  /** Structured split / cross-city signal per day, parsed from a pasted plan
+   *  (or detected from Track A/B markers). Keyed by dayNumber. Drives explicit
+   *  split-track honoring; `crossCity` flags Layer-2 different-city track days. */
+  dayPlans?: ParsedDayPlan[];
   realPlaces?: { restaurants: GooglePlace[]; attractions: GooglePlace[] } | null;
   multiCityPlaces?: Record<string, { restaurants: GooglePlace[]; attractions: GooglePlace[] }> | null;
   organizerPersona?: { priorities: string[]; vibes?: string[] } | null;
@@ -469,6 +473,14 @@ function buildPrompt(params: {
   const dailyOutlinesText = hasDailyOutlines
     ? `\n\nUSER-SUPPLIED DAILY OUTLINES — the traveler has told us what they generally want to do each day. Build each day around the outline they wrote for that day index. Still emit the full schema (3 meals, 4-6 activities, transport legs, sidebar arrays, etc.) — the outline is the SKELETON; you fill in the venues, timing, and supporting picks. Where an outline names a specific venue, USE THAT VENUE (verify it's real and apply the same hours/price constraints as any other pick). Where an outline is vague ("museum day", "explore the old town"), interpret it generously but keep that day's focus on what they asked for. If an outline is empty for a given day, build that day normally from the priorities and rules above. Outlines:\n${dailyOutlines.map((o, i) => o ? `  Day ${i + 1}: ${o}` : `  Day ${i + 1}: (no specific request — build normally)`).join('\n')}`
     : '';
+  // Structured split / cross-city signal from a parsed paste (or marker
+  // detection). userRequestedSplit makes an explicit Track A/B request
+  // authoritative even when the priority-divergence heuristic wouldn't fire —
+  // the gap that silently ignored a user's hand-typed "Track A / Track B" day.
+  const dayPlans = params.dayPlans ?? [];
+  const markerSplit = /\btrack\s*[ab]\b\s*[:\-–]/i.test([...dailyOutlines, additionalContext].join('\n'));
+  const userRequestedSplit = dayPlans.some(d => d.split) || markerSplit;
+  const crossCityDays = dayPlans.filter(d => d.crossCity);
   const multiCityPlaces = params.multiCityPlaces ?? null;
   const bookedCar = params.bookedCar ?? null;
   const organizerPersona = params.organizerPersona ?? null;
@@ -589,7 +601,17 @@ Apply this cap ONLY to food venue picks (restaurants, cafés, food markets, food
       return hasHigh && hasLow;
     })();
 
-    if (groupSize >= 4 && (personaOnly.length > 0 || hasMemberDivergence)) {
+    if (userRequestedSplit) {
+      // The user EXPLICITLY split specific days into Track A / Track B in their
+      // notes. Honor it exactly on those days — a hard instruction, not a
+      // suggestion (and independent of group size or the divergence heuristic).
+      const crossCityNote = crossCityDays.length > 0
+        ? ` CROSS-CITY DAYS: on day(s) ${crossCityDays.map(d => `Day ${d.dayNumber} (A→${d.trackACity ?? '?'} / B→${d.trackBCity ?? '?'})`).join('; ')} the user put the two tracks in DIFFERENT cities. For now, anchor that day's "city" to Track A's city and make Track A's venues/addresses match it (so the build validates); still place Track B's plan in track_b and describe it, but do NOT mix Track B's city into the day's shared address/city fields. (Full per-track-city rendering is coming separately.)`
+        : '';
+      text += `
+
+SPLIT TRACK — USER REQUESTED (honor exactly): The traveler divided specific days into Track A and Track B in their daily outlines. On EVERY day whose outline names "Track A" and "Track B", you MUST split that day: put Track A's activities in track_a, Track B's in track_b, set short trackALabel/trackBLabel descriptors, and use the exact venues and times the user named for each track. Keep arrival/shared items in "shared". Unless the user says otherwise, both tracks reconvene for dinner — set dinnerMeetupLocation to that day's dinner venue. Restaurants always go in the shared track. Days the user did NOT split stay single, shared days.${crossCityNote}`;
+    } else if (groupSize >= 4 && (personaOnly.length > 0 || hasMemberDivergence)) {
       const splitReason = personaOnly.length > 0
         ? `One track could lean into the organizer's personal interests (${personaOnly.join(', ')}); the other stays anchored to the main trip vibe (${Array.from(tripPriorities).join(', ')})`
         : `Base each track on the clusters of member interests revealed above`;
@@ -2023,6 +2045,18 @@ export async function POST(request: NextRequest) {
       const raw = (body.dailyOutlines as string[] | undefined) ?? [];
       if (!citySegment) return raw;
       return raw.slice(citySegment.dayStart - 1, citySegment.dayStart - 1 + citySegment.dayCount);
+    })(),
+    // Same slicing logic as dailyOutlines: in city-segment mode, keep only this
+    // chunk's days and remap dayNumber to the chunk-relative 1-based index so
+    // the split prompt's "Day N" lines up with the chunk's outlines.
+    dayPlans: (() => {
+      const raw = (body.dayPlans as ParsedDayPlan[] | undefined) ?? [];
+      if (!citySegment) return raw;
+      const lo = citySegment.dayStart;
+      const hi = citySegment.dayStart + citySegment.dayCount - 1;
+      return raw
+        .filter(d => d.dayNumber >= lo && d.dayNumber <= hi)
+        .map(d => ({ ...d, dayNumber: d.dayNumber - lo + 1 }));
     })(),
     realPlaces: resolvedRealPlaces,
     multiCityPlaces: resolvedMultiCityPlaces,
