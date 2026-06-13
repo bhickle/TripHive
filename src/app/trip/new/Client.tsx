@@ -844,6 +844,19 @@ function TripBuilderPage() {
     }
   };
 
+  // Reorder a multi-city route: swap the city at `index` with its neighbor in
+  // the given direction (-1 = earlier, +1 = later). daysPerDestination is keyed
+  // by city NAME, not position, so per-city day counts ride along untouched.
+  const moveCity = (index: number, dir: -1 | 1) => {
+    setState(prev => {
+      const target = index + dir;
+      if (target < 0 || target >= prev.destinations.length) return prev;
+      const next = [...prev.destinations];
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...prev, destinations: next };
+    });
+  };
+
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
@@ -1896,14 +1909,41 @@ function TripBuilderPage() {
                         <div className="flex items-center gap-1.5 flex-wrap p-3 bg-white border border-sky-200 rounded-xl">
                           {state.destinations.map((city, i) => (
                             <React.Fragment key={city}>
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
-                                {city}
+                              <span className="inline-flex items-center gap-1 pl-1.5 pr-2.5 py-1.5 bg-sky-50 border border-sky-200 text-sky-800 text-sm font-medium rounded-full">
+                                {/* Move earlier / later — only shown on a multi-city
+                                    route, disabled at the ends. Lets the user place a
+                                    city in the middle (Rome → Florence → Rome) without
+                                    deleting and re-adding. */}
+                                {state.destinations.length > 1 && (
+                                  <span className="inline-flex items-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => moveCity(i, -1)}
+                                      disabled={i === 0}
+                                      aria-label={`Move ${city} earlier`}
+                                      className="text-sky-600 hover:text-sky-800 disabled:text-sky-200 disabled:cursor-not-allowed"
+                                    >
+                                      <ChevronLeft className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => moveCity(i, 1)}
+                                      disabled={i === state.destinations.length - 1}
+                                      aria-label={`Move ${city} later`}
+                                      className="text-sky-600 hover:text-sky-800 disabled:text-sky-200 disabled:cursor-not-allowed"
+                                    >
+                                      <ChevronRight className="w-3.5 h-3.5" />
+                                    </button>
+                                  </span>
+                                )}
+                                <span className="ml-0.5">{city}</span>
                                 <button
                                   type="button"
                                   onClick={() => setState(prev => {
                                     const { [city]: _, ...rest } = prev.daysPerDestination;
                                     return { ...prev, destinations: prev.destinations.filter(d => d !== city), daysPerDestination: rest };
                                   })}
+                                  aria-label={`Remove ${city}`}
                                   className="text-sky-400 hover:text-sky-700"
                                 >
                                   <X className="w-3 h-3" />
