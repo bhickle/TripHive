@@ -4338,11 +4338,20 @@ function ItineraryPageContent() {
                       <>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Today&apos;s tracks</p>
                         <div className="flex flex-wrap gap-3">
-                          {[
-                            { color: 'bg-sky-800', label: 'Shared', show: !isSmallGroupTrip },
-                            { color: 'bg-sky-500', label: currentDayData.trackALabel || 'Track A', show: hasTrackA },
-                            { color: 'bg-amber-500', label: currentDayData.trackBLabel || 'Track B', show: hasTrackB },
-                          ].filter(t => t.show).map(t => (
+                          {(() => {
+                            // On a cross-city split day the two tracks are in
+                            // different cities — append each track's city to its
+                            // label ("Track B · Tivoli") so it isn't read against
+                            // the day's primary city. Same-city days show nothing.
+                            const dCity = currentDayData.city;
+                            const isCross = !!currentDayData.trackBCity && currentDayData.trackBCity !== dCity;
+                            const citySuffix = (c?: string) => (isCross && c ? ` · ${c.split(',')[0].trim()}` : '');
+                            return [
+                              { color: 'bg-sky-800', label: 'Shared', show: !isSmallGroupTrip },
+                              { color: 'bg-sky-500', label: (currentDayData.trackALabel || 'Track A') + citySuffix(currentDayData.trackACity || dCity), show: hasTrackA },
+                              { color: 'bg-amber-500', label: (currentDayData.trackBLabel || 'Track B') + citySuffix(currentDayData.trackBCity || dCity), show: hasTrackB },
+                            ];
+                          })().filter(t => t.show).map(t => (
                             <div key={t.label} className="flex items-center gap-2">
                               <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${t.color}`} />
                               <span className="text-xs font-semibold text-zinc-600">{t.label}</span>

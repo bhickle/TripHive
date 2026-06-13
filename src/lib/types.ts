@@ -420,6 +420,13 @@ export interface ItineraryDay {
   trackALabel?: string;
   /** Human-readable label for track B, e.g. "Culture & Relaxation" */
   trackBLabel?: string;
+  /** Cross-city days only: the city each track spends the day in, when the two
+   *  tracks diverge to DIFFERENT cities (e.g. Track A → Florence, Track B →
+   *  Tivoli). Both default to `city` when unset (the normal same-city case).
+   *  The verify gate validates each track's venues against its own city, and
+   *  `city` stays Track A's / the day's primary city for weather + maps. */
+  trackACity?: string;
+  trackBCity?: string;
   transportLegs?: TransportLeg[];
   meetupTime?: string;
   meetupLocation?: string;

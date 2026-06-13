@@ -386,13 +386,21 @@ export async function validateDayLocations(
 ): Promise<ValidationResult> {
   const dayCity = day.city;
   if (!dayCity) return { ok: true, failures: [] }; // no city set, can't validate
+  // Per-track city: on a cross-city day Track A and Track B diverge to different
+  // cities, so each track's venues validate against ITS city, not the day's
+  // primary. Shared + sidebar items always validate against day.city. Both
+  // default to dayCity, so single-city days and the add-day path are unchanged.
+  const trackACity = day.trackACity || dayCity;
+  const trackBCity = day.trackBCity || dayCity;
+  const cityForSource = (source: AddressableItem['source']): string =>
+    source === 'track_a' ? trackACity : source === 'track_b' ? trackBCity : dayCity;
   const items = collectAddressableItems(day);
   const failures: ValidationFailure[] = [];
 
   // Tier 1 pass — sync, fast.
   const tier1Survivors: AddressableItem[] = [];
   for (const item of items) {
-    if (addressContainsCity(item.address, dayCity)) {
+    if (addressContainsCity(item.address, cityForSource(item.source))) {
       tier1Survivors.push(item);
     } else {
       failures.push({
@@ -415,8 +423,11 @@ export async function validateDayLocations(
 
     // One key per survivor; resolve uniques once (a venue repeated on the
     // same day, or already memoized from a prior correction pass, is free).
-    const keyed = tier1Survivors.map(item => ({ item, key: buildLocationCacheKey(item.name, dayCity) }));
-    const repForKey = new Map(keyed.map(k => [k.key, k.item]));
+    const keyed = tier1Survivors.map(item => {
+      const city = cityForSource(item.source);
+      return { item, city, key: buildLocationCacheKey(item.name, city) };
+    });
+    const repForKey = new Map(keyed.map(k => [k.key, { item: k.item, city: k.city }]));
     const uniqueKeys = Array.from(repForKey.keys());
 
     // Bulk-read the cache for keys we don't already have memoized.
@@ -444,15 +455,15 @@ export async function validateDayLocations(
       const slice = misses.slice(start, start + CONCURRENCY);
       const results = await Promise.all(
         slice.map(key => {
-          const item = repForKey.get(key)!;
-          return lookupPlacesAddressDetailed(item.name, dayCity, placesApiKey).then(outcome => ({ key, item, outcome }));
+          const rep = repForKey.get(key)!;
+          return lookupPlacesAddressDetailed(rep.item.name, rep.city, placesApiKey).then(outcome => ({ key, rep, outcome }));
         }),
       );
-      for (const { key, item, outcome } of results) {
+      for (const { key, rep, outcome } of results) {
         if (outcome.kind === 'error') continue; // fail open, don't cache
         const addr = outcome.kind === 'found' ? outcome.address : null;
         memo.set(key, addr);
-        newRows.push({ cache_key: key, venue_name: item.name, city: dayCity, formatted_address: addr });
+        newRows.push({ cache_key: key, venue_name: rep.item.name, city: rep.city, formatted_address: addr });
       }
     }
 
@@ -462,9 +473,9 @@ export async function validateDayLocations(
     // City-match check using the resolved addresses. `undefined` (a Places
     // error with no memo entry) and `null` (no result) both fail open — same
     // as the pre-cache behavior where a null lookup was skipped.
-    for (const { item, key } of keyed) {
+    for (const { item, city, key } of keyed) {
       const addr = memo.get(key);
-      if (addr && !addressContainsCity(addr, dayCity)) {
+      if (addr && !addressContainsCity(addr, city)) {
         failures.push({
           source: item.source,
           index: item.index,
@@ -491,26 +502,37 @@ export async function validateDayLocations(
 function buildCorrectionPrompt(
   day: ItineraryDay,
   failures: ValidationFailure[],
-  dayCity: string,
 ): string {
+  const dayCity = day.city ?? '';
+  const trackACity = day.trackACity || dayCity;
+  const trackBCity = day.trackBCity || dayCity;
+  const isCrossCity = trackACity !== dayCity || trackBCity !== dayCity;
+  const cityForSource = (s: ValidationFailure['source']): string =>
+    s === 'track_a' ? trackACity : s === 'track_b' ? trackBCity : dayCity;
+
   const failureLines = failures.map(f => {
+    const city = cityForSource(f.source);
     if (f.reason === 'places_city_mismatch') {
-      return `  - ${f.name} (in ${f.source}): you emitted address "${f.address}" but Google Places resolved this venue to "${f.placesAddress}" — that is NOT in ${dayCity}. Replace with a venue actually in ${dayCity}.`;
+      return `  - ${f.name} (in ${f.source}): you emitted address "${f.address}" but Google Places resolved this venue to "${f.placesAddress}" — that is NOT in ${city}. Replace with a venue actually in ${city}.`;
     }
-    return `  - ${f.name} (in ${f.source}): address "${f.address}" does not contain "${dayCity}". This venue is in the wrong city. Replace with a venue actually in ${dayCity}.`;
+    return `  - ${f.name} (in ${f.source}): address "${f.address}" does not contain "${city}". This venue is in the wrong city. Replace with a venue actually in ${city}.`;
   }).join('\n');
 
-  return `The day below failed location validation. Every venue's address MUST be physically located in "${dayCity}".
+  const cityRule = isCrossCity
+    ? `This is a CROSS-CITY day: shared items + Track A are in "${trackACity}", but Track B is in "${trackBCity}". Each venue's address MUST be in the city for its track (Track A → ${trackACity}, Track B → ${trackBCity}, shared → ${dayCity}).`
+    : `Every venue's address MUST be physically located in "${dayCity}".`;
+
+  return `The day below failed location validation. ${cityRule}
 
 VALIDATION FAILURES:
 ${failureLines}
 
 INSTRUCTIONS:
-1. Re-emit the SAME day object (same "day" number, "date", "theme", "city").
-2. Replace ONLY the flagged venues above with real venues actually located in ${dayCity}. Keep all other venues unchanged.
-3. Each replacement venue's "address" MUST contain "${dayCity}" or its postal code.
+1. Re-emit the SAME day object (same "day" number, "date", "theme", "city"${isCrossCity ? ', "trackACity", "trackBCity"' : ''}).
+2. Replace ONLY the flagged venues above with real venues actually located in the city named for each. Keep all other venues unchanged.
+3. Each replacement venue's "address" MUST contain its track's city or postal code.
 4. Preserve every other field (transport legs, sidebar arrays, meetup times, etc.) unless they reference one of the replaced venues.
-5. If you can't recall a real venue in ${dayCity}, describe a category instead ("a casual bistro near the town center") rather than naming a venue in the wrong city.
+5. If you can't recall a real venue, describe a category instead ("a casual bistro near the town center") rather than naming a venue in the wrong city.
 
 Return ONLY the corrected day as a single JSON object. No markdown. No explanation. Start with { and end with }.
 
@@ -531,7 +553,7 @@ async function reEmitDayWithCorrection(
   systemPrompt: string,
 ): Promise<ItineraryDay | null> {
   if (!day.city) return null;
-  const correctionPrompt = buildCorrectionPrompt(day, failures, day.city);
+  const correctionPrompt = buildCorrectionPrompt(day, failures);
   try {
     const response = await anthropic.messages.create({
       model: modelId,
@@ -623,6 +645,10 @@ export async function validateAndCorrectDay(
     corrected.day = current.day;
     corrected.date = current.date;
     corrected.city = current.city;
+    // Keep the per-track cities too, so a cross-city day's verification stays
+    // anchored to the right cities across correction passes.
+    corrected.trackACity = current.trackACity;
+    corrected.trackBCity = current.trackBCity;
     result = await validateDayLocations(corrected, opts.placesApiKey, cache);
     current = corrected;
     if (result.ok) return { day: current, ok: true, retries };
