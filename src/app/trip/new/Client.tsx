@@ -548,7 +548,17 @@ function TripBuilderPage() {
         const next = { ...prev };
         if (plan.destination) next.destination = plan.destination;
         if (plan.destinations && plan.destinations.length > 1) {
-          next.destinations = plan.destinations;
+          // Dedup case-insensitively, preserving order — the rest of the
+          // multi-city model (React key, name-keyed daysPerDestination,
+          // remove-by-name) assumes distinct cities, so a parsed round-trip
+          // ("Rome → Florence → Rome") must collapse to distinct stops.
+          const seen = new Set<string>();
+          next.destinations = plan.destinations.filter(c => {
+            const key = c.trim().toLowerCase();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
           if (plan.daysPerDestination) next.daysPerDestination = plan.daysPerDestination;
         }
         if (plan.startDate) next.startDate = plan.startDate;

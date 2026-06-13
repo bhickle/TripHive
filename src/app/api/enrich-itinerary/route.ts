@@ -457,6 +457,12 @@ export async function POST(req: NextRequest) {
     return Object.keys(grouped).length > 0 ? grouped : null;
   };
 
+  // Count what ACTUALLY merged (not what we asked for) so the client's
+  // "Added meals to N days" message is truthful — the AI can return fewer
+  // restaurants than days needing them, and Tier-1 city checks drop some.
+  let restaurantsActuallyAdded = 0;
+  let mealDaysAdded = 0;
+
   const mergedDays = days.map(d => {
     const enriched = enrichmentByDay.get(d.day);
     if (!enriched) return d;
@@ -498,6 +504,10 @@ export async function POST(req: NextRequest) {
         track_a: mergedTracks?.track_a,
         track_b: mergedTracks?.track_b,
       };
+      if (newRestaurants.length > 0) {
+        restaurantsActuallyAdded += newRestaurants.length;
+        mealDaysAdded++;
+      }
     }
 
     // Transport backfill: set transportToNext on stops that don't already have
@@ -524,7 +534,9 @@ export async function POST(req: NextRequest) {
           if (!a || typeof a !== 'object') return a;
           const act = a as Record<string, unknown>;
           if (act.transportToNext) return act; // never overwrite an existing leg
-          const leg = legByName.get(norm(act.name ?? act.title));
+          // Match orderedStops' `name || title` (NOT ??) so an activity with an
+          // empty-string name still resolves to its title for the leg lookup.
+          const leg = legByName.get(norm(act.name || act.title));
           return leg ? { ...act, transportToNext: leg } : act;
         });
       };
@@ -569,6 +581,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     days: mergedDays,
     enrichedDayCount: targetDays.length,
-    restaurantsAddedCount: daysNeedingRestaurants.size * 3,
+    // Actual counts (what merged), not what we requested — keeps the client's
+    // confirmation truthful.
+    restaurantsAddedCount: restaurantsActuallyAdded,
+    mealDayCount: mealDaysAdded,
   });
 }

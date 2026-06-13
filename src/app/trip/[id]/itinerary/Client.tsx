@@ -2238,38 +2238,32 @@ function ItineraryPageContent() {
   const activeDays = aiDays ?? (isMockTrip ? itineraryDays : []);
 
   // Missing-day detection. A build whose chunk timed out leaves the surviving
-  // days with their ORIGINAL day numbers, so the array has a hole (e.g. days
-  // [1,2,4,5,6] — day 3 missing). The intended length is the largest of the
-  // trip_length column (synced down on a cut-off build but still a useful
-  // floor), the highest day number present, and the day count. Any number in
-  // 1..plannedDayCount not present is a missing day. This is DATA-driven (not
-  // the session-only liveBuildError), so the recovery banner survives reload.
+  // days with their ORIGINAL day numbers, so the array has an INTERIOR hole
+  // (e.g. days [1,2,4,5,6] — day 3 missing). We deliberately detect ONLY holes
+  // strictly between the lowest and highest present day numbers — NOT a trailing
+  // shortfall vs. some planned length. Keying on a planned-length signal
+  // (trip_length / preferences.tripLength) false-positived: a trip the AI
+  // legitimately built short (cutoff, sparse, multi-city under-allocation) has
+  // a contiguous [1..k] but a stale planned N>k, which would nag the banner
+  // forever and invite a credit spend on phantom days. A genuine trailing-chunk
+  // loss is rarer and the user recovers via Regenerate. DATA-driven (not the
+  // session-only liveBuildError), so the recovery banner survives reload.
   const missingDays = useMemo(() => {
     const days = activeDays as ItineraryDay[];
     if (!days.length) return [] as { day: number; date: string }[];
     const present = new Set(days.map(d => d.day));
-    // Originally-requested length, persisted in preferences at build time. It's
-    // the only signal that survives a TRAILING loss (last chunk fully failed),
-    // where trip_length gets synced down to the partial count and the max-day
-    // present no longer reveals the gap.
-    const plannedFromPrefs = Number((aiMeta?.preferences as Record<string, unknown> | undefined)?.tripLength) || 0;
-    const plannedDayCount = Math.max(
-      tripRow?.trip_length ?? 0,
-      plannedFromPrefs,
-      ...days.map(d => d.day ?? 0),
-      days.length,
-    );
+    const maxDay = Math.max(...days.map(d => d.day ?? 0));
     // Anchor date = any present day with a valid date; a missing day N then
     // gets anchorDate + (N - anchorDay). Empty for a date-less trip.
     const anchor = days.find(d => d.date && !isNaN(new Date(d.date + 'T12:00:00').getTime()));
     const out: { day: number; date: string }[] = [];
-    for (let n = 1; n <= plannedDayCount; n++) {
+    for (let n = 1; n < maxDay; n++) {
       if (!present.has(n)) {
         out.push({ day: n, date: anchor ? addDays(anchor.date, n - (anchor.day ?? 1)) : '' });
       }
     }
     return out;
-  }, [activeDays, tripRow?.trip_length, aiMeta]);
+  }, [activeDays]);
 
   // Build the `trip` object passed to TripStoryModal and read in a few places
   // for `destination`. Previously this spread `...trips[0]` (Iceland mock) for
@@ -4344,7 +4338,11 @@ function ItineraryPageContent() {
                             // label ("Track B · Tivoli") so it isn't read against
                             // the day's primary city. Same-city days show nothing.
                             const dCity = currentDayData.city;
-                            const isCross = !!currentDayData.trackBCity && currentDayData.trackBCity !== dCity;
+                            const cityCore = (c?: string) => (c ?? '').split(',')[0].trim().toLowerCase();
+                            // Cross-city only when Track B actually has activities AND
+                            // its city core genuinely differs (so "Rome" vs "Rome, Italy"
+                            // doesn't false-positive).
+                            const isCross = hasTrackB && !!currentDayData.trackBCity && cityCore(currentDayData.trackBCity) !== cityCore(dCity);
                             const citySuffix = (c?: string) => (isCross && c ? ` · ${c.split(',')[0].trim()}` : '');
                             return [
                               { color: 'bg-sky-800', label: 'Shared', show: !isSmallGroupTrip },
@@ -5160,7 +5158,12 @@ function ItineraryPageContent() {
               const fallbackCity = currentDayData.city
                 ?? aiMeta?.destination?.split(/[,&\/]|\s+and\s+/i)[0]?.trim()
                 ?? 'your destination';
-              const isCrossCity = !!currentDayData.trackBCity && currentDayData.trackBCity !== currentDayData.city;
+              // Cross-city only when Track B actually has activities AND its
+              // city core genuinely differs from the day's (so a country-
+              // qualified "Rome, Italy" vs "Rome" doesn't render a phantom card).
+              const cityCore = (c?: string) => (c ?? '').split(',')[0].trim().toLowerCase();
+              const isCrossCity = hasTrackB && !!currentDayData.trackBCity
+                && cityCore(currentDayData.trackBCity) !== cityCore(currentDayData.city);
               if (!isCrossCity) {
                 return (
                   <WeatherWidget

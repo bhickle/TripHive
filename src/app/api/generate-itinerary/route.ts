@@ -479,8 +479,10 @@ function buildPrompt(params: {
   // the gap that silently ignored a user's hand-typed "Track A / Track B" day.
   const dayPlans = params.dayPlans ?? [];
   const markerSplit = /\btrack\s*[ab]\b\s*[:\-–]/i.test([...dailyOutlines, additionalContext].join('\n'));
-  const userRequestedSplit = dayPlans.some(d => d.split) || markerSplit;
   const crossCityDays = dayPlans.filter(d => d.crossCity);
+  // A cross-city day is always a split, even if the parser only set crossCity
+  // (not split) — so OR it in to be safe.
+  const userRequestedSplit = dayPlans.some(d => d.split) || crossCityDays.length > 0 || markerSplit;
   const multiCityPlaces = params.multiCityPlaces ?? null;
   const bookedCar = params.bookedCar ?? null;
   const organizerPersona = params.organizerPersona ?? null;

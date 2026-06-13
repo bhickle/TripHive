@@ -145,7 +145,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
   // meals/tips are empty. This offers to fill them in around the saved trip.
   const [enriching, setEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
-  const [enrichResult, setEnrichResult] = useState<{ days: number; meals: number } | null>(null);
+  const [enrichResult, setEnrichResult] = useState<{ days: number; mealDays: number } | null>(null);
 
   const [step, setStep] = useState<Step>('upload');
   const [tripChoice, setTripChoice] = useState<TripChoice>('new');
@@ -667,7 +667,7 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
         setEnrichError(data.message ?? data.error ?? 'Could not fill in the details. Please try again.');
         return;
       }
-      setEnrichResult({ days: data.enrichedDayCount ?? 0, meals: data.restaurantsAddedCount ?? 0 });
+      setEnrichResult({ days: data.enrichedDayCount ?? 0, mealDays: data.mealDayCount ?? 0 });
     } catch {
       setEnrichError('Could not fill in the details. Please try again.');
     } finally {
@@ -1339,8 +1339,8 @@ export function UploadItineraryModal({ onClose }: UploadItineraryModalProps) {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-zinc-900 text-sm">Details filled in</p>
                         <p className="text-xs text-sky-800 mt-0.5 leading-snug">
-                          {enrichResult.meals > 0
-                            ? `Added meals to ${enrichResult.meals / 3} day${enrichResult.meals / 3 === 1 ? '' : 's'}, plus `
+                          {enrichResult.mealDays > 0
+                            ? `Added meals to ${enrichResult.mealDays} day${enrichResult.mealDays === 1 ? '' : 's'}, plus `
                             : 'Added '}
                           walking directions, photo spots &amp; local tips across {enrichResult.days} day{enrichResult.days === 1 ? '' : 's'}. Open your itinerary to see them.
                         </p>

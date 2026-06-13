@@ -130,17 +130,26 @@ export async function POST(req: NextRequest) {
     // Day-indexed outline text (index = dayNumber - 1) — feeds the generator's
     // existing strong daily-outline honoring. Padded so a gap doesn't shift days.
     const maxDay = days.reduce((m, d) => Math.max(m, Number(d.dayNumber) || 0), 0);
-    const tripLength = parsed.tripLength && parsed.tripLength > 0 ? parsed.tripLength : maxDay;
+    // Never let tripLength fall BELOW the highest dayNumber the model emitted —
+    // otherwise an out-of-range day's outline is dropped while its dayPlans
+    // entry survives, pointing the generator at a day with no outline/textarea.
+    const tripLength = Math.max(parsed.tripLength && parsed.tripLength > 0 ? parsed.tripLength : 0, maxDay);
     const dailyOutlines: string[] = Array.from({ length: tripLength }, () => '');
     const dayPlans: ParsedDayPlan[] = [];
+    const seenDayNums = new Set<number>();
     for (const d of days) {
       const n = Number(d.dayNumber) || 0;
-      if (n < 1) continue;
-      if (n <= dailyOutlines.length) dailyOutlines[n - 1] = (d.outline ?? '').trim();
+      if (n < 1 || n > tripLength) continue;       // clamp to valid range
+      if (seenDayNums.has(n)) continue;            // dedupe duplicate dayNumbers
+      seenDayNums.add(n);
+      dailyOutlines[n - 1] = (d.outline ?? '').trim();
+      const crossCity = !!d.crossCity;
       dayPlans.push({
         dayNumber: n,
-        split: !!d.split,
-        crossCity: !!d.crossCity,
+        // A cross-city day IS a split — force it so the generator's
+        // userRequestedSplit path fires even if the model set split:false.
+        split: !!d.split || crossCity,
+        crossCity,
         trackACity: (d.trackACity ?? '').trim() || undefined,
         trackBCity: (d.trackBCity ?? '').trim() || undefined,
       });
