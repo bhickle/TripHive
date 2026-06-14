@@ -28,6 +28,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const roleCheck = await requireTripAiRole(params.id);
   if (!roleCheck.ok) return roleCheck.response;
 
+  // Background build is OFF by default while the paste-generation path is being
+  // fixed and the designed background UX is built. The client falls back to the
+  // proven in-browser SSE build on { fallback:true }. Re-enable per-environment
+  // by setting BACKGROUND_BUILD_ENABLED=true in Vercel — no redeploy needed.
+  if (process.env.BACKGROUND_BUILD_ENABLED !== 'true') {
+    return NextResponse.json({ ok: false, fallback: true, reason: 'disabled' });
+  }
+
   // No event key → Inngest can't accept events in this env. Signal fallback.
   if (!process.env.INNGEST_EVENT_KEY) {
     return NextResponse.json({ ok: false, fallback: true, reason: 'no_event_key' });

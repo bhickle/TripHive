@@ -2296,6 +2296,28 @@ export async function POST(request: NextRequest) {
             name: f.name, address: f.address, reason: f.reason, placesAddress: f.placesAddress,
           }))),
         );
+        // DIAGNOSTIC (temporary, 2026-06-14): prod logs truncate the console.error
+        // above, so persist the verify failures to the trip row where they can be
+        // read directly — this is how we'll see WHY paste-based builds produce
+        // zero days (which day, which venues, what Places resolved them to).
+        // Best-effort + non-blocking. Remove once the paste-gen bug is fixed.
+        if (requestBodyTripId && /^[0-9a-f-]{36}$/i.test(requestBodyTripId)) {
+          try {
+            const diagAdmin = createAdminClient();
+            const { data: diagRow } = await diagAdmin.from('itineraries').select('meta').eq('trip_id', requestBodyTripId).maybeSingle();
+            const diagMeta = (diagRow?.meta && typeof diagRow.meta === 'object') ? { ...(diagRow.meta as Record<string, unknown>) } : {};
+            diagMeta.buildDiag = {
+              at: new Date().toISOString(),
+              day: typedDay.day,
+              city: dayCity,
+              retries: result.retries,
+              failures: (result.finalFailures ?? []).slice(0, 10).map(f => ({
+                name: f.name, address: f.address, reason: f.reason, placesAddress: f.placesAddress,
+              })),
+            };
+            await diagAdmin.from('itineraries').update({ meta: diagMeta as never }).eq('trip_id', requestBodyTripId);
+          } catch { /* diagnostic write failed — non-fatal */ }
+        }
         send({
           type: 'error',
           message: `Couldn't verify day ${typedDay.day} (${dayCity}) — venues kept resolving to the wrong city (${failedNames || 'multiple'}). Please regenerate.`,
