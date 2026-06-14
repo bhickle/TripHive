@@ -48,6 +48,29 @@ export async function finishBackgroundBuild(tripId: string): Promise<FinishBuild
     .update({ itinerary_generated_at: new Date().toISOString() })
     .eq('id', tripId);
 
+  // 2b. Realtime-visible "done" marker. `itineraries` is in the Realtime
+  // publication (trips is NOT), so the building browser watches this flag to
+  // flip the build screen to the finished view the instant the build lands —
+  // no polling latency. Merge into existing meta so the day-1 title/sidebar
+  // lists the orchestrator persisted aren't clobbered.
+  {
+    const { data: itinRow } = await admin
+      .from('itineraries')
+      .select('meta')
+      .eq('trip_id', tripId)
+      .maybeSingle();
+    const baseMeta = (itinRow?.meta && typeof itinRow.meta === 'object')
+      ? (itinRow.meta as Record<string, unknown>)
+      : {};
+    await admin
+      .from('itineraries')
+      .update({
+        meta: { ...baseMeta, buildReady: true, buildReadyAt: new Date().toISOString() } as never,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('trip_id', tripId);
+  }
+
   // 3. Notify the organizer (deduped per trip+type, so a re-run won't re-ping).
   let notified = false;
   if (trip.organizer_id) {

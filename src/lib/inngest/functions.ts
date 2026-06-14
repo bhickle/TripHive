@@ -149,6 +149,16 @@ export const buildItineraryFn = inngest.createFunction(
     if (fresh) {
       await step.run('reset-build-claim', async () => {
         await admin.from('trips').update({ build_credits_charged_at: null }).eq('id', tripId);
+        // Clear the PRIOR build's ready marker so a watching browser waits for
+        // THIS rebuild to finish rather than seeing the old itineraries.meta
+        // buildReady flag and flipping to "done" immediately.
+        const { data: itin } = await admin.from('itineraries').select('meta').eq('trip_id', tripId).maybeSingle();
+        if (itin?.meta && typeof itin.meta === 'object') {
+          const m = { ...(itin.meta as Record<string, unknown>) };
+          delete m.buildReady;
+          delete m.buildReadyAt;
+          await admin.from('itineraries').update({ meta: m as never }).eq('trip_id', tripId);
+        }
         return { cleared: true };
       });
     }
