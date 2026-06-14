@@ -1144,7 +1144,24 @@ function TripBuilderPage() {
     }
 
     if (skeletonTripId) {
-      router.push(`/trip/${skeletonTripId}/itinerary?mode=generating`);
+      // Default to the DURABLE server-side background build (Inngest) so the
+      // itinerary finishes even if the browser closes. Fall back to the
+      // in-browser SSE build (?mode=generating) when Inngest can't take the
+      // event — the build route signals that via { ok:false, fallback:true },
+      // and sessionStorage already holds the payload for the SSE path.
+      let background = false;
+      try {
+        const buildRes = await fetch(`/api/trips/${skeletonTripId}/build`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payload: { ...payload, existingTripId: skeletonTripId } }),
+        });
+        const data = await buildRes.json().catch(() => ({}));
+        background = buildRes.ok && data?.ok === true;
+      } catch {
+        background = false;
+      }
+      router.push(`/trip/${skeletonTripId}/itinerary?mode=${background ? 'building' : 'generating'}`);
     } else {
       // Fallback: use the dedicated generating page (no live-build, but still works)
       router.push('/trip/generating');

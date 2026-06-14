@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { itineraryDays, trips, MOCK_TRIP_IDS } from '@/data/mock';
 import { Activity, TransportLeg, ItineraryDay } from '@/lib/types';
 import type { Database } from '@/lib/supabase/database.types';
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type TripRow = Database['public']['Tables']['trips']['Row'];
 import { normalizeVenueKey } from '@/lib/places/verifyVenues';
@@ -952,13 +953,26 @@ function ItineraryPageContent() {
     };
     sessionStorage.setItem('tripcoord_gen_payload', JSON.stringify(payload));
     sessionStorage.setItem('tripcoord_gen_meta', JSON.stringify(meta));
-    // Route through the itinerary page's chunked live-build effect rather than
-    // /trip/generating's single unchunked call. Long trips (11+ days) hit
-    // Vercel's 300s maxDuration on a single call and truncate; chunking
-    // requests each 3-day slice separately so every slice has its own budget.
-    // fresh=1 tells the resume-detection logic to ignore previously persisted
-    // days (this is a regenerate — start over, don't pick up where we left off).
-    router.push(`/trip/${tripPageId}/itinerary?mode=generating&fresh=1`);
+    // Default to the durable server-side background build (freshRebuild clears
+    // the prior days + credit claim server-side). Fall back to the in-browser
+    // chunked SSE build (?mode=generating&fresh=1) when Inngest can't take it —
+    // sessionStorage holds the payload for that path. Long trips chunk either
+    // way so no single call hits Vercel's 300s cap.
+    (async () => {
+      let background = false;
+      try {
+        const res = await fetch(`/api/trips/${tripPageId}/build`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payload, freshRebuild: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+        background = res.ok && data?.ok === true;
+      } catch {
+        background = false;
+      }
+      router.push(`/trip/${tripPageId}/itinerary?mode=${background ? 'building' : 'generating&fresh=1'}`);
+    })();
   }, [aiMeta, tripRow, tripPageId, router]);
 
   // Recovery action for a build that produced zero days. The empty-state
@@ -975,12 +989,15 @@ function ItineraryPageContent() {
     const load = async () => {
       // When arriving in generating mode, wipe any stale localStorage data immediately
       // so we never show a previous trip's Iceland/Reykjavik content during the new build.
-      if (searchParams.get('mode') === 'generating') {
+      const mode = searchParams.get('mode');
+      if (mode === 'generating' || mode === 'building') {
         try {
           localStorage.removeItem('generatedItinerary');
           localStorage.removeItem('generatedTripMeta');
           localStorage.removeItem('currentTripId');
         } catch { /* ignore */ }
+      }
+      if (mode === 'generating') {
         // Also reset React state — App Router can keep this component mounted
         // when navigating between trip IDs, so any aiDays/aiMeta from a
         // previously-viewed trip would otherwise leak into the new build view
@@ -989,9 +1006,12 @@ function ItineraryPageContent() {
         syncAiDays(null);
         setAiMeta(null);
         setTripRow(null);
-        // Skip loading — the live-build effect will populate data as it streams in
+        // Skip loading — the live-build SSE effect populates as it streams in.
         return;
       }
+      // mode === 'building' falls through to the DB load below — it seeds any
+      // already-persisted days + tripRow (the expected-day count), and the
+      // background-build watcher streams in the rest via Realtime.
 
       // 1. Try Supabase first using the CURRENT PAGE's trip ID (from the URL)
       const looksLikeUuid = tripPageId && /^[0-9a-f-]{36}$/i.test(tripPageId);
@@ -1069,6 +1089,81 @@ function ItineraryPageContent() {
     };
     load();
   }, [tripPageId, seedVotesFromActivities, searchParams]);
+
+  // ── Background build watcher: when arriving with ?mode=building, the server
+  // (Inngest) is generating. Subscribe to Realtime on `itineraries` so days
+  // appear as the worker persists them; a 5s poll backstop covers any missed
+  // Realtime event so the screen never hangs (and works even if Realtime/RLS
+  // is silent — the poll fetches via the server-auth API). Completion = the
+  // itineraries.meta.buildReady flag once the full day count is present, or the
+  // trip's ready stamp from the poll. Then strip the mode param + reload clean.
+  useEffect(() => {
+    if (searchParams.get('mode') !== 'building') return;
+    if (!tripPageId || !/^[0-9a-f-]{36}$/i.test(tripPageId)) return;
+
+    setIsLiveBuilding(true);
+    setLiveBuildStatus('Building your itinerary…');
+
+    let done = false;
+    const supabase = createSupabaseBrowserClient();
+    const expectedDays = (): number =>
+      (tripRow?.trip_length as number | undefined) ?? aiDaysRef.current?.length ?? 0;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      setIsLiveBuilding(false);
+      setLiveBuildStatus('');
+      // Drop ?mode=building and reload the finished trip (full meta + days).
+      router.replace(`/trip/${tripPageId}/itinerary`);
+    };
+
+    const applyRow = (row: { days?: unknown; meta?: unknown } | null | undefined) => {
+      if (!row || done) return;
+      if (Array.isArray(row.days) && row.days.length > 0) {
+        const days = row.days as ItineraryDay[];
+        syncAiDays(days);
+        setLiveBuildStatus(`Building your itinerary… ${days.length} day${days.length === 1 ? '' : 's'} ready`);
+        const meta = row.meta as { buildReady?: boolean } | null | undefined;
+        const expected = expectedDays();
+        if (meta?.buildReady && (expected === 0 || days.length >= expected)) finish();
+      }
+    };
+
+    // 1. Realtime — progressive days + the ready flag.
+    const channel = supabase
+      .channel(`itin-build-${tripPageId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'itineraries', filter: `trip_id=eq.${tripPageId}` },
+        (payload) => applyRow(payload.new as { days?: unknown; meta?: unknown }),
+      )
+      .subscribe();
+
+    // 2. Poll backstop — a missed Realtime event never strands the user. Also
+    // runs once immediately so an already-finished trip (a stale ?mode=building
+    // on return) resolves without waiting for the first interval tick.
+    const checkOnce = async () => {
+      if (done) return;
+      try {
+        const res = await fetch(`/api/trips/${tripPageId}`);
+        if (!res.ok) return;
+        const { itinerary, trip } = await res.json();
+        if (itinerary) applyRow({ days: itinerary.days, meta: itinerary.meta });
+        if (!done && trip?.itinerary_generated_at && Array.isArray(itinerary?.days)) {
+          const expected = expectedDays();
+          if (expected === 0 || itinerary.days.length >= expected) finish();
+        }
+      } catch { /* transient — next tick */ }
+    };
+    checkOnce();
+    const poll = setInterval(checkOnce, 5000);
+
+    return () => {
+      try { supabase.removeChannel(channel); } catch { /* ignore */ }
+      clearInterval(poll);
+    };
+  }, [searchParams, tripPageId, tripRow, router]);
 
   // ── Live-build: drive city-by-city SSE generation when arriving with ?mode=generating ──
   useEffect(() => {
