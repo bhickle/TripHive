@@ -26,7 +26,7 @@ ${rawText.slice(0, 12000)}
 Return EXACTLY this shape:
 {
   "destination": "<primary city, country — best guess from the notes>",
-  "destinations": ["<city1>", "<city2>"],   // ordered list ONLY if the trip clearly spans multiple cities; else omit or single-element
+  "destinations": ["<city1>", "<city2>"],   // ONLY base cities where the traveler SLEEPS one or more nights, in order. A day-trip, or a "Track A/B" city visited within a SINGLE day and returned from, is NOT a destination — leave it out (it belongs to that day's plan, not the multi-city route). If the whole trip is based in one city (even with day-trips out and back), omit this or use a single element.
   "startDate": "<YYYY-MM-DD or empty string>",
   "endDate": "<YYYY-MM-DD or empty string>",
   "tripLength": <total number of days>,
@@ -157,9 +157,26 @@ export async function POST(req: NextRequest) {
 
     const result: ParsedPlan = {
       destination: (parsed.destination ?? '').trim() || undefined,
-      destinations: Array.isArray(parsed.destinations) && parsed.destinations.length > 1
-        ? parsed.destinations.map(c => String(c).trim()).filter(Boolean)
-        : undefined,
+      // Multi-city route = base (multi-night) cities ONLY. Deterministically
+      // drop any city that appears merely as a CROSS-CITY day's track city (a
+      // day-trip / split-day excursion, e.g. Track A → Florence, Track B →
+      // Tivoli on one day) — those belong to that day's dayPlans, not the
+      // multi-city day allocation. Without this the generator treats them as
+      // full stops and splits the trip's days across cities proportionally,
+      // scattering Florence/Tivoli onto the wrong days (reported 2026-06-13).
+      destinations: (() => {
+        const trackCities = new Set<string>();
+        for (const dp of dayPlans) {
+          if (!dp.crossCity) continue;
+          if (dp.trackACity) trackCities.add(dp.trackACity.trim().toLowerCase());
+          if (dp.trackBCity) trackCities.add(dp.trackBCity.trim().toLowerCase());
+        }
+        const bases = (Array.isArray(parsed.destinations) ? parsed.destinations : [])
+          .map(c => String(c).trim())
+          .filter(Boolean)
+          .filter(c => !trackCities.has(c.toLowerCase()));
+        return bases.length > 1 ? bases : undefined;
+      })(),
       startDate: (parsed.startDate ?? '').trim() || undefined,
       endDate: (parsed.endDate ?? '').trim() || undefined,
       tripLength: tripLength || undefined,
