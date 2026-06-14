@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuth, resolveInternalBuildAuth } from '@/lib/supabase/requireAuth';
 import { getTripRole, getOrganizerTier, tripHasActivePass } from '@/lib/supabase/tripAccess';
@@ -1582,30 +1581,28 @@ export async function POST(request: NextRequest) {
     }, { status: 503 });
   }
 
-  // Resolve subscription tier + organizer persona in one query
-  let userTier: SubscriptionTier = 'free';
+  // Tier comes from the RESOLVED AUTH CONTEXT — correct for BOTH the cookie path
+  // (requireAuth) and the internal background-build path (resolveInternalBuildAuth,
+  // which carries no cookie). The old code resolved tier via a cookie getUser(),
+  // so the Inngest worker — which has no cookie — silently fell back to 'free'
+  // and 402'd paid users on the FIRST chunk mid-build (2026-06-14). Persona is
+  // looked up by auth.ctx.userId (also valid on both paths) via the admin client.
+  let userTier: SubscriptionTier = normalizeTier(auth.ctx.tier);
   let organizerPersona: { priorities: string[]; vibes?: string[] } | null = null;
   try {
-    const authClient = await createClient();
-    const { data: { user } } = await authClient.auth.getUser();
-    if (user?.id) {
-      const adminClient = createAdminClient();
-      const { data: profile } = await adminClient
-        .from('profiles')
-        .select('subscription_tier, travel_persona')
-        .eq('id', user.id)
-        .single();
-      // normalizeTier: legacy 'explorer'/'nomad' rows would key TIER_LIMITS
-      // (via planTier below) to undefined and crash generation at day 0.
-      userTier = normalizeTier(profile?.subscription_tier);
-      if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
-        const p = profile.travel_persona as Record<string, unknown>;
-        const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];
-        const vibes = Array.isArray(p.vibes) ? p.vibes as string[] : undefined;
-        if (priorities.length > 0) organizerPersona = { priorities, vibes };
-      }
+    const adminClient = createAdminClient();
+    const { data: profile } = await adminClient
+      .from('profiles')
+      .select('travel_persona')
+      .eq('id', auth.ctx.userId)
+      .single();
+    if (profile?.travel_persona && typeof profile.travel_persona === 'object') {
+      const p = profile.travel_persona as Record<string, unknown>;
+      const priorities = Array.isArray(p.priorities) ? p.priorities as string[] : [];
+      const vibes = Array.isArray(p.vibes) ? p.vibes as string[] : undefined;
+      if (priorities.length > 0) organizerPersona = { priorities, vibes };
     }
-  } catch { /* fall back to free, no persona */ }
+  } catch { /* no persona — non-fatal */ }
 
   // ── Layer 2: member preferences from trip_members ─────────────────────────
   // When the request includes a tripId and the trip has members who joined via
