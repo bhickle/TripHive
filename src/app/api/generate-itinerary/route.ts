@@ -477,7 +477,12 @@ function buildPrompt(params: {
   // authoritative even when the priority-divergence heuristic wouldn't fire —
   // the gap that silently ignored a user's hand-typed "Track A / Track B" day.
   const dayPlans = params.dayPlans ?? [];
-  const markerSplit = /\btrack\s*[ab]\b\s*[:\-–]/i.test([...dailyOutlines, additionalContext].join('\n'));
+  // A genuine split needs BOTH a Track A and a Track B that day. Requiring both
+  // (not either) avoids a one-sided "Track A: Colosseum" line — which just means
+  // "the group does the Colosseum" — being read as a split and injecting bogus
+  // split instructions that derail generation (caught 2026-06-14).
+  const splitText = [...dailyOutlines, additionalContext].join('\n');
+  const markerSplit = /\btrack\s*a\b\s*[:\-–]/i.test(splitText) && /\btrack\s*b\b\s*[:\-–]/i.test(splitText);
   const crossCityDays = dayPlans.filter(d => d.crossCity);
   // A cross-city day is always a split, even if the parser only set crossCity
   // (not split) — so OR it in to be safe.

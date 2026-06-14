@@ -142,13 +142,18 @@ export async function POST(req: NextRequest) {
       if (n < 1 || n > tripLength) continue;       // clamp to valid range
       if (seenDayNums.has(n)) continue;            // dedupe duplicate dayNumbers
       seenDayNums.add(n);
-      dailyOutlines[n - 1] = (d.outline ?? '').trim();
+      const outline = (d.outline ?? '').trim();
+      dailyOutlines[n - 1] = outline;
       const crossCity = !!d.crossCity;
+      // Only a SPLIT when the day genuinely has BOTH a Track A and a Track B
+      // (or it's cross-city). The model's `split` flag over-fires on a one-sided
+      // "Track A: Colosseum" line (no Track B), which then injects split
+      // instructions that derail the build — so derive split from the text.
+      const hasA = /\btrack\s*a\b\s*[:\-–]/i.test(outline);
+      const hasB = /\btrack\s*b\b\s*[:\-–]/i.test(outline);
       dayPlans.push({
         dayNumber: n,
-        // A cross-city day IS a split — force it so the generator's
-        // userRequestedSplit path fires even if the model set split:false.
-        split: !!d.split || crossCity,
+        split: crossCity || (hasA && hasB),
         crossCity,
         trackACity: (d.trackACity ?? '').trim() || undefined,
         trackBCity: (d.trackBCity ?? '').trim() || undefined,
