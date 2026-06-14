@@ -60,8 +60,12 @@ export async function finishBackgroundBuild(tripId: string): Promise<FinishBuild
       .eq('trip_id', tripId)
       .maybeSingle();
     const baseMeta = (itinRow?.meta && typeof itinRow.meta === 'object')
-      ? (itinRow.meta as Record<string, unknown>)
+      ? { ...(itinRow.meta as Record<string, unknown>) }
       : {};
+    // Clear any stale failure marker from an earlier attempt — this build
+    // reached finalize, so it succeeded.
+    delete baseMeta.buildError;
+    delete baseMeta.buildErrorAt;
     await admin
       .from('itineraries')
       .update({

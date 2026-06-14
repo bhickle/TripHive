@@ -157,6 +157,8 @@ export const buildItineraryFn = inngest.createFunction(
           const m = { ...(itin.meta as Record<string, unknown>) };
           delete m.buildReady;
           delete m.buildReadyAt;
+          delete m.buildError;
+          delete m.buildErrorAt;
           await admin.from('itineraries').update({ meta: m as never }).eq('trip_id', tripId);
         }
         return { cleared: true };
@@ -197,6 +199,11 @@ export const buildItineraryFn = inngest.createFunction(
     let prevContext: string | null = null;
     let firstMeta: Record<string, unknown> | null = null;
 
+    // Wrap generation + handoff: on a hard failure (a chunk that keeps erroring
+    // past its retries) we write a failure marker to itineraries.meta — which is
+    // in the Realtime publication — so the watching browser shows "build failed
+    // — try again" instead of spinning on "Building…" forever.
+    try {
     for (const seg of chunkPlan) {
       const body: Record<string, unknown> = { ...payload };
       if (seg) {
@@ -285,6 +292,17 @@ export const buildItineraryFn = inngest.createFunction(
     });
 
     return { tripId, daysBuilt: allDays.length };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Build failed';
+      try {
+        const { data: itin } = await admin.from('itineraries').select('meta').eq('trip_id', tripId).maybeSingle();
+        const m = (itin?.meta && typeof itin.meta === 'object') ? { ...(itin.meta as Record<string, unknown>) } : {};
+        m.buildError = message.slice(0, 300);
+        m.buildErrorAt = new Date().toISOString();
+        await admin.from('itineraries').update({ meta: m as never }).eq('trip_id', tripId);
+      } catch { /* marker write failed — non-fatal */ }
+      throw err; // re-throw so the Inngest run is recorded as failed
+    }
   },
 );
 

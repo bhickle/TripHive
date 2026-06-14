@@ -1102,9 +1102,13 @@ function ItineraryPageContent() {
     if (!tripPageId || !/^[0-9a-f-]{36}$/i.test(tripPageId)) return;
 
     setIsLiveBuilding(true);
+    setLiveBuildError(null);
     setLiveBuildStatus('Building your itinerary…');
 
     let done = false;
+    let lastCount = aiDaysRef.current?.length ?? 0;
+    let lastProgressAt = Date.now();
+    const NO_PROGRESS_MS = 6 * 60 * 1000; // 6 min with zero new days → assume stalled
     const supabase = createSupabaseBrowserClient();
     const expectedDays = (): number =>
       (tripRow?.trip_length as number | undefined) ?? aiDaysRef.current?.length ?? 0;
@@ -1118,19 +1122,34 @@ function ItineraryPageContent() {
       router.replace(`/trip/${tripPageId}/itinerary`);
     };
 
-    const applyRow = (row: { days?: unknown; meta?: unknown } | null | undefined) => {
-      if (!row || done) return;
-      if (Array.isArray(row.days) && row.days.length > 0) {
-        const days = row.days as ItineraryDay[];
-        syncAiDays(days);
-        setLiveBuildStatus(`Building your itinerary… ${days.length} day${days.length === 1 ? '' : 's'} ready`);
-        const meta = row.meta as { buildReady?: boolean } | null | undefined;
-        const expected = expectedDays();
-        if (meta?.buildReady && (expected === 0 || days.length >= expected)) finish();
-      }
+    const fail = (msg: string) => {
+      if (done) return;
+      done = true;
+      setIsLiveBuilding(false);
+      setLiveBuildStatus('');
+      setLiveBuildError(msg);
+      // Strip ?mode=building so a refresh doesn't re-enter the building loop;
+      // liveBuildError then drives the existing "Generation didn't finish —
+      // Try again" state (or a rose banner over any partial days).
+      router.replace(`/trip/${tripPageId}/itinerary`);
     };
 
-    // 1. Realtime — progressive days + the ready flag.
+    const applyRow = (row: { days?: unknown; meta?: unknown } | null | undefined) => {
+      if (!row || done) return;
+      const meta = row.meta as { buildReady?: boolean; buildError?: string } | null | undefined;
+      const days = Array.isArray(row.days) ? (row.days as ItineraryDay[]) : [];
+      if (days.length > 0) {
+        syncAiDays(days);
+        setLiveBuildStatus(`Building your itinerary… ${days.length} day${days.length === 1 ? '' : 's'} ready`);
+        if (days.length > lastCount) { lastCount = days.length; lastProgressAt = Date.now(); }
+      }
+      const expected = expectedDays();
+      // Success takes precedence over a stale failure marker from an earlier retry.
+      if (meta?.buildReady && (expected === 0 || days.length >= expected)) { finish(); return; }
+      if (meta?.buildError) fail("We couldn't finish building this itinerary. Please try again.");
+    };
+
+    // 1. Realtime — progressive days + the ready / error flags.
     const channel = supabase
       .channel(`itin-build-${tripPageId}`)
       .on(
@@ -1140,11 +1159,16 @@ function ItineraryPageContent() {
       )
       .subscribe();
 
-    // 2. Poll backstop — a missed Realtime event never strands the user. Also
-    // runs once immediately so an already-finished trip (a stale ?mode=building
-    // on return) resolves without waiting for the first interval tick.
+    // 2. Poll backstop — a missed Realtime event never strands the user, plus a
+    // no-progress timeout in case the worker silently hangs (or Inngest is down)
+    // without ever writing a failure marker. Runs once immediately so an already-
+    // finished/failed trip (a stale ?mode=building on return) resolves at once.
     const checkOnce = async () => {
       if (done) return;
+      if (Date.now() - lastProgressAt > NO_PROGRESS_MS) {
+        fail('This build is taking longer than expected and may have stalled. Please try again.');
+        return;
+      }
       try {
         const res = await fetch(`/api/trips/${tripPageId}`);
         if (!res.ok) return;
